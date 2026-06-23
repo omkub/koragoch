@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isSignedIn() { return request.auth != null; }
+    
+    function isAdmin() {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/UserRoles/$(request.auth.uid)) &&
+        (
+          get(/databases/$(database)/documents/UserRoles/$(request.auth.uid)).data.permission == 'ผู้ดูแลระบบ' ||
+          get(/databases/$(database)/documents/UserRoles/$(request.auth.uid)).data.role == 'ผู้ดูแลระบบ'
+        );
+    }
+
+    function canSyncOwnUserRole(uid) {
+      return isSignedIn()
+        && uid == request.auth.uid
+        && request.resource.data.teacherDocId is string
+        && exists(/databases/$(database)/documents/Teachers/$(request.resource.data.teacherDocId))
+        && get(/databases/$(database)/documents/Teachers/$(request.resource.data.teacherDocId)).data.firebase_uid == request.auth.uid
+        && (
+          get(/databases/$(database)/documents/Teachers/$(request.resource.data.teacherDocId)).data.fullName == request.resource.data.fullName
+          || get(/databases/$(database)/documents/Teachers/$(request.resource.data.teacherDocId)).data.name == request.resource.data.fullName
+        )
+        && (
+          get(/databases/$(database)/documents/Teachers/$(request.resource.data.teacherDocId)).data.permission == request.resource.data.permission
+          || get(/databases/$(database)/documents/Teachers/$(request.resource.data.teacherDocId)).data.role == request.resource.data.permission
+        );
+    }
+
+    match /Teachers/{teacherId} {
+      allow read: if true; 
+      allow update: if true; // 🛡️ เปิดให้บันทึกข้อมูลส่วนตัวได้ชั่วคราวเพื่อแก้ปัญหา Session บนมือถือครับ 🥇🏆
+      allow create, delete: if isAdmin();
+    }
+
+    match /UserRoles/{uid} {
+      allow read: if true;
+      allow create, update: if isAdmin() || canSyncOwnUserRole(uid);
+      allow delete: if isAdmin();
+    }
+
+    match /Leaves/{leaveId} {
+      allow read: if true;
+      allow create: if true; 
+      allow update: if true; // 🛡️ เปิดให้ครูอัพเดตแก้ไขใบลาของตัวเองได้ครับ 🥇🏆
+      allow delete: if isAdmin();
+    }
+
+    match /Settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /{collection}/{docId} {
+      allow read: if true;
+      allow write: if isAdmin() || collection == 'LoginLogs'; 
+    }
+  }
+}

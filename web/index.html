@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="description" content="ระบบขอใบลาอิเล็กทรอนิกส์ โรงเรียนรมย์บุรีพิทยาคมฯ">
+
+  <link rel="canonical" href="https://rbp-chanikarnn.web.app/">
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://rbp-chanikarnn.web.app/">
+  <meta property="og:title" content="ระบบวันลา">
+  <meta property="og:description" content="ระบบขอใบลาอิเล็กทรอนิกส์ โรงเรียนรมย์บุรีพิทยาคมฯ">
+  <meta property="og:image" content="https://rbp-chanikarnn.web.app/branding_logo_v1.png">
+  <meta property="og:image:width" content="512">
+  <meta property="og:image:height" content="512">
+  <meta property="og:image:alt" content="โลโก้โรงเรียนรมย์บุรีพิทยาคม">
+
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="https://rbp-chanikarnn.web.app/">
+  <meta property="twitter:title" content="ระบบวันลา">
+  <meta property="twitter:description" content="ระบบขอใบลาอิเล็กทรอนิกส์ โรงเรียนรมย์บุรีพิทยาคมฯ">
+  <meta property="twitter:image" content="https://rbp-chanikarnn.web.app/branding_logo_v1.png">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="ระบบวันลา">
+  <link rel="apple-touch-icon" href="favicon.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>ระบบวันลา</title>
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      /* 🚀 ป้องกัน Browser Native Bounce */
+      overscroll-behavior: none;
+      overflow: hidden;
+      position: fixed;
+    }
+  </style>
+
+  <!-- 🔥 สคริปต์ดักจับคำสั่งปิดแอปเลื่อนหน้าขอใน LINE Browser 🕵️‍♂️🥇🏆 -->
+  <script>
+    // 🥇 ป้องกันการ "ลากลงเพื่อปิด" หรือ "ลากขึ้นเพื่อรีเฟรช" ใน LINE / iOS Safari
+    window.addEventListener('touchstart', function(e) {
+      this.startY = e.touches[0].pageY;
+    }, {passive: false});
+
+    window.addEventListener('touchmove', function(e) {
+      const moveY = e.touches[0].pageY;
+      // บล็อกการ Swipe ที่ขอบจอเพื่อป้องกัน Browser Hijack
+      if (document.body.scrollTop <= 0 && moveY > this.startY) {
+        // e.preventDefault(); // บล็อกการลากลงที่บนสุด
+      }
+    }, {passive: false});
+
+    // 🏆 คำสั่งพิเศษสำหรับ Flutter Web เพื่อความลื่นไหล
+    document.addEventListener('gesturestart', function(e) {
+      e.preventDefault();
+    });
+  </script>
+</head>
+<body>
+  <script>
+    (function() {
+      var cleanupKey = 'school_leave_sw_cleanup_version';
+      var cleanupVersion = '20260621-login-fast';
+
+      function getCleanupVersion() {
+        try {
+          return window.localStorage.getItem(cleanupKey);
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function setCleanupVersion() {
+        try {
+          window.localStorage.setItem(cleanupKey, cleanupVersion);
+        } catch (error) {}
+      }
+
+      function loadFlutter() {
+        var script = document.createElement('script');
+        script.src = 'flutter_bootstrap.js?v=20260421-2045';
+        script.async = true;
+        document.body.appendChild(script);
+      }
+
+      function clearServiceWorkers() {
+        if (!('serviceWorker' in navigator)) {
+          return Promise.resolve();
+        }
+        return navigator.serviceWorker.getRegistrations()
+          .then(function(registrations) {
+            return Promise.all(registrations.map(function(registration) {
+              return registration.unregister();
+            }));
+          })
+          .catch(function() {});
+      }
+
+      function clearCaches() {
+        if (!window.caches || !caches.keys) {
+          return Promise.resolve();
+        }
+        return caches.keys()
+          .then(function(keys) {
+            return Promise.all(keys.map(function(key) {
+              return caches.delete(key);
+            }));
+          })
+          .catch(function() {});
+      }
+
+      loadFlutter();
+
+      if (getCleanupVersion() !== cleanupVersion) {
+        window.setTimeout(function() {
+          Promise.all([clearServiceWorkers(), clearCaches()])
+            .then(setCleanupVersion)
+            .catch(setCleanupVersion);
+        }, 0);
+      }
+    })();
+  </script>
+</body>
+</html>

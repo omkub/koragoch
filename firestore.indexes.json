@@ -1,0 +1,29 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "Leaves",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "fullName", "mode": "ASCENDING" },
+        { "fieldPath": "timestamp", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "Leaves",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "mode": "ASCENDING" },
+        { "fieldPath": "timestamp", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "FiscalRounds",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "year", "mode": "DESCENDING" },
+        { "fieldPath": "round", "mode": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
