@@ -1,0 +1,10 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      // allow read, write: if true; // 🛡️ คอมเมนต์โค้ดเดิมเพื่อความปลอดภัย (กู้คืนได้เสมอครับ) 🥇🏆
+      allow read, create, update: if true;
+      allow delete: if false; // 🚫 บล็อกการลบไฟล์แบบสาธารณะในเฟสที่ 1
+    }
+  }
+}

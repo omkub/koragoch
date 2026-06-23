@@ -1,4 +1,9 @@
 # Miscellaneous
+/.dart_appdata/
+/.firebase/
+/.vs/
+node_modules/
+tmp/
 *.class
 *.log
 *.pyc
@@ -18,10 +23,7 @@ migrate_working_dir/
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+/.vscode/
 
 # Flutter/Dart/Pub related
 **/doc/api/
@@ -32,6 +34,14 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+analysis.txt
+analysis_output.txt
+analyze.txt
+analyze_output.txt
+build_log.txt
+project_summary.txt
+codeหน้าประวัติ.txt
+วิเคราะห์โปรแกรม.txt
 
 # Symbolication related
 app.*.symbols
@@ -43,3 +53,4 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/build/
