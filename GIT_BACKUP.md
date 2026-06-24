@@ -2,6 +2,27 @@
 
 Use GitHub as a versioned backup by saving clean checkpoints often.
 
+## Version standard
+
+Use this format for every GitHub backup tag:
+
+`YY.M.N`
+
+- `YY` = last two digits of the year
+- `M` = month number without a leading zero
+- `N` = the sequence number of the backup pushed in that month, starting at `1`
+
+Examples:
+
+- `26.6.1` = first backup pushed in June 2026
+- `26.6.2` = second backup pushed in June 2026
+
+Rules:
+
+- Use the same version for the Git tag and the GitHub Release title
+- Increase only `N` when you push another backup in the same month
+- Keep the version tied to the actual GitHub push, not to local saves
+
 ## Daily flow
 
 1. Check what changed.
