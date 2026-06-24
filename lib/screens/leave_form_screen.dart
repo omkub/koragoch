@@ -869,10 +869,12 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                               if (pos == '---เลือก---') pos = '';
 
                               String rank = (_selectedUser?['academicStanding']
-                                      ?.toString() ??
-                                  '');
-                              if (rank == '---เลือก---' || rank == '-')
-                                rank = '';
+                                          ?.toString() ??
+                                      '')
+                                  .trim();
+                              if (rank == '---เลือก---' ||
+                                  rank == '-' ||
+                                  rank == 'ไม่มีวิทยฐานะ') rank = '';
 
                               String combined = pos;
                               if (rank.isNotEmpty) combined += " $rank";
@@ -926,11 +928,28 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                                   child: Column(children: [
                                 const SizedBox(
                                     height: 35), // Align with 'ลากิจส่วนตัว'
-                                _buildPerfectFullWidthRow([
-                                  Text("เนื่องจาก", style: bodyStyle),
-                                  _buildPerfectDottedLine(
-                                      value: _reasonController.text)
-                                ]),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text("เนื่องจาก", style: bodyStyle),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: ValueListenableBuilder<
+                                          TextEditingValue>(
+                                        valueListenable: _reasonController,
+                                        builder: (context, value, child) =>
+                                            Text(
+                                          value.text,
+                                          style: bodyStyle,
+                                          softWrap: true,
+                                          maxLines: null,
+                                          overflow: TextOverflow.visible,
+                                          textWidthBasis: TextWidthBasis.parent,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                                 _buildPerfectDottedLine(
                                     width: double.infinity, flex: 0)
                               ]))

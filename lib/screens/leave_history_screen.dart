@@ -1048,6 +1048,8 @@ class _PdfPreviewViewerState extends State<_PdfPreviewViewer> {
     return v.isEmpty || v == '-' || v.contains('เลือก');
   }
 
+  bool _hasNoAcademicStanding(String value) => value.trim() == 'ไม่มีวิทยฐานะ';
+
   Map<String, dynamic> _userForLeaf() {
     final fullName = (widget.leaf['fullName'] ?? '').toString().trim();
     if (fullName.isEmpty) return const {};
@@ -1066,20 +1068,29 @@ class _PdfPreviewViewerState extends State<_PdfPreviewViewer> {
   }
 
   String _leafAcademicStanding() {
-    final direct = (widget.leaf['academicStanding'] ?? '').toString();
+    final direct = (widget.leaf['academicStanding'] ?? '').toString().trim();
+    if (_hasNoAcademicStanding(direct)) return '';
     if (!_isBlankChoice(direct)) return direct;
     final user = _userForLeaf();
     final fromUser =
         (user['academicStanding'] ?? user['rank'] ?? user['วิทยฐานะ'] ?? '')
-            .toString();
-    return _isBlankChoice(fromUser) ? '' : fromUser;
+            .toString()
+            .trim();
+    return _isBlankChoice(fromUser) || _hasNoAcademicStanding(fromUser)
+        ? ''
+        : fromUser;
   }
 
   String _printableHtml({bool autoPrint = false}) {
     final leaf = widget.leaf;
     final leaveType = _htmlEscape(leaf['leaveType']);
     final fullName = _htmlEscape(leaf['fullName']);
-    final position = _htmlEscape(_leafPosition());
+    final rawPosition = _leafPosition();
+    final rawRank = _leafAcademicStanding();
+    final position = _htmlEscape([
+      if (rawPosition.isNotEmpty) rawPosition,
+      if (rawRank.isNotEmpty) rawRank,
+    ].join(' '));
     final startDate =
         _htmlEscape(FirebaseService.formatThaiDate(leaf['startDate']));
     final endDate =
@@ -1106,6 +1117,10 @@ class _PdfPreviewViewerState extends State<_PdfPreviewViewer> {
     .row { margin: 10px 0; }
     .indent { text-indent: 48px; }
     .line { border-bottom: 1px dotted #444; padding: 0 10px; min-width: 120px; display: inline-block; }
+    .reason-section { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 6px; align-items: start; margin: 0 0 4px 48px; min-width: 0; text-indent: 0; }
+    .reason-label { grid-column: 1; white-space: nowrap; }
+    .reason-text { grid-column: 2; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+    .reason-underline { grid-column: 2; border-bottom: 1px dotted #444; margin-top: 4px; }
     table { width: 100%; border-collapse: collapse; margin-top: 18px; }
     th, td { border: 1px solid #333; padding: 8px; text-align: center; }
     .sign { margin-top: 34px; text-align: center; }
@@ -1124,8 +1139,11 @@ class _PdfPreviewViewerState extends State<_PdfPreviewViewer> {
     <p>เรียน ผู้อำนวยการโรงเรียน</p>
     <p class="indent">ข้าพเจ้า <span class="line">${fullName}</span>
       ตำแหน่ง <span class="line">${position}</span></p>
-    <p class="indent">มีความประสงค์ขอ${leaveType} เนื่องจาก
-      <span class="line">${reason}</span></p>
+    <div class="reason-section">
+      <div class="reason-label">มีความประสงค์ขอ${leaveType} เนื่องจาก</div>
+      <div class="reason-text">${reason}</div>
+      <div class="reason-underline"></div>
+    </div>
     <p class="indent">ตั้งแต่วันที่ <span class="line">${startDate}</span>
       ถึงวันที่ <span class="line">${endDate}</span>
       มีกำหนด <span class="line">${days}</span> วัน</p>
@@ -1166,9 +1184,8 @@ ${autoPrint ? '''
     final rawPosition = _leafPosition();
     final rawRank = _leafAcademicStanding();
     final position = _htmlEscape([
-      if (rawPosition.isNotEmpty && !rawPosition.contains('เลือก')) rawPosition,
-      if (rawRank.isNotEmpty && rawRank != '-' && !rawRank.contains('เลือก'))
-        rawRank,
+      if (rawPosition.isNotEmpty) rawPosition,
+      if (rawRank.isNotEmpty) rawRank,
     ].join(' '));
     final applicantPosition =
         _htmlEscape(rawPosition.isEmpty ? '-' : rawPosition);
@@ -1259,6 +1276,10 @@ ${autoPrint ? '''
     .order { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 22px; }
     .toolbar { position: fixed; right: 16px; top: 16px; }
     .toolbar button { padding: 8px 12px; border: 0; background: #0f172a; color: white; border-radius: 6px; cursor: pointer; }
+    .reason-section { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 6px; align-items: start; margin: 0 0 4px; min-width: 0; }
+    .reason-label { grid-column: 1; white-space: nowrap; }
+    .reason-text { grid-column: 2; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+    .reason-underline { grid-column: 2; border-bottom: 1px dotted #aaa; margin-top: 4px; }
     @media print { body { background: white; } .toolbar { display: none; } .page { width: 210mm; min-height: 297mm; margin: 0; box-shadow: none; } }
   </style>
 </head>
@@ -1291,7 +1312,11 @@ ${autoPrint ? '''
         <div class="checkline">${checkbox('ลาพักผ่อน', leaveTypeRaw.contains('พัก'))}</div>
       </div>
       <div class="brace">}</div>
-      <div style="padding-top: 34px;"><div class="row"><span>เนื่องจาก</span><span class="line grow">${reason}</span></div><div class="line grow" style="width:100%;"></div></div>
+      <div class="reason-section" style="padding-top: 34px;">
+        <span class="reason-label">เนื่องจาก</span>
+        <div class="reason-text">${reason}</div>
+        <div class="reason-underline"></div>
+      </div>
     </section>
 
     <div class="row"><span>ตั้งแต่วันที่</span><span class="line w150">${startDate}</span><span>ถึงวันที่</span><span class="line w150">${endDate}</span><span>มีกำหนด</span><span class="line w60">${totalDaysText}</span><span>วัน</span></div>
@@ -1590,11 +1615,24 @@ ${autoPrint ? '''
                     Expanded(
                         child: Column(children: [
                       const SizedBox(height: 35),
-                      _buildPerfectFullWidthRow([
-                        Text("เนื่องจาก", style: docBaseStyle),
-                        _buildPerfectDottedLine(
-                            value: leaf['reason']?.toString() ?? '')
-                      ]),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("เนื่องจาก", style: docBaseStyle),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              leaf['reason']?.toString() ?? '',
+                              style: docBaseStyle,
+                              softWrap: true,
+                              maxLines: null,
+                              overflow: TextOverflow.visible,
+                              textWidthBasis: TextWidthBasis.parent,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
                       _buildPerfectDottedLine(width: double.infinity, flex: 0)
                     ]))
                   ],
