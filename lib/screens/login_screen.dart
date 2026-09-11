@@ -143,23 +143,24 @@ class _LoginScreenState extends State<LoginScreen> {
             '⚠️ บัญชีนี้อยู่ระหว่างการรีเซ็ตรหัสผ่านครับ\nโปรดใช้รหัสชั่วคราว 123456 เพื่อตั้งรหัสใหม่ผ่านเมนู "แจ้งลืมรหัสผ่าน" ที่หน้าล็อกอินครับ');
         return;
       }
-      // 🔄 ผู้ใช้เก่าที่รหัสยังเป็น "MIGRATED" — บังคับรีเซ็ตเป็น 123456 อัตโนมัติ
-      // แล้วให้เข้าใช้งานต่อได้ปกติด้วยรหัส 123456 ครับ
-      if (userData['password'].toString().trim() == 'MIGRATED') {
+      // 🔄 ถ้าในฐานข้อมูลเป็น MIGRATED หรือผู้ใช้กรอกรหัสด้วย MIGRATED
+      // ให้อัปเดตรหัสผ่านใน Supabase เป็น 123456 ทันที และอนุญาตให้เข้าใช้งานได้เลย
+      final String dbPassword = userData['password']?.toString().trim() ?? '';
+      final bool isMigrated = dbPassword == 'MIGRATED' || password == 'MIGRATED';
+
+      if (isMigrated) {
         await supabase
             .from('Teachers')
             .update({'password': '123456', 'originalPassword': null}).eq(
                 'id_user', teacherPk);
         userData['password'] = '123456';
-        if (password != '123456') {
-          _showError(
-              'รหัสผ่านของบัญชีนี้ถูกรีเซ็ตเป็น 123456 แล้วครับ\nกรุณาเข้าสู่ระบบใหม่ด้วยรหัส 123456');
-          return;
-        }
       }
 
-      // 🛡️ [ด่านตรวจที่ 2] ตรวจสอบว่ารหัสผ่านตรงกับฐานข้อมูลล่าสุด
-      if (userData['password'].toString().trim() != password) {
+      // 🛡️ [ด่านตรวจที่ 2] ตรวจสอบว่ารหัสผ่านถูกต้อง
+      final bool passValid = (userData['password'].toString().trim() == password) ||
+          (isMigrated && (password == '123456' || password == 'MIGRATED'));
+
+      if (!passValid) {
         _showError('รหัสผ่านไม่ถูกต้องครับ 🔐');
         return;
       }
