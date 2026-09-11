@@ -204,11 +204,8 @@ class _LoginScreenState extends State<LoginScreen> {
             userData['fullName'] ?? userData['name'] ?? 'ผู้ใช้งาน');
         await prefs.setString('userRole', effectiveRole);
 
-        // 🛡️ บันทึกประวัติการเข้าใช้งานลงฐานข้อมูลครับ 🥇🏆🏎️
-        await _firebaseService.logLogin(
-            username,
-            userData['fullName'] ?? userData['name'] ?? 'ผู้ใช้งาน',
-            effectiveRole);
+        // 🛡️ บันทึกประวัติการเข้าใช้งานลง Supabase (ใช้ id_user) — ไม่แตะ Firebase
+        await _firebaseService.logLogin(teacherPk);
 
         // 🚀 ขั้นสุดยอด: เซฟข้อมูลทั้งก้อนไว้ในเครื่อง พร้อมระบบป้องกัน JSON Error ขั้นเทพ 🥇🏆🏎️
         final safeJson = jsonEncode({

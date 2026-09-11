@@ -1411,20 +1411,25 @@ class FirebaseService {
   }
 
   // 🛡️ บันทึกประวัติการเข้าใช้งาน (Login Logging) 🥇🏆🏎️
-  Future<void> logLogin(String username, String fullName, String role) async {
+  // 🚀 บันทึกประวัติการเข้าใช้งานลง Supabase (LoginLogs) เท่านั้น — ห้ามแตะ Firebase
+  // (Firebase มี production hosting ใช้งานอยู่ จึงเขียนไม่ได้ทุกกรณี)
+  // LoginLogs ฝั่ง Supabase ใช้ id_user (FK) ไม่ได้เก็บ username/fullName/role
+  Future<void> logLogin(dynamic idUser) async {
+    final client = _supabaseIfReady;
+    if (client == null) {
+      debugPrint('⚠️  Supabase not ready; skip login log');
+      return;
+    }
     try {
-      await _dualWriteAdd('LoginLogs', {
-        'username': username,
-        'fullName': fullName,
-        'role': role,
-        'timestamp': FieldValue.serverTimestamp(),
+      await client.from('LoginLogs').insert({
+        if (idUser != null) 'id_user': idUser,
+        'timestamp': DateTime.now().toIso8601String(),
         'platform': kIsWeb ? 'Web' : 'Mobile',
-        'userAgent':
-            kIsWeb ? web.window.navigator.userAgent : 'Mobile App',
+        'userAgent': kIsWeb ? web.window.navigator.userAgent : 'Mobile App',
       });
-      debugPrint("✅ Login logged to Firebase & Supabase: $username");
+      debugPrint('✅ Login logged to Supabase (id_user=$idUser)');
     } catch (e) {
-      debugPrint("❌ Error logging login: $e");
+      debugPrint('❌ Error logging login to Supabase: $e');
     }
   }
 
