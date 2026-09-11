@@ -1,16 +1,97 @@
-# school_leave_app
+# SchoolLeaveApp (โปรแกรมระบบลาโรงเรียน)
 
-A new Flutter project.
+แอป Flutter (web) สำหรับจัดการการลาของบุคลากร ใช้ **Firebase Firestore** (database `school`) เป็นฐานข้อมูลหลักในการแสดงผล และมีระบบ **นำเข้าข้อมูลไป Supabase** (dual-write + migration)
 
-## Getting Started
+- Firebase project: `rbp-chanikarnn` · Firestore database: `school`
+- Repo: https://github.com/omkub/koragoch
+- Release ล่าสุด: ดูที่แท็บ [Releases](https://github.com/omkub/koragoch/releases)
 
-This project is a starting point for a Flutter application.
+---
 
-A few resources to get you started if this is your first Flutter project:
+## เริ่มใช้งานบนเครื่องใหม่
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+### 1) ติดตั้งของที่ต้องมี
+- [Git](https://git-scm.com/download/win)
+- [Flutter SDK](https://docs.flutter.dev/get-started/install/windows)
+- Google Chrome (สำหรับรัน web)
+- (ถ้าจะ push กลับ) [GitHub CLI](https://cli.github.com/) — `gh`
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+### 2) Clone โปรเจกต์
+```bash
+git clone https://github.com/omkub/koragoch.git SchoolLeaveApp
+cd SchoolLeaveApp
+```
+
+### 3) ติดตั้ง dependency
+```bash
+flutter pub get
+npm install        # ถ้ามีการใช้สคริปต์ Node (package.json)
+```
+
+### 4) รันแอป
+```bash
+flutter run -d chrome
+```
+
+> config สำคัญ (`lib/firebase_options.dart`, Supabase anon key ใน `lib/main.dart`, `firebase.json`, `firestore.rules`) อยู่ใน repo แล้ว เครื่องใหม่ใช้ได้เลยไม่ต้องตั้งค่าเพิ่ม
+> ไฟล์ที่ถูก `.gitignore` (`node_modules/`, `build/`, `.dart_tool/`) จะถูกสร้างใหม่อัตโนมัติจากขั้นตอนด้านบน
+
+---
+
+## ทำงานหลายเครื่อง
+
+```bash
+# ก่อนเริ่มงานทุกครั้ง — ดึงล่าสุดก่อน
+git pull
+flutter pub get
+
+# ทำเสร็จ — commit แล้ว push
+git add -A
+git commit -m "อธิบายสิ่งที่แก้"
+git push
+```
+
+ครั้งแรกบนเครื่องใหม่ ถ้ายังไม่ได้ล็อกอิน GitHub:
+```bash
+gh auth login        # เลือก GitHub.com → HTTPS → web browser
+```
+
+---
+
+## การนำเข้าข้อมูล Firebase → Supabase
+
+เข้าเมนู **จัดการผู้ใช้ → แท็บ "นำเข้าข้อมูล"** (ต้องล็อกอินเป็นผู้ดูแลระบบ)
+
+- **Firebase อ่านอย่างเดียว** — การนำเข้าไม่แก้/ลบข้อมูล Firebase
+- ปุ่ม **"ล้างข้อมูล"** ล้างเฉพาะตารางฝั่ง **Supabase**
+- ลำดับนำเข้า (master → Teachers → dependent) ถูกจัดให้อัตโนมัติ
+- SQL helper อยู่ในโฟลเดอร์ `supabase/` (รันใน Supabase SQL Editor เมื่อต้องปรับ schema)
+
+> ชื่อคอลัมน์ฝั่งโค้ดยึดตามที่มีจริงใน Supabase เช่น `roles.Accessrights`, `appconfig."Key AppTitle"`
+
+---
+
+## การออกเวอร์ชัน (Release)
+
+ใช้เลขเวอร์ชันแบบวันที่ `YY.M.D` (เช่น `26.9.11`) ตรงกับ `version:` ใน `pubspec.yaml`
+
+```bash
+git add -A
+git commit -m "Release <version>: ..."
+git push origin main
+git tag -a <version> -m "Release <version>"
+git push origin <version>
+gh release create <version> --title <version> --notes-file RELEASE_NOTES_<version>.md
+```
+
+---
+
+## โครงสร้างหลัก
+
+| ส่วน | ไฟล์ |
+|---|---|
+| Entry / init Firebase+Supabase | `lib/main.dart` |
+| บริการ Firebase + dual-write | `lib/services/firebase_service.dart` |
+| นำเข้า/ย้ายข้อมูล | `lib/services/migration_service.dart`, `lib/services/import_service.dart`, `lib/services/mobile_permission_migration.dart` |
+| หน้าจอ | `lib/screens/` (login, dashboard, personnel, leave_form, leave_history, user_management, ...) |
+| SQL helper ฝั่ง Supabase | `supabase/*.sql` |
