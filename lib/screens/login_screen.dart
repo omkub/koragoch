@@ -70,10 +70,6 @@ class _LoginScreenState extends State<LoginScreen> {
     return roles.isNotEmpty ? roles.first : 'ครู';
   }
 
-  bool _isEmergencyAdminLogin(String username, String password) {
-    return username.toLowerCase() == 'admin' && password == '1234';
-  }
-
   // 🚀 หา "ชื่อสิทธิ์" (ครู/ผู้บริหาร/ผู้ดูแลระบบ) จาก Supabase ครับ
   // Supabase เก็บสิทธิ์เป็น id_role (FK) ในตาราง Teachers แล้วไปอ้างชื่อจริงที่ roles.Accessrights
   // (คนละแบบกับ Firebase เดิมที่เก็บชื่อสิทธิ์เป็น string ตรงๆ บน Teacher)
@@ -118,9 +114,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final String username = _usernameController.text.trim();
       final String password = _passwordController.text.trim();
-      final bool isEmergencyAdminLogin =
-          _isEmergencyAdminLogin(username, password);
-
       bool loginSuccess = false;
       Map<String, dynamic>? userData;
 
@@ -145,16 +138,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // 🛡️ [ด่านตรวจที่ 1] เช็คสถานะการแจ้งลืมรหัสก่อนเลยครับ
       final forgotStatus = (userData['forgotPasswordStatus'] ?? '').toString();
-      if (!isEmergencyAdminLogin &&
-          (forgotStatus == 'waiting' || forgotStatus == 'reset_by_admin')) {
+      if ((forgotStatus == 'waiting' || forgotStatus == 'reset_by_admin')) {
         _showError(
             '⚠️ บัญชีนี้อยู่ระหว่างการรีเซ็ตรหัสผ่านครับ\nโปรดใช้รหัสชั่วคราว 123456 เพื่อตั้งรหัสใหม่ผ่านเมนู "แจ้งลืมรหัสผ่าน" ที่หน้าล็อกอินครับ');
         return;
       }
       // 🔄 ผู้ใช้เก่าที่รหัสยังเป็น "MIGRATED" — บังคับรีเซ็ตเป็น 123456 อัตโนมัติ
       // แล้วให้เข้าใช้งานต่อได้ปกติด้วยรหัส 123456 ครับ
-      if (!isEmergencyAdminLogin &&
-          userData['password'].toString().trim() == 'MIGRATED') {
+      if (userData['password'].toString().trim() == 'MIGRATED') {
         await supabase
             .from('Teachers')
             .update({'password': '123456', 'originalPassword': null}).eq(
@@ -168,8 +159,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       // 🛡️ [ด่านตรวจที่ 2] ตรวจสอบว่ารหัสผ่านตรงกับฐานข้อมูลล่าสุด
-      if (!isEmergencyAdminLogin &&
-          userData['password'].toString().trim() != password) {
+      if (userData['password'].toString().trim() != password) {
         _showError('รหัสผ่านไม่ถูกต้องครับ 🔐');
         return;
       }
