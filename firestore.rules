@@ -1,11 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     function isSignedIn() { return request.auth != null; }
-    
+
     function isAdmin() {
-      return isSignedIn() && 
+      return isSignedIn() &&
         exists(/databases/$(database)/documents/UserRoles/$(request.auth.uid)) &&
         (
           get(/databases/$(database)/documents/UserRoles/$(request.auth.uid)).data.permission == 'ผู้ดูแลระบบ' ||
@@ -30,32 +30,36 @@ service cloud.firestore {
     }
 
     match /Teachers/{teacherId} {
-      allow read: if true; 
-      allow update: if true; // 🛡️ เปิดให้บันทึกข้อมูลส่วนตัวได้ชั่วคราวเพื่อแก้ปัญหา Session บนมือถือครับ 🥇🏆
+      // Read ยังเปิดอยู่เพราะหน้า Login ต้อง query username ก่อน sign in
+      allow read: if true;
+      // Update ต้อง sign in แล้วเท่านั้น ยกเว้นกรณีแจ้งลืมรหัส (จำกัดแค่ 2 field)
+      allow update: if isSignedIn() ||
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['forgotPasswordStatus', 'requestTimestamp']);
       allow create, delete: if isAdmin();
     }
 
     match /UserRoles/{uid} {
-      allow read: if true;
+      allow read: if isSignedIn();
       allow create, update: if isAdmin() || canSyncOwnUserRole(uid);
       allow delete: if isAdmin();
     }
 
     match /Leaves/{leaveId} {
-      allow read: if true;
-      allow create: if true; 
-      allow update: if true; // 🛡️ เปิดให้ครูอัพเดตแก้ไขใบลาของตัวเองได้ครับ 🥇🏆
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
       allow delete: if isAdmin();
     }
 
     match /Settings/{settingId} {
-      allow read: if true;
+      allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
     match /{collection}/{docId} {
-      allow read: if true;
-      allow write: if isAdmin() || collection == 'LoginLogs'; 
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (isAdmin() || collection == 'LoginLogs');
     }
   }
 }

@@ -1,6 +1,6 @@
-name: school_leave_app
+﻿name: school_leave_app
 description: A new Flutter project for School Leave System.
-version: 1.0.0+1
+version: 26.9.11+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -28,6 +28,8 @@ dependencies:
   thai_buddhist_date_pickers: ^0.1.6
   thai_buddhist_date: ^0.2.7
   table_calendar: ^3.2.0
+  web: ^1.1.0
+  supabase_flutter: ^2.16.0
 
 dev_dependencies:
   flutter_test:
@@ -38,3 +40,4 @@ flutter:
   uses-material-design: true
   assets:
     - image/Logo.jpg
+

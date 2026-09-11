@@ -16,7 +16,6 @@ class _MobilePasswordResetScreenState extends State<MobilePasswordResetScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   bool _isLoading = false;
 
-  // 🔑 รีเซ็ตรหัสผ่านเป็น 123456 และเปิดสิทธิ์ 24 ชม. ครับ 🥇🏆
   Future<void> _approveReset(Map<String, dynamic> user) async {
     final bool? confirm = await showDialog<bool>(
       context: context,
@@ -28,7 +27,7 @@ class _MobilePasswordResetScreenState extends State<MobilePasswordResetScreen> {
           Text('อนุมัติการรีเซ็ต?', style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
         ]),
         content: Text(
-          'รีเซ็ตรหัสผ่านของ\n"${user['fullName'] ?? user['username']}"\nเป็น 123456 และให้สิทธิ์ตั้งรหัสใหม่ภายใน 24 ชั่วโมงหรือไม่?',
+          'รีเซ็ตรหัสผ่านของ\n"${user['fullName'] ?? user['username']}"\nและให้สิทธิ์ตั้งรหัสใหม่ภายใน 24 ชั่วโมงหรือไม่?',
           style: GoogleFonts.sarabun(fontSize: 14),
         ),
         actions: [
@@ -55,24 +54,58 @@ class _MobilePasswordResetScreenState extends State<MobilePasswordResetScreen> {
 
     try {
       final DateTime expiry = DateTime.now().add(const Duration(hours: 24));
+      final String resetCode = FirebaseService.generateResetCode();
       await _firebaseService.db
           .collection('Teachers')
           .doc(user['id'])
           .update({
         'forgotPasswordStatus': 'reset_by_admin',
-        'tempPassword': '123456',
+        'tempResetCode': resetCode,
+        'password': resetCode,
         'resetAllowedUntil': expiry.toIso8601String(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('✅ รีเซ็ตรหัสผ่านสำเร็จ! ให้ครูล็อกอินด้วยรหัส 123456 ครับ',
-              style: GoogleFonts.sarabun(color: Colors.white)),
-          backgroundColor: Colors.green.shade700,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ));
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(children: [
+              const Icon(Icons.check_circle, color: Colors.green, size: 22),
+              const SizedBox(width: 8),
+              Text('รีเซ็ตสำเร็จ', style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+            ]),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('รหัสชั่วคราวสำหรับ ${user['fullName'] ?? user['username']}:',
+                    style: GoogleFonts.sarabun(fontSize: 13, color: Colors.blueGrey)),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: SelectableText(resetCode,
+                      style: GoogleFonts.sarabun(
+                          fontSize: 28, fontWeight: FontWeight.bold,
+                          letterSpacing: 4, color: Colors.indigo.shade900)),
+                ),
+                const SizedBox(height: 12),
+                Text('กรุณาแจ้งรหัสนี้ให้ครูเจ้าของบัญชีครับ',
+                    style: GoogleFonts.sarabun(fontSize: 12, color: Colors.blueGrey)),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('ตกลง', style: GoogleFonts.sarabun(fontWeight: FontWeight.bold, color: Colors.green)),
+              ),
+            ],
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -124,7 +157,7 @@ class _MobilePasswordResetScreenState extends State<MobilePasswordResetScreen> {
                     Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        color: Colors.green.withOpacity(0.1),
+                        color: Colors.green.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(Icons.check_circle_rounded, size: 64, color: Colors.green),
@@ -183,10 +216,10 @@ class _MobilePasswordResetScreenState extends State<MobilePasswordResetScreen> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.orange.withOpacity(0.3), width: 1.5),
+                        border: Border.all(color: Colors.orange.withValues(alpha: 0.3), width: 1.5),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.orange.withOpacity(0.05),
+                            color: Colors.orange.withValues(alpha: 0.05),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -199,7 +232,7 @@ class _MobilePasswordResetScreenState extends State<MobilePasswordResetScreen> {
                             children: [
                               CircleAvatar(
                                 radius: 22,
-                                backgroundColor: Colors.orange.withOpacity(0.15),
+                                backgroundColor: Colors.orange.withValues(alpha: 0.15),
                                 child: Text(
                                   (user['fullName'] ?? user['username'] ?? '?')[0],
                                   style: GoogleFonts.sarabun(
@@ -221,7 +254,7 @@ class _MobilePasswordResetScreenState extends State<MobilePasswordResetScreen> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: Colors.orange.withOpacity(0.1),
+                                  color: Colors.orange.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Text('รอดำเนินการ',

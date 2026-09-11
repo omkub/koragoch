@@ -67,6 +67,10 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
     _isHalfDay = data['isHalfDay'] == true ||
         data['isHalfDay']?.toString().toLowerCase() == 'true';
     _halfDayPeriod = (data['halfDayPeriod'] ?? 'morning').toString();
+    if (_isMaternityLeave) {
+      _isHalfDay = false;
+      _endDate = _maternityEndDateFrom(_startDate);
+    }
   }
 
   Future<void> _loadUser() async {
@@ -80,15 +84,29 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
     // ⚡ ฝั่งครู: ดึงข้อมูลตัวเองมาโชว์ไวๆ (ถ้าไม่ใช่การแก้ไขใบลาคนอื่น)
     if (cacheJson != null && editName == null) {
       try {
-        final cachedData = jsonDecode(cacheJson);
+        final decoded = jsonDecode(cacheJson);
+        if (decoded is Map) {
+          final cachedData = Map<String, dynamic>.from(decoded);
+          setState(() {
+            _selectedUser = cachedData;
+            _loggedInUser = name;
+            _userRole = role;
+            _phoneController.text =
+                (cachedData['phone'] ?? cachedData['phoneNumber'] ?? '')
+                    .toString();
+          });
+        } else {
+          setState(() {
+            _loggedInUser = name;
+            _userRole = role;
+          });
+        }
+      } catch (_) {
         setState(() {
-          _selectedUser = cachedData;
           _loggedInUser = name;
           _userRole = role;
-          _phoneController.text =
-              cachedData['phone'] ?? cachedData['phoneNumber'] ?? '';
         });
-      } catch (_) {}
+      }
     } else {
       setState(() {
         _loggedInUser = name;
@@ -130,17 +148,20 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
     if (userData == null && name != null)
       userData = await _firebaseService.searchTeacherByName(name);
 
-    if (userData != null && mounted) {
+    final loadedUserData = userData;
+    if (loadedUserData != null && mounted) {
       setState(() {
-        _selectedUser = userData;
+        _selectedUser = loadedUserData;
         _phoneController.text =
-            userData!['phone'] ?? userData!['phoneNumber'] ?? '';
+            (loadedUserData['phone'] ?? loadedUserData['phoneNumber'] ?? '')
+                .toString();
       });
-      await prefs.setString('userFullDataJson', jsonEncode(userData));
+      await prefs.setString('userFullDataJson', jsonEncode(loadedUserData));
 
       // 🔄 อัปเดตชื่อใน Prefs ให้ตรงกับฐานข้อมูลล่าสุด (เฉพาะกรณีที่เป็นการดึงข้อมูลตัวเอง ไม่ใช่การแก้ไขใบลาคนอื่นครับ)
-      if (userData['fullName'] != null && editName == null) {
-        await prefs.setString('currentUser', userData['fullName']);
+      final fullName = loadedUserData['fullName'];
+      if (fullName != null && editName == null) {
+        await prefs.setString('currentUser', fullName.toString());
       }
     }
   }
@@ -213,6 +234,14 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
   bool get _isHalfDayActive =>
       _isHalfDay && _isSameCalendarDay(_startDate, _endDate);
 
+  bool get _isMaternityLeave =>
+      (_selectedLeaveType ?? '').toString().contains('คลอด');
+
+  DateTime _maternityEndDateFrom(DateTime start) {
+    final first = DateTime(start.year, start.month, start.day);
+    return first.add(const Duration(days: 89));
+  }
+
   num _calculatedTotalDays() {
     if (_isHalfDayActive) return 0.5;
     final days = _endDate.difference(_startDate).inDays + 1;
@@ -225,6 +254,11 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
   void _setStartDate(DateTime date) {
     setState(() {
       _startDate = date;
+      if (_isMaternityLeave) {
+        _isHalfDay = false;
+        _endDate = _maternityEndDateFrom(date);
+        return;
+      }
       if (_isHalfDay || _endDate.isBefore(_startDate)) {
         _endDate = date;
       }
@@ -233,6 +267,11 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
 
   void _setEndDate(DateTime date) {
     setState(() {
+      if (_isMaternityLeave) {
+        _isHalfDay = false;
+        _endDate = _maternityEndDateFrom(_startDate);
+        return;
+      }
       _endDate = date;
       if (_isHalfDay || _endDate.isBefore(_startDate)) {
         _startDate = date;
@@ -483,7 +522,7 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
       DateTime initial, Function(DateTime) onPick) async {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.4),
+      barrierColor: Colors.black.withValues(alpha: 0.4),
       builder: (context) => Center(
         child: ThaiBuddhistCalendarWidget(
           initialDate: initial,
@@ -596,7 +635,7 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
                   borderRadius: BorderRadius.circular(32),
                   boxShadow: [
                     BoxShadow(
-                        color: Colors.black.withOpacity(0.03),
+                        color: Colors.black.withValues(alpha: 0.03),
                         blurRadius: 24,
                         offset: const Offset(0, 12))
                   ],
@@ -658,7 +697,7 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
                                   color: const Color(0xFFF8FAFC),
                                   borderRadius: BorderRadius.circular(16),
                                   border: Border.all(
-                                      color: Colors.blue.withOpacity(0.1))),
+                                      color: Colors.blue.withValues(alpha: 0.1))),
                               child: Row(
                                 children: [
                                   ClipOval(
@@ -718,7 +757,13 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
                           "ลาคลอดบุตร",
                           "ลาพักผ่อน"
                         ],
-                        (val) => setState(() => _selectedLeaveType = val)),
+                        (val) => setState(() {
+                              _selectedLeaveType = val;
+                              if (_isMaternityLeave) {
+                                _isHalfDay = false;
+                                _endDate = _maternityEndDateFrom(_startDate);
+                              }
+                            })),
                     const SizedBox(height: 20),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -841,7 +886,7 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
                       end: Alignment.bottomRight),
                   boxShadow: [
                     BoxShadow(
-                        color: const Color(0xFF2563EB).withOpacity(0.3),
+                        color: const Color(0xFF2563EB).withValues(alpha: 0.3),
                         blurRadius: 15,
                         offset: const Offset(0, 8))
                   ],
@@ -938,6 +983,11 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
       child: InkWell(
         onTap: () {
           setState(() {
+            if (_isMaternityLeave) {
+              _isHalfDay = false;
+              _endDate = _maternityEndDateFrom(_startDate);
+              return;
+            }
             if (value == 'full') {
               _isHalfDay = false;
             } else {
@@ -988,7 +1038,7 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-          color: const Color(0xFF3B82F6).withOpacity(0.08),
+          color: const Color(0xFF3B82F6).withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(16)),
       child: Row(
         children: [

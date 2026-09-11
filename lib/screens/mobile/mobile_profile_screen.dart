@@ -146,8 +146,7 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
             _teacherData = serverData;
             _phoneController.text =
                 serverData['phone'] ?? serverData['phoneNumber'] ?? '';
-            _passwordController.text =
-                (serverData['password'] ?? '').toString();
+            _passwordController.text = (serverData['password'] ?? '').toString();
             _fullNameController.text =
                 serverData['fullName'] ?? serverData['name'] ?? '';
             _usernameController.text = serverData['username'] ?? '';
@@ -195,7 +194,6 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
       final newData = {
         'phone': _phoneController.text.trim(),
         'position': _selectedPosition,
-        'password': _passwordController.text.trim(),
         'fullName': _fullNameController.text.trim(),
         'department': _selectedDepartment,
         'academicStanding': _selectedAcademicStanding,
@@ -500,7 +498,7 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
         borderRadius: BorderRadius.circular(32),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 24,
               offset: const Offset(0, 8))
         ],
@@ -518,7 +516,7 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
                   border: Border.all(color: Colors.white, width: 4),
                   boxShadow: [
                     BoxShadow(
-                        color: Colors.black.withOpacity(0.1), blurRadius: 20)
+                        color: Colors.black.withValues(alpha: 0.1), blurRadius: 20)
                   ],
                 ),
                 child: ClipOval(
@@ -573,7 +571,7 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
               Container(
                   width: 1,
                   height: 30,
-                  color: Colors.grey.withOpacity(0.2),
+                  color: Colors.grey.withValues(alpha: 0.2),
                   margin: const EdgeInsets.symmetric(horizontal: 24)),
               _buildStatItem("สังกัด", "สพฐ."),
             ],
@@ -610,7 +608,7 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
         borderRadius: BorderRadius.circular(32),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 24,
               offset: const Offset(0, 8))
         ],
@@ -850,7 +848,7 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
         borderRadius: BorderRadius.circular(32),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 24,
               offset: const Offset(0, 8))
         ],
@@ -878,7 +876,7 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
             onTap: () => setState(() => _showUserManagement = true),
           ),
           const SizedBox(height: 12),
-          Divider(color: Colors.white.withOpacity(0.1)),
+          Divider(color: Colors.white.withValues(alpha: 0.1)),
           const SizedBox(height: 12),
           _buildAdminMenuItem(
             icon: Icons.people_alt_rounded,
@@ -887,7 +885,7 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
             onTap: () => setState(() => _showPersonnel = true),
           ),
           const SizedBox(height: 12),
-          Divider(color: Colors.white.withOpacity(0.1)),
+          Divider(color: Colors.white.withValues(alpha: 0.1)),
           const SizedBox(height: 12),
           _buildAdminMenuItem(
             icon: Icons.lock_reset_rounded,
@@ -912,7 +910,7 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12)),
             child: Icon(icon, color: Colors.white, size: 24),
           ),

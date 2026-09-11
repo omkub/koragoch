@@ -257,7 +257,7 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 20,
               offset: const Offset(0, -4),
             ),
@@ -301,8 +301,11 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
           .doc(_userRole)
           .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.hasData && snapshot.data!.exists) {
-          final data = snapshot.data!.data() as Map<String, dynamic>;
+        final mobilePermissionDoc = snapshot.data;
+        final mobilePermissionData = mobilePermissionDoc?.data();
+        if (mobilePermissionDoc?.exists == true &&
+            mobilePermissionData is Map<String, dynamic>) {
+          final data = mobilePermissionData;
           return _buildMobileScaffold(data);
         }
 
@@ -313,9 +316,11 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
               .doc(_userRole)
               .snapshots(),
           builder: (context, fallbackSnapshot) {
-            if (fallbackSnapshot.hasData && fallbackSnapshot.data!.exists) {
-              final data =
-                  fallbackSnapshot.data!.data() as Map<String, dynamic>;
+            final permissionDoc = fallbackSnapshot.data;
+            final permissionData = permissionDoc?.data();
+            if (permissionDoc?.exists == true &&
+                permissionData is Map<String, dynamic>) {
+              final data = permissionData;
               return _buildMobileScaffold(data);
             }
 

@@ -1,3 +1,4 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -5,27 +6,183 @@ import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-// ignore: avoid_web_libraries_in_flutter, uri_does_not_exist
-import 'dart:js' as js;
-// ignore: avoid_web_libraries_in_flutter, uri_does_not_exist
-import 'dart:js_util' as js_util;
-// ignore: avoid_web_libraries_in_flutter, uri_does_not_exist
-import 'dart:html' as html;
+import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
+import 'package:web/web.dart' as web;
 import 'package:rxdart/rxdart.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class FirebaseService {
-  // 🛡️ รหัสลับสำหรับคุยกับ Google Apps Script (Phase 4) 🥇🏆
-  static const String secretKey = "RBP_SECURE_2026";
+  static Map<String, String> _configCache = {};
+  static bool _configLoaded = false;
+  static bool _dualWriteEnabled = true; // ✅ Enable dual-write to Supabase
 
-  // 📲 URL ของระบบหลังบ้านตัวหลัก (All-in-One Secure Bridge) 🥇🏆🏎️
-  static const String appsScriptUrl =
-      'https://script.google.com/macros/s/AKfycbxKBXqO90MOsd-MizfsZ-VvmeUnKcx-Phnoi6By36EnP1dgsdCDZ3Q26ch67QfPySyZ/exec';
-  static const String driveProfileFolderId =
-      '1Gor8_V0nRjHU5qLYGke4EE86L1c2dB2k';
-  static const String driveLeaveFolderId = '1VAtGdnzC18-ixgJomFUsSAKqgZNQ782S';
+  static SupabaseClient? get _supabaseIfReady {
+    try {
+      return Supabase.instance.client;
+    } catch (_) {
+      return null;
+    }
+  }
 
-  // 🔥 แคชอินสแตนซ์ของ DB เพื่อความรวดเร็วครับ 🥇🏎️
+  // แปลงข้อมูล Firebase → รูปแบบที่ Supabase รับได้
+  // (key เป็น lowercase, FieldValue/Timestamp → ISO string)
+  static Map<String, dynamic> _toSupabaseRecord(
+      Map<String, dynamic> data, String docId) {
+    final record = <String, dynamic>{'id': docId};
+    data.forEach((key, value) {
+      record[key.toLowerCase()] = _toSupabaseValue(value);
+    });
+    return record;
+  }
+
+  static dynamic _toSupabaseValue(dynamic value) {
+    if (value == null) return null;
+    if (value is FieldValue) {
+      // serverTimestamp ฯลฯ → ใช้เวลาปัจจุบันแทน
+      return DateTime.now().toIso8601String();
+    }
+    if (value is Timestamp) return value.toDate().toIso8601String();
+    if (value is DateTime) return value.toIso8601String();
+    if (value is List) return value.map(_toSupabaseValue).toList();
+    if (value is Map) {
+      return value.map((k, v) => MapEntry(k.toString(), _toSupabaseValue(v)));
+    }
+    if (value is bool || value is num || value is String) return value;
+    return value.toString();
+  }
+
+  // Upsert ไป Supabase แบบตัดคอลัมน์ที่ไม่มีในตารางออกแล้วลองใหม่
+  static Future<void> _supabaseUpsert(
+      String table, Map<String, dynamic> record) async {
+    final client = _supabaseIfReady;
+    if (client == null) {
+      debugPrint('⚠️  Supabase is not initialized; skip sync for $table');
+      return;
+    }
+
+    final rec = Map<String, dynamic>.from(record);
+
+    // userroles: uid เป็น NOT NULL และคือ doc id
+    if (table == 'userroles') {
+      rec.putIfAbsent('uid', () => rec['id']);
+    }
+    for (int attempt = 0; attempt < 10; attempt++) {
+      try {
+        await client.from(table).upsert(rec, onConflict: 'id');
+        return;
+      } on PostgrestException catch (e) {
+        final match =
+            RegExp(r"Could not find the '([^']+)' column").firstMatch(e.message);
+        if (match != null && rec.containsKey(match.group(1))) {
+          rec.remove(match.group(1));
+          continue;
+        }
+        rethrow;
+      }
+    }
+  }
+
+  // Helper: Dual-write to Firebase & Supabase
+  Future<void> _dualWriteSet(
+    String collectionName,
+    String docId,
+    Map<String, dynamic> data, {
+    bool merge = false,
+  }) async {
+    try {
+      // Write to Firebase
+      await _db.collection(collectionName).doc(docId).set(
+        data,
+        SetOptions(merge: merge),
+      );
+
+      // Write to Supabase
+      if (_dualWriteEnabled) {
+        try {
+          await _supabaseUpsert(
+              collectionName.toLowerCase(), _toSupabaseRecord(data, docId));
+        } catch (e) {
+          debugPrint('⚠️  Supabase write error ($collectionName): $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Dual-write error in _dualWriteSet: $e');
+      rethrow;
+    }
+  }
+
+  // Helper: Dual-update Firebase & Supabase
+  Future<void> _dualWriteUpdate(
+    String collectionName,
+    String docId,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      // Update in Firebase
+      await _db.collection(collectionName).doc(docId).update(data);
+
+      // Update in Supabase (upsert เผื่อ record ยังไม่มี)
+      if (_dualWriteEnabled) {
+        try {
+          await _supabaseUpsert(
+              collectionName.toLowerCase(), _toSupabaseRecord(data, docId));
+        } catch (e) {
+          debugPrint('⚠️  Supabase update error ($collectionName): $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Dual-write error in _dualWriteUpdate: $e');
+      rethrow;
+    }
+  }
+
+  // Helper: Dual-add to Firebase & Supabase
+  Future<String> _dualWriteAdd(
+    String collectionName,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      // Add to Firebase (generates ID)
+      final docRef = await _db.collection(collectionName).add(data);
+      final docId = docRef.id;
+
+      // Add to Supabase with same ID
+      if (_dualWriteEnabled) {
+        try {
+          await _supabaseUpsert(
+              collectionName.toLowerCase(), _toSupabaseRecord(data, docId));
+        } catch (e) {
+          debugPrint('⚠️  Supabase insert error ($collectionName): $e');
+        }
+      }
+
+      return docId;
+    } catch (e) {
+      debugPrint('❌ Dual-write error in _dualWriteAdd: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> ensureConfigLoaded() async {
+    if (_configLoaded) return;
+    try {
+      final snap = await db.collection('Settings').doc('app_config').get();
+      final data = snap.data() ?? <String, dynamic>{};
+      _configCache = data.map((k, v) => MapEntry(k, v.toString()));
+    } catch (e) {
+      debugPrint('Failed to load app_config from Firestore: $e');
+    }
+    _configLoaded = true;
+  }
+
+  static String config(String key) => _configCache[key] ?? '';
+
+  static String get secretKey => config('secretKey');
+  static String get appsScriptUrl => config('appsScriptUrl');
+  static String get driveProfileFolderId => config('driveProfileFolderId');
+  static String get driveLeaveFolderId => config('driveLeaveFolderId');
+
   FirebaseFirestore? _firestoreInstance;
 
   FirebaseFirestore get _db {
@@ -48,10 +205,13 @@ class FirebaseService {
 
   String _appsScriptUrlFromSettings(Map<String, dynamic> settings) {
     final savedUrl = (settings['webhookUrl'] ?? '').toString().trim();
-    return isLikelyAppsScriptWebAppUrl(savedUrl) ? savedUrl : appsScriptUrl;
+    if (isLikelyAppsScriptWebAppUrl(savedUrl)) return savedUrl;
+    final fallback = appsScriptUrl;
+    return isLikelyAppsScriptWebAppUrl(fallback) ? fallback : savedUrl;
   }
 
   Future<String> getAppsScriptUrl() async {
+    await ensureConfigLoaded();
     return _appsScriptUrlFromSettings(await getLineMessagingSettings());
   }
 
@@ -66,8 +226,13 @@ class FirebaseService {
     }).toString();
   }
 
-  // 🛡️ ดึง UID ของผู้ใช้งานปัจจุบันครับ 🥇🏆
   String? get currentUid => FirebaseAuth.instance.currentUser?.uid;
+
+  static String generateResetCode() {
+    final random = DateTime.now().microsecondsSinceEpoch;
+    final code = ((random % 900000) + 100000).toString();
+    return code;
+  }
 
   String _resolveEffectiveRole(Iterable<dynamic> values) {
     final roles = values
@@ -89,10 +254,45 @@ class FirebaseService {
     String? teacherDocId,
     String? username,
     String? preferredRole,
+    Map<String, dynamic>? teacherData,
   }) async {
     try {
       DocumentSnapshot<Map<String, dynamic>>? teacherDoc;
 
+      // ⚡ ถ้า caller ส่งข้อมูลมาแล้ว ไม่ต้องดึงซ้ำจากฐานข้อมูล
+      if (teacherData != null && teacherDocId != null && teacherDocId.trim().isNotEmpty) {
+        final docData = teacherData;
+        final role = _resolveEffectiveRole([
+          docData['role'],
+          docData['permission'],
+          preferredRole,
+        ]);
+        final resolvedFullName =
+            (docData['fullName'] ?? docData['name'] ?? fullName).toString();
+
+        // Login must not depend on Supabase readiness; sync Firebase first.
+        await Future.wait([
+          _db.collection('Teachers').doc(teacherDocId.trim()).update({
+            'firebase_uid': uid,
+            'role': role,
+            'permission': role,
+            'lastSyncAt': FieldValue.serverTimestamp(),
+          }),
+          _db.collection('UserRoles').doc(uid).set({
+            'role': role,
+            'permission': role,
+            'fullName': resolvedFullName,
+            'teacherDocId': teacherDocId.trim(),
+            'lastSyncAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true)),
+        ]);
+
+        debugPrint(
+            "Successfully linked UID and Sync Roles for: $resolvedFullName");
+        return true;
+      }
+
+      // Fallback: query ถ้าไม่ได้รับข้อมูล (สำหรับ backward compatibility)
       if (teacherDocId != null && teacherDocId.trim().isNotEmpty) {
         final snap =
             await _db.collection('Teachers').doc(teacherDocId.trim()).get();
@@ -131,22 +331,22 @@ class FirebaseService {
         final resolvedFullName =
             (docData['fullName'] ?? docData['name'] ?? fullName).toString();
 
-        // 1. อัปเดตที่ห้อง Teachers เดิม
-        await _db.collection('Teachers').doc(teacherDoc.id).update({
-          'firebase_uid': uid,
-          'role': role,
-          'permission': role,
-          'lastSyncAt': FieldValue.serverTimestamp(),
-        });
-
-        // 2. 🛡️ ซิงค์กุญแจสำคัญไปที่ห้อง UserRoles โดยใช้ UID เป็นชื่อเอกสาร (หัวใจของความปลอดภัยครับ) 🥇🏆
-        await _db.collection('UserRoles').doc(uid).set({
-          'role': role,
-          'permission': role,
-          'fullName': resolvedFullName,
-          'teacherDocId': teacherDoc.id,
-          'lastSyncAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        // ⚡ ยิง 2 writes พร้อมกันแทนการ await ต่อกัน
+        await Future.wait([
+          _db.collection('Teachers').doc(teacherDoc.id).update({
+            'firebase_uid': uid,
+            'role': role,
+            'permission': role,
+            'lastSyncAt': FieldValue.serverTimestamp(),
+          }),
+          _db.collection('UserRoles').doc(uid).set({
+            'role': role,
+            'permission': role,
+            'fullName': resolvedFullName,
+            'teacherDocId': teacherDoc.id,
+            'lastSyncAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true)),
+        ]);
 
         debugPrint(
             "Successfully linked UID and Sync Roles for: $resolvedFullName");
@@ -228,17 +428,18 @@ class FirebaseService {
 
   // เพิ่มรายชื่อครูคนใหม่ลงฐานข้อมูลครับ 🏎️🏆
   Future<void> addUser(Map<String, dynamic> data) async {
-    await _db.collection('Teachers').add(data);
+    await _dualWriteAdd('Teachers', data);
   }
 
   // แก้ไขข้อมูลครูครับ 🏎️🏆
   Future<void> updateUser(String docId, Map<String, dynamic> data) async {
-    await _db.collection('Teachers').doc(docId).update(data);
+    await _dualWriteUpdate('Teachers', docId, data);
   }
 
   // ลบข้อมูลครูครับ 🏎️🏆
   Future<void> deleteUser(String docId) async {
     await _db.collection('Teachers').doc(docId).delete();
+    // TODO: Add Supabase delete support
   }
 
   // 🛠️ ฟังก์ชันช่วยหาฟิลด์ที่เป็นค่า String (หาฟิลด์ Value/Name แบบไม่สนตัวเล็กตัวใหญ่) 🥇🏆
@@ -278,14 +479,50 @@ class FirebaseService {
     return doc.id;
   }
 
+  int _toIntValue(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  Future<List<String>> _getOrderedMasterValues(
+    String collection,
+    String idField, {
+    bool excludeBooleanText = false,
+  }) async {
+    final snapshot = await _db.collection(collection).get();
+    final docs = snapshot.docs.toList()
+      ..sort((a, b) {
+        final aData = a.data();
+        final bData = b.data();
+        final aFieldOrder = _toIntValue(aData[idField]);
+        final bFieldOrder = _toIntValue(bData[idField]);
+        final aOrder = aFieldOrder > 0 ? aFieldOrder : _toIntValue(a.id);
+        final bOrder = bFieldOrder > 0 ? bFieldOrder : _toIntValue(b.id);
+
+        if (aOrder != bOrder) return aOrder.compareTo(bOrder);
+        return a.id.compareTo(b.id);
+      });
+
+    final seen = <String>{};
+    final values = <String>[];
+    for (final doc in docs) {
+      final value = _extractValue(doc);
+      final upperValue = value.toUpperCase();
+      if (value.isEmpty) continue;
+      if (excludeBooleanText &&
+          (upperValue == 'TRUE' || upperValue == 'FALSE')) {
+        continue;
+      }
+      if (seen.add(value)) values.add(value);
+    }
+    return values;
+  }
+
   // ดึงตำแหน่งงานบริหารจากฐานข้อมูลครับ 🥇🏆
   Future<List<String>> getAdminRoles() async {
-    final snapshot = await _db.collection('AdminRoles').get();
-    final List<String> roles = snapshot.docs
-        .map((doc) => _extractValue(doc))
-        .where((s) => s.isNotEmpty)
-        .toSet()
-        .toList(); // ป้องกันซ้ำ
+    final List<String> roles =
+        await _getOrderedMasterValues('AdminRoles', 'ID_AdminRoles');
     if (!roles.contains('ไม่มีตำแหน่งบริหาร'))
       roles.insert(0, 'ไม่มีตำแหน่งบริหาร');
     return roles;
@@ -293,53 +530,30 @@ class FirebaseService {
 
   // ดึงตำแหน่งงานทั่วไปครับ 🥇🏆
   Future<List<String>> getPositions() async {
-    final snapshot = await _db.collection('Positions').get();
-    return snapshot.docs
-        .map((doc) => _extractValue(doc))
-        .where((s) => s.isNotEmpty)
-        .toSet()
-        .toList(); // ป้องกันซ้ำ
+    return _getOrderedMasterValues('Positions', 'ID_Positions');
   }
 
   // ดึงสิทธิ์การเข้าถึง (Roles) ครับ 🥇🏆
   Future<List<String>> getPermissions() async {
-    final snapshot = await _db
-        .collection('Roles')
-        .get(); // เปลี่ยนเป็น Roles ตามที่คุณครูแนะนำครับ
-    return snapshot.docs
-        .map((doc) => _extractValue(doc))
-        .where((s) => s.isNotEmpty && s != 'TRUE' && s != 'FALSE')
-        .toSet()
-        .toList();
+    return _getOrderedMasterValues(
+      'Roles',
+      'ID_Roles',
+      excludeBooleanText: true,
+    );
   }
 
   // ดึงวิทยฐานนะครับ 🥇🏆
   Future<List<String>> getAcademics() async {
-    final snapshot = await _db.collection('Academics').get();
-    return snapshot.docs
-        .map((doc) => _extractValue(doc))
-        .where((s) => s.isNotEmpty)
-        .toSet()
-        .toList(); // ป้องกันซ้ำ
+    return _getOrderedMasterValues('Academics', 'ID_Academics');
   }
 
   Future<List<String>> getLeaveTypes() async {
-    final snapshot = await _db.collection('LeaveTypes').get();
-    return snapshot.docs
-        .map((doc) => _extractValue(doc))
-        .where((s) => s.isNotEmpty)
-        .toSet()
-        .toList(); // ป้องกันซ้ำ
+    return _getOrderedMasterValues('LeaveTypes', 'ID_LeaveTypes');
   }
 
   // ดึงกลุ่มสาระการเรียนรู้จากฐานข้อมูล Departments ครับ 🕵️‍♂️🏎️🏆
   Future<List<String>> getDepartments() async {
-    final snapshot = await _db.collection('Departments').get();
-    return snapshot.docs
-        .map((doc) => _extractValue(doc))
-        .where((s) => s.isNotEmpty)
-        .toSet()
-        .toList(); // ป้องกันซ้ำ
+    return _getOrderedMasterValues('Departments', 'ID_Departments');
   }
 
   // ดึงรายการวิชาที่สอนจากฐานข้อมูล Subjects ครับ 🕵️‍♂️🏎️🏆
@@ -370,7 +584,7 @@ class FirebaseService {
   }
 
   Future<void> addFiscalRound(Map<String, dynamic> data) async {
-    await _db.collection('FiscalRounds').add({
+    await _dualWriteAdd('FiscalRounds', {
       ...data,
       'isActive': false,
       'createdAt': FieldValue.serverTimestamp(),
@@ -379,6 +593,7 @@ class FirebaseService {
 
   Future<void> deleteFiscalRound(String docId) async {
     await _db.collection('FiscalRounds').doc(docId).delete();
+    // TODO: Add Supabase delete support
   }
 
   // ดึงรายการรอบงบประมาณที่ตรงกับปฏิทินปัจจุบัน (Auto-match) 🥇🏎️🏆
@@ -575,15 +790,19 @@ class FirebaseService {
   }
 
   // ดึงประวัติการลาของตัวเองแบบเรียลไทม์ครับ 🕵️‍♂️🏎️🏆
-  Stream<List<Map<String, dynamic>>> getLeaveRequestsStream() {
-    return _db.collection('Leaves').snapshots().map((snapshot) => snapshot.docs
+  Stream<List<Map<String, dynamic>>> getLeaveRequestsStream({int? year}) {
+    Query<Map<String, dynamic>> query = _db.collection('Leaves');
+    if (year != null) query = query.where('year', isEqualTo: year);
+    return query.snapshots().map((snapshot) => snapshot.docs
         .map((doc) => {...doc.data(), 'requestId': doc.id})
         .toList()
       ..sort(FirebaseService.compareLeaveRecency));
   }
 
-  Future<List<Map<String, dynamic>>> getLeaveRequests() async {
-    final snapshot = await _db.collection('Leaves').get();
+  Future<List<Map<String, dynamic>>> getLeaveRequests({int? year}) async {
+    Query<Map<String, dynamic>> query = _db.collection('Leaves');
+    if (year != null) query = query.where('year', isEqualTo: year);
+    final snapshot = await query.get();
     return snapshot.docs
         .map((doc) => {...doc.data(), 'requestId': doc.id})
         .toList()
@@ -617,37 +836,65 @@ class FirebaseService {
     final snapshot = await _db
         .collection('Leaves')
         .where('fullName', isEqualTo: fullName)
+        .orderBy('timestamp', descending: true)
+        .limit(1)
         .get();
     if (snapshot.docs.isNotEmpty) {
-      final leaves = snapshot.docs
-          .map((doc) => {...doc.data(), 'requestId': doc.id})
-          .toList()
-        ..sort(FirebaseService.compareLeaveRecency);
-      return leaves.first;
+      final doc = snapshot.docs.first;
+      return {...doc.data(), 'requestId': doc.id};
     }
     return null;
+  }
+
+  Future<void> clearAllReceiveNumbers() async {
+    final snapshot = await _db.collection('Leaves').get();
+    final docsWithReceive = snapshot.docs
+        .where((d) => d.data()['receiveNumber'] != null)
+        .toList();
+    if (docsWithReceive.isEmpty) return;
+
+    final batch = _db.batch();
+    for (final doc in docsWithReceive) {
+      batch.update(doc.reference, {
+        'receiveNumber': FieldValue.delete(),
+        'receiveDate': FieldValue.delete(),
+        'receiveTime': FieldValue.delete(),
+      });
+    }
+    await batch.commit();
   }
 
   // ส่งใบลาเข้าระบบครับ 🏎️🏁
   Future<void> submitLeaveRequest(Map<String, dynamic> data) async {
     final String docId = 'LV-${DateTime.now().millisecondsSinceEpoch}';
-    await _db.collection('Leaves').doc(docId).set({
+
+    await _dualWriteSet('Leaves', docId, {
       ...data,
-      'uid':
-          currentUid, // 🛡️ บันทึกรหัสเจ้าของใบลาเพื่อความปลอดภัยสูงสุด (Phase 3) 🥇🏆
-      'requestId': docId, // ✅ บันทึก ID ลงในข้อมูลด้วยเพื่อความสะดวกครับ
+      'uid': currentUid,
+      'requestId': docId,
       'timestamp': FieldValue.serverTimestamp(),
-      'status': 'รอพิจารณา', // สถานะตั้งต้นครับ 🥇
+      'status': 'รอพิจารณา',
     });
   }
 
   // แก้ไขใบลาครับ 🏎️🏁
   Future<void> updateLeaveRequest(
       String requestId, Map<String, dynamic> data) async {
-    await _db.collection('Leaves').doc(requestId).update({
+    await _dualWriteUpdate('Leaves', requestId, {
       ...data,
       'lastUpdatedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  Future<int> generateReceiveNumber() async {
+    final fiscalYear = DateTime.now().year + 543;
+    final snapshot = await _db.collection('Leaves')
+        .where('year', isEqualTo: fiscalYear)
+        .get();
+    final count = snapshot.docs
+        .where((d) => d.data()['receiveNumber'] != null)
+        .length;
+    return count + 1;
   }
 
   // 🔥 ลบไฟล์ใน Google Drive ผ่าน Apps Script ครับ 🥇🏆🏎️
@@ -875,7 +1122,7 @@ class FirebaseService {
     try {
       debugPrint("🔔 Starting LINE Notification process...");
 
-      // 🕵️‍♂️ 1. ดึงการตั้งค่าทั้งหมดจาก Settings/line_messaging เพื่อความแม่นยำครับ 🥇🏆
+      await ensureConfigLoaded();
       final snap = await db.collection('Settings').doc('line_messaging').get();
       final settings = snap.data() ?? <String, dynamic>{};
       final bridgeUrl = _appsScriptUrlFromSettings(settings);
@@ -975,10 +1222,10 @@ class FirebaseService {
           return false;
         });
       """;
-      final result = await js_util
-          .promiseToFuture<dynamic>(js.context.callMethod('eval', [jsCode]))
-          .timeout(const Duration(seconds: 12), onTimeout: () => false);
-      return result == true;
+      final result = await (globalContext.callMethod<JSAny>('eval'.toJS, jsCode.toJS) as JSPromise)
+          .toDart
+          .timeout(const Duration(seconds: 12), onTimeout: () => false.toJS);
+      return result == true.toJS;
     } catch (e) {
       debugPrint("❌ Web LINE fetch exception: $e");
       return false;
@@ -991,18 +1238,13 @@ class FirebaseService {
     final separator = url.contains('?') ? '&' : '?';
     final callbackUrl = '$url${separator}callback=$callbackName';
 
-    // ignore: undefined_function
-    js_util.setProperty(
-      js.context,
-      callbackName,
-      js_util.allowInterop((dynamic data) {
-        if (!completer.isCompleted) {
-          completer.complete(jsonEncode(data ?? {}));
-        }
-      }),
-    );
+    globalContext[callbackName] = ((JSAny? data) {
+      if (!completer.isCompleted) {
+        completer.complete(data != null ? jsonEncode((data as JSObject).dartify()) : '{}');
+      }
+    }).toJS;
 
-    final script = html.ScriptElement()
+    final script = web.document.createElement('script') as web.HTMLScriptElement
       ..src = callbackUrl
       ..async = true;
 
@@ -1015,9 +1257,8 @@ class FirebaseService {
       }
     });
 
-    html.document.body?.append(script);
+    web.document.body?.append(script);
 
-    // ขยายเป็น 45 วินาทีเพื่อให้มั่นใจว่าได้รับคำตอบกลับครับ ⏱️
     Future.delayed(const Duration(seconds: 45), () {
       if (!completer.isCompleted) {
         completer.complete(jsonEncode({
@@ -1034,7 +1275,7 @@ class FirebaseService {
           ? Map<String, dynamic>.from(decoded)
           : <String, dynamic>{'status': 'error', 'message': 'Invalid response'};
     } finally {
-      js.context.deleteProperty(callbackName);
+      globalContext[callbackName] = null;
       script.remove();
     }
   }
@@ -1057,10 +1298,10 @@ class FirebaseService {
           img.src = ${jsonEncode(url + '&_ts=${DateTime.now().millisecondsSinceEpoch}')};
         });
       """;
-      final result = await js_util
-          .promiseToFuture<dynamic>(js.context.callMethod('eval', [jsCode]))
-          .timeout(const Duration(seconds: 13), onTimeout: () => false);
-      return result == true;
+      final result = await (globalContext.callMethod<JSAny>('eval'.toJS, jsCode.toJS) as JSPromise)
+          .toDart
+          .timeout(const Duration(seconds: 13), onTimeout: () => false.toJS);
+      return result == true.toJS;
     } catch (e) {
       debugPrint("❌ Web LINE image beacon exception: $e");
       return false;
@@ -1071,6 +1312,7 @@ class FirebaseService {
   Future<void> sendLineStatusNotification(
       Map<String, dynamic> leaveData, String newStatus) async {
     try {
+      await ensureConfigLoaded();
       final snap = await db.collection('Settings').doc('line_messaging').get();
       if (!snap.exists) return;
 
@@ -1098,7 +1340,7 @@ class FirebaseService {
       if (kIsWeb) {
         final String jsCode =
             "fetch(${jsonEncode(url)}, {method:'GET', mode:'no-cors'}).catch(function(e){});";
-        js.context.callMethod('eval', [jsCode]);
+        globalContext.callMethod<JSAny>('eval'.toJS, jsCode.toJS);
       } else {
         await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
       }
@@ -1110,7 +1352,7 @@ class FirebaseService {
   // 👨‍🏫 อัปเดตข้อมูลบุคลากรด้วย ID (เร็วกว่าการหาด้วยชื่อครับ) 🥇🏆🏎️
   Future<void> updateTeacherById(
       String docId, Map<String, dynamic> newData) async {
-    await db.collection('Teachers').doc(docId).update(newData);
+    await _dualWriteUpdate('Teachers', docId, newData);
   }
 
   // 👨‍🏫 อัปเดตข้อมูลบุคลากร (ใช้สำหรับหน้า Profile มือถือครับ) 🥇🏆🏎️
@@ -1122,7 +1364,7 @@ class FirebaseService {
         .limit(1)
         .get();
     if (query.docs.isNotEmpty) {
-      await db.collection('Teachers').doc(query.docs.first.id).update(newData);
+      await _dualWriteUpdate('Teachers', query.docs.first.id, newData);
     }
   }
 
@@ -1171,18 +1413,18 @@ class FirebaseService {
   // 🛡️ บันทึกประวัติการเข้าใช้งาน (Login Logging) 🥇🏆🏎️
   Future<void> logLogin(String username, String fullName, String role) async {
     try {
-      await _db.collection('LoginLogs').add({
+      await _dualWriteAdd('LoginLogs', {
         'username': username,
         'fullName': fullName,
         'role': role,
         'timestamp': FieldValue.serverTimestamp(),
         'platform': kIsWeb ? 'Web' : 'Mobile',
         'userAgent':
-            kIsWeb ? js.context['navigator']['userAgent'] : 'Mobile App',
+            kIsWeb ? web.window.navigator.userAgent : 'Mobile App',
       });
-      debugPrint("Login logged successfully for: $username");
+      debugPrint("✅ Login logged to Firebase & Supabase: $username");
     } catch (e) {
-      debugPrint("Error logging login: $e");
+      debugPrint("❌ Error logging login: $e");
     }
   }
 
@@ -1240,6 +1482,7 @@ class FirebaseService {
   Future<void> sendLinePasswordResetNotification(
       String username, String fullName) async {
     try {
+      await ensureConfigLoaded();
       final snap = await db.collection('Settings').doc('line_messaging').get();
       if (!snap.exists) return;
 
@@ -1265,7 +1508,7 @@ class FirebaseService {
       if (kIsWeb) {
         final String jsCode =
             "fetch(${jsonEncode(url)}, {method:'GET', mode:'no-cors'}).catch(function(e){});";
-        js.context.callMethod('eval', [jsCode]);
+        globalContext.callMethod<JSAny>('eval'.toJS, jsCode.toJS);
       } else {
         await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
       }

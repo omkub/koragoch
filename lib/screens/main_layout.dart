@@ -291,7 +291,7 @@ class _MainLayoutState extends State<MainLayout> {
                 color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 10,
                       offset: const Offset(0, -2))
                 ],
@@ -343,7 +343,7 @@ class _MainLayoutState extends State<MainLayout> {
       decoration: BoxDecoration(
         color: Colors.white,
         border: isWeb
-            ? Border(right: BorderSide(color: Colors.black.withOpacity(0.05)))
+            ? Border(right: BorderSide(color: Colors.black.withValues(alpha: 0.05)))
             : null,
       ),
       child: Column(
@@ -354,9 +354,9 @@ class _MainLayoutState extends State<MainLayout> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.black.withOpacity(0.05)),
+              border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
               boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)
+                BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)
               ],
             ),
             child: Row(

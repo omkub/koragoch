@@ -90,7 +90,7 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
                       border: Border.all(color: Colors.grey.shade200),
                     ),
                     child: DropdownButtonHideUnderline(
@@ -137,7 +137,7 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
                               return Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                                 decoration: BoxDecoration(
-                                  color: isSelected ? color.withOpacity(0.1) : Colors.white,
+                                  color: isSelected ? color.withValues(alpha: 0.1) : Colors.white,
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(color: isSelected ? color : Colors.grey.shade200),
                                 ),
@@ -257,7 +257,7 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
                       child: ConstrainedBox(
                         constraints: BoxConstraints(minWidth: constraints.maxWidth),
                         child: DataTable(
-                          headingRowColor: MaterialStateProperty.resolveWith((states) => baseColor.withOpacity(0.15)),
+                          headingRowColor: MaterialStateProperty.resolveWith((states) => baseColor.withValues(alpha: 0.15)),
                     headingTextStyle: GoogleFonts.sarabun(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
                     dataRowMinHeight: 60,
                     dataRowMaxHeight: 60,
@@ -312,7 +312,7 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
     return Container(
       width: 40, height: 40,
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 2),
       ),
@@ -350,7 +350,7 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-          color: c.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
+          color: c.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
       child: Text(t,
           style: GoogleFonts.sarabun(
               fontSize: 12, color: c, fontWeight: FontWeight.bold)),

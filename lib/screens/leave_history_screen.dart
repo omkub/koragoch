@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import 'dart:convert';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import 'dart:js_interop';
+import 'package:web/web.dart' as web;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -20,8 +20,10 @@ class LeaveHistoryScreen extends StatefulWidget {
 
 class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
   final FirebaseService _firebaseService = FirebaseService();
+  final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _allUsers = [];
   List<Map<String, dynamic>> _allLeaveRequests = [];
+  Stream<List<Map<String, dynamic>>>? _leaveRequestsStream;
 
   // Track selected IDs for bulk deletion 🧹✨🥇
   final Set<String> _selectedIds = {};
@@ -30,6 +32,8 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
       []; // 📋 cache รายการล่าสุดจาก stream ครับ
   String? _userRole;
   String? _currentUser;
+  String _selectedDepartmentFilter = 'ทั้งหมด';
+  String _selectedPositionFilter = 'ทั้งหมด';
 
   // 📅 ระบบจัดการรอบงบประมาณ 🥇🏆
   List<Map<String, dynamic>> _rounds = [];
@@ -42,26 +46,37 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
     _fetchNecessaryData();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _fetchNecessaryData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _userRole = prefs.getString('userRole');
-      _currentUser = prefs.getString('currentUser');
+      final role = prefs.getString('userRole');
+      final user = prefs.getString('currentUser');
+      if (mounted) {
+        setState(() {
+          _userRole = role;
+          _currentUser = user;
+          _leaveRequestsStream = _createLeaveRequestsStream(role, user);
+        });
+      }
 
-      final usersSnap = await _firebaseService.getUsers();
-      final leavesSnap = (_userRole?.contains('ผู้ดูแลระบบ') == true ||
-              _userRole?.contains('ผู้บริหาร') == true)
-          ? await _firebaseService.getLeaveRequests()
-          : await _firebaseService.getMyLeaveRequests(_currentUser ?? '');
-
-      // 🕵️‍♂️ โหลดรอบงบประมาณเพิ่มเติมครับ 🥇🏆
-      final roundsSnap = await _firebaseService.getFiscalRounds();
-      final activeRound = await _firebaseService.getActiveFiscalRound();
+      final results = await Future.wait([
+        _firebaseService.getUsers(),
+        _firebaseService.getFiscalRounds(),
+        _firebaseService.getActiveFiscalRound(),
+      ]);
+      final usersSnap = results[0] as List<Map<String, dynamic>>;
+      final roundsSnap = results[1] as List<Map<String, dynamic>>;
+      final activeRound = results[2] as Map<String, dynamic>?;
 
       if (mounted) {
         setState(() {
           _allUsers = usersSnap;
-          _allLeaveRequests = leavesSnap;
           _rounds = roundsSnap;
 
           // ตั้งค่ารอบเริ่มต้นเป็นรอบที่กำลังทำงานครับ 🕵️‍♂️🥇
@@ -81,6 +96,106 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
       debugPrint("Error fetching necessary data: $e");
       if (mounted) setState(() => _isRoundsLoading = false);
     }
+  }
+
+  bool _canViewAllHistory(String? role) {
+    final value = role ?? '';
+    return value.contains('ผู้ดูแลระบบ') || value.contains('ผู้บริหาร');
+  }
+
+  Stream<List<Map<String, dynamic>>> _createLeaveRequestsStream(
+      String? role, String? user) {
+    return _canViewAllHistory(role)
+        ? _firebaseService.getLeaveRequestsStream()
+        : _firebaseService.getMyLeaveRequestsStream(user ?? '');
+  }
+
+  Map<String, dynamic> _userForLeave(Map<String, dynamic> leave) {
+    final name = (leave['fullName'] ?? leave['name'] ?? '').toString().trim();
+    if (name.isEmpty) return const <String, dynamic>{};
+    return _allUsers.firstWhere(
+      (u) => (u['fullName'] ?? u['name'] ?? '').toString().trim() == name,
+      orElse: () => const <String, dynamic>{},
+    );
+  }
+
+  String _firstTextValue(Map<String, dynamic> data, List<String> keys) {
+    for (final key in keys) {
+      final value = data[key]?.toString().trim() ?? '';
+      if (value.isNotEmpty && value != '-') return value;
+    }
+    return '';
+  }
+
+  String _departmentFor(Map<String, dynamic> data) => _firstTextValue(data, [
+        'department',
+        'departmentName',
+        'academic',
+        'academicGroup',
+        'group',
+        'groupName',
+        'กลุ่มสาระ',
+        'กลุ่มงาน',
+      ]);
+
+  String _positionFor(Map<String, dynamic> data) => _firstTextValue(data, [
+        'position',
+        'positionName',
+        'ตำแหน่ง',
+      ]);
+
+  List<String> _uniqueFilterOptions(String Function(Map<String, dynamic>) pick) {
+    final values = _allUsers
+        .map(pick)
+        .where((value) => value.trim().isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    return ['ทั้งหมด', ...values];
+  }
+
+  List<Map<String, dynamic>> _applyHistoryFilters(
+      List<Map<String, dynamic>> leaves) {
+    final keyword = _searchController.text.trim().toLowerCase();
+
+    return leaves.where((leave) {
+      final user = _userForLeave(leave);
+      final merged = {...user, ...leave};
+      final department = _departmentFor(merged);
+      final position = _positionFor(merged);
+
+      final departmentMatch = _selectedDepartmentFilter == 'ทั้งหมด' ||
+          department == _selectedDepartmentFilter;
+      final positionMatch = _selectedPositionFilter == 'ทั้งหมด' ||
+          position == _selectedPositionFilter;
+
+      final searchText = [
+        leave['fullName'],
+        leave['name'],
+        leave['leaveType'],
+        leave['reason'],
+        leave['status'],
+        leave['year'],
+        leave['receiveNumber'],
+        leave['receiveDate'],
+        leave['receiveTime'],
+        department,
+        position,
+      ].map((v) => v?.toString().toLowerCase() ?? '').join(' ');
+
+      return departmentMatch &&
+          positionMatch &&
+          (keyword.isEmpty || searchText.contains(keyword));
+    }).toList();
+  }
+
+  void _clearHistoryFilters() {
+    setState(() {
+      _selectedDepartmentFilter = 'ทั้งหมด';
+      _selectedPositionFilter = 'ทั้งหมด';
+      _searchController.clear();
+      _selectedIds.clear();
+    });
   }
 
   @override
@@ -126,7 +241,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.05),
+                                color: Colors.black.withValues(alpha: 0.05),
                                 borderRadius: BorderRadius.circular(10)),
                             child: const Icon(Icons.history,
                                 color: Colors.black, size: 24),
@@ -159,7 +274,10 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                           ),
                           const SizedBox(width: 12),
                           ElevatedButton.icon(
-                            onPressed: () => setState(() {}),
+                            onPressed: () => setState(() {
+                              _leaveRequestsStream = _createLeaveRequestsStream(
+                                  _userRole, _currentUser);
+                            }),
                             icon: const Icon(Icons.refresh, size: 18),
                             label: Text('รีเฟรช',
                                 style: GoogleFonts.sarabun(
@@ -192,7 +310,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                      color: Colors.black.withOpacity(0.05),
+                                      color: Colors.black.withValues(alpha: 0.05),
                                       borderRadius: BorderRadius.circular(10)),
                                   child: const Icon(Icons.history,
                                       color: Colors.black, size: 24),
@@ -236,7 +354,10 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                           ),
                           const SizedBox(width: 12),
                           ElevatedButton.icon(
-                            onPressed: () => setState(() {}),
+                            onPressed: () => setState(() {
+                              _leaveRequestsStream = _createLeaveRequestsStream(
+                                  _userRole, _currentUser);
+                            }),
                             icon: const Icon(Icons.refresh, size: 18),
                             label: Text('รีเฟรช',
                                 style: GoogleFonts.sarabun(
@@ -348,11 +469,9 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                     ? 1200
                     : MediaQuery.of(context).size.width - 64,
                 child: StreamBuilder<List<Map<String, dynamic>>>(
-                  stream: (_userRole?.contains('ผู้ดูแลระบบ') == true ||
-                          _userRole?.contains('ผู้บริหาร') == true)
-                      ? _firebaseService.getLeaveRequestsStream()
-                      : _firebaseService
-                          .getMyLeaveRequestsStream(_currentUser ?? ''),
+                  stream: _leaveRequestsStream,
+                  initialData:
+                      _allLeaveRequests.isNotEmpty ? _allLeaveRequests : null,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(
@@ -373,8 +492,9 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                     }
 
                     final allLeaves = snapshot.data!;
+                    _allLeaveRequests = allLeaves;
                     // 🕵️‍♂️ กรองข้อมูลตามรอบงบประมาณที่เลือกครับ 🥇🏆🏎️
-                    final leaves = _selectedRound == null
+                    final roundLeaves = _selectedRound == null
                         ? allLeaves
                         : allLeaves
                             .where((l) => FirebaseService.isDateInRange(
@@ -382,9 +502,11 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                                 _selectedRound!['startDate'] ?? '',
                                 _selectedRound!['endDate'] ?? ''))
                             .toList();
+                    final leaves = _applyHistoryFilters(roundLeaves);
                     _latestLeaves = leaves; // 📋 อัพเดต cache ครับ
                     return Column(
                       children: [
+                        _buildHistoryFilters(),
                         Padding(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 24, vertical: 12),
@@ -415,10 +537,15 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                               _buildHeaderLabel('สิ้นสุด', width: 110),
                               _buildHeaderLabel('เหตุผล', width: 210),
                               _buildHeaderLabel('สถานะ', width: 110),
-                              _buildHeaderLabel('ID', width: 150),
                               _buildHeaderLabel('ปีงบ',
                                   width: 80, align: TextAlign.center),
                               _buildHeaderLabel('จำนวนวัน',
+                                  width: 80, align: TextAlign.center),
+                              _buildHeaderLabel('รับที่',
+                                  width: 60, align: TextAlign.center),
+                              _buildHeaderLabel('วันที่รับ',
+                                  width: 110, align: TextAlign.center),
+                              _buildHeaderLabel('เวลารับ',
                                   width: 80, align: TextAlign.center),
                               _buildHeaderLabel('ใบรับรองแพทย์/ใบนัด',
                                   width: 120, align: TextAlign.center),
@@ -433,21 +560,38 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                               borderRadius: BorderRadius.circular(20),
                               boxShadow: [
                                 BoxShadow(
-                                    color: Colors.black.withOpacity(0.03),
+                                    color: Colors.black.withValues(alpha: 0.03),
                                     blurRadius: 15,
                                     offset: const Offset(0, 5))
                               ]),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(20),
-                            child: ListView.separated(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: leaves.length,
-                              separatorBuilder: (ctx, i) => const Divider(
-                                  height: 1, color: Color(0xFFF1F5F9)),
-                              itemBuilder: (ctx, i) =>
-                                  _buildHistoryRow(leaves[i]),
-                            ),
+                            child: leaves.isEmpty
+                                ? Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 24, vertical: 36),
+                                    child: Center(
+                                      child: Text(
+                                        'ไม่พบรายการที่ตรงกับตัวกรอง',
+                                        style: GoogleFonts.sarabun(
+                                            fontSize: 14,
+                                            color: const Color(0xFF64748B),
+                                            fontWeight: FontWeight.w600),
+                                      ),
+                                    ),
+                                  )
+                                : ListView.separated(
+                                    shrinkWrap: true,
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    itemCount: leaves.length,
+                                    separatorBuilder: (ctx, i) =>
+                                        const Divider(
+                                            height: 1,
+                                            color: Color(0xFFF1F5F9)),
+                                    itemBuilder: (ctx, i) =>
+                                        _buildHistoryRow(leaves[i]),
+                                  ),
                           ),
                         ),
                       ],
@@ -484,10 +628,10 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.black.withOpacity(0.1)),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.1)),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 10,
               offset: const Offset(0, 4))
         ],
@@ -525,6 +669,210 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildHistoryFilters() {
+    final departmentOptions = _uniqueFilterOptions(_departmentFor);
+    final positionOptions = _uniqueFilterOptions(_positionFor);
+    final departmentValue = departmentOptions.contains(_selectedDepartmentFilter)
+        ? _selectedDepartmentFilter
+        : 'ทั้งหมด';
+    final positionValue = positionOptions.contains(_selectedPositionFilter)
+        ? _selectedPositionFilter
+        : 'ทั้งหมด';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 920;
+          final department = _buildFilterDropdown(
+            label: 'กลุ่มสาระ/กลุ่มงาน',
+            value: departmentValue,
+            items: departmentOptions,
+            icon: Icons.groups_2_outlined,
+            onChanged: (value) => setState(() {
+              _selectedDepartmentFilter = value ?? 'ทั้งหมด';
+              _selectedIds.clear();
+            }),
+          );
+          final position = _buildFilterDropdown(
+            label: 'ตำแหน่ง',
+            value: positionValue,
+            items: positionOptions,
+            icon: Icons.badge_outlined,
+            onChanged: (value) => setState(() {
+              _selectedPositionFilter = value ?? 'ทั้งหมด';
+              _selectedIds.clear();
+            }),
+          );
+          final search = _buildSearchFilterField();
+          final clearButton = SizedBox(
+            height: 48,
+            child: OutlinedButton.icon(
+              onPressed: _clearHistoryFilters,
+              icon: const Icon(Icons.restart_alt_rounded, size: 18),
+              label: Text(
+                'เริ่มต้น',
+                style: GoogleFonts.sarabun(fontWeight: FontWeight.w700),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.black87,
+                side: const BorderSide(color: Color(0xFFCBD5E1)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+            ),
+          );
+
+          if (isNarrow) {
+            return Column(
+              children: [
+                department,
+                const SizedBox(height: 12),
+                position,
+                const SizedBox(height: 12),
+                search,
+                const SizedBox(height: 12),
+                Align(alignment: Alignment.centerRight, child: clearButton),
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(flex: 3, child: department),
+              const SizedBox(width: 12),
+              Expanded(flex: 3, child: position),
+              const SizedBox(width: 12),
+              Expanded(flex: 4, child: search),
+              const SizedBox(width: 12),
+              clearButton,
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildFilterDropdown({
+    required String label,
+    required String value,
+    required List<String> items,
+    required IconData icon,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: GoogleFonts.sarabun(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF475569))),
+        const SizedBox(height: 6),
+        Container(
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: const Color(0xFF64748B)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: value,
+                    isExpanded: true,
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                        color: Color(0xFF64748B)),
+                    borderRadius: BorderRadius.circular(10),
+                    style: GoogleFonts.sarabun(
+                        fontSize: 13, color: Colors.black87),
+                    items: items
+                        .map((item) => DropdownMenuItem(
+                              value: item,
+                              child: Text(item,
+                                  overflow: TextOverflow.ellipsis),
+                            ))
+                        .toList(),
+                    onChanged: onChanged,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSearchFilterField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('ค้นหา',
+            style: GoogleFonts.sarabun(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF475569))),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 48,
+          child: TextField(
+            controller: _searchController,
+            onChanged: (_) => setState(() => _selectedIds.clear()),
+            style: GoogleFonts.sarabun(fontSize: 13, color: Colors.black87),
+            decoration: InputDecoration(
+              hintText: 'ชื่อ เหตุผล ประเภทลา สถานะ',
+              hintStyle: GoogleFonts.sarabun(
+                  fontSize: 13, color: const Color(0xFF94A3B8)),
+              prefixIcon: const Icon(Icons.search_rounded,
+                  size: 20, color: Color(0xFF64748B)),
+              filled: true,
+              fillColor: const Color(0xFFF8FAFC),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide:
+                    const BorderSide(color: Color(0xFF334155), width: 1.2),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -632,10 +980,10 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                           status == 'ส่งใบลาแล้ว' ||
                           status == 'อนุมัติแล้ว' ||
                           status == 'อนุญาต')
-                      ? Colors.green.withOpacity(0.1)
+                      ? Colors.green.withValues(alpha: 0.1)
                       : (status == 'ยังไม่ส่ง' || status == 'ไม่อนุญาต')
-                          ? Colors.orange.withOpacity(0.1)
-                          : Colors.black.withOpacity(0.05),
+                          ? Colors.orange.withValues(alpha: 0.1)
+                          : Colors.black.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(20)),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -676,11 +1024,6 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
             ),
           ),
           SizedBox(
-              width: 150,
-              child: Text(requestId,
-                  style: GoogleFonts.sarabun(
-                      fontSize: 12, color: Colors.black54))),
-          SizedBox(
               width: 80,
               child: Center(
                   child: Text(leaf['year']?.toString() ?? '-',
@@ -703,6 +1046,27 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                               fontWeight: FontWeight.bold,
                               color: Colors.black))))),
           SizedBox(
+              width: 60,
+              child: Center(
+                  child: Text(
+                      leaf['receiveNumber']?.toString() ?? '-',
+                      style: GoogleFonts.sarabun(
+                          fontSize: 12, color: Colors.black)))),
+          SizedBox(
+              width: 110,
+              child: Center(
+                  child: Text(
+                      leaf['receiveDate']?.toString() ?? '-',
+                      style: GoogleFonts.sarabun(
+                          fontSize: 12, color: Colors.black)))),
+          SizedBox(
+              width: 80,
+              child: Center(
+                  child: Text(
+                      leaf['receiveTime']?.toString() ?? '-',
+                      style: GoogleFonts.sarabun(
+                          fontSize: 12, color: Colors.black)))),
+          SizedBox(
             width: 110,
             child: Center(
               child: Builder(builder: (context) {
@@ -723,10 +1087,10 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                       width: 30,
                       height: 30,
                       decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.05),
+                          color: Colors.black.withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(8),
                           border:
-                              Border.all(color: Colors.black.withOpacity(0.1))),
+                              Border.all(color: Colors.black.withValues(alpha: 0.1))),
                       clipBehavior: Clip.antiAlias,
                       child: Image.network(imgUrl,
                           fit: BoxFit.cover,
@@ -761,6 +1125,8 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                     await _updateStatus(requestId, 'ส่งใบแล้ว');
                   } else if (value == 'reject') {
                     await _updateStatus(requestId, 'ยังไม่ส่ง');
+                  } else if (value == 'set_receive') {
+                    _showSetReceiveDialog(leaf);
                   }
                 },
                 itemBuilder: (BuildContext context) {
@@ -788,6 +1154,16 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                           Text('ยังไม่ส่ง',
                               style: GoogleFonts.sarabun(
                                   fontSize: 13, color: Colors.orange))
+                        ])),
+                    PopupMenuItem<String>(
+                        value: 'set_receive',
+                        child: Row(children: [
+                          const Icon(Icons.assignment_turned_in_outlined,
+                              size: 18, color: Colors.indigo),
+                          const SizedBox(width: 10),
+                          Text('กำหนดรับใบลา',
+                              style: GoogleFonts.sarabun(
+                                  fontSize: 13, color: Colors.indigo))
                         ])),
                     const PopupMenuDivider(),
                     PopupMenuItem<String>(
@@ -830,22 +1206,37 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
     );
   }
 
+  bool _isApproveStatus(String status) {
+    return status == 'ส่งใบแล้ว' ||
+        status == 'ส่งใบลาแล้ว' ||
+        status == 'อนุมัติแล้ว' ||
+        status == 'อนุญาต';
+  }
+
   Future<void> _updateStatus(String requestId, String status) async {
     try {
+      final updateData = <String, dynamic>{'status': status};
+
+      if (_isApproveStatus(status)) {
+        final receiveNumber = await _firebaseService.generateReceiveNumber();
+        final now = DateTime.now();
+        final thaiYear = now.year + 543;
+        updateData['receiveNumber'] = receiveNumber;
+        updateData['receiveDate'] = '${now.day}/${now.month}/$thaiYear';
+        updateData['receiveTime'] = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')} น.';
+      }
+
       await _firebaseService.db
           .collection('Leaves')
           .doc(requestId)
-          .update({'status': status});
+          .update(updateData);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('✅ ปรับปรุงสถานะเป็น: $status เรียบร้อยแล้ว'),
-          backgroundColor: (status == 'ส่งใบแล้ว' ||
-                  status == 'ส่งใบลาแล้ว' ||
-                  status == 'อนุมัติแล้ว' ||
-                  status == 'อนุญาต')
-              ? Colors.green
-              : Colors.orange,
+          content: Text(_isApproveStatus(status)
+              ? '✅ อนุมัติเรียบร้อย (รับที่ ${updateData['receiveNumber']})'
+              : '✅ ปรับปรุงสถานะเป็น: $status เรียบร้อยแล้ว'),
+          backgroundColor: _isApproveStatus(status) ? Colors.green : Colors.orange,
           behavior: SnackBarBehavior.floating,
         ));
       }
@@ -854,6 +1245,146 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('❌ เกิดข้อผิดพลาด: $e')));
     }
+  }
+
+  void _showSetReceiveDialog(Map<String, dynamic> leaf) {
+    final requestId = leaf['requestId']?.toString() ?? '';
+    final receiveCtrl = TextEditingController(
+        text: leaf['receiveNumber']?.toString() ?? '');
+    DateTime selectedDate = DateTime.now();
+    TimeOfDay selectedTime = TimeOfDay.now();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final thaiYear = selectedDate.year + 543;
+          final dateStr = '${selectedDate.day}/${selectedDate.month}/$thaiYear';
+          final timeStr =
+              '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')} น.';
+
+          return AlertDialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(children: [
+              const Icon(Icons.assignment_turned_in_outlined, color: Colors.indigo),
+              const SizedBox(width: 12),
+              Text('กำหนดรับใบลา',
+                  style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+            ]),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('ชื่อ: ${leaf['fullName'] ?? '-'}',
+                    style: GoogleFonts.sarabun(fontSize: 13, color: Colors.blueGrey)),
+                const SizedBox(height: 16),
+                Text('รับที่', style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: receiveCtrl,
+                  keyboardType: TextInputType.text,
+                  decoration: InputDecoration(
+                    hintText: 'เลขรับ',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('วันที่', style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                InkWell(
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: ctx,
+                      initialDate: selectedDate,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime(2030),
+                    );
+                    if (picked != null) setDialogState(() => selectedDate = picked);
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(dateStr, style: GoogleFonts.sarabun(fontSize: 14)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('เวลา', style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                InkWell(
+                  onTap: () async {
+                    final picked = await showTimePicker(
+                      context: ctx,
+                      initialTime: selectedTime,
+                    );
+                    if (picked != null) setDialogState(() => selectedTime = picked);
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(timeStr, style: GoogleFonts.sarabun(fontSize: 14)),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('ยกเลิก', style: GoogleFonts.sarabun()),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  final receiveVal = receiveCtrl.text.trim();
+                  if (receiveVal.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('กรุณากรอกเลขรับ')));
+                    return;
+                  }
+                  try {
+                    await _firebaseService.db.collection('Leaves').doc(requestId).update({
+                      'receiveNumber': receiveVal,
+                      'receiveDate': dateStr,
+                      'receiveTime': timeStr,
+                    });
+                    if (mounted) {
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text('✅ บันทึกรับที่ $receiveVal เรียบร้อย'),
+                        backgroundColor: Colors.green,
+                        behavior: SnackBarBehavior.floating,
+                      ));
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text('❌ เกิดข้อผิดพลาด: $e'),
+                        backgroundColor: Colors.red,
+                      ));
+                    }
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.indigo,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: Text('บันทึก', style: GoogleFonts.sarabun()),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   void _showPdfPreview(Map<String, dynamic> leaf) {
@@ -1098,6 +1629,17 @@ class _PdfPreviewViewerState extends State<_PdfPreviewViewer> {
     final days = _htmlEscape(leaf['totalDays']);
     final reason = _htmlEscape(leaf['reason']);
     final phone = _htmlEscape(leaf['phone']);
+    final latestLeave = _getLatestLeaveInFiscalYear();
+    final latestLeaveLabel = _latestLeaveLabel(latestLeave);
+    final latestStart = latestLeave == null
+        ? ''
+        : _htmlEscape(FirebaseService.formatThaiDate(latestLeave['startDate']));
+    final latestEnd = latestLeave == null
+        ? ''
+        : _htmlEscape(FirebaseService.formatThaiDate(latestLeave['endDate']));
+    final latestDays = latestLeave == null
+        ? ''
+        : _htmlEscape(FirebaseService.formatLeaveDayCount(latestLeave['totalDays']));
     final requestDate =
         '${_htmlEscape(_getDay(leaf['timestamp']))} ${_htmlEscape(_getMonth(leaf['timestamp']))} ${_htmlEscape(_getYear(leaf['timestamp']))}';
 
@@ -1180,6 +1722,17 @@ ${autoPrint ? '''
     final totalDays =
         double.tryParse(leaf['totalDays']?.toString() ?? '1') ?? 1;
     final totalDaysText = FirebaseService.formatLeaveDayCount(totalDays);
+    final latestLeave = _getLatestLeaveInFiscalYear();
+    final latestLeaveLabel = _latestLeaveLabel(latestLeave);
+    final latestStart = latestLeave == null
+        ? ''
+        : FirebaseService.formatThaiDate(latestLeave['startDate']);
+    final latestEnd = latestLeave == null
+        ? ''
+        : FirebaseService.formatThaiDate(latestLeave['endDate']);
+    final latestDays = latestLeave == null
+        ? ''
+        : FirebaseService.formatLeaveDayCount(latestLeave['totalDays']);
     final fullName = _htmlEscape(leaf['fullName']);
     final rawPosition = _leafPosition();
     final rawRank = _leafAcademicStanding();
@@ -1217,7 +1770,7 @@ ${autoPrint ? '''
         return reqName == fullNameRaw &&
             reqType.contains(keyword) &&
             reqYear == currentYear &&
-            req['requestId'] != leaf['requestId'];
+            _isLeaveBeforeCurrent(req, leaf);
       }).toList();
       final prevTimes = relevantHistory.length;
       final prevDays = relevantHistory.fold<double>(
@@ -1289,7 +1842,7 @@ ${autoPrint ? '''
     <section class="top">
       <div></div>
       <div><h1>แบบใบลา</h1><h2>ลาป่วย/ลากิจ/ลาคลอดบุตร</h2></div>
-      <div class="receive">รับที่ ............................<br>วันที่ ............................<br>เวลา ..............................</div>
+      <div class="receive">รับที่ ${leaf['receiveNumber'] != null ? leaf['receiveNumber'].toString() : '............................'}<br>วันที่ ${leaf['receiveDate'] != null ? leaf['receiveDate'].toString() : '............................'}<br>เวลา ${leaf['receiveTime'] != null ? leaf['receiveTime'].toString() : '..............................'}</div>
     </section>
 
     <section class="school">
@@ -1320,8 +1873,8 @@ ${autoPrint ? '''
     </section>
 
     <div class="row"><span>ตั้งแต่วันที่</span><span class="line w150">${startDate}</span><span>ถึงวันที่</span><span class="line w150">${endDate}</span><span>มีกำหนด</span><span class="line w60">${totalDaysText}</span><span>วัน</span></div>
-    <div class="row"><span>ข้าพเจ้าได้ลา</span><span>${checkbox('ป่วย', false)}</span><span>${checkbox('ลากิจส่วนตัว', false)}</span><span>${checkbox('ลาคลอดบุตร', false)}</span><span>ครั้งสุดท้ายตั้งแต่วันที่</span><span class="line w130"></span></div>
-    <div class="row"><span>ถึงวันที่</span><span class="line w130"></span><span>มีกำหนด</span><span class="line w60"></span><span>วัน ในระหว่างที่ลาติดต่อข้าพเจ้าได้ที่</span><span class="line grow">${phone}</span></div>
+    <div class="row"><span>ข้าพเจ้าได้ลา</span><span>${checkbox('ป่วย', latestLeaveLabel == 'ป่วย')}</span><span>${checkbox('ลากิจส่วนตัว', latestLeaveLabel == 'ลากิจส่วนตัว')}</span><span>${checkbox('ลาคลอดบุตร', latestLeaveLabel == 'ลาคลอดบุตร')}</span><span>ครั้งสุดท้ายตั้งแต่วันที่</span><span class="line w130">${latestStart}</span></div>
+    <div class="row"><span>ถึงวันที่</span><span class="line w130">${latestEnd}</span><span>มีกำหนด</span><span class="line w60">${latestDays}</span><span>วัน ในระหว่างที่ลาติดต่อข้าพเจ้าได้ที่</span><span class="line grow">${phone}</span></div>
 
     <p class="center" style="margin: 22px 0 0;">จึงเรียนมาเพื่อโปรดพิจารณา</p>
 
@@ -1362,14 +1915,15 @@ ${autoPrint ? '''
   }
 
   void _openPrintWindow({required bool autoPrint}) {
-    final blob = html.Blob(
-      [_previewLikePrintableHtml(autoPrint: autoPrint)],
-      'text/html;charset=utf-8',
+    final content = _previewLikePrintableHtml(autoPrint: autoPrint);
+    final blob = web.Blob(
+      [content.toJS].toJS,
+      web.BlobPropertyBag(type: 'text/html;charset=utf-8'),
     );
-    final url = html.Url.createObjectUrlFromBlob(blob);
-    final dynamic popup = html.window.open(url, '_blank');
+    final url = web.URL.createObjectURL(blob);
+    final popup = web.window.open(url, '_blank');
     if (popup == null) {
-      html.Url.revokeObjectUrl(url);
+      web.URL.revokeObjectURL(url);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('เบราว์เซอร์บล็อกหน้าต่างพิมพ์ กรุณาอนุญาต pop-up')),
@@ -1378,12 +1932,23 @@ ${autoPrint ? '''
     }
 
     Future.delayed(
-        const Duration(seconds: 20), () => html.Url.revokeObjectUrl(url));
+        const Duration(seconds: 20), () => web.URL.revokeObjectURL(url));
   }
 
   DateTime? _getDateTime(dynamic dt) {
     if (dt == null) return null;
     if (dt is Timestamp) return dt.toDate();
+    if (dt is DateTime) return dt;
+    if (dt is String) {
+      final isoParsed = DateTime.tryParse(dt.trim());
+      if (isoParsed != null) return isoParsed;
+      final parsed = FirebaseService.parseFast(dt);
+      if (parsed != null) {
+        return parsed.year > 2400
+            ? DateTime(parsed.year - 543, parsed.month, parsed.day)
+            : parsed;
+      }
+    }
     if (dt is String && dt.contains('/')) {
       try {
         final parts = dt.split('/');
@@ -1392,6 +1957,38 @@ ${autoPrint ? '''
       } catch (e) {}
     }
     return null;
+  }
+
+  DateTime? _leaveSequenceDate(Map<String, dynamic> leave) {
+    return _getDateTime(leave['startDateValue']) ??
+        _getDateTime(leave['startDate']) ??
+        _getDateTime(leave['timestamp']);
+  }
+
+  bool _isLeaveBeforeCurrent(
+      Map<String, dynamic> leave, Map<String, dynamic> currentLeaf) {
+    if (leave['requestId'] == currentLeaf['requestId']) return false;
+
+    final leaveDate = _leaveSequenceDate(leave);
+    final currentDate = _leaveSequenceDate(currentLeaf);
+    if (leaveDate == null || currentDate == null) return false;
+
+    final leaveDay =
+        DateTime(leaveDate.year, leaveDate.month, leaveDate.day);
+    final currentDay =
+        DateTime(currentDate.year, currentDate.month, currentDate.day);
+    if (leaveDay.isBefore(currentDay)) return true;
+    if (leaveDay.isAfter(currentDay)) return false;
+
+    final leaveTimestamp = _getDateTime(leave['timestamp']);
+    final currentTimestamp = _getDateTime(currentLeaf['timestamp']);
+    if (leaveTimestamp != null && currentTimestamp != null) {
+      return leaveTimestamp.isBefore(currentTimestamp);
+    }
+
+    return (leave['requestId'] ?? '').toString().compareTo(
+            (currentLeaf['requestId'] ?? '').toString()) <
+        0;
   }
 
   String _getDay(dynamic dtValue) {
@@ -1436,12 +2033,48 @@ ${autoPrint ? '''
         : "(................................)";
   }
 
+  Map<String, dynamic>? _getLatestLeaveInFiscalYear() {
+    final currentLeaf = widget.leaf;
+    final fullName = (currentLeaf['fullName'] ?? '').toString().trim();
+    final fiscalYear = (currentLeaf['year'] ?? '').toString().trim();
+    if (fullName.isEmpty || fiscalYear.isEmpty) return null;
+
+    final candidates = widget.allLeaveRequests.where((leave) {
+      return (leave['fullName'] ?? '').toString().trim() == fullName &&
+          (leave['year'] ?? '').toString().trim() == fiscalYear &&
+          _isLeaveBeforeCurrent(leave, currentLeaf);
+    }).toList()
+      ..sort(FirebaseService.compareLeaveRecency);
+
+    return candidates.isEmpty ? null : candidates.first;
+  }
+
+  String? _latestLeaveLabel(Map<String, dynamic>? leave) {
+    if (leave == null) return null;
+    final leaveType = (leave['leaveType'] ?? '').toString();
+    if (leaveType.contains('ป่วย')) return 'ป่วย';
+    if (leaveType.contains('กิจ')) return 'ลากิจส่วนตัว';
+    if (leaveType.contains('คลอด')) return 'ลาคลอดบุตร';
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final leaf = widget.leaf;
     final num totalDays =
         double.tryParse(leaf['totalDays']?.toString() ?? '1') ?? 1;
     final totalDaysText = FirebaseService.formatLeaveDayCount(totalDays);
+    final latestLeave = _getLatestLeaveInFiscalYear();
+    final latestLeaveLabel = _latestLeaveLabel(latestLeave);
+    final latestStart = latestLeave == null
+        ? ''
+        : FirebaseService.formatThaiDate(latestLeave['startDate']);
+    final latestEnd = latestLeave == null
+        ? ''
+        : FirebaseService.formatThaiDate(latestLeave['endDate']);
+    final latestDays = latestLeave == null
+        ? ''
+        : FirebaseService.formatLeaveDayCount(latestLeave['totalDays']);
 
     return Scaffold(
       backgroundColor: const Color(0xFF475569),
@@ -1480,7 +2113,7 @@ ${autoPrint ? '''
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                    color: Colors.black.withOpacity(0.5),
+                    color: Colors.black.withValues(alpha: 0.5),
                     blurRadius: 40,
                     offset: const Offset(0, 20))
               ],
@@ -1515,11 +2148,11 @@ ${autoPrint ? '''
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildPerfectDottedLabel("รับที่"),
+                          _buildPerfectDottedLabel("รับที่", value: widget.leaf['receiveNumber']?.toString()),
                           const SizedBox(height: 6),
-                          _buildPerfectDottedLabel("วันที่"),
+                          _buildPerfectDottedLabel("วันที่", value: widget.leaf['receiveDate']?.toString()),
                           const SizedBox(height: 6),
-                          _buildPerfectDottedLabel("เวลา"),
+                          _buildPerfectDottedLabel("เวลา", value: widget.leaf['receiveTime']?.toString()),
                         ],
                       ),
                     ),
@@ -1653,17 +2286,17 @@ ${autoPrint ? '''
                 ]),
                 _buildPerfectFullWidthRow([
                   Text("ข้าพเจ้าได้ลา", style: docBaseStyle),
-                  _buildPerfectCheckBox("ป่วย", false),
-                  _buildPerfectCheckBox("ลากิจส่วนตัว", false),
-                  _buildPerfectCheckBox("ลาคลอดบุตร", false),
+                  _buildPerfectCheckBox("ป่วย", latestLeaveLabel == 'ป่วย'),
+                  _buildPerfectCheckBox("ลากิจส่วนตัว", latestLeaveLabel == 'ลากิจส่วนตัว'),
+                  _buildPerfectCheckBox("ลาคลอดบุตร", latestLeaveLabel == 'ลาคลอดบุตร'),
                   Text("ครั้งสุดท้ายตั้งแต่วันที่", style: docBaseStyle),
-                  _buildPerfectDottedLine(value: "", flex: 1),
+                  _buildPerfectDottedLine(value: latestStart, flex: 1),
                   Text("ถึงวันที่", style: docBaseStyle),
-                  _buildPerfectDottedLine(value: "", flex: 1),
+                  _buildPerfectDottedLine(value: latestEnd, flex: 1),
                 ]),
                 _buildPerfectFullWidthRow([
                   Text("มีกำหนด", style: docBaseStyle),
-                  _buildPerfectDottedLine(flex: 0, width: 40, value: ""),
+                  _buildPerfectDottedLine(flex: 0, width: 40, value: latestDays),
                   Text("วัน ในระหว่างที่ลาติดต่อข้าพเจ้าได้ที่",
                       style: docBaseStyle),
                   _buildPerfectDottedLine(
@@ -1823,10 +2456,13 @@ ${autoPrint ? '''
     );
   }
 
-  Widget _buildPerfectDottedLabel(String label) {
+  Widget _buildPerfectDottedLabel(String label, {String? value}) {
+    final display = value != null && value.isNotEmpty
+        ? "$label $value"
+        : "$label .............................";
     return Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Text("$label .............................",
+        child: Text(display,
             style: GoogleFonts.sarabun(
                 fontSize: 12, color: Colors.blueGrey.shade800)));
   }
@@ -1904,7 +2540,7 @@ ${autoPrint ? '''
       return reqName == fullName &&
           typeMatch &&
           reqYear == currentYear &&
-          req['requestId'] != currentLeaf['requestId'];
+          _isLeaveBeforeCurrent(req, currentLeaf);
     }).toList();
 
     int prevTimes = relevantHistory.length;

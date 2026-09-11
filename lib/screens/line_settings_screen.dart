@@ -5,12 +5,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
-// ignore: avoid_web_libraries_in_flutter, uri_does_not_exist
-import 'dart:js' as js;
-// ignore: avoid_web_libraries_in_flutter, uri_does_not_exist
-import 'dart:js_util' as js_util;
-// ignore: avoid_web_libraries_in_flutter, uri_does_not_exist
-import 'dart:html' as html;
+import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
+import 'package:web/web.dart' as web;
 import '../services/firebase_service.dart';
 
 class LineSettingsScreen extends StatefulWidget {
@@ -37,7 +34,6 @@ class _LineSettingsScreenState extends State<LineSettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _webhookUrlController.text = FirebaseService.appsScriptUrl;
     _loadLineSettings();
   }
 
@@ -50,7 +46,7 @@ class _LineSettingsScreenState extends State<LineSettingsScreen> {
           // 🕵️‍♂️ ไม่ดึง Token มาโชว์แล้วครับ ปลอดภัย Phase 4 🥇🏆
           _lineGroupIdController.text = data['groupId'] ?? '';
           _webhookUrlController.text =
-              (data['webhookUrl'] ?? FirebaseService.appsScriptUrl).toString();
+              (data['webhookUrl'] ?? FirebaseService.appsScriptUrl ?? '').toString();
           if (data['template'] != null && data['template'].toString().isNotEmpty) {
             _lineNotifyTemplate = data['template'];
           }
@@ -109,7 +105,7 @@ class _LineSettingsScreenState extends State<LineSettingsScreen> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: const Color(0xFF06C755).withOpacity(0.1),
+            color: const Color(0xFF06C755).withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Icon(Icons.notifications_active_rounded, color: const Color(0xFF06C755), size: isMobile ? 24 : 32),
@@ -324,7 +320,7 @@ class _LineSettingsScreenState extends State<LineSettingsScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 20)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 20)],
       ),
       child: child,
     );
@@ -485,7 +481,7 @@ class _LineSettingsScreenState extends State<LineSettingsScreen> {
       // สคริปต์จะทำงานและส่ง LINE ไปก่อน เราแค่รอ 2 วิแล้วถือว่าสำเร็จครับ 🥇🏆
       final String jsCode =
           "fetch(${jsonEncode(url)}, {method:'GET', mode:'no-cors'}).catch(function(){});";
-      js.context.callMethod('eval', [jsCode]);
+      globalContext.callMethod<JSAny>('eval'.toJS, jsCode.toJS);
       await Future.delayed(const Duration(seconds: 2));
       return true;
     } else {
@@ -502,41 +498,33 @@ class _LineSettingsScreenState extends State<LineSettingsScreen> {
       final separator = url.contains('?') ? '&' : '?';
       final callbackUrl = '$url${separator}callback=$callbackName';
 
-      // 🌍 สร้างฟังก์ชัน Callback ไว้ที่ window เพื่อให้สคริปต์เรียกกลับมาครับ 🥇🏆
-      // ignore: undefined_function
-      js_util.setProperty(
-        js.context,
-        callbackName,
-        js_util.allowInterop((dynamic data) {
-          if (!completer.isCompleted) {
-            completer.complete(jsonEncode(data ?? {}));
-          }
-          js.context.deleteProperty(callbackName);
-        }),
-      );
+      globalContext[callbackName] = ((JSAny? data) {
+        if (!completer.isCompleted) {
+          completer.complete(data != null ? jsonEncode((data as JSObject).dartify()) : '{}');
+        }
+        globalContext[callbackName] = null;
+      }).toJS;
 
-      // 💉 ฉีดสคริปต์เข้าไปในหน้าเว็บครับ
-      final script = html.ScriptElement()
+      final script = web.document.createElement('script') as web.HTMLScriptElement
         ..src = callbackUrl
         ..async = true;
-      
+
       script.onError.listen((_) {
         if (!completer.isCompleted) completer.complete(jsonEncode({'status': 'error', 'message': 'Network error'}));
-        js.context.deleteProperty(callbackName);
+        globalContext[callbackName] = null;
         script.remove();
       });
 
-      html.document.body?.append(script);
+      web.document.body?.append(script);
 
-      // ⏱️ ตั้งเวลา Timeout เผื่อกรณีติดต่อไม่ได้ครับ (ขยายเป็น 45 วินาทีเพื่อให้เสถียรขึ้น)
       Future.delayed(const Duration(seconds: 45), () {
         if (!completer.isCompleted) completer.complete(jsonEncode({'status': 'error', 'message': 'Apps Script timeout'}));
-        js.context.deleteProperty(callbackName);
+        globalContext[callbackName] = null;
         script.remove();
       });
 
       final result = await completer.future;
-      js.context.deleteProperty(callbackName);
+      globalContext[callbackName] = null;
       script.remove();
       
       final decoded = jsonDecode(result);

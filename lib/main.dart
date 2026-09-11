@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';  // ← เพิ่มบรรทัดนี้
 import 'firebase_options.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_layout.dart';
 import 'screens/responsive_layout.dart';
-
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:ui';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -21,21 +21,19 @@ Future<void> clearSessionPrefs(SharedPreferences prefs) async {
 }
 
 Future<void> main() async {
-  // 🔥 ขั้นตอนที่ปลอดภัยที่สุด: รอให้ระบบพื้นฐานโหลดเสร็จก่อนเริ่มแอปครับ 🥇🚀
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
-    // 🛡️ โหลด Firebase ให้เสร็จตรงนี้เลย เพื่อป้องกันหน้าขาวค้างในหน้าถัดไปครับ
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-
-    // 🛡️ เพิ่มการ "หน่วงเวลา" เล็กน้อยเพื่อให้ Pigeon Channel (JS Bridge) ตั้งตัวได้ทันบนความเร็วเน็ตจริงครับ 🥇🏆
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
+    debugPrint('✅ Firebase initialized');
   } catch (e) {
-    debugPrint("Firebase Initialize Error: $e");
+    debugPrint("❌ Firebase Initialize Error: $e");
   }
 
-  // แสดงหน้าแรกก่อน แล้วค่อยอุ่นเครื่องระบบวันที่ไทยเพื่อลดเวลารอหน้า Login
   runApp(const MyApp());
 
   tbd.ThaiDateService()
@@ -51,16 +49,24 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  // เริ่มต้นด้วยหน้า Login ทันทีให้ไวที่สุดครับ🛒🏁
   Widget _homeWidget = const LoginScreen();
 
   @override
   void initState() {
     super.initState();
+    _initializeSupabaseInBackground();
     _handleBackgroundStartup();
   }
 
-  // 🔥 จัดการเช็คการล็อกอินเบื้องหลังครับ 🛡️
+  void _initializeSupabaseInBackground() {
+    Supabase.initialize(
+      url: 'https://uziajblqlbrvqmxvizsi.supabase.co',
+      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV6aWFqYmxxbGJydnFteHZpenNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2Njc1MzIsImV4cCI6MjA5OTI0MzUzMn0.cpnt8uctNacuJWNelYx5C_oP0xEPtUhzvNDgyWkg0ZA',
+    )
+        .then((_) => debugPrint('✅ Supabase initialized'))
+        .catchError((e) => debugPrint("❌ Supabase Initialize Error: $e"));
+  }
+
   Future<void> _handleBackgroundStartup() async {
     try {
       final prefs = await SharedPreferences.getInstance();

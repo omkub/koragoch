@@ -130,10 +130,10 @@ class _MobileCalendarScreenState extends State<MobileCalendarScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
+                            color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                                color: Colors.white.withOpacity(0.4)),
+                                color: Colors.white.withValues(alpha: 0.4)),
                           ),
                           child: Row(
                             children: [
@@ -163,7 +163,7 @@ class _MobileCalendarScreenState extends State<MobileCalendarScreen> {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
+                          color: Colors.black.withValues(alpha: 0.05),
                           blurRadius: 16,
                           offset: const Offset(0, 4)),
                     ],
@@ -187,7 +187,7 @@ class _MobileCalendarScreenState extends State<MobileCalendarScreen> {
                     eventLoader: _getEventsForDay,
                     calendarStyle: CalendarStyle(
                       todayDecoration: BoxDecoration(
-                          color: const Color(0xFF2563EB).withOpacity(0.15),
+                          color: const Color(0xFF2563EB).withValues(alpha: 0.15),
                           shape: BoxShape.circle),
                       todayTextStyle: const TextStyle(
                           color: Color(0xFF2563EB),
@@ -313,7 +313,7 @@ class _MobileCalendarScreenState extends State<MobileCalendarScreen> {
             borderRadius: BorderRadius.circular(16),
             border: Border(left: BorderSide(color: color, width: 4)),
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10)
+              BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10)
             ],
           ),
           child: Column(
@@ -333,7 +333,7 @@ class _MobileCalendarScreenState extends State<MobileCalendarScreen> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                     decoration: BoxDecoration(
-                        color: color.withOpacity(0.1),
+                        color: color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8)),
                     child: Text(type,
                         style: GoogleFonts.sarabun(

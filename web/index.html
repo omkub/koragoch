@@ -85,12 +85,41 @@
       e.preventDefault();
     });
   </script>
+
+  <script>
+    window.flutterfire_web_sdk_version = '11.9.1';
+    window.schoolLeaveFirebaseModulesReady = new Promise(function(resolve, reject) {
+      window.schoolLeaveResolveFirebaseModules = resolve;
+      window.schoolLeaveRejectFirebaseModules = reject;
+    });
+  </script>
+  <script type="module">
+    import * as firebase_core from 'https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js';
+    import * as firebase_auth from 'https://www.gstatic.com/firebasejs/11.9.1/firebase-auth.js';
+    import * as firebase_firestore from 'https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js';
+    import * as firebase_storage from 'https://www.gstatic.com/firebasejs/11.9.1/firebase-storage.js';
+
+    window.firebase_core = firebase_core;
+    window.firebase_auth = firebase_auth;
+    window.firebase_firestore = firebase_firestore;
+    window.firebase_storage = firebase_storage;
+    if (window.schoolLeaveResolveFirebaseModules) {
+      window.schoolLeaveResolveFirebaseModules();
+    }
+  </script>
+  <script nomodule>
+    if (window.schoolLeaveRejectFirebaseModules) {
+      window.schoolLeaveRejectFirebaseModules(
+        new Error('Firebase modules require a modern browser')
+      );
+    }
+  </script>
 </head>
 <body>
   <script>
     (function() {
       var cleanupKey = 'school_leave_sw_cleanup_version';
-      var cleanupVersion = '20260621-login-fast';
+      var cleanupVersion = '20260808-firebase-module-preload';
 
       function getCleanupVersion() {
         try {
@@ -108,9 +137,19 @@
 
       function loadFlutter() {
         var script = document.createElement('script');
-        script.src = 'flutter_bootstrap.js?v=20260421-2045';
+        script.src = 'flutter_bootstrap.js?v=20260808-firebase-module-preload';
         script.async = true;
         document.body.appendChild(script);
+      }
+
+      function waitForFirebaseModules() {
+        var ready = window.schoolLeaveFirebaseModulesReady || Promise.resolve();
+        var timeout = new Promise(function(resolve) {
+          window.setTimeout(resolve, 8000);
+        });
+        return Promise.race([ready, timeout]).catch(function(error) {
+          window.schoolLeaveFirebaseModulesError = error;
+        });
       }
 
       function clearServiceWorkers() {
@@ -139,14 +178,14 @@
           .catch(function() {});
       }
 
-      loadFlutter();
-
       if (getCleanupVersion() !== cleanupVersion) {
-        window.setTimeout(function() {
-          Promise.all([clearServiceWorkers(), clearCaches()])
-            .then(setCleanupVersion)
-            .catch(setCleanupVersion);
-        }, 0);
+        Promise.all([clearServiceWorkers(), clearCaches()])
+          .then(setCleanupVersion)
+          .catch(setCleanupVersion)
+          .then(waitForFirebaseModules)
+          .then(loadFlutter);
+      } else {
+        waitForFirebaseModules().then(loadFlutter);
       }
     })();
   </script>

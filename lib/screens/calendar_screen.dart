@@ -173,7 +173,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             borderRadius: BorderRadius.circular(24),
                             boxShadow: [
                               BoxShadow(
-                                  color: Colors.black.withOpacity(0.03),
+                                  color: Colors.black.withValues(alpha: 0.03),
                                   blurRadius: 20,
                                   offset: const Offset(0, 10)),
                             ],
@@ -200,7 +200,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             calendarStyle: CalendarStyle(
                               todayDecoration: BoxDecoration(
                                   color:
-                                      const Color(0xFF0F172A).withOpacity(0.1),
+                                      const Color(0xFF0F172A).withValues(alpha: 0.1),
                                   shape: BoxShape.circle),
                               todayTextStyle: const TextStyle(
                                   color: Color(0xFF0F172A),
@@ -269,7 +269,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.black.withOpacity(0.02)),
+          border: Border.all(color: Colors.black.withValues(alpha: 0.02)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -303,7 +303,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
             borderRadius: BorderRadius.circular(20),
             border: Border(left: BorderSide(color: color, width: 4)),
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)
+              BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)
             ],
           ),
           child: Column(
@@ -323,7 +323,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                        color: color.withOpacity(0.1),
+                        color: color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8)),
                     child: Text(type,
                         style: GoogleFonts.sarabun(

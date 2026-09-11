@@ -49,7 +49,7 @@ class _ThaiBuddhistCalendarWidgetState extends State<ThaiBuddhistCalendarWidget>
           borderRadius: BorderRadius.circular(30),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 30,
               offset: const Offset(0, 10),
             )
@@ -230,7 +230,7 @@ class _ThaiBuddhistCalendarWidgetState extends State<ThaiBuddhistCalendarWidget>
               decoration: BoxDecoration(
                 color: isSelected ? const Color(0xFFEF4444) : Colors.transparent, // Modern Red
                 shape: BoxShape.circle,
-                border: isToday && !isSelected ? Border.all(color: const Color(0xFF2563EB).withOpacity(0.5)) : null,
+                border: isToday && !isSelected ? Border.all(color: const Color(0xFF2563EB).withValues(alpha: 0.5)) : null,
               ),
               child: Center(
                 child: Text(

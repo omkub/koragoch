@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "school_leave_app",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": ["run", "-d", "web"],
+      "port": 5173
+    }
+  ]
+}

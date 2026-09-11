@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -41,6 +42,8 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
 
   Map<String, dynamic>? _lastLeaveRequest;
   List<Map<String, dynamic>> _userHistory = [];
+  Set<String> _holidayKeys = {};
+  Set<String> _specialWorkingKeys = {};
   bool _isSubmitting = false;
   String? _attachedFileName;
   String? _attachedFileDataUrl;
@@ -54,6 +57,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
       _initializeEditMode(widget.initialData!);
     }
     _loadInitialData();
+    _loadSpecialDates();
   }
 
   void _initializeEditMode(Map<String, dynamic> data) {
@@ -73,6 +77,10 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
     _isHalfDay = data['isHalfDay'] == true ||
         data['isHalfDay']?.toString().toLowerCase() == 'true';
     _halfDayPeriod = (data['halfDayPeriod'] ?? 'morning').toString();
+    if (_isMaternityLeave) {
+      _isHalfDay = false;
+      _endDate = _maternityEndDateFrom(_startDate);
+    }
   }
 
   Future<void> _loadInitialData() async {
@@ -97,6 +105,51 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
     } catch (e) {
       debugPrint("Error loading users: $e");
     }
+  }
+
+  Future<void> _loadSpecialDates() async {
+    try {
+      final holidays = await _firebaseService.db.collection('SpecialHolidays').get();
+      final specialWorking = await _firebaseService.db.collection('SpecialWorkingDays').get();
+      if (!mounted) return;
+      final hKeys = holidays.docs
+          .map((d) => _toDateKey(d.data()))
+          .whereType<String>()
+          .toSet();
+      final swKeys = specialWorking.docs
+          .map((d) => _toDateKey(d.data()))
+          .whereType<String>()
+          .toSet();
+      setState(() {
+        _holidayKeys = hKeys;
+        _specialWorkingKeys = swKeys;
+      });
+    } catch (e) {
+      debugPrint("Error loading special dates: $e");
+    }
+  }
+
+  String _dateKeyFromDateTime(DateTime dt) {
+    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+  }
+
+  String? _toDateKey(Map<String, dynamic> data) {
+    DateTime? dt;
+    final dateValue = data['dateValue'];
+    if (dateValue is Timestamp) {
+      dt = dateValue.toDate();
+    } else if (dateValue is int) {
+      dt = DateTime.fromMillisecondsSinceEpoch(dateValue);
+    }
+    if (dt == null) {
+      final dateStr = data['date']?.toString() ?? data['day']?.toString() ?? data['workDate']?.toString();
+      if (dateStr != null) {
+        dt = FirebaseService.parseFast(dateStr);
+        if (dt != null && dt.year > 2400) dt = DateTime(dt.year - 543, dt.month, dt.day);
+      }
+    }
+    if (dt == null) return null;
+    return _dateKeyFromDateTime(dt);
   }
 
   Future<void> _fetchUserData(String fullName) async {
@@ -164,10 +217,35 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
   bool get _isHalfDayActive =>
       _isHalfDay && _isSameCalendarDay(_startDate, _endDate);
 
+  bool get _isMaternityLeave =>
+      (_selectedLeaveType ?? '').toString().contains('คลอด');
+
+  DateTime _maternityEndDateFrom(DateTime start) {
+    final first = DateTime(start.year, start.month, start.day);
+    return first.add(const Duration(days: 89));
+  }
+
   num _calculatedTotalDays() {
     if (_isHalfDayActive) return 0.5;
-    final days = _endDate.difference(_startDate).inDays + 1;
-    return days < 1 ? 1 : days;
+    final first = DateTime(_startDate.year, _startDate.month, _startDate.day);
+    final last = DateTime(_endDate.year, _endDate.month, _endDate.day);
+    if (_isMaternityLeave) {
+      final days = last.difference(first).inDays + 1;
+      return days < 1 ? 1 : days;
+    }
+    double total = 0;
+    for (DateTime day = first; !day.isAfter(last); day = day.add(const Duration(days: 1))) {
+      final key = _dateKeyFromDateTime(day);
+      final isWeekend = day.weekday == DateTime.saturday || day.weekday == DateTime.sunday;
+      if (_specialWorkingKeys.contains(key)) {
+        total += 1;
+      } else if (_holidayKeys.contains(key)) {
+        continue;
+      } else if (!isWeekend) {
+        total += 1;
+      }
+    }
+    return total < 0.5 ? 0 : total;
   }
 
   String _formatLeaveDays(num value) =>
@@ -176,6 +254,11 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
   void _setStartDate(DateTime date) {
     setState(() {
       _startDate = date;
+      if (_isMaternityLeave) {
+        _isHalfDay = false;
+        _endDate = _maternityEndDateFrom(date);
+        return;
+      }
       if (_isHalfDay || _endDate.isBefore(_startDate)) {
         _endDate = date;
       }
@@ -184,6 +267,11 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
 
   void _setEndDate(DateTime date) {
     setState(() {
+      if (_isMaternityLeave) {
+        _isHalfDay = false;
+        _endDate = _maternityEndDateFrom(_startDate);
+        return;
+      }
       _endDate = date;
       if (_isHalfDay || _endDate.isBefore(_startDate)) {
         _startDate = date;
@@ -426,7 +514,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
       DateTime initial, Function(DateTime) onPick) async {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.4),
+      barrierColor: Colors.black.withValues(alpha: 0.4),
       builder: (context) => Center(
         child: ThaiBuddhistCalendarWidget(
           initialDate: initial,
@@ -456,7 +544,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
             child: Container(
               decoration: BoxDecoration(color: Colors.white, boxShadow: [
                 BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: const Offset(4, 0))
               ]),
@@ -564,7 +652,13 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                               "ลาคลอดบุตร",
                               "ลาพักผ่อน"
                             ], (val) {
-                              setState(() => _selectedLeaveType = val);
+                              setState(() {
+                                _selectedLeaveType = val;
+                                if (_isMaternityLeave) {
+                                  _isHalfDay = false;
+                                  _endDate = _maternityEndDateFrom(_startDate);
+                                }
+                              });
                             }),
                             const SizedBox(height: 16),
                             // 📱 ใช้ LayoutBuilder เพื่อวัด "พื้นที่จริง" แทนการเดาขนาดหน้าจอครับ 🥇🏆
@@ -776,7 +870,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                       decoration:
                           BoxDecoration(color: Colors.white, boxShadow: [
                         BoxShadow(
-                            color: Colors.black.withOpacity(0.5),
+                            color: Colors.black.withValues(alpha: 0.5),
                             blurRadius: 40,
                             offset: const Offset(0, 20))
                       ]),
@@ -921,7 +1015,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                                           fontWeight: FontWeight.w100,
                                           height: 0.8,
                                           color:
-                                              Colors.black.withOpacity(0.5))),
+                                              Colors.black.withValues(alpha: 0.5))),
                                 ),
                               ),
                               Expanded(
@@ -1340,6 +1434,11 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
       child: InkWell(
         onTap: () {
           setState(() {
+            if (_isMaternityLeave) {
+              _isHalfDay = false;
+              _endDate = _maternityEndDateFrom(_startDate);
+              return;
+            }
             if (value == 'full') {
               _isHalfDay = false;
             } else {
@@ -1622,7 +1721,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.blue.withOpacity(0.05),
+            color: Colors.blue.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Row(

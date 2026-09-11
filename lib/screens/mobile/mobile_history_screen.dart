@@ -115,7 +115,7 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
+                              color: Colors.black.withValues(alpha: 0.04),
                               blurRadius: 10,
                               offset: const Offset(0, 4))
                         ]),
@@ -139,7 +139,7 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                          color: Colors.black.withOpacity(0.03),
+                          color: Colors.black.withValues(alpha: 0.03),
                           blurRadius: 10,
                           offset: const Offset(0, 4))
                     ],
@@ -206,7 +206,7 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
                                 shape: BoxShape.circle,
                                 boxShadow: [
                                   BoxShadow(
-                                      color: Colors.black.withOpacity(0.03),
+                                      color: Colors.black.withValues(alpha: 0.03),
                                       blurRadius: 20)
                                 ]),
                             child: const Icon(Icons.history_rounded,
@@ -288,7 +288,7 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 15,
               offset: const Offset(0, 8))
         ],
@@ -320,7 +320,7 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.1),
+                      color: statusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10)),
                   child: Text(status,
                       style: GoogleFonts.sarabun(
@@ -415,7 +415,7 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
+              color: iconColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8)),
           child: Icon(icon, size: 14, color: iconColor),
         ),
@@ -453,9 +453,9 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-            color: statusColor.withOpacity(0.1),
+            color: statusColor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: statusColor.withOpacity(0.2))),
+            border: Border.all(color: statusColor.withValues(alpha: 0.2))),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -525,18 +525,38 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
   }
 
   // 📝 อัปเดตสถานะใบลา 🥇🏆
+  bool _isApproveStatus(String status) {
+    return status == 'ส่งใบแล้ว' ||
+        status == 'ส่งใบลาแล้ว' ||
+        status == 'อนุมัติแล้ว' ||
+        status == 'อนุญาต';
+  }
+
   Future<void> _updateStatus(String? requestId, String newStatus) async {
     if (requestId == null) return;
     try {
+      final updateData = <String, dynamic>{'status': newStatus};
+
+      if (_isApproveStatus(newStatus)) {
+        final receiveNumber = await _firebaseService.generateReceiveNumber();
+        final now = DateTime.now();
+        final thaiYear = now.year + 543;
+        updateData['receiveNumber'] = receiveNumber;
+        updateData['receiveDate'] = '${now.day}/${now.month}/$thaiYear';
+        updateData['receiveTime'] = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')} น.';
+      }
+
       await _firebaseService.db
           .collection('Leaves')
           .doc(requestId)
-          .update({'status': newStatus});
+          .update(updateData);
 
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('✅ ปรับปรุงสถานะเป็น: $newStatus เรียบร้อยแล้ว'),
-            backgroundColor: Colors.green));
+            content: Text(_isApproveStatus(newStatus)
+                ? '✅ อนุมัติเรียบร้อย (รับที่ ${updateData['receiveNumber']})'
+                : '✅ ปรับปรุงสถานะเป็น: $newStatus เรียบร้อยแล้ว'),
+            backgroundColor: _isApproveStatus(newStatus) ? Colors.green : Colors.orange));
     } catch (e) {
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(

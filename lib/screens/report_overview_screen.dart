@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:convert';
 import 'dart:typed_data';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import 'dart:js_interop';
+import 'package:web/web.dart' as web;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
 
 class ReportOverviewScreen extends StatefulWidget {
@@ -16,6 +17,8 @@ class ReportOverviewScreen extends StatefulWidget {
 class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   bool _isLoading = true;
+  String _currentUser = '';
+  String _userRole = '';
   List<Map<String, dynamic>> _teachers = [];
   List<Map<String, dynamic>> _allLeaves = [];
   List<Map<String, dynamic>> _allRounds = []; // 📅 รายการรอบงบประมาณทั้งหมดครับ
@@ -30,10 +33,20 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
 
   Future<void> _loadData() async {
     try {
-      final teachers = await _firebaseService.getUsers();
-      final leaves = await _firebaseService.getLeaveRequests();
-      final rounds = await _firebaseService.getFiscalRounds();
-      final activeRound = await _firebaseService.getActiveFiscalRound();
+      final prefs = await SharedPreferences.getInstance();
+      _currentUser = prefs.getString('currentUser') ?? '';
+      _userRole = prefs.getString('userRole') ?? '';
+
+      final results = await Future.wait([
+        _firebaseService.getUsers(),
+        _firebaseService.getLeaveRequests(),
+        _firebaseService.getFiscalRounds(),
+        _firebaseService.getActiveFiscalRound(),
+      ]);
+      final teachers = results[0] as List<Map<String, dynamic>>;
+      final leaves = results[1] as List<Map<String, dynamic>>;
+      final rounds = results[2] as List<Map<String, dynamic>>;
+      final activeRound = results[3] as Map<String, dynamic>?;
       
       if (mounted) {
         // หากยังไม่ได้เลือก ให้ใช้ Active Round เป็นค่าเริ่มต้นครับ 🥇
@@ -59,21 +72,42 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
         }
 
         // 🕵️‍♂️ หาทุกชื่อที่มีใบลาในช่วงนี้ (Inclusive Logic) 🥇🏆
-        final List<Map<String, dynamic>> allDisplayTeachers = teachers
-            .where((u) => u['fullName'] != 'ผู้ดูแลระบบ')
-            .toList();
+        final bool canViewAll = _userRole.contains('ผู้ดูแลระบบ') ||
+            _userRole.contains('ผู้บริหาร');
+        final String currentUserName = _currentUser.trim();
+
+        final List<Map<String, dynamic>> allDisplayTeachers = canViewAll
+            ? teachers.where((u) => u['fullName'] != 'ผู้ดูแลระบบ').toList()
+            : teachers
+                .where((u) =>
+                    (u['fullName'] ?? '').toString().trim() == currentUserName)
+                .toList();
+
+        if (!canViewAll &&
+            currentUserName.isNotEmpty &&
+            allDisplayTeachers.isEmpty) {
+          allDisplayTeachers.add({
+            'fullName': currentUserName,
+            'position': 'บุคลากร (ยังไม่มีข้อมูล)',
+            'department': '-',
+            'isShadow': true,
+          });
+        }
             
         final currentViewRound = _selectedRound ?? activeRound;
 
         final activeLeaves = leaves.where((l) {
           if (currentViewRound == null) return false;
+          if (!canViewAll &&
+              (l['fullName'] ?? '').toString().trim() != currentUserName) {
+            return false;
+          }
           return FirebaseService.isDateInRange(
             (l['startDate'] ?? '').toString(),
             currentViewRound['startDate'],
             currentViewRound['endDate']
           );
         }).toList();
-
         final Set<String> registeredNames = allDisplayTeachers
             .map((t) => (t['fullName'] ?? '').toString().trim())
             .toSet();
@@ -91,13 +125,6 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
           }
         }
 
-        // 🚀 จัดเรียงคุณครูตามกลุ่มสาระเดียวกันให้อยู่ด้วยกันครับ 🥇
-        allDisplayTeachers.sort((a, b) {
-          final deptA = (a['department'] ?? '').toString();
-          final deptB = (b['department'] ?? '').toString();
-          return deptA.compareTo(deptB);
-        });
-
         setState(() {
           _teachers = allDisplayTeachers;
           _allLeaves = leaves;
@@ -107,6 +134,94 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  static const List<List<String>> _departmentPriorityAliases = [
+    ['ฝ่ายบริหาร', 'บริหาร'],
+    ['ภาษาไทย', 'ไทย'],
+    ['คณิตศาสตร์', 'คณิต'],
+    ['วิทยาศาสตร์และเทคโนโลยี', 'วิทยาศาสตร์', 'วิท'],
+    ['สังคมศึกษา ศาสนา และวัฒนธรรม', 'สังคมศึกษา', 'สังคม'],
+    ['ศิลปะ'],
+    ['สุขศึกษาและพลศึกษา', 'สุขศึกษา', 'สุข'],
+    ['การงานอาชีพ', 'การงาน'],
+    ['ภาษาต่างประเทศ', 'ต่างประเทศ'],
+    ['อื่นๆ', 'อื่น ๆ', 'อื่น'],
+  ];
+
+  static const List<String> _academicPriorityHighToLow = [
+    'เชี่ยวชาญพิเศษ',
+    'เชี่ยวชาญ',
+    'ชำนาญการพิเศษ',
+    'ชำนาญการ',
+    'ไม่มีวิทยฐานะ',
+  ];
+
+  String _textValue(Map<String, dynamic> data, List<String> keys) {
+    for (final key in keys) {
+      final value = data[key]?.toString().trim();
+      if (value != null && value.isNotEmpty && value != '---เลือก---') {
+        return value;
+      }
+    }
+    return '';
+  }
+
+  String _departmentOf(Map<String, dynamic> teacher) =>
+      _textValue(teacher, ['department', 'กลุ่มสาระการเรียนรู้', 'กลุ่มสาระ']);
+
+  String _positionOf(Map<String, dynamic> teacher) =>
+      _textValue(teacher, ['position', 'ตำแหน่ง', 'adminPosition']);
+
+  String _academicOf(Map<String, dynamic> teacher) =>
+      _textValue(teacher, ['academicStanding', 'วิทยฐานะ', 'rank']);
+
+  int _departmentPriorityIndex(String department) {
+    final index = _departmentPriorityAliases.indexWhere(
+      (aliases) => aliases.any((item) => department.contains(item)),
+    );
+    return index == -1 ? 999 : index;
+  }
+
+  int _academicPriorityIndex(String academic) {
+    final index =
+        _academicPriorityHighToLow.indexWhere((item) => academic.contains(item));
+    return index == -1 ? 999 : index;
+  }
+
+  int _managementPriority(Map<String, dynamic> teacher) {
+    final position = _positionOf(teacher);
+    if (position.contains('ผู้อำนวยการ') && !position.contains('รอง')) {
+      return 0;
+    }
+    if (position.contains('รองผู้อำนวยการ') || position.contains('รอง')) {
+      return 1;
+    }
+    return 2;
+  }
+
+  List<Map<String, dynamic>> get _visibleTeachers {
+    final visible = _teachers.toList();
+
+    visible.sort((a, b) {
+      final deptCompare = _departmentPriorityIndex(_departmentOf(a))
+          .compareTo(_departmentPriorityIndex(_departmentOf(b)));
+      if (deptCompare != 0) return deptCompare;
+
+      final managementCompare =
+          _managementPriority(a).compareTo(_managementPriority(b));
+      if (managementCompare != 0) return managementCompare;
+
+      final academicCompare = _academicPriorityIndex(_academicOf(a))
+          .compareTo(_academicPriorityIndex(_academicOf(b)));
+      if (academicCompare != 0) return academicCompare;
+
+      return (a['fullName'] ?? '').toString().compareTo(
+            (b['fullName'] ?? '').toString(),
+          );
+    });
+
+    return visible;
   }
 
   @override
@@ -179,7 +294,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 16),
 
             Expanded(
               child: Container(
@@ -187,7 +302,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5))],
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 15, offset: const Offset(0, 5))],
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(20),
@@ -237,7 +352,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                                   else if (_activeRound == null)
                                     _buildNoBudgetWarning()
                                   else
-                                    ..._teachers.map((t) => _buildTeacherRow(t)),
+                                    ..._visibleTeachers.map((t) => _buildTeacherRow(t)),
                                 ],
                               ),
                             ),
@@ -261,7 +376,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
       child: Container(
         height: 48,
         alignment: Alignment.center,
-        decoration: BoxDecoration(border: Border(right: BorderSide(color: Colors.black.withOpacity(0.03)))),
+        decoration: BoxDecoration(border: Border(right: BorderSide(color: Colors.black.withValues(alpha: 0.03)))),
         child: Text(title, style: GoogleFonts.sarabun(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
       ),
     );
@@ -274,7 +389,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
         height: 96,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         alignment: Alignment.centerLeft,
-        decoration: BoxDecoration(border: Border(right: BorderSide(color: Colors.black.withOpacity(0.03)))),
+        decoration: BoxDecoration(border: Border(right: BorderSide(color: Colors.black.withValues(alpha: 0.03)))),
         child: Text(title, style: GoogleFonts.sarabun(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
       ),
     );
@@ -285,7 +400,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
       flex: flex,
       child: Container(
         height: 36,
-        decoration: BoxDecoration(border: Border(right: BorderSide(color: Colors.black.withOpacity(0.03)))),
+        decoration: BoxDecoration(border: Border(right: BorderSide(color: Colors.black.withValues(alpha: 0.03)))),
         child: Row(
           children: titles.map((t) => Expanded(child: Center(child: Text(t, style: GoogleFonts.sarabun(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF64748B)))))).toList(),
         ),
@@ -329,7 +444,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
     final totalDays = sick['days']! + personal['days']! + maternity['days']!;
 
     return Container(
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.black.withOpacity(0.03)))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.black.withValues(alpha: 0.03)))),
       child: Row(
         children: [
           Expanded(
@@ -430,19 +545,22 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
     }
 
     final htmlContent = _buildReportHtml(currentViewRound);
-    final blob = html.Blob([htmlContent], 'text/html;charset=utf-8');
-    final url = html.Url.createObjectUrlFromBlob(blob);
-    final popup = html.window.open(url, '_blank');
+    final blob = web.Blob(
+      [htmlContent.toJS].toJS,
+      web.BlobPropertyBag(type: 'text/html;charset=utf-8'),
+    );
+    final url = web.URL.createObjectURL(blob);
+    final popup = web.window.open(url, '_blank');
 
     if (popup == null) {
-      html.Url.revokeObjectUrl(url);
+      web.URL.revokeObjectURL(url);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('เบราว์เซอร์บล็อกหน้าต่าง PDF กรุณาอนุญาต pop-up')),
       );
       return;
     }
 
-    Future.delayed(const Duration(seconds: 20), () => html.Url.revokeObjectUrl(url));
+    Future.delayed(const Duration(seconds: 20), () => web.URL.revokeObjectURL(url));
   }
 
   String _htmlEscape(dynamic value) => const HtmlEscape().convert(value?.toString() ?? '');
@@ -459,23 +577,24 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
     final bytes = _buildXlsxBytes(currentViewRound);
     final year = (currentViewRound['year'] ?? '').toString();
     final round = (currentViewRound['round'] ?? '').toString();
-    final fileName = 'leave_summary_${year}_round_$round.xlsx';
-    final blob = html.Blob(
-      [bytes],
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    final fileName = 'สรุปการลา_งบประมาณ_${year}_รอบที่_$round.xlsx';
+    final blob = web.Blob(
+      [bytes.toJS].toJS,
+      web.BlobPropertyBag(type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
     );
-    final url = html.Url.createObjectUrlFromBlob(blob);
-    final anchor = html.AnchorElement(href: url)
+    final url = web.URL.createObjectURL(blob);
+    final anchor = web.document.createElement('a') as web.HTMLAnchorElement
+      ..href = url
       ..download = fileName
       ..style.display = 'none';
-    html.document.body?.append(anchor);
+    web.document.body?.append(anchor);
     anchor.click();
     anchor.remove();
-    html.Url.revokeObjectUrl(url);
+    web.URL.revokeObjectURL(url);
   }
 
   List<_ReportSummaryRow> _buildSummaryRows(Map<String, dynamic> currentViewRound) {
-    return _teachers.map((teacher) {
+    return _visibleTeachers.map((teacher) {
       final name = (teacher['fullName'] ?? '-').toString();
       final position = (teacher['position'] ?? '-').toString();
       final department = (teacher['department'] ?? '-').toString();
@@ -523,30 +642,6 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
 
   Uint8List _buildXlsxBytes(Map<String, dynamic> currentViewRound) {
     final rows = _buildSummaryRows(currentViewRound);
-    final roundTitle = 'ปีงบ ${currentViewRound['year'] ?? ''} - รอบที่ ${currentViewRound['round'] ?? ''}';
-    final dateRange =
-        '${FirebaseService.formatThaiDate(currentViewRound['startDate'])} - ${FirebaseService.formatThaiDate(currentViewRound['endDate'])}';
-
-    final sheetRows = <List<dynamic>>[
-      ['รายงานสรุปการลา'],
-      [roundTitle],
-      ['ช่วงวันที่ $dateRange'],
-      const [],
-      ['ชื่อ - สกุล', 'ตำแหน่ง', 'กลุ่มสาระ', 'ลาป่วย ครั้ง', 'ลาป่วย วัน', 'ลากิจ ครั้ง', 'ลากิจ วัน', 'ลาคลอด ครั้ง', 'ลาคลอด วัน', 'รวม ครั้ง', 'รวม วัน'],
-      ...rows.map((r) => [
-            r.name,
-            r.position,
-            r.department,
-            r.sickTimes,
-            r.sickDays,
-            r.personalTimes,
-            r.personalDays,
-            r.maternityTimes,
-            r.maternityDays,
-            r.totalTimes,
-            r.totalDays,
-          ]),
-    ];
 
     final files = <String, Uint8List>{
       '[Content_Types].xml': _utf8Bytes(_contentTypesXml),
@@ -554,7 +649,8 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
       'xl/workbook.xml': _utf8Bytes(_workbookXml),
       'xl/_rels/workbook.xml.rels': _utf8Bytes(_workbookRelsXml),
       'xl/styles.xml': _utf8Bytes(_stylesXml),
-      'xl/worksheets/sheet1.xml': _utf8Bytes(_worksheetXml(sheetRows)),
+      'xl/worksheets/sheet1.xml':
+          _utf8Bytes(_worksheetXml(rows, currentViewRound)),
     };
     return _ZipWriter.store(files);
   }
@@ -572,40 +668,114 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
     return '$column$row';
   }
 
-  String _worksheetXml(List<List<dynamic>> rows) {
+  String _worksheetXml(
+    List<_ReportSummaryRow> rows,
+    Map<String, dynamic> currentViewRound,
+  ) {
+    final year = (currentViewRound['year'] ?? '').toString();
+    final startDate = FirebaseService.formatThaiDate(currentViewRound['startDate']);
+    final endDate = FirebaseService.formatThaiDate(currentViewRound['endDate']);
+    final dateRange = '$startDate - $endDate';
     final buffer = StringBuffer()
       ..write('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>')
       ..write('<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">')
       ..write('<cols>')
-      ..write('<col min="1" max="1" width="28" customWidth="1"/>')
-      ..write('<col min="2" max="2" width="20" customWidth="1"/>')
-      ..write('<col min="3" max="3" width="22" customWidth="1"/>')
-      ..write('<col min="4" max="11" width="13" customWidth="1"/>')
+      ..write('<col min="1" max="1" width="8" customWidth="1"/>')
+      ..write('<col min="2" max="2" width="32" customWidth="1"/>')
+      ..write('<col min="3" max="3" width="8" customWidth="1"/>')
+      ..write('<col min="4" max="4" width="12" customWidth="1"/>')
+      ..write('<col min="5" max="10" width="8" customWidth="1"/>')
+      ..write('<col min="11" max="11" width="18" customWidth="1"/>')
       ..write('</cols>')
       ..write('<sheetData>');
 
-    for (var r = 0; r < rows.length; r++) {
-      final rowNumber = r + 1;
-      buffer.write('<row r="$rowNumber">');
-      for (var c = 0; c < rows[r].length; c++) {
-        final value = rows[r][c];
-        if (value == null || value == '') continue;
-        final ref = _cellRef(rowNumber, c + 1);
-        final style = rowNumber == 1 ? 2 : (rowNumber == 5 ? 1 : 0);
-        if (value is num) {
-          buffer.write('<c r="$ref" s="$style"><v>${_formatNumber(value)}</v></c>');
-        } else {
-          buffer.write('<c r="$ref" s="$style" t="inlineStr"><is><t>${_xmlEscape(value)}</t></is></c>');
-        }
-      }
-      buffer.write('</row>');
+    buffer
+      ..write('<row r="1" ht="22" customHeight="1">')
+      ..write(_xlsxCell(1, 1, 'แบบสรุปการลา', style: 2))
+      ..write('</row>')
+      ..write('<row r="2" ht="21" customHeight="1">')
+      ..write(_xlsxCell(2, 1, 'ประจำปีงบประมาณ $year ($dateRange)', style: 3))
+      ..write('</row>')
+      ..write('<row r="3" ht="10" customHeight="1"></row>')
+      ..write('<row r="4" ht="22" customHeight="1">')
+      ..write(_xlsxCell(4, 5, '( $dateRange )', style: 3))
+      ..write(_xlsxCell(4, 6, '', style: 3))
+      ..write(_xlsxCell(4, 7, '', style: 3))
+      ..write(_xlsxCell(4, 8, '', style: 3))
+      ..write(_xlsxCell(4, 9, '', style: 3))
+      ..write(_xlsxCell(4, 10, '', style: 3))
+      ..write('</row>')
+      ..write('<row r="5" ht="28" customHeight="1">')
+      ..write(_xlsxCell(5, 1, 'ลำดับที่', style: 1))
+      ..write(_xlsxCell(5, 2, 'ชื่อ-สกุล', style: 1))
+      ..write(_xlsxCell(5, 3, 'เลข', style: 1))
+      ..write(_xlsxCell(5, 4, 'ไปราชการ', style: 1))
+      ..write(_xlsxCell(5, 5, 'ลาป่วย', style: 1))
+      ..write(_xlsxCell(5, 6, '', style: 1))
+      ..write(_xlsxCell(5, 7, 'ลากิจ', style: 1))
+      ..write(_xlsxCell(5, 8, '', style: 1))
+      ..write(_xlsxCell(5, 9, 'รวมลา', style: 1))
+      ..write(_xlsxCell(5, 10, '', style: 1))
+      ..write(_xlsxCell(5, 11, 'ลงชื่อ', style: 1))
+      ..write('</row>')
+      ..write('<row r="6" ht="22" customHeight="1">')
+      ..write(_xlsxCell(6, 1, '', style: 1))
+      ..write(_xlsxCell(6, 2, '', style: 1))
+      ..write(_xlsxCell(6, 3, '', style: 1))
+      ..write(_xlsxCell(6, 4, 'ครั้ง', style: 1))
+      ..write(_xlsxCell(6, 5, 'ครั้ง', style: 1))
+      ..write(_xlsxCell(6, 6, 'วัน', style: 1))
+      ..write(_xlsxCell(6, 7, 'ครั้ง', style: 1))
+      ..write(_xlsxCell(6, 8, 'วัน', style: 1))
+      ..write(_xlsxCell(6, 9, 'ครั้ง', style: 1))
+      ..write(_xlsxCell(6, 10, 'วัน', style: 1))
+      ..write(_xlsxCell(6, 11, '', style: 1))
+      ..write('</row>');
+
+    for (var i = 0; i < rows.length; i++) {
+      final rowNumber = i + 7;
+      final row = rows[i];
+      buffer
+        ..write('<row r="$rowNumber" ht="21" customHeight="1">')
+        ..write(_xlsxCell(rowNumber, 1, i + 1, style: 0))
+        ..write(_xlsxCell(rowNumber, 2, row.name, style: 4))
+        ..write(_xlsxCell(rowNumber, 3, 0, style: 0))
+        ..write(_xlsxCell(rowNumber, 4, 0, style: 0))
+        ..write(_xlsxCell(rowNumber, 5, row.sickTimes, style: 0))
+        ..write(_xlsxCell(rowNumber, 6, row.sickDays, style: 0))
+        ..write(_xlsxCell(rowNumber, 7, row.personalTimes, style: 0))
+        ..write(_xlsxCell(rowNumber, 8, row.personalDays, style: 0))
+        ..write(_xlsxCell(rowNumber, 9, row.totalTimes, style: 0))
+        ..write(_xlsxCell(rowNumber, 10, row.totalDays, style: 0))
+        ..write(_xlsxCell(rowNumber, 11, '', style: 0))
+        ..write('</row>');
     }
 
+    final mergeCount = 10;
     buffer
       ..write('</sheetData>')
-      ..write('<mergeCells count="3"><mergeCell ref="A1:K1"/><mergeCell ref="A2:K2"/><mergeCell ref="A3:K3"/></mergeCells>')
+      ..write('<mergeCells count="$mergeCount">')
+      ..write('<mergeCell ref="A1:K1"/>')
+      ..write('<mergeCell ref="A2:K2"/>')
+      ..write('<mergeCell ref="E4:J4"/>')
+      ..write('<mergeCell ref="A5:A6"/>')
+      ..write('<mergeCell ref="B5:B6"/>')
+      ..write('<mergeCell ref="C5:C6"/>')
+      ..write('<mergeCell ref="E5:F5"/>')
+      ..write('<mergeCell ref="G5:H5"/>')
+      ..write('<mergeCell ref="I5:J5"/>')
+      ..write('<mergeCell ref="K5:K6"/>')
+      ..write('</mergeCells>')
       ..write('</worksheet>');
     return buffer.toString();
+  }
+
+  String _xlsxCell(int row, int col, dynamic value, {required int style}) {
+    final ref = _cellRef(row, col);
+    if (value is num) {
+      return '<c r="$ref" s="$style"><v>${_formatNumber(value)}</v></c>';
+    }
+    return '<c r="$ref" s="$style" t="inlineStr"><is><t>${_xmlEscape(value)}</t></is></c>';
   }
 
   String _xmlEscape(dynamic value) => const HtmlEscape().convert(value?.toString() ?? '');
@@ -646,11 +816,11 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
   static const String _stylesXml = '''
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-  <fonts count="3"><font><sz val="11"/><name val="Sarabun"/></font><font><b/><sz val="11"/><name val="Sarabun"/></font><font><b/><sz val="16"/><name val="Sarabun"/></font></fonts>
-  <fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF1F5F9"/><bgColor indexed="64"/></patternFill></fill></fills>
+  <fonts count="4"><font><sz val="16"/><name val="TH SarabunPSK"/></font><font><b/><sz val="16"/><name val="TH SarabunPSK"/></font><font><b/><sz val="18"/><name val="TH SarabunPSK"/></font><font><b/><sz val="16"/><name val="TH SarabunPSK"/></font></fonts>
+  <fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFFFFF"/><bgColor indexed="64"/></patternFill></fill></fills>
   <borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"/><right style="thin"/><top style="thin"/><bottom style="thin"/><diagonal/></border></borders>
   <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-  <cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center"/></xf></cellXfs>
+  <cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf></cellXfs>
 </styleSheet>
 ''';
 
@@ -660,7 +830,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
     final dateRange =
         '${_htmlEscape(FirebaseService.formatThaiDate(currentViewRound['startDate']))} - ${_htmlEscape(FirebaseService.formatThaiDate(currentViewRound['endDate']))}';
 
-    final rows = _teachers.map((teacher) {
+    final rows = _visibleTeachers.map((teacher) {
       final name = (teacher['fullName'] ?? '-').toString();
       final position = (teacher['position'] ?? '-').toString();
       final approvedLeaves = _allLeaves.where((l) {
@@ -781,7 +951,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
       flex: flex,
       child: Container(
         height: 64,
-        decoration: BoxDecoration(border: Border(right: BorderSide(color: Colors.black.withOpacity(0.02)))),
+        decoration: BoxDecoration(border: Border(right: BorderSide(color: Colors.black.withValues(alpha: 0.02)))),
         child: Row(
           children: [
             Expanded(child: Center(child: Text(v1 == '0' ? '-' : v1, style: TextStyle(fontSize: 13, color: color ?? Colors.black38, fontWeight: v1 == '0' ? FontWeight.normal : FontWeight.bold)))),
