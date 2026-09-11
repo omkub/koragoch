@@ -164,14 +164,26 @@ class FirebaseService {
     }
   }
 
+  // 🚀 โหลด config จาก Supabase (ตาราง Settings) — Supabase แตกเป็นหลายแถว
+  // จึง merge ค่าที่ไม่ใช่ null จากทุกแถวเข้าเป็น key/value เดียว
   Future<void> ensureConfigLoaded() async {
     if (_configLoaded) return;
     try {
-      final snap = await db.collection('Settings').doc('app_config').get();
-      final data = snap.data() ?? <String, dynamic>{};
-      _configCache = data.map((k, v) => MapEntry(k, v.toString()));
+      final client = _supabaseIfReady;
+      if (client != null) {
+        final rows = await client.from('Settings').select();
+        final merged = <String, String>{};
+        for (final row in (rows as List)) {
+          (row as Map).forEach((k, v) {
+            if (v != null && v is! Map && v is! List) {
+              merged[k.toString()] = v.toString();
+            }
+          });
+        }
+        _configCache = merged;
+      }
     } catch (e) {
-      debugPrint('Failed to load app_config from Firestore: $e');
+      debugPrint('Failed to load config from Supabase Settings: $e');
     }
     _configLoaded = true;
   }

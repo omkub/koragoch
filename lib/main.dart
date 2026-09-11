@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';  // ← เพิ่มบรรทัดนี้
 import 'firebase_options.dart';
@@ -75,21 +74,14 @@ class _MyAppState extends State<MyApp> {
       final int? loginAt = prefs.getInt('loginAt');
 
       if (isLoggedIn && loginAt != null) {
+        // 🚀 จำ session จาก SharedPreferences ล้วน (เลิกพึ่ง FirebaseAuth)
         // ตรวจสอบอายุการล็อกอิน (ตัวอย่าง 2 ชั่วโมง)
         if ((DateTime.now().millisecondsSinceEpoch - loginAt) <
             (2 * 60 * 60 * 1000)) {
-          // 🛡️ ป้องกัน Race Condition: รอให้ FirebaseAuth ดึง Session กลับมาจาก IndexedDB ก่อนเริ่มวิ่ง 🥇🏆
-          // ป้องกันหน้าขาวในจังหวะ Refresh หน้าเว็บครับ
-          final user = await FirebaseAuth.instance.authStateChanges().first;
-
-          if (user != null) {
-            if (mounted) setState(() => _homeWidget = const ResponsiveLayout());
-          } else {
-            // 🚨 ถ้ากุญแจหายไป (อาจเพราะโดนบล็อกการสร้างบัญชี) ให้ล้างแคชทิ้งและบังคับล็อกอินใหม่ครับ!
-            await clearSessionPrefs(prefs);
-            if (mounted) setState(() => _homeWidget = const LoginScreen());
-          }
+          // ยังไม่หมดอายุ + มีข้อมูลผู้ใช้ในเครื่อง = เข้าแอปต่อได้เลย ไม่หลุดตอน refresh
+          if (mounted) setState(() => _homeWidget = const ResponsiveLayout());
         } else {
+          // หมดอายุ → ล้าง session แล้วกลับไปหน้า Login
           await clearSessionPrefs(prefs);
         }
       }
