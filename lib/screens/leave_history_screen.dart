@@ -65,10 +65,11 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
         });
       }
 
+      // 🚀 อ่านจาก Supabase
       final results = await Future.wait([
-        _firebaseService.getUsers(),
-        _firebaseService.getFiscalRounds(),
-        _firebaseService.getActiveFiscalRound(),
+        _firebaseService.getUsersFromSupabase(),
+        _firebaseService.getFiscalRoundsFromSupabase(),
+        _firebaseService.getActiveFiscalRoundFromSupabase(),
       ]);
       final usersSnap = results[0] as List<Map<String, dynamic>>;
       final roundsSnap = results[1] as List<Map<String, dynamic>>;
@@ -79,7 +80,6 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
           _allUsers = usersSnap;
           _rounds = roundsSnap;
 
-          // ตั้งค่ารอบเริ่มต้นเป็นรอบที่กำลังทำงานครับ 🕵️‍♂️🥇
           if (activeRound != null) {
             _selectedRound = _rounds.firstWhere(
                 (r) => r['id'] == activeRound['id'],
@@ -105,9 +105,12 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
 
   Stream<List<Map<String, dynamic>>> _createLeaveRequestsStream(
       String? role, String? user) {
+    // 🚀 ใช้ Supabase read แล้วห่อเป็น Stream ชั่วคราว (Part 5 ค่อยทำ Realtime)
     return _canViewAllHistory(role)
-        ? _firebaseService.getLeaveRequestsStream()
-        : _firebaseService.getMyLeaveRequestsStream(user ?? '');
+        ? Stream.fromFuture(
+            _firebaseService.getLeaveRequestsFromSupabase())
+        : Stream.fromFuture(
+            _firebaseService.getMyLeaveRequestsFromSupabase(user ?? ''));
   }
 
   Map<String, dynamic> _userForLeave(Map<String, dynamic> leave) {
@@ -1351,11 +1354,14 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                     return;
                   }
                   try {
-                    await _firebaseService.db.collection('Leaves').doc(requestId).update({
-                      'receiveNumber': receiveVal,
-                      'receiveDate': dateStr,
-                      'receiveTime': timeStr,
-                    });
+                    // 🚀 เขียน Supabase เท่านั้น — ห้ามเขียน Firebase
+                    await _firebaseService
+                        .updateLeaveReceiveNumberInSupabase(
+                      requestId,
+                      receiveVal,
+                      dateStr,
+                      timeStr,
+                    );
                     if (mounted) {
                       Navigator.pop(ctx);
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -1440,10 +1446,8 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
               try {
                 if (medicalUrl.isNotEmpty)
                   await _firebaseService.deleteDriveFileStrict(medicalUrl);
-                await _firebaseService.db
-                    .collection('Leaves')
-                    .doc(requestId)
-                    .delete();
+                // 🚀 ลบจาก Supabase — ห้ามลบ Firebase
+                await _firebaseService.deleteLeaveFromSupabase(requestId);
                 if (mounted) {
                   setState(() => _selectedIds.remove(requestId));
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(

@@ -169,9 +169,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
   Future<bool> _syncCurrentUserRole() async {
     try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null || uid.isEmpty) return false;
-
       final prefs = await SharedPreferences.getInstance();
       final currentUser = (prefs.getString('currentUser') ?? '').trim();
       final cachedJson = prefs.getString('userFullDataJson') ?? '';
@@ -189,72 +186,44 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         prefs.getString('userRole'),
       ]);
 
-      DocumentSnapshot<Map<String, dynamic>>? teacherDoc;
+      final users = await _firebaseService.getUsersFromSupabase();
+      Map<String, dynamic>? matchedUser;
 
       if (cachedDocId.isNotEmpty) {
-        final snap = await _firebaseService.db
-            .collection('Teachers')
-            .doc(cachedDocId)
-            .get();
-        if (snap.exists) teacherDoc = snap;
+        matchedUser = users.firstWhere(
+          (u) => (u['id'] ?? '').toString().trim() == cachedDocId,
+          orElse: () => {},
+        );
+      }
+      if ((matchedUser == null || matchedUser.isEmpty) &&
+          cachedUsername.isNotEmpty) {
+        matchedUser = users.firstWhere(
+          (u) => (u['username'] ?? '').toString().trim() == cachedUsername,
+          orElse: () => {},
+        );
+      }
+      if ((matchedUser == null || matchedUser.isEmpty) &&
+          currentUser.isNotEmpty) {
+        matchedUser = users.firstWhere(
+          (u) =>
+              (u['fullName'] ?? u['name'] ?? '').toString().trim() ==
+              currentUser,
+          orElse: () => {},
+        );
       }
 
-      if (teacherDoc == null && cachedUsername.isNotEmpty) {
-        final query = await _firebaseService.db
-            .collection('Teachers')
-            .where('username', isEqualTo: cachedUsername)
-            .limit(1)
-            .get();
-        if (query.docs.isNotEmpty) teacherDoc = query.docs.first;
+      if (matchedUser != null && matchedUser.isNotEmpty) {
+        final role = _resolveEffectiveRole([
+          matchedUser['role'],
+          matchedUser['permission'],
+          cachedRole,
+        ]);
+        await prefs.setString('userRole', role);
+        await prefs.setString('userFullDataJson', jsonEncode(matchedUser));
+        return true;
       }
 
-      if (teacherDoc == null && currentUser.isNotEmpty) {
-        var query = await _firebaseService.db
-            .collection('Teachers')
-            .where('fullName', isEqualTo: currentUser)
-            .limit(1)
-            .get();
-
-        if (query.docs.isEmpty) {
-          query = await _firebaseService.db
-              .collection('Teachers')
-              .where('name', isEqualTo: currentUser)
-              .limit(1)
-              .get();
-        }
-
-        if (query.docs.isNotEmpty) teacherDoc = query.docs.first;
-      }
-
-      if (teacherDoc == null) return false;
-
-      final data = teacherDoc.data() ?? <String, dynamic>{};
-      final role = _resolveEffectiveRole([
-        data['role'],
-        data['permission'],
-        cachedRole,
-      ]);
-      final fullName =
-          (data['fullName'] ?? data['name'] ?? currentUser).toString();
-
-      await _firebaseService.db
-          .collection('Teachers')
-          .doc(teacherDoc.id)
-          .update({
-        'firebase_uid': uid,
-        'role': role,
-        'permission': role,
-        'lastSyncAt': FieldValue.serverTimestamp(),
-      });
-
-      await _firebaseService.db.collection('UserRoles').doc(uid).set({
-        'role': role,
-        'permission': role,
-        'fullName': fullName,
-        'teacherDocId': teacherDoc.id,
-        'lastSyncAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-      return true;
+      return currentUser.isNotEmpty;
     } catch (e) {
       debugPrint('Role sync failed: $e');
     }
@@ -440,15 +409,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     final String inputPassword = _passController.text.trim();
 
     try {
-      if (FirebaseAuth.instance.currentUser == null) {
-        throw Exception(
-            'บัญชีนี้ยังไม่ได้เชื่อม Firebase Auth กรุณาออกจากระบบแล้วเข้าสู่ระบบใหม่อีกครั้ง');
-      }
-      final synced = await _syncCurrentUserRole();
-      if (!synced) {
-        throw Exception(
-            'ยังซิงค์สิทธิ์ผู้ดูแลระบบของบัญชีนี้ไม่สำเร็จ กรุณาออกจากระบบแล้วเข้าสู่ระบบใหม่อีกครั้ง');
-      }
+      await _syncCurrentUserRole();
 
       if (_isEditing && _editingId != null) {
         String newPhoto = _photoController.text;
@@ -3087,152 +3048,98 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     return maxId + 1;
   }
 
+  (String, String) _supabaseTableAndNameField(String collection) {
+    switch (collection.toLowerCase()) {
+      case 'positions':
+        return ('positions', 'positionname');
+      case 'academics':
+        return ('academics', 'academicname');
+      case 'departments':
+        return ('departments', 'departmentname');
+      case 'roles':
+        return ('roles', 'Accessrights');
+      case 'adminroles':
+        return ('adminroles', 'adminrolename');
+      case 'leavetypes':
+        return ('LeaveTypes', 'value');
+      default:
+        return (collection, 'Value');
+    }
+  }
+
   Future<void> _createMasterItem(
     String collection,
     String value,
   ) async {
+    // 🚀 เพิ่มรายการใน Supabase เท่านั้น — ห้ามแตะ Firebase
+    final pair = _supabaseTableAndNameField(collection);
+    final table = pair.$1;
+    final nameField = pair.$2;
     final idField = _masterIdFieldForCollection(collection);
-    final nameField = _masterNameFieldForCollection(collection);
-    if (idField.isNotEmpty) {
-      final nextId = await _nextMasterNumericId(collection, idField);
-      await _firebaseService.db.collection(collection).doc('$nextId').set({
-        idField: nextId,
-        nameField: value,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-      return;
-    }
 
-    await _firebaseService.db.collection(collection).add({
-      'Value': value,
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    try {
+      final client = _firebaseService.supabaseClient;
+      if (client != null) {
+        if (idField.isNotEmpty) {
+          final nextId = await _nextMasterNumericId(collection, idField);
+          await client.from(table).insert({
+            idField: nextId,
+            nameField: value,
+          });
+        } else {
+          await client.from(table).insert({
+            nameField: value,
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Supabase _createMasterItem error: $e');
+    }
   }
 
   Future<int> _migrateMasterToNumericSchema(String collectionName) async {
-    final collection = _firebaseService.db.collection(collectionName);
-    final idField = _masterIdFieldForCollection(collectionName);
-    final nameField = _masterNameFieldForCollection(collectionName);
-    if (idField.isEmpty) return 0;
-
-    final snapshot = await collection.get();
-    final numericDocByName = <String, String>{};
-    var maxId = 0;
-
-    for (final doc in snapshot.docs) {
-      final data = doc.data();
-      final docId = _toIntValue(doc.id);
-      final dataId = _toIntValue(data[idField]);
-      final current = docId > dataId ? docId : dataId;
-      if (current > maxId) maxId = current;
-
-      if (docId > 0) {
-        final name = _masterNameFromData(data, collectionName);
-        if (name.isNotEmpty) {
-          numericDocByName.putIfAbsent(name, () => doc.id);
-        }
-      }
-    }
-
-    final batch = _firebaseService.db.batch();
-    final writtenTargets = <String>{};
-    var changed = 0;
-
-    for (final doc in snapshot.docs) {
-      final data = doc.data();
-      final name = _masterNameFromData(data, collectionName);
-      if (name.isEmpty) continue;
-
-      final docId = _toIntValue(doc.id);
-      final existingNumericDocId = numericDocByName[name];
-      final targetDocId =
-          docId > 0 ? doc.id : existingNumericDocId ?? '${++maxId}';
-      final targetId = _toIntValue(targetDocId);
-      final targetRef = collection.doc(targetDocId);
-      final createdAt = data['createdAt'] ?? FieldValue.serverTimestamp();
-
-      if (writtenTargets.add(targetDocId)) {
-        batch.set(
-            targetRef,
-            {
-              idField: targetId,
-              nameField: name,
-              'createdAt': createdAt,
-              'updatedAt': FieldValue.serverTimestamp(),
-              'Value': FieldValue.delete(),
-            },
-            SetOptions(merge: true));
-      }
-
-      if (doc.id != targetDocId) {
-        batch.delete(doc.reference);
-      }
-
-      numericDocByName.putIfAbsent(name, () => targetDocId);
-      changed++;
-    }
-
-    if (changed > 0) {
-      await batch.commit();
-      await _loadDropdownData();
-    }
-
-    return changed;
+    // 🛡️ ปิดการเขียน Firebase ถาวรตามนโยบายความปลอดภัย
+    return 0;
   }
 
   Future<void> _renameMasterItem(String oldValue, String newValue) async {
     final collection = _masterCollectionForCurrentTab();
-    final dropdownField = _masterDropdownFieldForCurrentTab();
-    if (collection.isEmpty || dropdownField.isEmpty) return;
+    if (collection.isEmpty) return;
 
-    // 1. อัปเดตในคอลเลกชันมาสเตอร์ (เช่น Departments)
-    final snapshot = await _firebaseService.db.collection(collection).get();
-    final matches =
-        snapshot.docs.where((doc) => _masterDocMatchesValue(doc, oldValue));
+    // 🚀 อัปเดตชื่อใน Supabase เท่านั้น — ห้ามแตะ Firebase
+    final pair = _supabaseTableAndNameField(collection);
+    final table = pair.$1;
+    final nameField = pair.$2;
 
-    if (matches.isNotEmpty) {
-      for (var doc in matches) {
-        final fieldName = _masterValueField(doc.data(), matchValue: oldValue);
-        await _firebaseService.db.collection(collection).doc(doc.id).update({
-          fieldName: newValue,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+    try {
+      final client = _firebaseService.supabaseClient;
+      if (client != null) {
+        await client.from(table).update({nameField: newValue}).eq(nameField, oldValue);
       }
+    } catch (e) {
+      debugPrint('Supabase _renameMasterItem error: $e');
     }
-
-    // 2. อัปเดตใน Settings/dropdowns (array)
-    await _firebaseService.db.collection('Settings').doc('dropdowns').set({
-      dropdownField: FieldValue.arrayRemove([oldValue]),
-    }, SetOptions(merge: true));
-
-    await _firebaseService.db.collection('Settings').doc('dropdowns').set({
-      dropdownField: FieldValue.arrayUnion([newValue]),
-    }, SetOptions(merge: true));
 
     await _loadDropdownData();
   }
 
-  // 🔥 เพิ่มฟังก์ชันสำหรับลบข้อมูลพื้นฐานแบบถอนรากถอนโคนครับ 🥇🏆
   Future<void> _deleteMasterItem(String value) async {
     final collection = _masterCollectionForCurrentTab();
-    final dropdownField = _masterDropdownFieldForCurrentTab();
-    if (collection.isEmpty || dropdownField.isEmpty) return;
+    if (collection.isEmpty) return;
 
-    // 1. ลบจากคอลเลกชันมาสเตอร์
-    final snapshot = await _firebaseService.db.collection(collection).get();
-    final matches =
-        snapshot.docs.where((doc) => _masterDocMatchesValue(doc, value));
+    // 🚀 ลบออกจาก Supabase เท่านั้น — ห้ามแตะ Firebase
+    final pair = _supabaseTableAndNameField(collection);
+    final table = pair.$1;
+    final nameField = pair.$2;
 
-    for (var doc in matches) {
-      await _firebaseService.db.collection(collection).doc(doc.id).delete();
+    try {
+      final client = _firebaseService.supabaseClient;
+      if (client != null) {
+        await client.from(table).delete().eq(nameField, value);
+      }
+    } catch (e) {
+      debugPrint('Supabase _deleteMasterItem error: $e');
     }
-
-    // 2. ลบจาก Settings/dropdowns
-    await _firebaseService.db.collection('Settings').doc('dropdowns').set({
-      dropdownField: FieldValue.arrayRemove([value])
-    }, SetOptions(merge: true));
 
     await _loadDropdownData();
   }
@@ -3808,13 +3715,23 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             final pageName = entry.value;
                             final val = _readPermissionValue(
                                 currentData, pageId, pageName);
-                            newData[pageId] = val;
                           }
 
-                          await _firebaseService.db
-                              .collection(_permissionCollectionName)
-                              .doc(role)
-                              .set(newData);
+                          // 🚀 บันทึกสิทธิ์ลง Supabase เท่านั้น — ห้ามเขียน Firebase
+                          final client = _firebaseService.supabaseClient;
+                          if (client != null) {
+                            try {
+                              await client
+                                  .from(_permissionCollectionName)
+                                  .upsert({
+                                'id': role,
+                                ...newData,
+                                'updatedat': DateTime.now().toIso8601String(),
+                              });
+                            } catch (e) {
+                              debugPrint('Supabase permission save error: $e');
+                            }
+                          }
                         }
                         if (mounted)
                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -3926,15 +3843,21 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                   onChanged: isLockAdmin
                                       ? null
                                       : (val) async {
-                                          await _firebaseService.db
-                                              .collection(
-                                                  _permissionCollectionName)
-                                              .doc(role)
-                                              .set({
-                                            pageId: val,
-                                            'updatedAt':
-                                                FieldValue.serverTimestamp(),
-                                          }, SetOptions(merge: true));
+                                          // 🚀 อัปเดตสิทธิ์ลง Supabase เท่านั้น — ห้ามเขียน Firebase
+                                          final client = _firebaseService.supabaseClient;
+                                          if (client != null) {
+                                            try {
+                                              await client
+                                                  .from(_permissionCollectionName)
+                                                  .upsert({
+                                                'id': role,
+                                                pageId: val,
+                                                'updatedat': DateTime.now().toIso8601String(),
+                                              });
+                                            } catch (e) {
+                                              debugPrint('Supabase permission toggle error: $e');
+                                            }
+                                          }
                                         },
                                 ),
                               ),
@@ -5876,11 +5799,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           'timestamp': FieldValue.serverTimestamp(),
         };
 
-        // 🥇 บันทึกข้อมูลโดยพ่วง Document ID เป็นรหัสใบลา (requestId) เลยครับ
-        await _firebaseService.db
-            .collection('Leaves')
-            .doc(requestId)
-            .set(data, SetOptions(merge: true));
+        // 🚀 บันทึกข้อมูลลง Supabase เท่านั้น — ห้ามเขียน Firebase
+        await _firebaseService.updateLeaveRequest(requestId, data);
         updated++;
       }
 
@@ -6005,15 +5925,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     final String resetCode = FirebaseService.generateResetCode();
 
     try {
-      await FirebaseFirestore.instanceFor(
-              app: Firebase.app(), databaseId: 'school')
-          .collection('Teachers')
-          .doc(user['id'])
-          .update({
+      // 🚀 อัปเดตรหัสผ่านลง Supabase เท่านั้น — ห้ามเขียน Firebase
+      await _firebaseService.updateTeacherById(user['id'], {
         'password': resetCode,
         'tempResetCode': resetCode,
         'forgotPasswordStatus': 'reset_by_admin',
-        'resetAllowedUntil': Timestamp.fromDate(expiry)
+        'resetAllowedUntil': expiry.toIso8601String(),
       });
 
       if (mounted) {

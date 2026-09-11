@@ -86,15 +86,15 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
   Future<void> _loadInitialData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final users = await _firebaseService.getUsers();
-      if (!mounted) return; // 🛡️ ตรวจสอบก่อน setState เสมอครับ
+      // 🚀 อ่านจาก Supabase — ห้ามเขียน Firebase
+      final users = await _firebaseService.getUsersFromSupabase();
+      if (!mounted) return;
       setState(() {
         _allUsers = users;
         _loggedInUser = prefs.getString('currentUser');
         _userRole = prefs.getString('userRole');
       });
 
-      // 🕵️‍♂️ ถ้าเป็นการแก้ไข ให้ใช้ชื่อจากใบลาใบนั้นครับ (เช็คทั้ง fullName และ name เพื่อความชัวร์)
       final nameToFetch = widget.initialData?['fullName'] ??
           widget.initialData?['name'] ??
           _loggedInUser;
@@ -109,15 +109,18 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
 
   Future<void> _loadSpecialDates() async {
     try {
-      final holidays = await _firebaseService.db.collection('SpecialHolidays').get();
-      final specialWorking = await _firebaseService.db.collection('SpecialWorkingDays').get();
+      // 🚀 อ่านวันหยุด/วันทำงานพิเศษจาก Supabase
+      final holidays =
+          await _firebaseService.getSpecialHolidaysFromSupabase();
+      final specialWorking =
+          await _firebaseService.getSpecialWorkingDaysFromSupabase();
       if (!mounted) return;
-      final hKeys = holidays.docs
-          .map((d) => _toDateKey(d.data()))
+      final hKeys = holidays
+          .map((d) => _toDateKey(d))
           .whereType<String>()
           .toSet();
-      final swKeys = specialWorking.docs
-          .map((d) => _toDateKey(d.data()))
+      final swKeys = specialWorking
+          .map((d) => _toDateKey(d))
           .whereType<String>()
           .toSet();
       setState(() {
@@ -157,9 +160,12 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
       final user = _allUsers.firstWhere((u) => u['fullName'] == fullName,
           orElse: () => {});
       if (user.isNotEmpty) {
-        final lastLeave = await _firebaseService.getLastLeaveRequest(fullName);
-        final history = await _firebaseService.getMyLeaveRequests(fullName);
-        if (!mounted) return; // 🛡️ ตรวจสอบก่อน setState เสมอครับ
+        // 🚀 อ่านจาก Supabase
+        final lastLeave =
+            await _firebaseService.getLastLeaveRequestFromSupabase(fullName);
+        final history =
+            await _firebaseService.getMyLeaveRequestsFromSupabase(fullName);
+        if (!mounted) return;
         setState(() {
           _selectedUser = user;
           _lastLeaveRequest = lastLeave;

@@ -21,6 +21,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, dynamic>? _selectedRound; // 📅 รอบที่เลือกดูอยู่ครับ
   List<Map<String, dynamic>> _allRounds = []; // 📅 รายรายการรอบทั้งหมด
 
+  int _refreshTick = 0;
+
   @override
   void initState() {
     super.initState();
@@ -39,8 +41,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     bool isMobile = MediaQuery.of(context).size.width < 1100;
 
-    // 🛡️ ใช้ระบบ Combined Stream เพื่อให้ข้อมูลมาพร้อมกันโดยไม่ต้อง Nest ครับ 🥇🏆
+    // 🛡️ ดึงข้อมูล Dashboard จาก Supabase ผ่าน StreamBuilder 🥇🏆
     return StreamBuilder<Map<String, dynamic>>(
+      key: ValueKey(_refreshTick),
       stream: _firebaseService.getDashboardDataStream(),
       builder: (context, snapshot) {
         // 🔄 จังหวะรอโหลดข้อมูลแบบพรีเมียมครับ 🕵️‍♂️
@@ -369,21 +372,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 }(),
               ),
             ),
-          ElevatedButton.icon(
-            onPressed: () {
-              if (widget.onNavigate != null) widget.onNavigate!(2);
-            },
-            icon: const Icon(Icons.add, size: 18),
-            label: Text('สร้างใบลาใหม่',
-                style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0F172A),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-              elevation: 0,
-            ),
+          Wrap(
+            spacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.refresh, color: Color(0xFF0F172A)),
+                tooltip: 'รีเฟรชข้อมูล',
+                onPressed: () => setState(() => _refreshTick++),
+              ),
+              ElevatedButton.icon(
+                onPressed: () {
+                  if (widget.onNavigate != null) widget.onNavigate!(2);
+                },
+                icon: const Icon(Icons.add, size: 18),
+                label: Text('สร้างใบลาใหม่',
+                    style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F172A),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  elevation: 0,
+                ),
+              ),
+            ],
           ),
         ],
       ),

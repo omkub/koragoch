@@ -25,6 +25,8 @@ class FirebaseService {
     }
   }
 
+  SupabaseClient? get supabaseClient => _supabaseIfReady;
+
   // แปลงข้อมูล Firebase → รูปแบบที่ Supabase รับได้
   // (key เป็น lowercase, FieldValue/Timestamp → ISO string)
   static Map<String, dynamic> _toSupabaseRecord(
@@ -83,7 +85,7 @@ class FirebaseService {
     }
   }
 
-  // Helper: Dual-write to Firebase & Supabase
+  // 🚀 Supabase-only write (ห้ามเขียน Firebase — production hosting ใช้อยู่)
   Future<void> _dualWriteSet(
     String collectionName,
     String docId,
@@ -91,75 +93,46 @@ class FirebaseService {
     bool merge = false,
   }) async {
     try {
-      // Write to Firebase
-      await _db.collection(collectionName).doc(docId).set(
-        data,
-        SetOptions(merge: merge),
-      );
-
-      // Write to Supabase
-      if (_dualWriteEnabled) {
-        try {
-          await _supabaseUpsert(
-              collectionName.toLowerCase(), _toSupabaseRecord(data, docId));
-        } catch (e) {
-          debugPrint('⚠️  Supabase write error ($collectionName): $e');
-        }
-      }
+      await _supabaseUpsert(
+          collectionName.toLowerCase(), _toSupabaseRecord(data, docId));
     } catch (e) {
-      debugPrint('❌ Dual-write error in _dualWriteSet: $e');
+      debugPrint('❌ Supabase write error in _dualWriteSet ($collectionName): $e');
       rethrow;
     }
   }
 
-  // Helper: Dual-update Firebase & Supabase
+  // 🚀 Supabase-only update (ห้ามเขียน Firebase — production hosting ใช้อยู่)
   Future<void> _dualWriteUpdate(
     String collectionName,
     String docId,
     Map<String, dynamic> data,
   ) async {
     try {
-      // Update in Firebase
-      await _db.collection(collectionName).doc(docId).update(data);
-
-      // Update in Supabase (upsert เผื่อ record ยังไม่มี)
-      if (_dualWriteEnabled) {
-        try {
-          await _supabaseUpsert(
-              collectionName.toLowerCase(), _toSupabaseRecord(data, docId));
-        } catch (e) {
-          debugPrint('⚠️  Supabase update error ($collectionName): $e');
-        }
-      }
+      await _supabaseUpsert(
+          collectionName.toLowerCase(), _toSupabaseRecord(data, docId));
     } catch (e) {
-      debugPrint('❌ Dual-write error in _dualWriteUpdate: $e');
+      debugPrint('❌ Supabase write error in _dualWriteUpdate ($collectionName): $e');
       rethrow;
     }
   }
 
-  // Helper: Dual-add to Firebase & Supabase
+  // 🚀 Supabase-only add (ห้ามเขียน Firebase — production hosting ใช้อยู่)
   Future<String> _dualWriteAdd(
     String collectionName,
     Map<String, dynamic> data,
   ) async {
+    final client = _supabaseIfReady;
+    if (client == null) throw Exception('Supabase not initialized; cannot add to $collectionName');
+    final prefix = collectionName.length >= 2
+        ? collectionName.substring(0, 2).toUpperCase()
+        : collectionName.toUpperCase();
+    final docId = '$prefix-${DateTime.now().millisecondsSinceEpoch}';
     try {
-      // Add to Firebase (generates ID)
-      final docRef = await _db.collection(collectionName).add(data);
-      final docId = docRef.id;
-
-      // Add to Supabase with same ID
-      if (_dualWriteEnabled) {
-        try {
-          await _supabaseUpsert(
-              collectionName.toLowerCase(), _toSupabaseRecord(data, docId));
-        } catch (e) {
-          debugPrint('⚠️  Supabase insert error ($collectionName): $e');
-        }
-      }
-
+      final record = _toSupabaseRecord(data, docId);
+      await client.from(collectionName.toLowerCase()).insert(record);
       return docId;
     } catch (e) {
-      debugPrint('❌ Dual-write error in _dualWriteAdd: $e');
+      debugPrint('❌ Supabase insert error ($collectionName): $e');
       rethrow;
     }
   }
@@ -371,52 +344,27 @@ class FirebaseService {
   }
 
   Stream<List<Map<String, dynamic>>> getUsersStream() {
-    return _db.collection('Teachers').snapshots().map((snapshot) {
-      final list = snapshot.docs.map((doc) {
-        final data = doc.data();
-
-        // 🛡️ ทำความสะอาดข้อมูลก่อนส่งออกไป (ป้องกัน JSON Error ทั่วทั้งแอปครับ) 🥇🏆
-        final sanitized = Map<String, dynamic>.from(data);
-        sanitized.forEach((key, value) {
-          if (value is Timestamp)
-            sanitized[key] = value.toDate().toIso8601String();
-        });
-
-        return {
-          ...sanitized,
-          'id': doc.id,
-          'fullName': sanitized['fullName'] ??
-              sanitized['name'] ??
-              sanitized['Name'] ??
-              doc.id,
-          'academicStanding': sanitized['academicStanding'] ??
-              sanitized['academic'] ??
-              sanitized['วิทยฐานะ'] ??
-              '',
-        };
-      }).toList();
-
-      // 🥇 เรียงลำดับชื่อด้วยฝั่งแอปพลิเคชัน ป้องกันปัญหาคนที่มีแค่ช่อง name แต่ไม่มี fullName หายไปจากจอครับ! 🏆
-      list.sort((a, b) => (a['fullName'] ?? '')
-          .toString()
-          .compareTo((b['fullName'] ?? '').toString()));
-      return list;
-    });
+    return Stream.fromFuture(getUsersFromSupabase());
   }
 
-  // ดึงรายชื่อครูแบบครั้งเดียวเพื่อความแม่นยำในการเริ่มต้นหน้าจอครับ 🏆
+  Stream<List<Map<String, dynamic>>> getUsersStreamFromSupabase() {
+    return Stream.fromFuture(getUsersFromSupabase());
+  }
+
+  // ดึงรายชื่อครูแบบครั้งเดียว — อ่านจาก Supabase เป็นหลัก
   Future<List<Map<String, dynamic>>> getUsers() async {
+    final supaList = await getUsersFromSupabase();
+    if (supaList.isNotEmpty) return supaList;
+
+    // กรณีสำรอง: อ่านเปรียบเทียบจาก Firebase
     final snapshot = await _db.collection('Teachers').get();
     final list = snapshot.docs.map((doc) {
       final data = doc.data();
-
-      // 🛡️ ทำความสะอาดข้อมูลก่อนส่งออกไป 🥇🏆
       final sanitized = Map<String, dynamic>.from(data);
       sanitized.forEach((key, value) {
         if (value is Timestamp)
           sanitized[key] = value.toDate().toIso8601String();
       });
-
       return {
         'id': doc.id,
         ...sanitized,
@@ -430,8 +378,6 @@ class FirebaseService {
             '',
       };
     }).toList();
-
-    // 🥇 เรียงลำดับฝั่งแอปพลิเคชันครับ 🏆
     list.sort((a, b) => (a['fullName'] ?? '')
         .toString()
         .compareTo((b['fullName'] ?? '').toString()));
@@ -448,10 +394,11 @@ class FirebaseService {
     await _dualWriteUpdate('Teachers', docId, data);
   }
 
-  // ลบข้อมูลครูครับ 🏎️🏆
+  // 🚀 ลบข้อมูลครู (Supabase-only)
   Future<void> deleteUser(String docId) async {
-    await _db.collection('Teachers').doc(docId).delete();
-    // TODO: Add Supabase delete support
+    final client = _supabaseIfReady;
+    if (client == null) throw Exception('Supabase not initialized');
+    await client.from('teachers').delete().eq('id', docId);
   }
 
   // 🛠️ ฟังก์ชันช่วยหาฟิลด์ที่เป็นค่า String (หาฟิลด์ Value/Name แบบไม่สนตัวเล็กตัวใหญ่) 🥇🏆
@@ -531,8 +478,10 @@ class FirebaseService {
     return values;
   }
 
-  // ดึงตำแหน่งงานบริหารจากฐานข้อมูลครับ 🥇🏆
+  // ดึงตำแหน่งงานบริหาร — อ่านจาก Supabase ก่อน
   Future<List<String>> getAdminRoles() async {
+    final supa = await getAdminRolesFromSupabase();
+    if (supa.isNotEmpty) return supa;
     final List<String> roles =
         await _getOrderedMasterValues('AdminRoles', 'ID_AdminRoles');
     if (!roles.contains('ไม่มีตำแหน่งบริหาร'))
@@ -540,13 +489,17 @@ class FirebaseService {
     return roles;
   }
 
-  // ดึงตำแหน่งงานทั่วไปครับ 🥇🏆
+  // ดึงตำแหน่งงานทั่วไป — อ่านจาก Supabase ก่อน
   Future<List<String>> getPositions() async {
+    final supa = await getPositionsFromSupabase();
+    if (supa.isNotEmpty) return supa;
     return _getOrderedMasterValues('Positions', 'ID_Positions');
   }
 
-  // ดึงสิทธิ์การเข้าถึง (Roles) ครับ 🥇🏆
+  // ดึงสิทธิ์การเข้าถึง (Roles) — อ่านจาก Supabase ก่อน
   Future<List<String>> getPermissions() async {
+    final supa = await getPermissionsFromSupabase();
+    if (supa.isNotEmpty) return supa;
     return _getOrderedMasterValues(
       'Roles',
       'ID_Roles',
@@ -554,17 +507,24 @@ class FirebaseService {
     );
   }
 
-  // ดึงวิทยฐานนะครับ 🥇🏆
+  // ดึงวิทยฐานะ — อ่านจาก Supabase ก่อน
   Future<List<String>> getAcademics() async {
+    final supa = await getAcademicsFromSupabase();
+    if (supa.isNotEmpty) return supa;
     return _getOrderedMasterValues('Academics', 'ID_Academics');
   }
 
+  // ดึงประเภทการลา — อ่านจาก Supabase ก่อน
   Future<List<String>> getLeaveTypes() async {
+    final supa = await getLeaveTypesFromSupabase();
+    if (supa.isNotEmpty) return supa;
     return _getOrderedMasterValues('LeaveTypes', 'ID_LeaveTypes');
   }
 
-  // ดึงกลุ่มสาระการเรียนรู้จากฐานข้อมูล Departments ครับ 🕵️‍♂️🏎️🏆
+  // ดึงกลุ่มสาระการเรียนรู้ — อ่านจาก Supabase ก่อน
   Future<List<String>> getDepartments() async {
+    final supa = await getDepartmentsFromSupabase();
+    if (supa.isNotEmpty) return supa;
     return _getOrderedMasterValues('Departments', 'ID_Departments');
   }
 
@@ -580,19 +540,7 @@ class FirebaseService {
 
   // 📅 ระบบจัดการรอบงบประมาณ (Fiscal Rounds) 🥇🏆
   Stream<List<Map<String, dynamic>>> getFiscalRoundsStream() {
-    return _db
-        .collection('FiscalRounds')
-        .orderBy('year', descending: true)
-        .orderBy('round', descending: true)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => {
-                'id': doc.id,
-                ...doc.data(),
-              })
-          .toList();
-    });
+    return Stream.fromFuture(getFiscalRoundsFromSupabase());
   }
 
   Future<void> addFiscalRound(Map<String, dynamic> data) async {
@@ -603,13 +551,17 @@ class FirebaseService {
     });
   }
 
+  // 🚀 ลบรอบงบประมาณ (Supabase-only)
   Future<void> deleteFiscalRound(String docId) async {
-    await _db.collection('FiscalRounds').doc(docId).delete();
-    // TODO: Add Supabase delete support
+    final client = _supabaseIfReady;
+    if (client == null) throw Exception('Supabase not initialized');
+    await client.from('fiscalrounds').delete().eq('id', docId);
   }
 
   // ดึงรายการรอบงบประมาณที่ตรงกับปฏิทินปัจจุบัน (Auto-match) 🥇🏎️🏆
   Future<Map<String, dynamic>?> getActiveFiscalRound() async {
+    final supaActive = await getActiveFiscalRoundFromSupabase();
+    if (supaActive != null) return supaActive;
     try {
       final snapshot = await _db
           .collection('FiscalRounds')
@@ -634,6 +586,8 @@ class FirebaseService {
 
   // ดึงรายการรอบงบประมาณทั้งหมดครับ 🕵️‍♂️🏎️🏆
   Future<List<Map<String, dynamic>>> getFiscalRounds() async {
+    final supaRounds = await getFiscalRoundsFromSupabase();
+    if (supaRounds.isNotEmpty) return supaRounds;
     try {
       final snapshot = await _db
           .collection('FiscalRounds')
@@ -769,49 +723,37 @@ class FirebaseService {
     return '$type (${halfDayPeriodText(leave['halfDayPeriod'])})';
   }
 
-  // 🛠️ รวม Stream ของรอบงบประมาณ ข้อมูลใบลา และประเภทการลาเข้าด้วยกัน เพื่อลดความซับซ้อนของ UI ครับ 🥇🏆🏎️
+  // 🛠️ รวมข้อมูลรอบงบประมาณ ข้อมูลใบลา และประเภทการลาจาก Supabase 🥇🏆🏎️
+  Future<Map<String, dynamic>> getDashboardDataFromSupabase() async {
+    final results = await Future.wait([
+      getFiscalRoundsFromSupabase(),
+      getLeaveRequestsFromSupabase(),
+      getLeaveTypesRawFromSupabase(),
+    ]);
+    return {
+      'rounds': results[0],
+      'allLeaves': results[1],
+      'leaveTypes': results[2],
+    };
+  }
+
   Stream<Map<String, dynamic>> getDashboardDataStream() {
-    return CombineLatestStream.combine3(
-      getFiscalRoundsStream(),
-      getLeaveRequestsStream(),
-      getLeaveTypesStream(),
-      (List<Map<String, dynamic>> rounds, List<Map<String, dynamic>> leaves,
-          List<Map<String, dynamic>> types) {
-        return {
-          'rounds': rounds,
-          'allLeaves': leaves,
-          'leaveTypes': types,
-        };
-      },
-    );
+    return Stream.fromFuture(getDashboardDataFromSupabase());
   }
 
   // ดึงประเภทการลาทั้งหมดจากฐานข้อมูลครับ 🕵️‍♂️🏎️🏆
   Stream<List<Map<String, dynamic>>> getLeaveTypesStream() {
-    return _db
-        .collection('LeaveTypes')
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => {
-                  ...doc.data(),
-                  'id': doc.id,
-                  'Value': _extractValue(
-                      doc), // 🛡️ สกัดค่าออกมาให้เป็นมาตรฐาน 'Value' ครับ 🥇🏆
-                })
-            .toList());
+    return Stream.fromFuture(getLeaveTypesRawFromSupabase());
   }
 
-  // ดึงประวัติการลาของตัวเองแบบเรียลไทม์ครับ 🕵️‍♂️🏎️🏆
+  // ดึงประวัติการลาแบบเรียลไทม์จาก Supabase
   Stream<List<Map<String, dynamic>>> getLeaveRequestsStream({int? year}) {
-    Query<Map<String, dynamic>> query = _db.collection('Leaves');
-    if (year != null) query = query.where('year', isEqualTo: year);
-    return query.snapshots().map((snapshot) => snapshot.docs
-        .map((doc) => {...doc.data(), 'requestId': doc.id})
-        .toList()
-      ..sort(FirebaseService.compareLeaveRecency));
+    return Stream.fromFuture(getLeaveRequestsFromSupabase(year: year));
   }
 
   Future<List<Map<String, dynamic>>> getLeaveRequests({int? year}) async {
+    final supa = await getLeaveRequestsFromSupabase(year: year);
+    if (supa.isNotEmpty) return supa;
     Query<Map<String, dynamic>> query = _db.collection('Leaves');
     if (year != null) query = query.where('year', isEqualTo: year);
     final snapshot = await query.get();
@@ -822,17 +764,12 @@ class FirebaseService {
   }
 
   Stream<List<Map<String, dynamic>>> getMyLeaveRequestsStream(String fullName) {
-    return _db
-        .collection('Leaves')
-        .where('fullName', isEqualTo: fullName)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => {...doc.data(), 'requestId': doc.id})
-            .toList()
-          ..sort(FirebaseService.compareLeaveRecency));
+    return Stream.fromFuture(getMyLeaveRequestsFromSupabase(fullName));
   }
 
   Future<List<Map<String, dynamic>>> getMyLeaveRequests(String fullName) async {
+    final supa = await getMyLeaveRequestsFromSupabase(fullName);
+    if (supa.isNotEmpty) return supa;
     final snapshot = await _db
         .collection('Leaves')
         .where('fullName', isEqualTo: fullName)
@@ -843,8 +780,10 @@ class FirebaseService {
       ..sort(FirebaseService.compareLeaveRecency);
   }
 
-  // ดึงประวัติการลา "ล่าสุด" ของครูเพื่อไปแสดงในฟอร์มครับ 🕵️‍♂️🏎️🏆
+  // ดึงประวัติการลา "ล่าสุด" ของครู — อ่านจาก Supabase ก่อน
   Future<Map<String, dynamic>?> getLastLeaveRequest(String fullName) async {
+    final supa = await getLastLeaveRequestFromSupabase(fullName);
+    if (supa != null) return supa;
     final snapshot = await _db
         .collection('Leaves')
         .where('fullName', isEqualTo: fullName)
@@ -858,33 +797,24 @@ class FirebaseService {
     return null;
   }
 
+  // 🚀 ล้างเลขรับทั้งหมด (Supabase-only)
   Future<void> clearAllReceiveNumbers() async {
-    final snapshot = await _db.collection('Leaves').get();
-    final docsWithReceive = snapshot.docs
-        .where((d) => d.data()['receiveNumber'] != null)
-        .toList();
-    if (docsWithReceive.isEmpty) return;
-
-    final batch = _db.batch();
-    for (final doc in docsWithReceive) {
-      batch.update(doc.reference, {
-        'receiveNumber': FieldValue.delete(),
-        'receiveDate': FieldValue.delete(),
-        'receiveTime': FieldValue.delete(),
-      });
-    }
-    await batch.commit();
+    final client = _supabaseIfReady;
+    if (client == null) throw Exception('Supabase not initialized');
+    await client
+        .from('leaves')
+        .update({'receivenumber': null, 'receivedate': null, 'receivetime': null})
+        .not('receivenumber', 'is', null);
   }
 
-  // ส่งใบลาเข้าระบบครับ 🏎️🏁
+  // 🚀 ส่งใบลาเข้าระบบ (Supabase-only) 🏎️🏁
   Future<void> submitLeaveRequest(Map<String, dynamic> data) async {
     final String docId = 'LV-${DateTime.now().millisecondsSinceEpoch}';
-
     await _dualWriteSet('Leaves', docId, {
       ...data,
-      'uid': currentUid,
+      // ตัด uid/currentUid ออก — เลิกพึ่ง FirebaseAuth
       'requestId': docId,
-      'timestamp': FieldValue.serverTimestamp(),
+      'timestamp': DateTime.now().toIso8601String(),
       'status': 'รอพิจารณา',
     });
   }
@@ -898,15 +828,29 @@ class FirebaseService {
     });
   }
 
+  // 🚀 นับเลขรับจาก Supabase (อ่าน Firebase เป็น fallback)
   Future<int> generateReceiveNumber() async {
+    final client = _supabaseIfReady;
     final fiscalYear = DateTime.now().year + 543;
+    if (client != null) {
+      try {
+        final rows = await client
+            .from('leaves')
+            .select('receivenumber')
+            .eq('year', fiscalYear)
+            .not('receivenumber', 'is', null);
+        return (rows as List).length + 1;
+      } catch (e) {
+        debugPrint('generateReceiveNumber Supabase error: $e');
+      }
+    }
+    // Fallback: read from Firebase (allowed)
     final snapshot = await _db.collection('Leaves')
         .where('year', isEqualTo: fiscalYear)
         .get();
-    final count = snapshot.docs
+    return snapshot.docs
         .where((d) => d.data()['receiveNumber'] != null)
-        .length;
-    return count + 1;
+        .length + 1;
   }
 
   // 🔥 ลบไฟล์ใน Google Drive ผ่าน Apps Script ครับ 🥇🏆🏎️
@@ -1532,5 +1476,403 @@ class FirebaseService {
     } catch (e) {
       debugPrint("❌ Password Reset Notify Error: $e");
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // SUPABASE READ LAYER — Part 3 Migration
+  // ═══════════════════════════════════════════════════════════════
+
+  // ── Normalizer helpers ──────────────────────────────────────────
+
+  /// แปลง row จาก Supabase Teachers → format ที่ UI คาดหวัง
+  static Map<String, dynamic> _fromSupabaseTeacher(Map<dynamic, dynamic> row) {
+    final r = Map<String, dynamic>.from(row);
+    final docId = r['firebase_uid']?.toString().isNotEmpty == true
+        ? r['firebase_uid'].toString()
+        : r['id']?.toString() ?? r['id_user']?.toString() ?? '';
+    return {
+      ...r,
+      'id': docId,
+      'fullName': r['fullname'] ?? r['fullName'] ?? r['name'] ?? '',
+      'academicStanding':
+          r['academicstanding'] ?? r['academicStanding'] ?? r['academic'] ?? '',
+      'position': r['position'] ?? '',
+      'department': r['department'] ?? '',
+      'role': r['role'] ?? '',
+      'permission': r['permission'] ?? r['role'] ?? '',
+      'phone': r['phone'] ?? '',
+      'profileImage': r['profileimage'] ?? r['profileImage'] ?? '',
+    };
+  }
+
+  /// แปลง row จาก Supabase Leaves → format ที่ UI คาดหวัง
+  static Map<String, dynamic> _fromSupabaseLeave(Map<dynamic, dynamic> row) {
+    final r = Map<String, dynamic>.from(row);
+    return {
+      ...r,
+      'requestId': r['id']?.toString() ?? r['requestid']?.toString() ?? '',
+      'fullName': r['fullname'] ?? r['fullName'] ?? '',
+      'leaveType': r['leavetype'] ?? r['leaveType'] ?? '',
+      'startDate': r['startdate'] ?? r['startDate'] ?? '',
+      'endDate': r['enddate'] ?? r['endDate'] ?? '',
+      'totalDays': r['totaldays'] ?? r['totalDays'] ?? 0,
+      'isHalfDay': r['ishalfday'] ?? r['isHalfDay'] ?? false,
+      'halfDayPeriod': r['halfdayperiod'] ?? r['halfDayPeriod'] ?? '',
+      'createdAt': r['createdat'] ?? r['createdAt'] ?? '',
+      'medicalCertificate':
+          r['medicalcertificate'] ?? r['medicalCertificate'] ?? '',
+      'academicStanding':
+          r['academicstanding'] ?? r['academicStanding'] ?? '',
+      'receiveNumber': r['receivenumber'] ?? r['receiveNumber'],
+      'receiveDate': r['receivedate'] ?? r['receiveDate'],
+      'receiveTime': r['receivetime'] ?? r['receiveTime'],
+      'lastUpdatedAt': r['lastupdatedat'] ?? r['lastUpdatedAt'],
+    };
+  }
+
+  /// แปลง row จาก Supabase FiscalRounds → format ที่ UI คาดหวัง
+  static Map<String, dynamic> _fromSupabaseFiscalRound(
+      Map<dynamic, dynamic> row) {
+    final r = Map<String, dynamic>.from(row);
+    return {
+      ...r,
+      'startDate': r['startdate'] ?? r['startDate'] ?? '',
+      'endDate': r['enddate'] ?? r['endDate'] ?? '',
+      'isActive': r['isactive'] ?? r['isActive'] ?? false,
+      'createdAt': r['createdat'] ?? r['createdAt'],
+    };
+  }
+
+  // ── Teachers ────────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> getUsersFromSupabase() async {
+    final client = _supabaseIfReady;
+    if (client == null) {
+      debugPrint('⚠️  Supabase not ready — falling back to Firebase getUsers');
+      return getUsers();
+    }
+    try {
+      final rows = await client.from('Teachers').select();
+      final list = (rows as List)
+          .map((row) => _fromSupabaseTeacher(row as Map))
+          .toList();
+      list.sort((a, b) => (a['fullName'] ?? '')
+          .toString()
+          .compareTo((b['fullName'] ?? '').toString()));
+      return list;
+    } catch (e) {
+      debugPrint('❌ getUsersFromSupabase error: $e');
+      return [];
+    }
+  }
+
+  // ── Leaves ──────────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> getLeaveRequestsFromSupabase(
+      {int? year}) async {
+    final client = _supabaseIfReady;
+    if (client == null) return getLeaveRequests(year: year);
+    try {
+      var query = client.from('Leaves').select();
+      if (year != null) query = query.eq('year', year);
+      final rows = await query;
+      return (rows as List)
+          .map((row) => _fromSupabaseLeave(row as Map))
+          .toList()
+        ..sort(compareLeaveRecency);
+    } catch (e) {
+      debugPrint('❌ getLeaveRequestsFromSupabase error: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getMyLeaveRequestsFromSupabase(
+      String fullName) async {
+    final client = _supabaseIfReady;
+    if (client == null) return getMyLeaveRequests(fullName);
+    try {
+      final rows = await client
+          .from('Leaves')
+          .select()
+          .eq('fullname', fullName);
+      return (rows as List)
+          .map((row) => _fromSupabaseLeave(row as Map))
+          .toList()
+        ..sort(compareLeaveRecency);
+    } catch (e) {
+      debugPrint('❌ getMyLeaveRequestsFromSupabase error: $e');
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>?> getLastLeaveRequestFromSupabase(
+      String fullName) async {
+    final client = _supabaseIfReady;
+    if (client == null) return getLastLeaveRequest(fullName);
+    try {
+      final rows = await client
+          .from('Leaves')
+          .select()
+          .eq('fullname', fullName)
+          .order('createdat', ascending: false)
+          .limit(1);
+      if ((rows as List).isEmpty) return null;
+      return _fromSupabaseLeave(rows.first as Map);
+    } catch (e) {
+      debugPrint('❌ getLastLeaveRequestFromSupabase error: $e');
+      return null;
+    }
+  }
+
+  /// อัปเดตเลขรับใบลาใน Supabase
+  Future<void> updateLeaveReceiveNumberInSupabase(
+      String requestId, String receiveNumber, String receiveDate,
+      String receiveTime) async {
+    final client = _supabaseIfReady;
+    if (client == null) throw Exception('Supabase not initialized');
+    await client.from('leaves').update({
+      'receivenumber': receiveNumber,
+      'receivedate': receiveDate,
+      'receivetime': receiveTime,
+    }).eq('id', requestId);
+  }
+
+  /// ลบใบลาจาก Supabase
+  Future<void> deleteLeaveFromSupabase(String requestId) async {
+    final client = _supabaseIfReady;
+    if (client == null) throw Exception('Supabase not initialized');
+    await client.from('leaves').delete().eq('id', requestId);
+  }
+
+  // ── FiscalRounds ────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> getFiscalRoundsFromSupabase() async {
+    final client = _supabaseIfReady;
+    if (client == null) return getFiscalRounds();
+    try {
+      final rows = await client
+          .from('FiscalRounds')
+          .select()
+          .order('year', ascending: false);
+      return (rows as List)
+          .map((row) => _fromSupabaseFiscalRound(row as Map))
+          .toList();
+    } catch (e) {
+      debugPrint('❌ getFiscalRoundsFromSupabase error: $e');
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>?> getActiveFiscalRoundFromSupabase() async {
+    try {
+      final rounds = await getFiscalRoundsFromSupabase();
+      final now = DateTime.now();
+      final todayStr = '${now.day}/${now.month}/${now.year + 543}';
+      for (final r in rounds) {
+        if (isDateInRange(
+            todayStr, r['startDate'] ?? '', r['endDate'] ?? '')) {
+          return {...r, 'isAutoSelected': true};
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ getActiveFiscalRoundFromSupabase error: $e');
+    }
+    return null;
+  }
+
+  // ── Special dates ───────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> getSpecialHolidaysFromSupabase() async {
+    final client = _supabaseIfReady;
+    if (client == null) return [];
+    try {
+      final rows = await client.from('SpecialHolidays').select();
+      return (rows as List)
+          .map((r) => Map<String, dynamic>.from(r as Map))
+          .toList();
+    } catch (e) {
+      debugPrint('❌ getSpecialHolidaysFromSupabase error: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getSpecialWorkingDaysFromSupabase() async {
+    final client = _supabaseIfReady;
+    if (client == null) return [];
+    try {
+      final rows = await client.from('SpecialWorkingDays').select();
+      return (rows as List)
+          .map((r) => Map<String, dynamic>.from(r as Map))
+          .toList();
+    } catch (e) {
+      debugPrint('❌ getSpecialWorkingDaysFromSupabase error: $e');
+      return [];
+    }
+  }
+
+  // ── Master data ─────────────────────────────────────────────────
+
+  Future<List<String>> _getMasterListFromSupabase(
+      String table, List<String> nameCandidates) async {
+    final client = _supabaseIfReady;
+    if (client == null) return [];
+    try {
+      final rows = await client.from(table).select();
+      final seen = <String>{};
+      final result = <String>[];
+      for (final row in (rows as List)) {
+        final r = Map<String, dynamic>.from(row as Map);
+        String value = '';
+        for (final col in nameCandidates) {
+          final v = r[col]?.toString().trim() ?? '';
+          if (v.isNotEmpty) {
+            value = v;
+            break;
+          }
+        }
+        if (value.isNotEmpty && seen.add(value)) result.add(value);
+      }
+      return result;
+    } catch (e) {
+      debugPrint('❌ getMasterList($table) error: $e');
+      return [];
+    }
+  }
+
+  Future<List<String>> getLeaveTypesFromSupabase() async {
+    final client = _supabaseIfReady;
+    if (client == null) return getLeaveTypes();
+    try {
+      final rows = await client.from('LeaveTypes').select();
+      final seen = <String>{};
+      final result = <String>[];
+      for (final row in (rows as List)) {
+        final r = Map<String, dynamic>.from(row as Map);
+        final value = (r['value'] ??
+                r['Value'] ??
+                r['name'] ??
+                r['typename'] ??
+                r['leavetypename'] ??
+                '')
+            .toString()
+            .trim();
+        if (value.isNotEmpty && seen.add(value)) result.add(value);
+      }
+      return result;
+    } catch (e) {
+      debugPrint('❌ getLeaveTypesFromSupabase error: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getLeaveTypesRawFromSupabase() async {
+    final client = _supabaseIfReady;
+    if (client == null) return [];
+    try {
+      final rows = await client.from('LeaveTypes').select();
+      return (rows as List).map((row) {
+        final r = Map<String, dynamic>.from(row as Map);
+        final name =
+            (r['value'] ?? r['Value'] ?? r['name'] ?? '').toString().trim();
+        return {...r, 'Value': name};
+      }).toList();
+    } catch (e) {
+      debugPrint('❌ getLeaveTypesRawFromSupabase error: $e');
+      return [];
+    }
+  }
+
+  Future<List<String>> getAdminRolesFromSupabase() async {
+    final roles = await _getMasterListFromSupabase('adminroles',
+        ['adminrolename', 'name', 'value', 'adminrole', 'ตำแหน่งบริหาร']);
+    if (!roles.contains('ไม่มีตำแหน่งบริหาร')) {
+      roles.insert(0, 'ไม่มีตำแหน่งบริหาร');
+    }
+    return roles;
+  }
+
+  Future<List<String>> getPositionsFromSupabase() async {
+    return _getMasterListFromSupabase(
+        'positions', ['positionname', 'name', 'value', 'position', 'ตำแหน่ง']);
+  }
+
+  Future<List<String>> getDepartmentsFromSupabase() async {
+    return _getMasterListFromSupabase('departments', [
+      'departmentname',
+      'name',
+      'value',
+      'department',
+      'แผนก_กลุ่มสาระ',
+    ]);
+  }
+
+  Future<List<String>> getAcademicsFromSupabase() async {
+    return _getMasterListFromSupabase(
+        'academics', ['academicname', 'name', 'value', 'academic', 'วิทยฐานะ']);
+  }
+
+  Future<List<String>> getPermissionsFromSupabase() async {
+    final client = _supabaseIfReady;
+    if (client == null) return getPermissions();
+    try {
+      final rows = await client
+          .from('roles')
+          .select('Accessrights')
+          .order('ID_Roles');
+      final seen = <String>{};
+      final result = <String>[];
+      for (final row in (rows as List)) {
+        final v = (row['Accessrights'] ?? '').toString().trim();
+        if (v.isNotEmpty &&
+            v.toUpperCase() != 'TRUE' &&
+            v.toUpperCase() != 'FALSE') {
+          if (seen.add(v)) result.add(v);
+        }
+      }
+      return result;
+    } catch (e) {
+      debugPrint('❌ getPermissionsFromSupabase error: $e');
+      return [];
+    }
+  }
+
+  // ── Master data write (Supabase-only) ───────────────────────────
+
+  Future<void> addMasterItemToSupabase(
+      String supabaseTable, Map<String, dynamic> record) async {
+    final client = _supabaseIfReady;
+    if (client == null) throw Exception('Supabase not initialized');
+    await client.from(supabaseTable).insert(record);
+  }
+
+  Future<void> updateMasterItemInSupabase(
+      String supabaseTable, String id, Map<String, dynamic> data) async {
+    final client = _supabaseIfReady;
+    if (client == null) throw Exception('Supabase not initialized');
+    await client.from(supabaseTable).update(data).eq('id', id);
+  }
+
+  Future<void> deleteMasterItemFromSupabase(
+      String supabaseTable, String id) async {
+    final client = _supabaseIfReady;
+    if (client == null) throw Exception('Supabase not initialized');
+    await client.from(supabaseTable).delete().eq('id', id);
+  }
+
+  // ── LINE Settings ───────────────────────────────────────────────
+
+  /// ดึง LINE messaging settings จาก Supabase Settings cache
+  Future<Map<String, dynamic>> getLineMessagingSettingsFromSupabase() async {
+    await ensureConfigLoaded();
+    // ensureConfigLoaded() merge ทุก row จาก Supabase Settings table แล้ว
+    return {
+      'groupId': config('groupid').isNotEmpty ? config('groupid') : config('groupId'),
+      'webhookUrl': config('webhookurl').isNotEmpty
+          ? config('webhookurl')
+          : config('webhookUrl').isNotEmpty
+              ? config('webhookUrl')
+              : config('appsScriptUrl'),
+      'template': config('template'),
+    };
   }
 }
