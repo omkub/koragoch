@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // ⚠️ ยังใช้ในระบบแจ้งลืมรหัส (ย้ายภายหลัง)
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // 🛡️ นำเข้า Firebase Auth ครับ (Phase 2)
+import 'package:supabase_flutter/supabase_flutter.dart'; // 🚀 ล็อกอินผ่าน Supabase แล้วครับ
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:convert';
-import '../firebase_options.dart';
 import 'responsive_layout.dart';
 import '../services/firebase_service.dart'; // 🛡️ นำเข้า FirebaseService ครับ 🥇🏆
 
@@ -23,8 +22,6 @@ class _LoginScreenState extends State<LoginScreen> {
       FirebaseService(); // 🛡️ สร้าง Instance ครับ 🥇🏆
   bool _isLoading = false;
   bool _rememberMe = false;
-
-  FirebaseFirestore get _db => _firebaseService.db;
 
   @override
   void initState() {
@@ -60,21 +57,6 @@ class _LoginScreenState extends State<LoginScreen> {
     await prefs.remove('userFullDataJson');
   }
 
-  String _stablePasswordTag(String value) {
-    var hash = 0x811c9dc5;
-    for (final unit in value.codeUnits) {
-      hash ^= unit;
-      hash = (hash * 0x01000193) & 0xffffffff;
-    }
-    return hash.toRadixString(16).padLeft(8, '0');
-  }
-
-  String _fallbackAuthEmail(String teacherDocId, String authPassword) {
-    final safeDocId =
-        teacherDocId.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
-    return 'user_${safeDocId}_${_stablePasswordTag(authPassword)}@rbp.ac.th';
-  }
-
   String _resolveEffectiveRole(Iterable<dynamic> values) {
     final roles = values
         .where((value) => value != null)
@@ -92,24 +74,37 @@ class _LoginScreenState extends State<LoginScreen> {
     return username.toLowerCase() == 'admin' && password == '1234';
   }
 
-  Future<UserCredential> _signInOrCreateAuthUser(
-    FirebaseAuth auth,
-    String email,
-    String password,
+  // 🚀 หา "ชื่อสิทธิ์" (ครู/ผู้บริหาร/ผู้ดูแลระบบ) จาก Supabase ครับ
+  // Supabase เก็บสิทธิ์เป็น id_role (FK) ในตาราง Teachers แล้วไปอ้างชื่อจริงที่ roles.Accessrights
+  // (คนละแบบกับ Firebase เดิมที่เก็บชื่อสิทธิ์เป็น string ตรงๆ บน Teacher)
+  Future<String> _resolveRoleFromSupabase(
+    SupabaseClient supabase,
+    Map<String, dynamic> userData,
   ) async {
-    try {
-      return await auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-    } on FirebaseAuthException catch (signInError) {
-      debugPrint(
-          'Firebase Auth sign-in failed for $email: ${signInError.code}');
-      return auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+    // เผื่อบางแถวมีชื่อสิทธิ์เก็บตรงๆ อยู่แล้ว ใช้ได้เลย
+    final direct = _resolveEffectiveRole([
+      userData['role'],
+      userData['permission'],
+    ]);
+    if (direct != 'ครู') return direct;
+
+    final idRole = userData['id_role'];
+    if (idRole != null) {
+      try {
+        final rows = await supabase
+            .from('roles')
+            .select('Accessrights')
+            .eq('ID_Roles', idRole)
+            .limit(1);
+        if (rows.isNotEmpty) {
+          final name = (rows.first['Accessrights'] ?? '').toString().trim();
+          if (name.isNotEmpty) return _resolveEffectiveRole([name]);
+        }
+      } catch (e) {
+        debugPrint('resolve role error: $e');
+      }
     }
+    return direct;
   }
 
   Future<void> _login() async {
@@ -117,46 +112,36 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 🛡️ Pre-flight Check: ตรวจสอบสะพานเชื่อม Firebase ก่อนเริ่มงานครับ 🥇🏆
-      if (Firebase.apps.isEmpty) {
-        debugPrint("Firebase not ready. Waiting 500ms...");
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
-
-      final auth = FirebaseAuth.instance;
-      final firestoreAtSchool = _firebaseService.db;
+      // 🚀 ล็อกอินผ่าน Supabase: กรอก user/pass เทียบกับตาราง Teachers ตรงๆ
+      // (ยังไม่ใช้ Supabase Auth — จะพัฒนาเป็นเฟสสุดท้ายหลังข้อมูลตรงกับของเก่าแล้ว)
+      final supabase = Supabase.instance.client;
 
       final String username = _usernameController.text.trim();
       final String password = _passwordController.text.trim();
       final bool isEmergencyAdminLogin =
           _isEmergencyAdminLogin(username, password);
 
-      // 🛡️ 1. แปลงชื่อเป็นอีเมล และเสริมรหัสผ่านให้ปลอดภัยระดับสูง (แก้ปัญหารหัสสั้นกว่า 6 ตัว) 🥇🏆
-      final String pseudoEmail = "$username@rbp.ac.th";
-      final String pseudoPassword = "$password-SLA2026!";
-
       bool loginSuccess = false;
       Map<String, dynamic>? userData;
 
-      // 🛡️ [ด่านตรวจที่ 0] ตรวจสอบข้อมูลจาก Firestore ก่อนเริ่ม Auth ครับ 🥇🏆
-      final query = await firestoreAtSchool
-          .collection('Teachers')
-          .where('username', isEqualTo: username)
-          .limit(1)
-          .get();
-      if (query.docs.isEmpty) {
+      // 🛡️ [ด่านตรวจที่ 0] หาผู้ใช้จากตาราง Teachers (Supabase) ด้วย username
+      final rows = await supabase
+          .from('Teachers')
+          .select()
+          .eq('username', username)
+          .limit(1);
+      if (rows.isEmpty) {
         _showError('ไม่พบข้อมูลผู้ใช้งานนี้ในระบบครับ');
         return;
       }
-      final teacherDocId = query.docs.first.id;
-      userData = {
-        ...query.docs.first.data(),
-        'id': teacherDocId,
-      };
-      final effectiveRole = _resolveEffectiveRole([
-        userData['role'],
-        userData['permission'],
-      ]);
+      userData = Map<String, dynamic>.from(rows.first as Map);
+      // Supabase ใช้ id_user (เลขรัน) เป็น PK ส่วน doc id เดิมของ Firebase อยู่ที่ firebase_uid
+      final teacherPk = userData['id_user'];
+      final teacherDocId =
+          (userData['firebase_uid'] ?? teacherPk ?? '').toString();
+
+      // 🚀 หาชื่อสิทธิ์จาก id_role -> roles.Accessrights
+      final effectiveRole = await _resolveRoleFromSupabase(supabase, userData);
 
       // 🛡️ [ด่านตรวจที่ 1] เช็คสถานะการแจ้งลืมรหัสก่อนเลยครับ
       final forgotStatus = (userData['forgotPasswordStatus'] ?? '').toString();
@@ -170,13 +155,10 @@ class _LoginScreenState extends State<LoginScreen> {
       // แล้วให้เข้าใช้งานต่อได้ปกติด้วยรหัส 123456 ครับ
       if (!isEmergencyAdminLogin &&
           userData['password'].toString().trim() == 'MIGRATED') {
-        await firestoreAtSchool
-            .collection('Teachers')
-            .doc(teacherDocId)
-            .update({
-          'password': '123456',
-          'originalPassword': FieldValue.delete(),
-        });
+        await supabase
+            .from('Teachers')
+            .update({'password': '123456', 'originalPassword': null}).eq(
+                'id_user', teacherPk);
         userData['password'] = '123456';
         if (password != '123456') {
           _showError(
@@ -192,55 +174,15 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      try {
-        UserCredential uc = await _signInOrCreateAuthUser(
-          auth,
-          pseudoEmail,
-          pseudoPassword,
-        );
-
-        if (uc.user != null) {
-          final synced = await _firebaseService.linkTeacherWithUid(
-            userData['fullName'] ?? '',
-            uc.user!.uid,
-            teacherDocId: teacherDocId,
-            username: username,
-            preferredRole: effectiveRole,
-          );
-          if (!synced) {
-            throw Exception('ไม่สามารถซิงค์สิทธิ์ผู้ใช้งานกับฐานข้อมูลได้');
-          }
-          loginSuccess = true;
-        }
-      } catch (primaryAuthError) {
-        debugPrint(
-          'Primary Auth account is unusable for $username. Trying fallback account: $primaryAuthError',
-        );
-
-        final fallbackEmail = _fallbackAuthEmail(teacherDocId, pseudoPassword);
-        UserCredential uc = await _signInOrCreateAuthUser(
-          auth,
-          fallbackEmail,
-          pseudoPassword,
-        );
-
-        if (uc.user != null) {
-          final synced = await _firebaseService.linkTeacherWithUid(
-            userData['fullName'] ?? '',
-            uc.user!.uid,
-            teacherDocId: teacherDocId,
-            username: username,
-            preferredRole: effectiveRole,
-          );
-          if (!synced) {
-            throw Exception('ไม่สามารถซิงค์สิทธิ์ผู้ใช้งานกับฐานข้อมูลได้');
-          }
-          loginSuccess = true;
-        }
-      }
+      // ✅ ผ่านทุกด่าน = ล็อกอินสำเร็จ (ไม่ต้องพึ่ง FirebaseAuth อีกต่อไป)
+      loginSuccess = true;
+      // เก็บชื่อสิทธิ์ + id ลงใน userData ให้หน้าจออื่นใช้งานต่อได้เหมือนเดิม
+      userData['role'] = effectiveRole;
+      userData['permission'] = effectiveRole;
+      userData['id'] = teacherDocId;
 
       // --- 🛡️ 5. เซฟเซสชันและเข้าสู่ระบบ ---
-      if (loginSuccess && userData != null) {
+      if (loginSuccess) {
         final prefs = await SharedPreferences.getInstance();
 
         // 🧹 ล้างข้อมูลขยะจาก User คนก่อนหน้าทิ้งให้หมดครับ เพื่อความสะอาด 100% 🥇🏆

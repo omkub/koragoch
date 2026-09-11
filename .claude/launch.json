@@ -4,7 +4,7 @@
     {
       "name": "school_leave_app",
       "runtimeExecutable": "flutter",
-      "runtimeArgs": ["run", "-d", "web"],
+      "runtimeArgs": ["run", "-d", "web-server", "--web-port=5173", "--web-hostname=localhost"],
       "port": 5173
     }
   ]
