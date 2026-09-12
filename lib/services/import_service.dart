@@ -11,8 +11,7 @@ class ImportService {
 
     try {
       // Parse CSV string
-      final List<List<dynamic>> csvData =
-          const CsvToListConverter().convert(csvDataStr);
+      final List<List<dynamic>> csvData = Csv().decode(csvDataStr);
 
       if (csvData.isEmpty) {
         debugPrint('❌ CSV data is empty');
@@ -140,8 +139,7 @@ class ImportService {
       final csvData = entry.value;
 
       try {
-        final List<List<dynamic>> rows =
-            const CsvToListConverter().convert(csvData);
+        final List<List<dynamic>> rows = Csv().decode(csvData);
 
         if (rows.isEmpty || rows.length < 2) {
           debugPrint('⚠️  $collectionName: No data');
