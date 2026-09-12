@@ -9,13 +9,10 @@ import 'package:flutter/foundation.dart';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 import 'package:web/web.dart' as web;
-import 'package:rxdart/rxdart.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 class FirebaseService {
   static Map<String, String> _configCache = {};
   static bool _configLoaded = false;
-  static bool _dualWriteEnabled = true; // ✅ Enable dual-write to Supabase
 
   static SupabaseClient? get _supabaseIfReady {
     try {
@@ -86,7 +83,7 @@ class FirebaseService {
   }
 
   // 🚀 Supabase-only write (ห้ามเขียน Firebase — production hosting ใช้อยู่)
-  Future<void> _dualWriteSet(
+  Future<void> _supabaseSet(
     String collectionName,
     String docId,
     Map<String, dynamic> data, {
@@ -96,13 +93,13 @@ class FirebaseService {
       await _supabaseUpsert(
           collectionName.toLowerCase(), _toSupabaseRecord(data, docId));
     } catch (e) {
-      debugPrint('❌ Supabase write error in _dualWriteSet ($collectionName): $e');
+      debugPrint('❌ Supabase write error in _supabaseSet ($collectionName): $e');
       rethrow;
     }
   }
 
   // 🚀 Supabase-only update (ห้ามเขียน Firebase — production hosting ใช้อยู่)
-  Future<void> _dualWriteUpdate(
+  Future<void> _supabaseUpdate(
     String collectionName,
     String docId,
     Map<String, dynamic> data,
@@ -111,13 +108,13 @@ class FirebaseService {
       await _supabaseUpsert(
           collectionName.toLowerCase(), _toSupabaseRecord(data, docId));
     } catch (e) {
-      debugPrint('❌ Supabase write error in _dualWriteUpdate ($collectionName): $e');
+      debugPrint('❌ Supabase write error in _supabaseUpdate ($collectionName): $e');
       rethrow;
     }
   }
 
   // 🚀 Supabase-only add (ห้ามเขียน Firebase — production hosting ใช้อยู่)
-  Future<String> _dualWriteAdd(
+  Future<String> _supabaseAdd(
     String collectionName,
     Map<String, dynamic> data,
   ) async {
@@ -184,8 +181,7 @@ class FirebaseService {
   }
 
   Future<Map<String, dynamic>> getLineMessagingSettings() async {
-    final snap = await db.collection('Settings').doc('line_messaging').get();
-    return snap.data() ?? <String, dynamic>{};
+    return getLineMessagingSettingsFromSupabase();
   }
 
   String _appsScriptUrlFromSettings(Map<String, dynamic> settings) {
@@ -219,130 +215,6 @@ class FirebaseService {
     return code;
   }
 
-  String _resolveEffectiveRole(Iterable<dynamic> values) {
-    final roles = values
-        .where((value) => value != null)
-        .map((value) => value.toString().trim())
-        .where((value) => value.isNotEmpty)
-        .toList();
-
-    if (roles.contains('ผู้ดูแลระบบ')) return 'ผู้ดูแลระบบ';
-    if (roles.contains('ผู้บริหาร')) return 'ผู้บริหาร';
-    if (roles.contains('ครู')) return 'ครู';
-    return roles.isNotEmpty ? roles.first : 'ครู';
-  }
-
-  // 🛡️ ฟังก์ชันผูก UID เข้ากับชื่อครู และซิงค์สิทธิ์ไปยัง UserRoles (Phase 3 Fix) 🥇🏆
-  Future<bool> linkTeacherWithUid(
-    String fullName,
-    String uid, {
-    String? teacherDocId,
-    String? username,
-    String? preferredRole,
-    Map<String, dynamic>? teacherData,
-  }) async {
-    try {
-      DocumentSnapshot<Map<String, dynamic>>? teacherDoc;
-
-      // ⚡ ถ้า caller ส่งข้อมูลมาแล้ว ไม่ต้องดึงซ้ำจากฐานข้อมูล
-      if (teacherData != null && teacherDocId != null && teacherDocId.trim().isNotEmpty) {
-        final docData = teacherData;
-        final role = _resolveEffectiveRole([
-          docData['role'],
-          docData['permission'],
-          preferredRole,
-        ]);
-        final resolvedFullName =
-            (docData['fullName'] ?? docData['name'] ?? fullName).toString();
-
-        // Login must not depend on Supabase readiness; sync Firebase first.
-        await Future.wait([
-          _db.collection('Teachers').doc(teacherDocId.trim()).update({
-            'firebase_uid': uid,
-            'role': role,
-            'permission': role,
-            'lastSyncAt': FieldValue.serverTimestamp(),
-          }),
-          _db.collection('UserRoles').doc(uid).set({
-            'role': role,
-            'permission': role,
-            'fullName': resolvedFullName,
-            'teacherDocId': teacherDocId.trim(),
-            'lastSyncAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true)),
-        ]);
-
-        debugPrint(
-            "Successfully linked UID and Sync Roles for: $resolvedFullName");
-        return true;
-      }
-
-      // Fallback: query ถ้าไม่ได้รับข้อมูล (สำหรับ backward compatibility)
-      if (teacherDocId != null && teacherDocId.trim().isNotEmpty) {
-        final snap =
-            await _db.collection('Teachers').doc(teacherDocId.trim()).get();
-        if (snap.exists) {
-          teacherDoc = snap;
-        }
-      }
-
-      if (teacherDoc == null &&
-          username != null &&
-          username.trim().isNotEmpty) {
-        final query = await _db
-            .collection('Teachers')
-            .where('username', isEqualTo: username.trim())
-            .limit(1)
-            .get();
-        if (query.docs.isNotEmpty) teacherDoc = query.docs.first;
-      }
-
-      if (teacherDoc == null && fullName.trim().isNotEmpty) {
-        final query = await _db
-            .collection('Teachers')
-            .where('fullName', isEqualTo: fullName.trim())
-            .limit(1)
-            .get();
-        if (query.docs.isNotEmpty) teacherDoc = query.docs.first;
-      }
-
-      if (teacherDoc != null) {
-        final docData = teacherDoc.data() ?? <String, dynamic>{};
-        final role = _resolveEffectiveRole([
-          docData['role'],
-          docData['permission'],
-          preferredRole,
-        ]);
-        final resolvedFullName =
-            (docData['fullName'] ?? docData['name'] ?? fullName).toString();
-
-        // ⚡ ยิง 2 writes พร้อมกันแทนการ await ต่อกัน
-        await Future.wait([
-          _db.collection('Teachers').doc(teacherDoc.id).update({
-            'firebase_uid': uid,
-            'role': role,
-            'permission': role,
-            'lastSyncAt': FieldValue.serverTimestamp(),
-          }),
-          _db.collection('UserRoles').doc(uid).set({
-            'role': role,
-            'permission': role,
-            'fullName': resolvedFullName,
-            'teacherDocId': teacherDoc.id,
-            'lastSyncAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true)),
-        ]);
-
-        debugPrint(
-            "Successfully linked UID and Sync Roles for: $resolvedFullName");
-        return true;
-      }
-    } catch (e) {
-      debugPrint("Error linking UID and Roles: $e");
-    }
-    return false;
-  }
-
   Stream<List<Map<String, dynamic>>> getUsersStream() {
     return Stream.fromFuture(getUsersFromSupabase());
   }
@@ -351,47 +223,19 @@ class FirebaseService {
     return Stream.fromFuture(getUsersFromSupabase());
   }
 
-  // ดึงรายชื่อครูแบบครั้งเดียว — อ่านจาก Supabase เป็นหลัก
+  // ดึงรายชื่อครูแบบครั้งเดียว — อ่านจาก Supabase
   Future<List<Map<String, dynamic>>> getUsers() async {
-    final supaList = await getUsersFromSupabase();
-    if (supaList.isNotEmpty) return supaList;
-
-    // กรณีสำรอง: อ่านเปรียบเทียบจาก Firebase
-    final snapshot = await _db.collection('Teachers').get();
-    final list = snapshot.docs.map((doc) {
-      final data = doc.data();
-      final sanitized = Map<String, dynamic>.from(data);
-      sanitized.forEach((key, value) {
-        if (value is Timestamp)
-          sanitized[key] = value.toDate().toIso8601String();
-      });
-      return {
-        'id': doc.id,
-        ...sanitized,
-        'fullName': sanitized['fullName'] ??
-            sanitized['name'] ??
-            sanitized['Name'] ??
-            doc.id,
-        'academicStanding': sanitized['academicStanding'] ??
-            sanitized['academic'] ??
-            sanitized['วิทยฐานะ'] ??
-            '',
-      };
-    }).toList();
-    list.sort((a, b) => (a['fullName'] ?? '')
-        .toString()
-        .compareTo((b['fullName'] ?? '').toString()));
-    return list;
+    return getUsersFromSupabase();
   }
 
   // เพิ่มรายชื่อครูคนใหม่ลงฐานข้อมูลครับ 🏎️🏆
   Future<void> addUser(Map<String, dynamic> data) async {
-    await _dualWriteAdd('Teachers', data);
+    await _supabaseAdd('Teachers', data);
   }
 
   // แก้ไขข้อมูลครูครับ 🏎️🏆
   Future<void> updateUser(String docId, Map<String, dynamic> data) async {
-    await _dualWriteUpdate('Teachers', docId, data);
+    await _supabaseUpdate('Teachers', docId, data);
   }
 
   // 🚀 ลบข้อมูลครู (Supabase-only)
@@ -401,141 +245,44 @@ class FirebaseService {
     await client.from('teachers').delete().eq('id', docId);
   }
 
-  // 🛠️ ฟังก์ชันช่วยหาฟิลด์ที่เป็นค่า String (หาฟิลด์ Value/Name แบบไม่สนตัวเล็กตัวใหญ่) 🥇🏆
-  String _extractValue(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>?;
-    if (data == null) return doc.id;
-
-    // 1. ลองหาฟิลด์ที่ชื่อตรงกับที่ต้องการก่อน (Value, Name, name, Type Name แบบไม่สน Case)
-    for (String key in data.keys) {
-      final k = key.toLowerCase();
-      if (k == 'value' ||
-          k == 'name' ||
-          k.contains('name') ||
-          k.contains('value')) {
-        final val = data[key]?.toString() ?? '';
-        final cleanVal = val.trim().toUpperCase();
-        if (val.trim().isNotEmpty &&
-            cleanVal != 'TRUE' &&
-            cleanVal != 'FALSE') {
-          return val.trim();
-        }
-      }
-    }
-
-    // 2. ถ้าไม่เจอ ให้เลือกฟิลด์แรกที่เป็น String และชื่อไม่มีคำว่า ID
-    for (var entry in data.entries) {
-      if (entry.value is String && !entry.key.toUpperCase().contains('ID')) {
-        final val = entry.value.toString().trim();
-        if (val.isNotEmpty &&
-            val.toUpperCase() != 'TRUE' &&
-            val.toUpperCase() != 'FALSE') {
-          return val;
-        }
-      }
-    }
-
-    return doc.id;
-  }
-
-  int _toIntValue(dynamic value) {
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    return int.tryParse(value?.toString() ?? '') ?? 0;
-  }
-
-  Future<List<String>> _getOrderedMasterValues(
-    String collection,
-    String idField, {
-    bool excludeBooleanText = false,
-  }) async {
-    final snapshot = await _db.collection(collection).get();
-    final docs = snapshot.docs.toList()
-      ..sort((a, b) {
-        final aData = a.data();
-        final bData = b.data();
-        final aFieldOrder = _toIntValue(aData[idField]);
-        final bFieldOrder = _toIntValue(bData[idField]);
-        final aOrder = aFieldOrder > 0 ? aFieldOrder : _toIntValue(a.id);
-        final bOrder = bFieldOrder > 0 ? bFieldOrder : _toIntValue(b.id);
-
-        if (aOrder != bOrder) return aOrder.compareTo(bOrder);
-        return a.id.compareTo(b.id);
-      });
-
-    final seen = <String>{};
-    final values = <String>[];
-    for (final doc in docs) {
-      final value = _extractValue(doc);
-      final upperValue = value.toUpperCase();
-      if (value.isEmpty) continue;
-      if (excludeBooleanText &&
-          (upperValue == 'TRUE' || upperValue == 'FALSE')) {
-        continue;
-      }
-      if (seen.add(value)) values.add(value);
-    }
-    return values;
-  }
-
-  // ดึงตำแหน่งงานบริหาร — อ่านจาก Supabase ก่อน
+  // ดึงตำแหน่งงานบริหาร — Supabase
   Future<List<String>> getAdminRoles() async {
-    final supa = await getAdminRolesFromSupabase();
-    if (supa.isNotEmpty) return supa;
-    final List<String> roles =
-        await _getOrderedMasterValues('AdminRoles', 'ID_AdminRoles');
-    if (!roles.contains('ไม่มีตำแหน่งบริหาร'))
-      roles.insert(0, 'ไม่มีตำแหน่งบริหาร');
-    return roles;
+    return getAdminRolesFromSupabase();
   }
 
-  // ดึงตำแหน่งงานทั่วไป — อ่านจาก Supabase ก่อน
+  // ดึงตำแหน่งงานทั่วไป — Supabase
   Future<List<String>> getPositions() async {
-    final supa = await getPositionsFromSupabase();
-    if (supa.isNotEmpty) return supa;
-    return _getOrderedMasterValues('Positions', 'ID_Positions');
+    return getPositionsFromSupabase();
   }
 
-  // ดึงสิทธิ์การเข้าถึง (Roles) — อ่านจาก Supabase ก่อน
+  // ดึงสิทธิ์การเข้าถึง (Roles) — Supabase
   Future<List<String>> getPermissions() async {
-    final supa = await getPermissionsFromSupabase();
-    if (supa.isNotEmpty) return supa;
-    return _getOrderedMasterValues(
-      'Roles',
-      'ID_Roles',
-      excludeBooleanText: true,
-    );
+    return getPermissionsFromSupabase();
   }
 
-  // ดึงวิทยฐานะ — อ่านจาก Supabase ก่อน
+  // ดึงวิทยฐานะ — Supabase
   Future<List<String>> getAcademics() async {
-    final supa = await getAcademicsFromSupabase();
-    if (supa.isNotEmpty) return supa;
-    return _getOrderedMasterValues('Academics', 'ID_Academics');
+    return getAcademicsFromSupabase();
   }
 
-  // ดึงประเภทการลา — อ่านจาก Supabase ก่อน
+  // ดึงประเภทการลา — Supabase
   Future<List<String>> getLeaveTypes() async {
-    final supa = await getLeaveTypesFromSupabase();
-    if (supa.isNotEmpty) return supa;
-    return _getOrderedMasterValues('LeaveTypes', 'ID_LeaveTypes');
+    return getLeaveTypesFromSupabase();
   }
 
-  // ดึงกลุ่มสาระการเรียนรู้ — อ่านจาก Supabase ก่อน
+  // ดึงกลุ่มสาระการเรียนรู้ — Supabase
   Future<List<String>> getDepartments() async {
-    final supa = await getDepartmentsFromSupabase();
-    if (supa.isNotEmpty) return supa;
-    return _getOrderedMasterValues('Departments', 'ID_Departments');
+    return getDepartmentsFromSupabase();
   }
 
-  // ดึงรายการวิชาที่สอนจากฐานข้อมูล Subjects ครับ 🕵️‍♂️🏎️🏆
+  // ดึงรายการวิชาที่สอนจาก Supabase
   Future<List<String>> getSubjects() async {
-    final snapshot = await _db.collection('Subjects').get();
-    return snapshot.docs
-        .map((doc) => _extractValue(doc))
-        .where((s) => s.isNotEmpty)
-        .toSet()
-        .toList(); // ป้องกันซ้ำ
+    return getSubjectsFromSupabase();
+  }
+
+  Future<List<String>> getSubjectsFromSupabase() async {
+    return _getMasterListFromSupabase(
+        'subjects', ['subjectname', 'name', 'value', 'subject', 'วิชา']);
   }
 
   // 📅 ระบบจัดการรอบงบประมาณ (Fiscal Rounds) 🥇🏆
@@ -544,7 +291,7 @@ class FirebaseService {
   }
 
   Future<void> addFiscalRound(Map<String, dynamic> data) async {
-    await _dualWriteAdd('FiscalRounds', {
+    await _supabaseAdd('FiscalRounds', {
       ...data,
       'isActive': false,
       'createdAt': FieldValue.serverTimestamp(),
@@ -558,46 +305,14 @@ class FirebaseService {
     await client.from('fiscalrounds').delete().eq('id', docId);
   }
 
-  // ดึงรายการรอบงบประมาณที่ตรงกับปฏิทินปัจจุบัน (Auto-match) 🥇🏎️🏆
+  // ดึงรายการรอบงบประมาณที่ตรงกับปฏิทินปัจจุบัน (Auto-match) — Supabase
   Future<Map<String, dynamic>?> getActiveFiscalRound() async {
-    final supaActive = await getActiveFiscalRoundFromSupabase();
-    if (supaActive != null) return supaActive;
-    try {
-      final snapshot = await _db
-          .collection('FiscalRounds')
-          .orderBy('year', descending: true)
-          .orderBy('round', descending: true)
-          .get();
-      final now = DateTime.now();
-      // แปลงปีเป็น พ.ศ. เพื่อเทียบกับข้อมูลในระบบครับ 🇹🇭
-      final todayStr = "${now.day}/${now.month}/${now.year + 543}";
-
-      for (var doc in snapshot.docs) {
-        final r = doc.data();
-        if (isDateInRange(todayStr, r['startDate'] ?? '', r['endDate'] ?? '')) {
-          return {...r, 'id': doc.id, 'isAutoSelected': true};
-        }
-      }
-    } catch (e) {
-      debugPrint("Error in getActiveFiscalRound: $e");
-    }
-    return null;
+    return getActiveFiscalRoundFromSupabase();
   }
 
-  // ดึงรายการรอบงบประมาณทั้งหมดครับ 🕵️‍♂️🏎️🏆
+  // ดึงรายการรอบงบประมาณทั้งหมด — Supabase
   Future<List<Map<String, dynamic>>> getFiscalRounds() async {
-    final supaRounds = await getFiscalRoundsFromSupabase();
-    if (supaRounds.isNotEmpty) return supaRounds;
-    try {
-      final snapshot = await _db
-          .collection('FiscalRounds')
-          .orderBy('year', descending: true)
-          .get();
-      return snapshot.docs.map((doc) => {...doc.data(), 'id': doc.id}).toList();
-    } catch (e) {
-      debugPrint("Error in getFiscalRounds: $e");
-      return [];
-    }
+    return getFiscalRoundsFromSupabase();
   }
 
   // 🛠️ ฟังก์ชันช่วยตรวจสอบว่าวันที่อยู่ในช่วงงบประมาณหรือไม่ (รูปแบบ วว/ดด/ปปปป) 🥇
@@ -752,15 +467,7 @@ class FirebaseService {
   }
 
   Future<List<Map<String, dynamic>>> getLeaveRequests({int? year}) async {
-    final supa = await getLeaveRequestsFromSupabase(year: year);
-    if (supa.isNotEmpty) return supa;
-    Query<Map<String, dynamic>> query = _db.collection('Leaves');
-    if (year != null) query = query.where('year', isEqualTo: year);
-    final snapshot = await query.get();
-    return snapshot.docs
-        .map((doc) => {...doc.data(), 'requestId': doc.id})
-        .toList()
-      ..sort(FirebaseService.compareLeaveRecency);
+    return getLeaveRequestsFromSupabase(year: year);
   }
 
   Stream<List<Map<String, dynamic>>> getMyLeaveRequestsStream(String fullName) {
@@ -768,33 +475,12 @@ class FirebaseService {
   }
 
   Future<List<Map<String, dynamic>>> getMyLeaveRequests(String fullName) async {
-    final supa = await getMyLeaveRequestsFromSupabase(fullName);
-    if (supa.isNotEmpty) return supa;
-    final snapshot = await _db
-        .collection('Leaves')
-        .where('fullName', isEqualTo: fullName)
-        .get();
-    return snapshot.docs
-        .map((doc) => {...doc.data(), 'requestId': doc.id})
-        .toList()
-      ..sort(FirebaseService.compareLeaveRecency);
+    return getMyLeaveRequestsFromSupabase(fullName);
   }
 
-  // ดึงประวัติการลา "ล่าสุด" ของครู — อ่านจาก Supabase ก่อน
+  // ดึงประวัติการลา "ล่าสุด" ของครู — Supabase
   Future<Map<String, dynamic>?> getLastLeaveRequest(String fullName) async {
-    final supa = await getLastLeaveRequestFromSupabase(fullName);
-    if (supa != null) return supa;
-    final snapshot = await _db
-        .collection('Leaves')
-        .where('fullName', isEqualTo: fullName)
-        .orderBy('timestamp', descending: true)
-        .limit(1)
-        .get();
-    if (snapshot.docs.isNotEmpty) {
-      final doc = snapshot.docs.first;
-      return {...doc.data(), 'requestId': doc.id};
-    }
-    return null;
+    return getLastLeaveRequestFromSupabase(fullName);
   }
 
   // 🚀 ล้างเลขรับทั้งหมด (Supabase-only)
@@ -810,7 +496,7 @@ class FirebaseService {
   // 🚀 ส่งใบลาเข้าระบบ (Supabase-only) 🏎️🏁
   Future<void> submitLeaveRequest(Map<String, dynamic> data) async {
     final String docId = 'LV-${DateTime.now().millisecondsSinceEpoch}';
-    await _dualWriteSet('Leaves', docId, {
+    await _supabaseSet('Leaves', docId, {
       ...data,
       // ตัด uid/currentUid ออก — เลิกพึ่ง FirebaseAuth
       'requestId': docId,
@@ -822,35 +508,23 @@ class FirebaseService {
   // แก้ไขใบลาครับ 🏎️🏁
   Future<void> updateLeaveRequest(
       String requestId, Map<String, dynamic> data) async {
-    await _dualWriteUpdate('Leaves', requestId, {
+    await _supabaseUpdate('Leaves', requestId, {
       ...data,
       'lastUpdatedAt': FieldValue.serverTimestamp(),
     });
   }
 
-  // 🚀 นับเลขรับจาก Supabase (อ่าน Firebase เป็น fallback)
+  // 🚀 นับเลขรับจาก Supabase
   Future<int> generateReceiveNumber() async {
     final client = _supabaseIfReady;
+    if (client == null) throw Exception('Supabase not initialized');
     final fiscalYear = DateTime.now().year + 543;
-    if (client != null) {
-      try {
-        final rows = await client
-            .from('leaves')
-            .select('receivenumber')
-            .eq('year', fiscalYear)
-            .not('receivenumber', 'is', null);
-        return (rows as List).length + 1;
-      } catch (e) {
-        debugPrint('generateReceiveNumber Supabase error: $e');
-      }
-    }
-    // Fallback: read from Firebase (allowed)
-    final snapshot = await _db.collection('Leaves')
-        .where('year', isEqualTo: fiscalYear)
-        .get();
-    return snapshot.docs
-        .where((d) => d.data()['receiveNumber'] != null)
-        .length + 1;
+    final rows = await client
+        .from('leaves')
+        .select('receivenumber')
+        .eq('year', fiscalYear)
+        .not('receivenumber', 'is', null);
+    return (rows as List).length + 1;
   }
 
   // 🔥 ลบไฟล์ใน Google Drive ผ่าน Apps Script ครับ 🥇🏆🏎️
@@ -1308,7 +982,7 @@ class FirebaseService {
   // 👨‍🏫 อัปเดตข้อมูลบุคลากรด้วย ID (เร็วกว่าการหาด้วยชื่อครับ) 🥇🏆🏎️
   Future<void> updateTeacherById(
       String docId, Map<String, dynamic> newData) async {
-    await _dualWriteUpdate('Teachers', docId, newData);
+    await _supabaseUpdate('Teachers', docId, newData);
   }
 
   // 👨‍🏫 อัปเดตข้อมูลบุคลากร (ใช้สำหรับหน้า Profile มือถือครับ) 🥇🏆🏎️
@@ -1320,7 +994,7 @@ class FirebaseService {
         .limit(1)
         .get();
     if (query.docs.isNotEmpty) {
-      await _dualWriteUpdate('Teachers', query.docs.first.id, newData);
+      await _supabaseUpdate('Teachers', query.docs.first.id, newData);
     }
   }
 

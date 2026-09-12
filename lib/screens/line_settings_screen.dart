@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_fonts/google_fonts.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
@@ -39,11 +39,9 @@ class _LineSettingsScreenState extends State<LineSettingsScreen> {
 
   Future<void> _loadLineSettings() async {
     try {
-      final snap = await _firebaseService.db.collection('Settings').doc('line_messaging').get();
-      if (snap.exists && snap.data() != null) {
-        final data = snap.data()!;
+      final data = await _firebaseService.getLineMessagingSettingsFromSupabase();
+      if (data.isNotEmpty) {
         setState(() {
-          // 🕵️‍♂️ ไม่ดึง Token มาโชว์แล้วครับ ปลอดภัย Phase 4 🥇🏆
           _lineGroupIdController.text = data['groupId'] ?? '';
           _webhookUrlController.text =
               (data['webhookUrl'] ?? FirebaseService.appsScriptUrl ?? '').toString();
@@ -460,12 +458,15 @@ class _LineSettingsScreenState extends State<LineSettingsScreen> {
       if (groupId.isNotEmpty && !_isLikelyLineTargetId(groupId)) {
         throw Exception('LINE ID ไม่ถูกต้อง: Group ID ต้องขึ้นต้นด้วย C, User ID ขึ้นต้นด้วย U หรือ Room ID ขึ้นต้นด้วย R');
       }
-      await _firebaseService.db.collection('Settings').doc('line_messaging').set({
+      final client = _firebaseService.supabaseClient;
+      if (client == null) throw Exception('Supabase not initialized');
+      await client.from('Settings').upsert({
+        'id': 'line_messaging',
         'groupId': groupId,
         'webhookUrl': webhookUrl,
         'template': _lineNotifyTemplate,
         'updatedAt': DateTime.now().toIso8601String(),
-      }, SetOptions(merge: true));
+      }, onConflict: 'id');
       setState(() { _lineStatusMsg = '✅ บันทึกข้อมูลเรียบร้อย (ระบบ Secure Bridge)!'; _lineStatusIsError = false; });
     } catch (e) {
       setState(() { _lineStatusMsg = '❌ ข้อผิดพลาด: $e'; _lineStatusIsError = true; });
