@@ -1,8 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/firebase_service.dart';
 import '../dashboard_screen.dart';
 import '../login_logs_screen.dart';
 import '../personnel_screen.dart';
@@ -26,6 +25,8 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
   String _userRole = 'ครู';
   bool _isLoading = true;
   Map<String, dynamic>? _editData;
+  Map<String, dynamic>? _permissionData;
+  final _firebaseService = FirebaseService();
 
   bool get _isAdmin =>
       _userRole.contains('ผู้ดูแลระบบ') || _currentUser == 'ผู้ดูแลระบบ';
@@ -38,11 +39,19 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
 
   Future<void> _loadUserRole() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _currentUser = prefs.getString('currentUser') ?? '';
-      _userRole = prefs.getString('userRole') ?? 'ครู';
-      _isLoading = false;
-    });
+    _currentUser = prefs.getString('currentUser') ?? '';
+    _userRole = prefs.getString('userRole') ?? 'ครู';
+    _isLoading = false;
+    if (mounted) setState(() {});
+    _loadPermissions();
+  }
+
+  Future<void> _loadPermissions() async {
+    var data = await _firebaseService.getPermissionDocFromSupabase(
+        'MobilePermissions', _userRole);
+    data ??= await _firebaseService.getPermissionDocFromSupabase(
+        'Permissions', _userRole);
+    if (mounted) setState(() => _permissionData = data);
   }
 
   List<int> _defaultAllowedMenus() {
@@ -294,40 +303,6 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instanceFor(
-              app: Firebase.app(), databaseId: 'school')
-          .collection('MobilePermissions')
-          .doc(_userRole)
-          .snapshots(),
-      builder: (context, snapshot) {
-        final mobilePermissionDoc = snapshot.data;
-        final mobilePermissionData = mobilePermissionDoc?.data();
-        if (mobilePermissionDoc?.exists == true &&
-            mobilePermissionData is Map<String, dynamic>) {
-          final data = mobilePermissionData;
-          return _buildMobileScaffold(data);
-        }
-
-        return StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseFirestore.instanceFor(
-                  app: Firebase.app(), databaseId: 'school')
-              .collection('Permissions')
-              .doc(_userRole)
-              .snapshots(),
-          builder: (context, fallbackSnapshot) {
-            final permissionDoc = fallbackSnapshot.data;
-            final permissionData = permissionDoc?.data();
-            if (permissionDoc?.exists == true &&
-                permissionData is Map<String, dynamic>) {
-              final data = permissionData;
-              return _buildMobileScaffold(data);
-            }
-
-            return _buildMobileScaffold(null);
-          },
-        );
-      },
-    );
+    return _buildMobileScaffold(_permissionData);
   }
 }

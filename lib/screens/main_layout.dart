@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/firebase_service.dart';
 import 'dashboard_screen.dart';
 import 'leave_form_screen.dart';
 import 'leave_history_screen.dart';
@@ -26,8 +25,10 @@ class _MainLayoutState extends State<MainLayout> {
   String _currentUser = 'ผู้ดูแลระบบ';
   String _userRole = 'ครู';
   List<int>? _allowedMenus;
-  int _pendingResetCount = 0; // จำนวนคำขอรีเซ็ตรหัสที่รออยู่
-  Map<String, dynamic>? _editData; // 📝 ข้อมูลสำหรับแก้ไขใบลาครับ
+  int _pendingResetCount = 0;
+  Map<String, dynamic>? _editData;
+  Map<String, dynamic>? _permissionData;
+  final _firebaseService = FirebaseService();
 
   Future<void> _clearSessionPrefs(SharedPreferences prefs) async {
     await prefs.remove('isLoggedIn');
@@ -41,20 +42,12 @@ class _MainLayoutState extends State<MainLayout> {
   void initState() {
     super.initState();
     _loadUser();
-    _listenToPendingResets();
+    _loadPendingResets();
   }
 
-  // 🔔 ฟังการแจ้งเตือนลืมรหัสแบบ Real-time
-  void _listenToPendingResets() {
-    FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'school')
-        .collection('Teachers')
-        .where('forgotPasswordStatus', isEqualTo: 'waiting')
-        .snapshots()
-        .listen((snapshot) {
-      if (mounted) {
-        setState(() => _pendingResetCount = snapshot.docs.length);
-      }
-    });
+  Future<void> _loadPendingResets() async {
+    final count = await _firebaseService.getPendingResetCountFromSupabase();
+    if (mounted) setState(() => _pendingResetCount = count);
   }
 
   Future<void> _loadUser() async {
@@ -62,41 +55,20 @@ class _MainLayoutState extends State<MainLayout> {
     String cUser = prefs.getString('currentUser') ?? 'ผู้ดูแลระบบ';
     String role = prefs.getString('userRole') ?? '';
 
-    // 🔥 บังคับโหลดสิทธิ์ใหม่จาก Firestore ทุกครั้งเพื่อให้มั่นใจว่า Role ถูกต้องครับ 🥇🏆
-    try {
-      final db = FirebaseFirestore.instanceFor(
-          app: Firebase.app(), databaseId: 'school');
-
-      // ค้นหาจากฟิลด์ fullName ก่อน หากไม่พบให้ค้นหาจากฟิลด์ name (เพื่อรองรับรูปแบบของแอดมิน)
-      var query = await db
-          .collection('Teachers')
-          .where('fullName', isEqualTo: cUser)
-          .limit(1)
-          .get();
-
-      if (query.docs.isEmpty) {
-        query = await db
-            .collection('Teachers')
-            .where('name', isEqualTo: cUser)
-            .limit(1)
-            .get();
-      }
-
-      if (query.docs.isNotEmpty) {
-        final doc = query.docs.first.data();
-        role = (doc['role'] ?? doc['permission'] ?? 'ครู').toString().trim();
-        await prefs.setString('userRole', role);
-      } else {
-        role = 'ครู'; // ถ้าระบบหาในฐานข้อมูลไม่เจอจริงๆ ถึงจะให้เป็นค่าเริ่มต้น
-      }
-    } catch (_) {
-      role = role.isEmpty ? 'ครู' : role;
-    }
+    if (role.isEmpty) role = 'ครู';
 
     setState(() {
       _currentUser = cUser;
       _userRole = role;
     });
+
+    _loadPermissions();
+  }
+
+  Future<void> _loadPermissions() async {
+    final data = await _firebaseService.getPermissionDocFromSupabase(
+        'Permissions', _userRole);
+    if (mounted) setState(() => _permissionData = data);
   }
 
   bool _hasAccess(int index) {
@@ -183,31 +155,15 @@ class _MainLayoutState extends State<MainLayout> {
               ],
             )
           : null,
-      body: StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseFirestore.instanceFor(
-                  app: Firebase.app(), databaseId: 'school')
-              .collection(
-                  'Permissions') // 🛡️ แก้ไขกลับไปใช้ Permissions เพื่อให้ตรงกับฐานข้อมูลการกำหนดสิทธิ์ 🥇🏆
-              .doc(_userRole)
-              .snapshots(),
-          builder: (context, snapshot) {
+      body: Builder(
+          builder: (context) {
             final screens = _getScreens();
-            // กำหนด index ที่จะแสดง
             int effectiveIndex = _selectedIndex;
             if (_userRole.contains('ครู') && effectiveIndex == 0)
               effectiveIndex = 2;
             if (effectiveIndex >= screens.length) effectiveIndex = 0;
 
-            // ถ้ากำลังโหลดอยู่ แสดง loading
-            if (snapshot.connectionState == ConnectionState.waiting &&
-                _userRole.isEmpty) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            // ถ้าเกิดข้อผิดพลาดหรือไม่มีข้อมูล ให้สิทธิ์พื้นฐาน (ส่งใบลา + ประวัติ)
-            if (snapshot.hasError ||
-                !snapshot.hasData ||
-                !snapshot.data!.exists) {
+            if (_permissionData == null) {
               final defaultAllowed = (_userRole.contains('ผู้ดูแลระบบ') ||
                       _currentUser == 'ผู้ดูแลระบบ')
                   ? [0, 1, 2, 3, 4, 5, 6, 7, 8]
@@ -231,7 +187,7 @@ class _MainLayoutState extends State<MainLayout> {
               );
             }
 
-            final data = snapshot.data!.data() as Map<String, dynamic>;
+            final data = _permissionData!;
             List<int> allowed = [];
 
             for (int i = 0; i <= 8; i++) {

@@ -1389,54 +1389,67 @@ class FirebaseService {
     }
   }
 
-  // 🛡️ ดึงข้อมูลประวัติการการเข้าใช้งาน (สำหรับ Admin) 🥇🏆
   Stream<List<Map<String, dynamic>>> getLoginLogsStream({
     DateTime? startDate,
     DateTime? endDate,
   }) {
-    Query query = _db.collection('LoginLogs');
-
-    if (startDate != null) {
-      query = query.where(
-        'timestamp',
-        isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
-      );
-    }
-
-    if (endDate != null) {
-      query = query.where(
-        'timestamp',
-        isLessThanOrEqualTo: Timestamp.fromDate(endDate),
-      );
-    }
-
-    return query
-        .orderBy('timestamp', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => <String, dynamic>{
-                  ...Map<String, dynamic>.from(doc.data() as Map),
-                  'id': doc.id,
-                })
-            .toList());
+    return Stream.fromFuture(
+        getLoginLogsFromSupabase(startDate: startDate, endDate: endDate));
   }
 
-  // 📅 ดึงกิจกรรมทั้งหมดเพื่อแสดงในปฏิทิน (Admin เห็นทุกคน / User เห็นเฉพาะของตัวเอง) 🥇🏆🏎️
-  Stream<List<Map<String, dynamic>>> getCalendarActivitiesStream(
-      {String? fullName}) {
-    Query query = _db.collection('Leaves');
-    if (fullName != null && fullName != 'ผู้ดูแลระบบ') {
-      query = query.where('fullName', isEqualTo: fullName);
-    }
-    return query.snapshots().map((snapshot) {
-      return snapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
+  Future<List<Map<String, dynamic>>> getLoginLogsFromSupabase({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final client = _supabaseIfReady;
+    if (client == null) return [];
+    try {
+      var query = client.from('LoginLogs').select();
+      if (startDate != null) {
+        query = query.gte('timestamp', startDate.toIso8601String());
+      }
+      if (endDate != null) {
+        query = query.lte('timestamp', endDate.toIso8601String());
+      }
+      final rows = await query.order('timestamp', ascending: false);
+      return (rows as List).map((row) {
+        final r = Map<String, dynamic>.from(row as Map);
         return {
-          ...data,
-          'id': doc.id,
+          ...r,
+          'id': r['id']?.toString() ?? '',
+          'fullName': r['fullname'] ?? r['fullName'] ?? '',
+          'timestamp': r['timestamp'],
         };
       }).toList();
-    });
+    } catch (e) {
+      debugPrint('❌ getLoginLogsFromSupabase error: $e');
+      return [];
+    }
+  }
+
+  Stream<List<Map<String, dynamic>>> getCalendarActivitiesStream(
+      {String? fullName}) {
+    return Stream.fromFuture(
+        getCalendarActivitiesFromSupabase(fullName: fullName));
+  }
+
+  Future<List<Map<String, dynamic>>> getCalendarActivitiesFromSupabase(
+      {String? fullName}) async {
+    final client = _supabaseIfReady;
+    if (client == null) return [];
+    try {
+      var query = client.from('Leaves').select();
+      if (fullName != null && fullName != 'ผู้ดูแลระบบ') {
+        query = query.eq('fullname', fullName);
+      }
+      final rows = await query;
+      return (rows as List)
+          .map((row) => _fromSupabaseLeave(row as Map))
+          .toList();
+    } catch (e) {
+      debugPrint('❌ getCalendarActivitiesFromSupabase error: $e');
+      return [];
+    }
   }
 
   // 📲 ส่งแจ้งเตือนการ "ขอรีเซ็ตรหัสผ่าน" ไปยังแอดมินทาง LINE ครับ 🥇🏆🏎️
@@ -1857,6 +1870,71 @@ class FirebaseService {
     final client = _supabaseIfReady;
     if (client == null) throw Exception('Supabase not initialized');
     await client.from(supabaseTable).delete().eq('id', id);
+  }
+
+  // ── Permissions doc (for menu access) ────────────────────────────
+
+  Future<Map<String, dynamic>?> getPermissionDocFromSupabase(
+      String collection, String role) async {
+    final client = _supabaseIfReady;
+    if (client == null) return null;
+    try {
+      final rows =
+          await client.from(collection).select().eq('id', role).limit(1);
+      if ((rows as List).isNotEmpty) {
+        return Map<String, dynamic>.from(rows.first as Map);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('❌ getPermissionDocFromSupabase($collection/$role) error: $e');
+      return null;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getAllPermissionDocsFromSupabase(
+      String collection) async {
+    final client = _supabaseIfReady;
+    if (client == null) return [];
+    try {
+      final rows = await client.from(collection).select();
+      return (rows as List)
+          .map((r) => Map<String, dynamic>.from(r as Map))
+          .toList();
+    } catch (e) {
+      debugPrint('❌ getAllPermissionDocsFromSupabase($collection) error: $e');
+      return [];
+    }
+  }
+
+  Future<int> getPendingResetCountFromSupabase() async {
+    final client = _supabaseIfReady;
+    if (client == null) return 0;
+    try {
+      final rows = await client
+          .from('Teachers')
+          .select('id')
+          .eq('forgotPasswordStatus', 'waiting');
+      return (rows as List).length;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingResetsFromSupabase() async {
+    final client = _supabaseIfReady;
+    if (client == null) return [];
+    try {
+      final rows = await client
+          .from('Teachers')
+          .select()
+          .eq('forgotPasswordStatus', 'waiting');
+      return (rows as List)
+          .map((r) => _fromSupabaseTeacher(r as Map))
+          .toList();
+    } catch (e) {
+      debugPrint('❌ getPendingResetsFromSupabase error: $e');
+      return [];
+    }
   }
 
   // ── LINE Settings ───────────────────────────────────────────────

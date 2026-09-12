@@ -3642,10 +3642,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
     return _buildGlassCard(
       padding: EdgeInsets.zero,
-      child: StreamBuilder<QuerySnapshot>(
-        stream: _firebaseService.db
-            .collection(_permissionCollectionName)
-            .snapshots(),
+      child: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _firebaseService.getAllPermissionDocsFromSupabase(
+            _permissionCollectionName),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
@@ -3657,8 +3656,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
           final Map<String, Map<String, dynamic>> rolePerms = {};
           if (snapshot.hasData) {
-            for (var doc in snapshot.data!.docs) {
-              rolePerms[doc.id] = doc.data() as Map<String, dynamic>;
+            for (var doc in snapshot.data!) {
+              final id = doc['id']?.toString() ?? '';
+              if (id.isNotEmpty) rolePerms[id] = doc;
             }
           }
 

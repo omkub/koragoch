@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/firebase_service.dart';
 
 class MobilePasswordResetScreen extends StatefulWidget {
@@ -55,16 +54,15 @@ class _MobilePasswordResetScreenState extends State<MobilePasswordResetScreen> {
     try {
       final DateTime expiry = DateTime.now().add(const Duration(hours: 24));
       final String resetCode = FirebaseService.generateResetCode();
-      await _firebaseService.db
-          .collection('Teachers')
-          .doc(user['id'])
-          .update({
+      final client = _firebaseService.supabaseClient;
+      if (client == null) throw Exception('Supabase not initialized');
+      await client.from('Teachers').update({
         'forgotPasswordStatus': 'reset_by_admin',
         'tempResetCode': resetCode,
         'password': resetCode,
         'resetAllowedUntil': expiry.toIso8601String(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+        'updatedAt': DateTime.now().toIso8601String(),
+      }).eq('id', user['id']);
 
       if (mounted) {
         showDialog(
@@ -135,17 +133,14 @@ class _MobilePasswordResetScreenState extends State<MobilePasswordResetScreen> {
         centerTitle: true,
         surfaceTintColor: Colors.transparent,
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: _firebaseService.db
-            .collection('Teachers')
-            .where('forgotPasswordStatus', isEqualTo: 'waiting')
-            .snapshots(),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _firebaseService.getPendingResetsFromSupabase(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting || _isLoading) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final docs = snapshot.data?.docs ?? [];
+          final docs = snapshot.data ?? [];
 
           if (docs.isEmpty) {
             return Center(
@@ -208,8 +203,7 @@ class _MobilePasswordResetScreenState extends State<MobilePasswordResetScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
-                    final doc = docs[index];
-                    final user = {'id': doc.id, ...doc.data() as Map<String, dynamic>};
+                    final user = docs[index];
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
                       padding: const EdgeInsets.all(16),

@@ -467,14 +467,16 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
     }
 
     final docId = 'holiday_${_dateKey(_holidayDate).replaceAll('-', '')}';
-    await _firebaseService.db.collection('SpecialHolidays').doc(docId).set({
+    final now = DateTime.now().toIso8601String();
+    await _firebaseService.addMasterItemToSupabase('SpecialHolidays', {
+      'id': docId,
       'date': _formatDateForStorage(_holidayDate),
-      'dateValue': Timestamp.fromDate(_holidayDate),
+      'dateValue': _holidayDate.toIso8601String(),
       'title': title,
       'note': title,
-      'updatedAt': FieldValue.serverTimestamp(),
-      'createdAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+      'updatedAt': now,
+      'createdAt': now,
+    });
 
     _holidayTitleController.clear();
     if (!mounted) return;
@@ -482,9 +484,11 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
   }
 
   Future<Set<String>> _loadSpecialDateKeys(String collection) async {
-    final snapshot = await _firebaseService.db.collection(collection).get();
-    return snapshot.docs
-        .map((doc) => _recordDate(doc.data()))
+    final rows = collection == 'SpecialHolidays'
+        ? await _firebaseService.getSpecialHolidaysFromSupabase()
+        : await _firebaseService.getSpecialWorkingDaysFromSupabase();
+    return rows
+        .map((r) => _recordDate(r))
         .whereType<DateTime>()
         .map(_dateKey)
         .toSet();
@@ -537,25 +541,21 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
     try {
       final holidayKeys = await _loadSpecialDateKeys('SpecialHolidays');
       final specialWorkingKeys = await _loadSpecialDateKeys('SpecialWorkingDays');
-      final snapshot = await _firebaseService.db.collection('Leaves').get();
-
-      var batch = _firebaseService.db.batch();
-      int pendingWrites = 0;
+      final leaves = await _firebaseService.getLeaveRequestsFromSupabase();
       int updated = 0;
+      final client = _firebaseService.supabaseClient;
+      if (client == null) throw Exception('Supabase not initialized');
 
-      for (final doc in snapshot.docs) {
-        final data = doc.data();
-        final totalDays = _calculateBusinessLeaveDays(data, holidayKeys, specialWorkingKeys);
-        batch.update(doc.reference, {'days': totalDays, 'totalDays': totalDays, 'updatedAt': FieldValue.serverTimestamp()});
-        pendingWrites++;
+      for (final leave in leaves) {
+        final totalDays = _calculateBusinessLeaveDays(leave, holidayKeys, specialWorkingKeys);
+        final id = leave['requestId']?.toString() ?? leave['id']?.toString() ?? '';
+        if (id.isEmpty) continue;
+        await client.from('leaves').update({
+          'totaldays': totalDays,
+          'lastupdatedat': DateTime.now().toIso8601String(),
+        }).eq('id', id);
         updated++;
-        if (pendingWrites >= 450) {
-          await batch.commit();
-          batch = _firebaseService.db.batch();
-          pendingWrites = 0;
-        }
       }
-      if (pendingWrites > 0) await batch.commit();
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('คำนวณวันลาย้อนหลังใหม่แล้ว $updated รายการ')));
@@ -593,23 +593,24 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
         {'date': DateTime(year, 12, 31), 'title': 'วันสิ้นปี'},
       ];
 
-      final batch = _firebaseService.db.batch();
+      final client = _firebaseService.supabaseClient;
+      if (client == null) throw Exception('Supabase not initialized');
+      final now = DateTime.now().toIso8601String();
       for (final holiday in holidays) {
         final date = holiday['date'] as DateTime;
         final title = holiday['title'] as String;
         final docId = 'holiday_${_dateKey(date).replaceAll('-', '')}';
-        final ref = _firebaseService.db.collection('SpecialHolidays').doc(docId);
-        batch.set(ref, {
+        await client.from('SpecialHolidays').upsert({
+          'id': docId,
           'date': _formatDateForStorage(date),
-          'dateValue': Timestamp.fromDate(date),
+          'dateValue': date.toIso8601String(),
           'title': title,
           'note': title,
           'source': 'default_${year + 543}',
-          'updatedAt': FieldValue.serverTimestamp(),
-          'createdAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+          'updatedAt': now,
+          'createdAt': now,
+        }, onConflict: 'id');
       }
-      await batch.commit();
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -626,7 +627,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
   }
 
   Future<void> _deleteSpecialDateRecord(String collection, String docId, String message) async {
-    await _firebaseService.db.collection(collection).doc(docId).delete();
+    await _firebaseService.deleteMasterItemFromSupabase(collection, docId);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
@@ -746,14 +747,16 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
     }
 
     final docId = 'working_${_dateKey(_specialWorkingDate).replaceAll('-', '')}';
-    await _firebaseService.db.collection('SpecialWorkingDays').doc(docId).set({
+    final now = DateTime.now().toIso8601String();
+    await _firebaseService.addMasterItemToSupabase('SpecialWorkingDays', {
+      'id': docId,
       'date': _formatDateForStorage(_specialWorkingDate),
-      'dateValue': Timestamp.fromDate(_specialWorkingDate),
+      'dateValue': _specialWorkingDate.toIso8601String(),
       'title': title,
       'note': title,
-      'updatedAt': FieldValue.serverTimestamp(),
-      'createdAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+      'updatedAt': now,
+      'createdAt': now,
+    });
 
     _specialWorkingTitleController.clear();
     if (!mounted) return;
@@ -857,14 +860,16 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
     required IconData icon,
     required String deleteMessage,
   }) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _firebaseService.db.collection(collection).snapshots(),
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: collection == 'SpecialHolidays'
+          ? _firebaseService.getSpecialHolidaysFromSupabase()
+          : _firebaseService.getSpecialWorkingDaysFromSupabase(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return _buildGlassCard(child: const Center(child: CircularProgressIndicator()));
         }
 
-        final records = snapshot.data!.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+        final records = snapshot.data!;
         records.sort((a, b) {
           final aDate = _recordDate(a);
           final bDate = _recordDate(b);
