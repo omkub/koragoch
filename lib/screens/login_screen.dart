@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // ⚠️ ยังใช้ในระบบแจ้งลืมรหัส (ย้ายภายหลัง)
-import 'package:firebase_core/firebase_core.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // 🚀 ล็อกอินผ่าน Supabase แล้วครับ
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -205,7 +203,6 @@ class _LoginScreenState extends State<LoginScreen> {
           'role': effectiveRole,
           'permission': effectiveRole,
         }, toEncodable: (item) {
-          if (item is Timestamp) return item.toDate().toIso8601String();
           if (item is DateTime) return item.toIso8601String();
           return item.toString(); // Fallback โหดๆ สำหรับของแปลกครับ
         });
@@ -529,29 +526,26 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     try {
-      final query = await FirebaseFirestore.instanceFor(
-              app: Firebase.app(), databaseId: 'school')
-          .collection('Teachers')
-          .where('username', isEqualTo: username)
-          .limit(1)
-          .get();
+      final client = Supabase.instance.client;
+      final rows = await client
+          .from('Teachers')
+          .select('id, fullName, forgotPasswordStatus, resetAllowedUntil')
+          .eq('username', username)
+          .limit(1);
 
-      if (query.docs.isEmpty) {
+      if (rows.isEmpty) {
         _showError('ไม่พบชื่อผู้ใช้งานนี้ในฐานข้อมูลครับ');
         return false;
       }
 
-      final doc = query.docs.first;
-      final status = doc.data();
+      final status = rows.first;
 
-      // 🛡️ ตรวจสอบว่าแอดมิน "รีเซ็ต" ให้หรือยังครับ 🥇
       if (status['forgotPasswordStatus'] != 'reset_by_admin') {
         _showError(
             'แอดมินยังไม่ได้รีเซ็ตรหัสให้คุณครับ\nกรุณากด "แจ้งแอดมิน" และรอสักครู่ครับ');
         return false;
       }
 
-      // 🕰️ ตรวจสอบเวลา 24 ชม. ครับ (รองรับทั้งแบบ String และ Timestamp) 🥇
       final expireValue = status['resetAllowedUntil'];
       if (expireValue == null) {
         _showError(
@@ -559,12 +553,7 @@ class _LoginScreenState extends State<LoginScreen> {
         return false;
       }
 
-      DateTime expireDate;
-      if (expireValue is Timestamp) {
-        expireDate = expireValue.toDate();
-      } else {
-        expireDate = DateTime.parse(expireValue.toString());
-      }
+      final expireDate = DateTime.parse(expireValue.toString());
 
       if (expireDate.isBefore(DateTime.now())) {
         _showError(
@@ -572,7 +561,7 @@ class _LoginScreenState extends State<LoginScreen> {
         return false;
       }
 
-      onUserFound(doc.id, status['fullName'] ?? '');
+      onUserFound(status['id'].toString(), status['fullName'] ?? '');
       return true;
     } catch (e) {
       _showError('เกิดความผิดพลาด: $e');
@@ -588,31 +577,23 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     try {
-      final query = await FirebaseFirestore.instanceFor(
-              app: Firebase.app(), databaseId: 'school')
-          .collection('Teachers')
-          .where('username', isEqualTo: username)
-          .limit(1)
-          .get();
+      final client = Supabase.instance.client;
+      final rows = await client
+          .from('Teachers')
+          .select('id, fullName')
+          .eq('username', username)
+          .limit(1);
 
-      if (query.docs.isEmpty) {
+      if (rows.isEmpty) {
         _showError('ไม่พบชื่อผู้ใช้งานนี้ในระบบครับ');
         return;
       }
 
-      final docId = query.docs.first.id;
-      await FirebaseFirestore.instanceFor(
-              app: Firebase.app(), databaseId: 'school')
-          .collection('Teachers')
-          .doc(docId)
-          .update({
+      final teacherId = rows.first['id'];
+      await client.from('Teachers').update({
         'forgotPasswordStatus': 'waiting',
-        'requestTimestamp': FieldValue.serverTimestamp(),
-      });
-
-      // 📲 ส่งแจ้งเตือนแอดมินผ่านระบบ Firestore (แอดมินจะเห็น Badge แจ้งเตือนบนไอคอนเมนูครับ)
-      final String fullName = query.docs.first.data()['fullName'] ?? username;
-      // _firebaseService.sendLinePasswordResetNotification(username, fullName); // 🔴 ปิดการแจ้งเตือน LINE ตามคำสั่ง (เหลือ 2 จุด)
+        'requestTimestamp': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', teacherId);
 
       _showSuccessDialog('ส่งคำขอสำเร็จ!',
           'ระบบได้แจ้งแอดมินให้ทราบแล้ว\nโปรดรอแอดมินรีเซ็ตรหัสให้ภายในครู่เดียวครับ');
@@ -621,20 +602,16 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // 💾 บันทึกรหัสผ่านใหม่ลง Firestore
   Future<bool> _saveNewPassword(String userId, String newPassword) async {
     try {
-      await FirebaseFirestore.instanceFor(
-              app: Firebase.app(), databaseId: 'school')
-          .collection('Teachers')
-          .doc(userId)
-          .update({
+      final client = Supabase.instance.client;
+      await client.from('Teachers').update({
         'password': newPassword,
         'forgotPasswordStatus': null,
         'resetAllowedUntil': null,
-        'tempPassword': null, // ล้างค่ารหัสชั่วคราวด้วยครับ
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+        'tempPassword': null,
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', int.parse(userId));
       return true;
     } catch (e) {
       _showError('ไม่สามารถบันทึกรหัสใหม่ได้: $e');
