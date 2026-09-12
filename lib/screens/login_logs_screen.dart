@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../services/firebase_service.dart';
@@ -1025,7 +1024,7 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
 
   DateTime? _logDate(Map<String, dynamic> log) {
     final timestamp = log['timestamp'];
-    if (timestamp is Timestamp) return timestamp.toDate();
+    if (timestamp is String) return DateTime.tryParse(timestamp);
     return null;
   }
 

@@ -20,8 +20,6 @@ dependencies:
   intl: ^0.20.2
   url_launcher: ^6.3.2
   file_picker: ^8.1.2
-  rxdart: ^0.28.0
-  firebase_auth: ^5.7.0
   flutter_localizations:
     sdk: flutter
   thai_buddhist_date_pickers: ^0.1.6

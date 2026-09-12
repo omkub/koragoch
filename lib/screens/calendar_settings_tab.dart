@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firebase_service.dart';
 import '../widgets/thai_buddhist_calendar_widget.dart';
 
@@ -72,7 +71,6 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
 
   DateTime? _parseStoredDate(dynamic value) {
     if (value == null) return null;
-    if (value is Timestamp) return value.toDate();
     if (value is DateTime) return value;
 
     final text = value.toString().trim();

@@ -1,7 +1,4 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
@@ -37,11 +34,6 @@ class FirebaseService {
 
   static dynamic _toSupabaseValue(dynamic value) {
     if (value == null) return null;
-    if (value is FieldValue) {
-      // serverTimestamp ฯลฯ → ใช้เวลาปัจจุบันแทน
-      return DateTime.now().toIso8601String();
-    }
-    if (value is Timestamp) return value.toDate().toIso8601String();
     if (value is DateTime) return value.toIso8601String();
     if (value is List) return value.map(_toSupabaseValue).toList();
     if (value is Map) {
@@ -165,16 +157,6 @@ class FirebaseService {
   static String get driveProfileFolderId => config('driveProfileFolderId');
   static String get driveLeaveFolderId => config('driveLeaveFolderId');
 
-  FirebaseFirestore? _firestoreInstance;
-
-  FirebaseFirestore get _db {
-    _firestoreInstance ??= FirebaseFirestore.instanceFor(
-        app: Firebase.app(), databaseId: 'school');
-    return _firestoreInstance!;
-  }
-
-  FirebaseFirestore get db => _db;
-
   static bool isLikelyAppsScriptWebAppUrl(String value) {
     return RegExp(r'^https:\/\/script\.google\.com\/macros\/s\/[^\s\/]+\/exec$')
         .hasMatch(value.trim());
@@ -206,8 +188,6 @@ class FirebaseService {
       ...queryParameters,
     }).toString();
   }
-
-  String? get currentUid => FirebaseAuth.instance.currentUser?.uid;
 
   static String generateResetCode() {
     final random = DateTime.now().microsecondsSinceEpoch;
@@ -294,7 +274,7 @@ class FirebaseService {
     await _supabaseAdd('FiscalRounds', {
       ...data,
       'isActive': false,
-      'createdAt': FieldValue.serverTimestamp(),
+      'createdAt': DateTime.now().toUtc().toIso8601String(),
     });
   }
 
@@ -367,7 +347,6 @@ class FirebaseService {
 
   static DateTime? _parseLeaveDateValue(dynamic value) {
     if (value == null) return null;
-    if (value is Timestamp) return value.toDate();
     if (value is DateTime) return value;
     if (value is String && value.trim().isNotEmpty) {
       final parsed = DateTime.tryParse(value.trim());
@@ -510,7 +489,7 @@ class FirebaseService {
       String requestId, Map<String, dynamic> data) async {
     await _supabaseUpdate('Leaves', requestId, {
       ...data,
-      'lastUpdatedAt': FieldValue.serverTimestamp(),
+      'lastUpdatedAt': DateTime.now().toUtc().toIso8601String(),
     });
   }
 
@@ -708,9 +687,7 @@ class FirebaseService {
     if (dateValue == null || dateValue == "") return '-';
 
     DateTime? date;
-    if (dateValue is Timestamp) {
-      date = dateValue.toDate();
-    } else if (dateValue is DateTime) {
+    if (dateValue is DateTime) {
       date = dateValue;
     } else if (dateValue is String) {
       try {
@@ -752,24 +729,13 @@ class FirebaseService {
     try {
       debugPrint("🔔 Starting LINE Notification process...");
 
-      await ensureConfigLoaded();
-      final snap = await db.collection('Settings').doc('line_messaging').get();
-      final settings = snap.data() ?? <String, dynamic>{};
+      final settings = await getLineMessagingSettingsFromSupabase();
       final bridgeUrl = _appsScriptUrlFromSettings(settings);
 
       String to = (settings['groupId'] ?? '').toString().trim();
       String template = (settings['template'] ?? '').toString();
-
-      if (snap.exists && snap.data() != null) {
-        final settings = snap.data()!;
-        to = settings['groupId'] ?? '';
-        template = settings['template'] ?? '';
-        debugPrint(
-            "📍 Settings found: GroupID length=${to.length}, Template length=${template.length}");
-      } else {
-        debugPrint(
-            "⚠️ LINE Notification Warning: 'Settings/line_messaging' document not found.");
-      }
+      debugPrint(
+          "📍 Settings found: GroupID length=${to.length}, Template length=${template.length}");
 
       // 🛡️ Fallback: ถ้าในใบลาแนบ To มาให้ (เผื่ออนาคต) ให้ใช้ตัวนั้นครับ
       if (to.isEmpty && leaveData['to'] != null) to = leaveData['to'];
@@ -943,10 +909,7 @@ class FirebaseService {
       Map<String, dynamic> leaveData, String newStatus) async {
     try {
       await ensureConfigLoaded();
-      final snap = await db.collection('Settings').doc('line_messaging').get();
-      if (!snap.exists) return;
-
-      final settings = snap.data() ?? <String, dynamic>{};
+      final settings = await getLineMessagingSettingsFromSupabase();
       final bridgeUrl = _appsScriptUrlFromSettings(settings);
       final to = (settings['groupId'] ?? '').toString().trim();
       if (to.isEmpty) return;
@@ -985,57 +948,44 @@ class FirebaseService {
     await _supabaseUpdate('Teachers', docId, newData);
   }
 
-  // 👨‍🏫 อัปเดตข้อมูลบุคลากร (ใช้สำหรับหน้า Profile มือถือครับ) 🥇🏆🏎️
   Future<void> updateTeacherData(
       String fullName, Map<String, dynamic> newData) async {
-    final query = await db
-        .collection('Teachers')
-        .where('fullName', isEqualTo: fullName)
-        .limit(1)
-        .get();
-    if (query.docs.isNotEmpty) {
-      await _supabaseUpdate('Teachers', query.docs.first.id, newData);
+    final client = _supabaseIfReady;
+    if (client == null) return;
+    final rows = await client
+        .from('Teachers')
+        .select('id')
+        .eq('fullName', fullName)
+        .limit(1);
+    if ((rows as List).isNotEmpty) {
+      await _supabaseUpdate('Teachers', rows.first['id'].toString(), newData);
     }
   }
 
-  // 🕵️‍♂️ ค้นหาข้อมูลบุคลากรด้วย UID (เสถียรกว่าการหาด้วยชื่อครับ) 🥇🏆
   Future<Map<String, dynamic>?> searchTeacherByUid(String uid) async {
-    final query = await db
-        .collection('Teachers')
-        .where('firebase_uid', isEqualTo: uid)
-        .limit(1)
-        .get();
-    if (query.docs.isNotEmpty) {
-      final data = query.docs.first.data();
-      // 🛡️ ฟอกข้อมูล Timestamp ทุกตัวให้เป็น String ป้องกัน Error JSON (minified:hl) 🥇🏆🏎️
-      data.forEach((key, value) {
-        if (value is Timestamp) {
-          data[key] = value.toDate().toIso8601String();
-        }
-      });
-
-      return {...data, 'docId': query.docs.first.id};
+    final client = _supabaseIfReady;
+    if (client == null) return null;
+    final rows = await client
+        .from('Teachers')
+        .select()
+        .eq('firebase_uid', uid)
+        .limit(1);
+    if ((rows as List).isNotEmpty) {
+      return {...rows.first, 'docId': rows.first['id'].toString()};
     }
     return null;
   }
 
-  // 🕵️‍♂️ ค้นหาข้อมูลบุคลากรด้วยชื่อ (ใช้ดึงข้อมูลมาแก้ในโปรไฟล์ครับ)
   Future<Map<String, dynamic>?> searchTeacherByName(String fullName) async {
-    final query = await db
-        .collection('Teachers')
-        .where('fullName', isEqualTo: fullName.trim())
-        .limit(1)
-        .get();
-    if (query.docs.isNotEmpty) {
-      final data = query.docs.first.data();
-      // 🛡️ ฟอกข้อมูลให้สะอาด 100% ครับ 🥇🏆
-      data.forEach((key, value) {
-        if (value is Timestamp) {
-          data[key] = value.toDate().toIso8601String();
-        }
-      });
-
-      return {...data, 'docId': query.docs.first.id};
+    final client = _supabaseIfReady;
+    if (client == null) return null;
+    final rows = await client
+        .from('Teachers')
+        .select()
+        .eq('fullName', fullName.trim())
+        .limit(1);
+    if ((rows as List).isNotEmpty) {
+      return {...rows.first, 'docId': rows.first['id'].toString()};
     }
     return null;
   }
@@ -1130,11 +1080,7 @@ class FirebaseService {
   Future<void> sendLinePasswordResetNotification(
       String username, String fullName) async {
     try {
-      await ensureConfigLoaded();
-      final snap = await db.collection('Settings').doc('line_messaging').get();
-      if (!snap.exists) return;
-
-      final settings = snap.data() ?? <String, dynamic>{};
+      final settings = await getLineMessagingSettingsFromSupabase();
       final bridgeUrl = _appsScriptUrlFromSettings(settings);
       final to = (settings['groupId'] ?? '').toString().trim();
       if (to.isEmpty) return;

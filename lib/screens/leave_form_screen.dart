@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -139,9 +138,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
   String? _toDateKey(Map<String, dynamic> data) {
     DateTime? dt;
     final dateValue = data['dateValue'];
-    if (dateValue is Timestamp) {
-      dt = dateValue.toDate();
-    } else if (dateValue is int) {
+    if (dateValue is int) {
       dt = DateTime.fromMillisecondsSinceEpoch(dateValue);
     }
     if (dt == null) {

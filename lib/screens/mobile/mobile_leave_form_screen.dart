@@ -125,27 +125,10 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
       _loadAllUsers(); // Background sync
     }
 
-    // 🚀 Background Sync ข้อมูลส่วนตัว (Force sync if name is Admin but role is Teacher) 🥇🏆
-    final String? uid = _firebaseService.currentUid;
     Map<String, dynamic>? userData;
-    if (uid != null) {
-      userData = await _firebaseService.searchTeacherByUid(uid);
-
-      // 🛡️ ป้องกันกรณีชื่อ Admin ค้างในสิทธิ์ครูครับ 🥇🏆🏎️
-      if (userData != null &&
-          userData['fullName'] == 'ผู้ดูแลระบบ' &&
-          (role == null || !role.contains('ผู้ดูแลระบบ'))) {
-        debugPrint("⚠️ Name mismatch detected! Re-syncing name for Teacher...");
-        // ลองหาด้วยชื่อจริงๆ ที่เราควรจะเป็น (ถ้ามี)
-        if (name != null && name != 'ผู้ดูแลระบบ') {
-          final realUser = await _firebaseService.searchTeacherByName(name);
-          if (realUser != null) userData = realUser;
-        }
-      }
-    }
-
-    if (userData == null && name != null)
+    if (name != null) {
       userData = await _firebaseService.searchTeacherByName(name);
+    }
 
     final loadedUserData = userData;
     if (loadedUserData != null && mounted) {

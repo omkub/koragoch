@@ -7,7 +7,6 @@ import 'package:web/web.dart' as web;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'leave_form_screen.dart';
 
 class LeaveHistoryScreen extends StatefulWidget {
@@ -1229,10 +1228,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
         updateData['receiveTime'] = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')} น.';
       }
 
-      await _firebaseService.db
-          .collection('Leaves')
-          .doc(requestId)
-          .update(updateData);
+      await _firebaseService.updateLeaveRequest(requestId, updateData);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -1531,7 +1527,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
           final medicalUrl = leaf['medicalCertificate']?.toString() ?? '';
           if (medicalUrl.isNotEmpty)
             await _firebaseService.deleteDriveFileStrict(medicalUrl);
-          await _firebaseService.db.collection('Leaves').doc(id).delete();
+          await _firebaseService.deleteLeaveFromSupabase(id);
           count++;
         }
       }
@@ -1941,7 +1937,6 @@ ${autoPrint ? '''
 
   DateTime? _getDateTime(dynamic dt) {
     if (dt == null) return null;
-    if (dt is Timestamp) return dt.toDate();
     if (dt is DateTime) return dt;
     if (dt is String) {
       final isoParsed = DateTime.tryParse(dt.trim());

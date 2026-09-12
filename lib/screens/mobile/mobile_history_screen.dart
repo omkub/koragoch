@@ -546,10 +546,7 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
         updateData['receiveTime'] = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')} น.';
       }
 
-      await _firebaseService.db
-          .collection('Leaves')
-          .doc(requestId)
-          .update(updateData);
+      await _firebaseService.updateLeaveRequest(requestId, updateData);
 
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -594,10 +591,8 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
                     leave['medicalCertificate']?.toString() ?? '';
                 if (medicalUrl.isNotEmpty)
                   await _firebaseService.deleteDriveFileStrict(medicalUrl);
-                await _firebaseService.db
-                    .collection('Leaves')
-                    .doc(leave['requestId'])
-                    .delete();
+                await _firebaseService.deleteLeaveFromSupabase(
+                    leave['requestId']?.toString() ?? '');
                 if (mounted)
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                       content: Text('✅ ลบรายการเรียบร้อยแล้ว'),

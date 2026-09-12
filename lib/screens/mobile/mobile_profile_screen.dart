@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
@@ -170,9 +169,8 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
 
           // 🛡️ อัปเดต Cache ให้เป็นปัจจุบันที่สุดด้วยระบบป้องกัน JSON Error ขั้นสูงสุด 🥇🏆🏎️
           final safeJson = jsonEncode(serverData, toEncodable: (item) {
-            if (item is Timestamp) return item.toDate().toIso8601String();
             if (item is DateTime) return item.toIso8601String();
-            return item.toString(); // บังคับให้เป็น String กรณีเกิดปัญหาครับ
+            return item.toString();
           });
           await prefs.setString('userFullDataJson', safeJson);
         }
@@ -209,9 +207,8 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
 
       // 🛡️ ป้องกัน Json Encode Error สไตล์ครอบจักรวาลครับ 🥇🏆🏎️
       final safeJson = jsonEncode(updatedData, toEncodable: (item) {
-        if (item is Timestamp) return item.toDate().toIso8601String();
         if (item is DateTime) return item.toIso8601String();
-        return item.toString(); // ถ้าเจอของแปลกก็ให้แปลงเป็น String ซะเลยครับ
+        return item.toString();
       });
       await prefs.setString('userFullDataJson', safeJson);
 
@@ -303,10 +300,8 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
 
         // 🛡️ ป้องกัน Json Encode Error แบบ 100% ครอบจักรวาลครับ (minified:hl / Timestamp) 🥇🏆🏎️
         final safeJson = jsonEncode(updatedData, toEncodable: (item) {
-          if (item is Timestamp) return item.toDate().toIso8601String();
           if (item is DateTime) return item.toIso8601String();
-          return item
-              .toString(); // Fallback สำหรับ Object ประหลาดๆ ทุกรุ่นครับ 🥇
+          return item.toString();
         });
         await prefs.setString('userFullDataJson', safeJson);
 

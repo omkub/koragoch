@@ -306,22 +306,24 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       'LeaveTypes',
     ];
     final orders = <String, int>{};
+    final client = Supabase.instance.client;
 
     for (final collection in collections) {
-      final snapshot = await _firebaseService.db.collection(collection).get();
       final idField = _masterIdFieldForCollection(collection);
-
-      for (final doc in snapshot.docs) {
-        final name = _masterNameFromData(doc.data(), collection);
-        if (name.isEmpty) continue;
-
-        final dataOrder = _toIntValue(doc.data()[idField]);
-        final docOrder = _toIntValue(doc.id);
-        final order = dataOrder > 0 ? dataOrder : docOrder;
-        if (order > 0) {
-          orders[_masterOrderKey(collection, name)] = order;
+      final nameField = _masterNameFieldForCollection(collection);
+      try {
+        final rows = await client
+            .from(collection.toLowerCase())
+            .select();
+        for (final row in (rows as List)) {
+          final name = (row[nameField] ?? row['Value'] ?? '').toString().trim();
+          if (name.isEmpty) continue;
+          final order = _toIntValue(row[idField]);
+          if (order > 0) {
+            orders[_masterOrderKey(collection, name)] = order;
+          }
         }
-      }
+      } catch (_) {}
     }
 
     return orders;
@@ -3036,12 +3038,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     String collection,
     String idField,
   ) async {
-    final snapshot = await _firebaseService.db.collection(collection).get();
+    final client = Supabase.instance.client;
+    final rows = await client
+        .from(collection.toLowerCase())
+        .select(idField);
     var maxId = 0;
-    for (final doc in snapshot.docs) {
-      final dataId = _toIntValue(doc.data()[idField]);
-      final docId = _toIntValue(doc.id);
-      final current = dataId > docId ? dataId : docId;
+    for (final row in (rows as List)) {
+      final current = _toIntValue(row[idField]);
       if (current > maxId) maxId = current;
     }
     return maxId + 1;
