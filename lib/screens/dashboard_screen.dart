@@ -272,14 +272,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               child: DropdownButtonHideUnderline(
                 child: () {
+                  // กรองให้แน่ใจว่าแต่ละ round มี id ที่ไม่เป็น null/empty และไม่ซ้ำกัน
+                  final uniqueRounds = <String, Map<String, dynamic>>{};
+                  for (final r in allRounds) {
+                    final id = (r['id'] ?? r['id_year'] ?? '').toString().trim();
+                    if (id.isNotEmpty && id != 'null' && !uniqueRounds.containsKey(id)) {
+                      uniqueRounds[id] = r;
+                    }
+                  }
+                  final displayRounds = uniqueRounds.values.toList();
+                  if (displayRounds.isEmpty) return const SizedBox.shrink();
+
                   final String? currentId =
-                      (selectedRound?['id'] ?? activeRound?['id'])?.toString();
-                  final String? safeValue =
-                      allRounds.any((r) => r['id'].toString() == currentId)
-                          ? currentId
-                          : (allRounds.isNotEmpty
-                              ? allRounds.first['id'].toString()
-                              : null);
+                      (selectedRound?['id'] ?? selectedRound?['id_year'] ??
+                       activeRound?['id'] ?? activeRound?['id_year'])?.toString().trim();
+
+                  final String safeValue = (currentId != null &&
+                          displayRounds.any((r) => r['id'].toString() == currentId))
+                      ? currentId
+                      : displayRounds.first['id'].toString();
 
                   return DropdownButton<String>(
                     value: safeValue,
@@ -288,7 +299,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     isExpanded: true,
                     dropdownColor: const Color(0xFFF8FAFC),
                     selectedItemBuilder: (BuildContext context) {
-                      return allRounds.map<Widget>((round) {
+                      return displayRounds.map<Widget>((round) {
                         return Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
@@ -302,8 +313,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         );
                       }).toList();
                     },
-                    items: allRounds.map((round) {
-                      bool isCurrent = round['id'] == activeRound?['id'];
+                    items: displayRounds.map((round) {
+                      final roundId = round['id'].toString();
+                      bool isCurrent = roundId == (activeRound?['id'] ?? activeRound?['id_year'])?.toString();
                       String dateRange = "ไม่ระบุช่วงวันที่";
                       if (round['startDate'] != null &&
                           round['endDate'] != null &&
@@ -314,7 +326,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       }
 
                       return DropdownMenuItem<String>(
-                        value: round['id'].toString(),
+                        value: roundId,
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -363,7 +375,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     onChanged: (val) {
                       if (val != null) {
                         setState(() {
-                          _selectedRound = allRounds
+                          _selectedRound = displayRounds
                               .firstWhere((r) => r['id'].toString() == val);
                         });
                       }

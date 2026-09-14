@@ -34,6 +34,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
   String? _loggedInUser;
   String? _userRole;
   String? _selectedLeaveType = '---เลือก---';
+  List<String> _leaveTypeNames = [];
   DateTime _startDate = DateTime.now();
   DateTime _endDate = DateTime.now();
   bool _isHalfDay = false;
@@ -87,11 +88,16 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
       final prefs = await SharedPreferences.getInstance();
       // 🚀 อ่านจาก Supabase — ห้ามเขียน Firebase
       final users = await _firebaseService.getUsersFromSupabase();
+      final leaveTypes = await _firebaseService.getLeaveTypesRawFromSupabase();
       if (!mounted) return;
       setState(() {
         _allUsers = users;
         _loggedInUser = prefs.getString('currentUser');
         _userRole = prefs.getString('userRole');
+        _leaveTypeNames = leaveTypes
+            .map((t) => (t['leaveName'] ?? t['Value'] ?? '').toString())
+            .where((n) => n.isNotEmpty)
+            .toList();
       });
 
       final nameToFetch = widget.initialData?['fullName'] ??
@@ -648,13 +654,9 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                         child: Column(
                           children: [
                             _buildDropdownField(
-                                _selectedLeaveType ?? '---เลือก---', [
-                              "---เลือก---",
-                              "ลาป่วย",
-                              "ลากิจส่วนตัว",
-                              "ลาคลอดบุตร",
-                              "ลาพักผ่อน"
-                            ], (val) {
+                                _selectedLeaveType ?? '---เลือก---',
+                                ["---เลือก---", ..._leaveTypeNames],
+                                (val) {
                               setState(() {
                                 _selectedLeaveType = val;
                                 if (_isMaternityLeave) {

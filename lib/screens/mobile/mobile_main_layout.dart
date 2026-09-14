@@ -62,11 +62,18 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
     return allowed;
   }
 
+  static bool _isTruthy(dynamic v) {
+    if (v == null) return false;
+    if (v == true || v == 1) return true;
+    final s = v.toString().trim().toUpperCase();
+    return s == 'TRUE' || s == '1';
+  }
+
   List<int> _allowedMenusFromData(Map<String, dynamic> data) {
     final allowed = <int>[];
     for (int i = 0; i <= 8; i++) {
       final val = data[i.toString()];
-      if (val == true || val.toString().toUpperCase() == 'TRUE') {
+      if (_isTruthy(val)) {
         allowed.add(i);
       }
     }
@@ -86,8 +93,7 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
 
     oldMapping.forEach((key, index) {
       final val = data[key];
-      if (!allowed.contains(index) &&
-          (val == true || val.toString().toUpperCase() == 'TRUE')) {
+      if (!allowed.contains(index) && _isTruthy(val)) {
         allowed.add(index);
       }
     });
@@ -95,8 +101,7 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
     final hasAccountField = data.containsKey('-1') || data.containsKey('บัญชี');
     final accountValue = data['-1'] ?? data['บัญชี'];
     if (hasAccountField) {
-      if (accountValue == true ||
-          accountValue.toString().toUpperCase() == 'TRUE') {
+      if (_isTruthy(accountValue)) {
         allowed.add(-1);
       }
     } else {

@@ -29,6 +29,7 @@ class _MainLayoutState extends State<MainLayout> {
   Map<String, dynamic>? _editData;
   Map<String, dynamic>? _permissionData;
   final _firebaseService = FirebaseService();
+  late final List<Widget> _cachedScreens = _buildScreens();
 
   Future<void> _clearSessionPrefs(SharedPreferences prefs) async {
     await prefs.remove('isLoggedIn');
@@ -91,7 +92,7 @@ class _MainLayoutState extends State<MainLayout> {
     }
   }
 
-  List<Widget> _getScreens() {
+  List<Widget> _buildScreens() {
     return [
       DashboardScreen(
         onNavigate: (index) {
@@ -103,30 +104,37 @@ class _MainLayoutState extends State<MainLayout> {
         },
       ),
       const ReportOverviewScreen(),
-      LeaveFormScreen(
-        key: ValueKey('edit_${_editData?['requestId'] ?? 'new'}'),
-        initialData: _editData,
-        onComplete: () {
-          setState(() {
-            _editData = null;
-            _selectedIndex = 3; // กลับไปหน้าประวัติครับ
-          });
-        },
-      ),
+      const SizedBox.shrink(), // placeholder — LeaveFormScreen สร้างแยกเพราะมี editData
       LeaveHistoryScreen(
         onEdit: (data) {
           setState(() {
             _editData = data;
-            _selectedIndex = 2; // ไปหน้าส่งใบลาครับ
+            _selectedIndex = 2;
           });
         },
       ),
       const UserManagementScreen(),
       const PersonnelScreen(),
       const Center(child: Text('จัดการข้อมูลครูเวน (เร็วๆ นี้)')),
-      const LoginLogsScreen(), // 🛡️ หน้าประวัติการเข้าใช้งาน 🥇🏆
-      const CalendarScreen(), // 📅 หน้าปฏิทินกิจกรรม 🥇🏆
+      const LoginLogsScreen(),
+      const CalendarScreen(),
     ];
+  }
+
+  Widget _getScreen(int index) {
+    if (index == 2) {
+      return LeaveFormScreen(
+        key: ValueKey('edit_${_editData?['requestId'] ?? 'new'}'),
+        initialData: _editData,
+        onComplete: () {
+          setState(() {
+            _editData = null;
+            _selectedIndex = 3;
+          });
+        },
+      );
+    }
+    return _cachedScreens[index];
   }
 
   @override
@@ -157,11 +165,10 @@ class _MainLayoutState extends State<MainLayout> {
           : null,
       body: Builder(
           builder: (context) {
-            final screens = _getScreens();
             int effectiveIndex = _selectedIndex;
             if (_userRole.contains('ครู') && effectiveIndex == 0)
               effectiveIndex = 2;
-            if (effectiveIndex >= screens.length) effectiveIndex = 0;
+            if (effectiveIndex >= _cachedScreens.length) effectiveIndex = 0;
 
             if (_permissionData == null) {
               final defaultAllowed = (_userRole.contains('ผู้ดูแลระบบ') ||
@@ -179,7 +186,7 @@ class _MainLayoutState extends State<MainLayout> {
                         height: double.infinity,
                         child: _selectedIndex == -1
                             ? const MobileProfileScreen()
-                            : screens[effectiveIndex],
+                            : _getScreen(effectiveIndex),
                       ),
                     ),
                   ),
@@ -190,10 +197,16 @@ class _MainLayoutState extends State<MainLayout> {
             final data = _permissionData!;
             List<int> allowed = [];
 
+            bool isTruthy(dynamic v) {
+              if (v == null) return false;
+              if (v == true || v == 1) return true;
+              final s = v.toString().trim().toUpperCase();
+              return s == 'TRUE' || s == '1';
+            }
+
             for (int i = 0; i <= 8; i++) {
               final val = data[i.toString()];
-              if (val == true || val.toString().toUpperCase() == 'TRUE')
-                allowed.add(i);
+              if (isTruthy(val)) allowed.add(i);
             }
 
             final Map<String, int> oldMapping = {
@@ -209,9 +222,7 @@ class _MainLayoutState extends State<MainLayout> {
               'ปฏิทินกิจกรรมส่วนกลาง': 8,
             };
             oldMapping.forEach((key, idx) {
-              if (!allowed.contains(idx) &&
-                  (data[key] == true ||
-                      data[key].toString().toUpperCase() == 'TRUE')) {
+              if (!allowed.contains(idx) && isTruthy(data[key])) {
                 allowed.add(idx);
               }
             });
@@ -234,7 +245,7 @@ class _MainLayoutState extends State<MainLayout> {
                       height: double.infinity,
                       child: _selectedIndex == -1
                           ? const MobileProfileScreen()
-                          : screens[effectiveIndex],
+                          : _getScreen(effectiveIndex),
                     ),
                   ),
                 ),

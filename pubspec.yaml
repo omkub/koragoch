@@ -1,4 +1,4 @@
-﻿name: school_leave_app
+name: school_leave_app
 description: A new Flutter project for School Leave System.
 version: 26.9.11+1
 
@@ -27,6 +27,7 @@ dependencies:
   table_calendar: ^3.2.0
   web: ^1.1.0
   supabase_flutter: ^2.16.0
+  firebase_auth: ^5.7.0
 
 dev_dependencies:
   flutter_test:

@@ -38,6 +38,7 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
   String _halfDayPeriod = 'morning';
   bool _isSubmitting = false;
   List<Map<String, dynamic>> _allUsers = [];
+  List<String> _leaveTypeNames = [];
   String? _editRequestId;
 
   @override
@@ -112,6 +113,17 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
         _userRole = role;
       });
     }
+
+    _firebaseService.getLeaveTypesRawFromSupabase().then((types) {
+      if (mounted) {
+        setState(() {
+          _leaveTypeNames = types
+              .map((t) => (t['leaveName'] ?? t['Value'] ?? '').toString())
+              .where((n) => n.isNotEmpty)
+              .toList();
+        });
+      }
+    });
 
     // 🛡️ ฝั่งแอดมิน: ดึงรายชื่อครูจาก Cache มาโชว์ใน Dropdown ทันที! 🥇🏆
     if (role?.contains('ผู้ดูแลระบบ') == true) {
@@ -732,13 +744,7 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
                     _buildFieldLabel("ประเภทการลา"),
                     _buildDropdownField(
                         _selectedLeaveType ?? '---เลือก---',
-                        [
-                          "---เลือก---",
-                          "ลาป่วย",
-                          "ลากิจส่วนตัว",
-                          "ลาคลอดบุตร",
-                          "ลาพักผ่อน"
-                        ],
+                        ["---เลือก---", ..._leaveTypeNames],
                         (val) => setState(() {
                               _selectedLeaveType = val;
                               if (_isMaternityLeave) {

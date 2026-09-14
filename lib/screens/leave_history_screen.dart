@@ -56,27 +56,35 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
       final prefs = await SharedPreferences.getInstance();
       final role = prefs.getString('userRole');
       final user = prefs.getString('currentUser');
-      if (mounted) {
-        setState(() {
-          _userRole = role;
-          _currentUser = user;
-          _leaveRequestsStream = _createLeaveRequestsStream(role, user);
-        });
-      }
 
-      // 🚀 อ่านจาก Supabase
-      final results = await Future.wait([
-        _firebaseService.getUsersFromSupabase(),
-        _firebaseService.getFiscalRoundsFromSupabase(),
-        _firebaseService.getActiveFiscalRoundFromSupabase(),
-      ]);
-      final usersSnap = results[0] as List<Map<String, dynamic>>;
+      // โหลดทุกอย่างพร้อมกัน
+      final futureLeaves = _canViewAllHistory(role)
+          ? _firebaseService.getLeaveRequestsFromSupabase()
+          : _firebaseService.getMyLeaveRequestsFromSupabase(user ?? '');
+      final futureRounds = _firebaseService.getFiscalRoundsFromSupabase();
+      final futureActive = _firebaseService.getActiveFiscalRoundFromSupabase();
+
+      final results = await Future.wait([futureLeaves, futureRounds, futureActive]);
+      final leaveList = results[0] as List<Map<String, dynamic>>;
       final roundsSnap = results[1] as List<Map<String, dynamic>>;
       final activeRound = results[2] as Map<String, dynamic>?;
 
       if (mounted) {
         setState(() {
-          _allUsers = usersSnap;
+          _userRole = role;
+          _currentUser = user;
+          _leaveRequestsStream = Stream.value(leaveList);
+          _allUsers = [];
+        });
+      }
+
+      // โหลด users แบบ background (ใช้สำหรับ filter/lookup ไม่บล็อค UI)
+      _firebaseService.getUsersFromSupabase().then((users) {
+        if (mounted) setState(() => _allUsers = users);
+      });
+
+      if (mounted) {
+        setState(() {
           _rounds = roundsSnap;
 
           if (activeRound != null) {

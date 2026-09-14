@@ -81,6 +81,10 @@ class _LineSettingsScreenState extends State<LineSettingsScreen> {
             _buildNoticeCard(),
             const SizedBox(height: 24),
 
+            // ===== TOGGLE: เปิด/ปิดการส่ง LINE =====
+            _buildToggleCard(),
+            const SizedBox(height: 24),
+
             // ===== SECTION 1: Channel Access Token =====
             _buildSettingsCard(isMobile),
             const SizedBox(height: 24),
@@ -148,6 +152,24 @@ class _LineSettingsScreenState extends State<LineSettingsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildToggleCard() {
+    return _buildCard(
+      child: SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: Text("เปิดใช้งานการแจ้งเตือน LINE",
+            style: GoogleFonts.sarabun(fontSize: 16, fontWeight: FontWeight.w600)),
+        subtitle: Text(
+            FirebaseService.lineNotifyEnabled
+                ? "ระบบจะส่งแจ้งเตือนเมื่อมีการยื่นใบลา"
+                : "ปิดอยู่ — ระบบจะไม่ส่งแจ้งเตือน LINE (ช่วงทดสอบ)",
+            style: GoogleFonts.sarabun(fontSize: 13, color: Colors.blueGrey)),
+        value: FirebaseService.lineNotifyEnabled,
+        activeColor: const Color(0xFF06C755),
+        onChanged: (val) => setState(() => FirebaseService.lineNotifyEnabled = val),
       ),
     );
   }
