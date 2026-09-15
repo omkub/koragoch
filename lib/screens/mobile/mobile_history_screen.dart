@@ -540,10 +540,11 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
       if (_isApproveStatus(newStatus)) {
         final receiveNumber = await _firebaseService.generateReceiveNumber();
         final now = DateTime.now();
-        final thaiYear = now.year + 543;
         updateData['receiveNumber'] = receiveNumber;
-        updateData['receiveDate'] = '${now.day}/${now.month}/$thaiYear';
-        updateData['receiveTime'] = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')} น.';
+        // คอลัมน์ receiveDate/receiveTime เป็น date/time ต้องส่ง ISO (ค.ศ.)
+        updateData['receiveDate'] = FirebaseService.toIsoDate(now);
+        updateData['receiveTime'] =
+            FirebaseService.toIsoTime(now.hour, now.minute);
       }
 
       await _firebaseService.updateLeaveRequest(requestId, updateData);

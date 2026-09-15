@@ -95,6 +95,8 @@ class MigrationService {
       'totalDays',
       'id_year',
       'receiveNumber',
+      'receiveDate',
+      'receiveTime',
       'medicalCertificate',
     ],
     'LoginLogs': ['id_user', 'timestamp', 'platform', 'userAgent'],

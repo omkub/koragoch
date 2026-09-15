@@ -21,6 +21,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _allUsers = [];
+  List<String> _leaveTypeNames = [];
   List<Map<String, dynamic>> _allLeaveRequests = [];
   Stream<List<Map<String, dynamic>>>? _leaveRequestsStream;
 
@@ -81,6 +82,11 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
       // โหลด users แบบ background (ใช้สำหรับ filter/lookup ไม่บล็อค UI)
       _firebaseService.getUsersFromSupabase().then((users) {
         if (mounted) setState(() => _allUsers = users);
+      });
+
+      // ประเภทการลาใช้เป็นช่องติ๊กในแบบฟอร์มพิมพ์
+      _firebaseService.getLeaveTypes().then((types) {
+        if (mounted) setState(() => _leaveTypeNames = types);
       });
 
       if (mounted) {
@@ -472,13 +478,12 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                 ),
               ),
 
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: MediaQuery.of(context).size.width < 1000
-                    ? 1200
-                    : MediaQuery.of(context).size.width - 64,
-                child: StreamBuilder<List<Map<String, dynamic>>>(
+            // จอกว้าง: ตารางยืดเต็มพื้นที่จริงที่เหลือ (ไม่อิงความกว้างจอ
+            // ซึ่งรวมแถบเมนูซ้ายไปด้วย จนเกิดที่ว่างด้านขวา)
+            // จอแคบ: คงความกว้างขั้นต่ำ 1200 แล้วเลื่อนแนวนอนเหมือนเดิม
+            LayoutBuilder(
+              builder: (context, tableConstraints) {
+                final tableContent = StreamBuilder<List<Map<String, dynamic>>>(
                   stream: _leaveRequestsStream,
                   initialData:
                       _allLeaveRequests.isNotEmpty ? _allLeaveRequests : null,
@@ -541,26 +546,33 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                                   },
                                 ),
                               ),
-                              _buildHeaderLabel('ชื่อ', width: 170),
-                              _buildHeaderLabel('ประเภทลา', width: 140),
-                              _buildHeaderLabel('เริ่ม', width: 110),
-                              _buildHeaderLabel('สิ้นสุด', width: 110),
-                              _buildHeaderLabel('เหตุผล', width: 210),
-                              _buildHeaderLabel('สถานะ', width: 110),
+                              _buildHeaderLabel('ชื่อ'),
+                              _buildHeaderLabel('ประเภทลา'),
+                              _buildHeaderLabel('เริ่ม'),
+                              _buildHeaderLabel('สิ้นสุด'),
+                              _buildHeaderLabel('เหตุผล'),
+                              _buildHeaderLabel('สถานะ'),
                               _buildHeaderLabel('ปีงบ',
-                                  width: 80, align: TextAlign.center),
+                                  align: TextAlign.center),
                               _buildHeaderLabel('จำนวนวัน',
-                                  width: 80, align: TextAlign.center),
+                                  align: TextAlign.center),
                               _buildHeaderLabel('รับที่',
-                                  width: 60, align: TextAlign.center),
+                                  align: TextAlign.center),
                               _buildHeaderLabel('วันที่รับ',
-                                  width: 110, align: TextAlign.center),
+                                  align: TextAlign.center),
                               _buildHeaderLabel('เวลารับ',
-                                  width: 80, align: TextAlign.center),
+                                  align: TextAlign.center),
                               _buildHeaderLabel('ใบรับรองแพทย์/ใบนัด',
-                                  width: 120, align: TextAlign.center),
-                              _buildHeaderLabel('จัดการ',
-                                  width: 50, align: TextAlign.right),
+                                  align: TextAlign.center),
+                              SizedBox(
+                                width: 50,
+                                child: Text('จัดการ',
+                                    textAlign: TextAlign.right,
+                                    style: GoogleFonts.sarabun(
+                                        fontSize: 12,
+                                        color: Colors.black,
+                                        fontWeight: FontWeight.bold)),
+                              ),
                             ],
                           ),
                         ),
@@ -607,8 +619,14 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                       ],
                     );
                   },
-                ),
-              ),
+                );
+
+                if (tableConstraints.maxWidth >= 1000) return tableContent;
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(width: 1200, child: tableContent),
+                );
+              },
             ),
             const SizedBox(height: 20),
             Center(
@@ -886,11 +904,40 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
     );
   }
 
-  Widget _buildHeaderLabel(String text,
-      {required double width, TextAlign align = TextAlign.left}) {
-    return SizedBox(
-        width: width,
-        child: Text(text,
+  // สัดส่วนความกว้างของแต่ละคอลัมน์ในตารางประวัติการลา
+  // ใช้ flex แทนความกว้างตายตัว ตารางจะยืดเต็มกรอบ body เสมอ
+  // ไม่ว่าจอกว้างเท่าไรหรือกำลังย่อ/ขยายมุมมองอยู่ระดับใด
+  static const Map<String, int> _historyColumnFlex = {
+    'ชื่อ': 24,
+    'ประเภทลา': 13,
+    'เริ่ม': 13,
+    'สิ้นสุด': 13,
+    'เหตุผล': 28,
+    'สถานะ': 13,
+    'ปีงบ': 8,
+    'จำนวนวัน': 9,
+    'รับที่': 7,
+    'วันที่รับ': 12,
+    'เวลารับ': 9,
+    'ใบรับรองแพทย์/ใบนัด': 11,
+  };
+
+  /// ช่องข้อมูลหนึ่งคอลัมน์ - ใช้ร่วมกันทั้งหัวตารางและแถวข้อมูล
+  /// เพื่อให้ขอบซ้าย/ขวาของทุกช่องตรงกันเสมอ
+  Widget _historyCell(String key, Widget child) {
+    return Expanded(
+      flex: _historyColumnFlex[key] ?? 10,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: child,
+      ),
+    );
+  }
+
+  Widget _buildHeaderLabel(String text, {TextAlign align = TextAlign.left}) {
+    return _historyCell(
+        text,
+        Text(text,
             textAlign: align,
             style: GoogleFonts.sarabun(
                 fontSize: 12,
@@ -948,42 +995,39 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
               },
             ),
           ),
-          SizedBox(
-              width: 170,
-              child: Text(name,
+          _historyCell(
+              'ชื่อ',
+              Text(name,
                   style: GoogleFonts.sarabun(
                       fontSize: 13,
                       color: Colors.black,
                       fontWeight:
                           isSelected ? FontWeight.bold : FontWeight.normal),
                   overflow: TextOverflow.ellipsis)),
-          SizedBox(
-              width: 140,
-              child: Text(type,
+          _historyCell(
+              'ประเภทลา',
+              Text(type,
                   style: GoogleFonts.sarabun(
                       fontSize: 13,
                       color: isSelected ? Colors.black : Colors.black87))),
-          SizedBox(
-              width: 110,
-              child: Text(FirebaseService.formatThaiDate(leaf['startDate']),
+          _historyCell(
+              'เริ่ม',
+              Text(FirebaseService.formatThaiDate(leaf['startDate']),
                   style:
                       GoogleFonts.sarabun(fontSize: 13, color: Colors.black))),
-          SizedBox(
-              width: 110,
-              child: Text(FirebaseService.formatThaiDate(leaf['endDate']),
+          _historyCell(
+              'สิ้นสุด',
+              Text(FirebaseService.formatThaiDate(leaf['endDate']),
                   style:
                       GoogleFonts.sarabun(fontSize: 13, color: Colors.black))),
-          SizedBox(
-              width: 210,
-              child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Text(leaf['reason'] ?? '-',
-                      style: GoogleFonts.sarabun(
-                          fontSize: 13, color: Colors.black),
-                      overflow: TextOverflow.ellipsis))),
-          SizedBox(
-            width: 110,
-            child: Container(
+          _historyCell(
+              'เหตุผล',
+              Text(leaf['reason'] ?? '-',
+                  style: GoogleFonts.sarabun(fontSize: 13, color: Colors.black),
+                  overflow: TextOverflow.ellipsis)),
+          _historyCell(
+            'สถานะ',
+            Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                   color: (status == 'ส่งใบแล้ว' ||
@@ -1033,15 +1077,15 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
               ),
             ),
           ),
-          SizedBox(
-              width: 80,
-              child: Center(
+          _historyCell(
+              'ปีงบ',
+              Center(
                   child: Text(leaf['year']?.toString() ?? '-',
                       style: GoogleFonts.sarabun(
                           fontSize: 12, color: Colors.black)))),
-          SizedBox(
-              width: 80,
-              child: Center(
+          _historyCell(
+              'จำนวนวัน',
+              Center(
                   child: Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 4),
@@ -1055,30 +1099,30 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                               color: Colors.black))))),
-          SizedBox(
-              width: 60,
-              child: Center(
+          _historyCell(
+              'รับที่',
+              Center(
                   child: Text(
                       leaf['receiveNumber']?.toString() ?? '-',
                       style: GoogleFonts.sarabun(
                           fontSize: 12, color: Colors.black)))),
-          SizedBox(
-              width: 110,
-              child: Center(
+          _historyCell(
+              'วันที่รับ',
+              Center(
                   child: Text(
                       leaf['receiveDate']?.toString() ?? '-',
                       style: GoogleFonts.sarabun(
                           fontSize: 12, color: Colors.black)))),
-          SizedBox(
-              width: 80,
-              child: Center(
+          _historyCell(
+              'เวลารับ',
+              Center(
                   child: Text(
                       leaf['receiveTime']?.toString() ?? '-',
                       style: GoogleFonts.sarabun(
                           fontSize: 12, color: Colors.black)))),
-          SizedBox(
-            width: 110,
-            child: Center(
+          _historyCell(
+            'ใบรับรองแพทย์/ใบนัด',
+            Center(
               child: Builder(builder: (context) {
                 String? certUrl = leaf['medicalCertificate']?.toString();
                 if (certUrl != null && certUrl.startsWith('http')) {
@@ -1230,10 +1274,11 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
       if (_isApproveStatus(status)) {
         final receiveNumber = await _firebaseService.generateReceiveNumber();
         final now = DateTime.now();
-        final thaiYear = now.year + 543;
         updateData['receiveNumber'] = receiveNumber;
-        updateData['receiveDate'] = '${now.day}/${now.month}/$thaiYear';
-        updateData['receiveTime'] = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')} น.';
+        // คอลัมน์ receiveDate/receiveTime เป็น date/time ต้องส่ง ISO (ค.ศ.)
+        updateData['receiveDate'] = FirebaseService.toIsoDate(now);
+        updateData['receiveTime'] =
+            FirebaseService.toIsoTime(now.hour, now.minute);
       }
 
       await _firebaseService.updateLeaveRequest(requestId, updateData);
@@ -1363,8 +1408,9 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                         .updateLeaveReceiveNumberInSupabase(
                       requestId,
                       receiveVal,
-                      dateStr,
-                      timeStr,
+                      FirebaseService.toIsoDate(selectedDate),
+                      FirebaseService.toIsoTime(
+                          selectedTime.hour, selectedTime.minute),
                     );
                     if (mounted) {
                       Navigator.pop(ctx);
@@ -1404,6 +1450,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
           leaf: leaf,
           allUsers: _allUsers,
           allLeaveRequests: _allLeaveRequests,
+          leaveTypeNames: _leaveTypeNames,
         ),
       ),
     );
@@ -1565,11 +1612,13 @@ class _PdfPreviewViewer extends StatefulWidget {
   final Map<String, dynamic> leaf;
   final List<Map<String, dynamic>> allUsers;
   final List<Map<String, dynamic>> allLeaveRequests;
+  final List<String> leaveTypeNames;
 
   const _PdfPreviewViewer(
       {required this.leaf,
       required this.allUsers,
-      required this.allLeaveRequests});
+      required this.allLeaveRequests,
+      this.leaveTypeNames = const []});
 
   @override
   State<_PdfPreviewViewer> createState() => _PdfPreviewViewerState();
@@ -1867,10 +1916,7 @@ ${autoPrint ? '''
     <section class="leave-block">
       <strong>ขอลา</strong>
       <div class="checks">
-        <div class="checkline">${checkbox('ป่วย', leaveTypeRaw.contains('ป่วย'))}</div>
-        <div class="checkline">${checkbox('ลากิจส่วนตัว', leaveTypeRaw.contains('กิจ'))}</div>
-        <div class="checkline">${checkbox('ลาคลอดบุตร', leaveTypeRaw.contains('คลอด'))}</div>
-        <div class="checkline">${checkbox('ลาพักผ่อน', leaveTypeRaw.contains('พัก'))}</div>
+        ${_printableLeaveTypes.map((t) => '<div class="checkline">' + checkbox(t, _isSameLeaveType(leaveTypeRaw, t)) + '</div>').join('')}
       </div>
       <div class="brace">}</div>
       <div class="reason-section" style="padding-top: 34px;">
@@ -2030,14 +2076,53 @@ ${autoPrint ? '''
     return (dt.year + 543).toString();
   }
 
+  /// เทียบประเภทการลาแบบตรงตัวตามที่เก็บในตาราง LeaveTypes
+  /// (ชื่อที่แสดงและชื่อที่เทียบมาจากฐานข้อมูลชุดเดียวกัน จึงตรงกันเสมอ)
+  static bool _isSameLeaveType(String? selected, String candidate) {
+    final a = (selected ?? '').trim();
+    final b = candidate.trim();
+    if (a.isEmpty || b.isEmpty) return false;
+    return a == b;
+  }
+
+  /// ประเภทการลาที่แสดงเป็นช่องติ๊กในเอกสาร ตามตาราง LeaveTypes ทั้งหมด
+  List<String> get _printableLeaveTypes {
+    final names = widget.leaveTypeNames
+        .where((t) => t.trim().isNotEmpty && !t.contains('เลือก'))
+        .toList();
+    if (names.isEmpty) {
+      return const ['ลาป่วย', 'ลากิจส่วนตัว', 'ลาคลอดบุตร'];
+    }
+    return names;
+  }
+
   String _getManagerName(String adminTitle) {
-    if (widget.allUsers.isEmpty) return "(................................)";
-    final manager = widget.allUsers.firstWhere(
-        (u) => (u['ตำแหน่งงานบริหาร']?.toString() == adminTitle),
-        orElse: () => {});
-    return manager.isNotEmpty
-        ? "(${manager['fullName'] ?? '................................'})"
-        : "(................................)";
+    const blank = "(................................)";
+    if (widget.allUsers.isEmpty) return blank;
+
+    String norm(String v) => v.replaceAll(RegExp(r'\s+'), '').trim();
+    final target = norm(adminTitle);
+
+    // เทียบชื่อตำแหน่งแบบไม่สนช่องว่าง และยอมให้ชื่อในฐานยาวกว่า/สั้นกว่าได้
+    // เช่น 'ผู้อำนวยการโรงเรียน' กับ 'ผู้อำนวยการโรงเรียนรมย์บุรีพิทยาคม'
+    Map<String, dynamic> find(bool Function(String) match) {
+      return widget.allUsers.firstWhere(
+        (u) {
+          final value = u['ตำแหน่งงานบริหาร']?.toString() ?? '';
+          if (value.isEmpty) return false;
+          return match(norm(value));
+        },
+        orElse: () => <String, dynamic>{},
+      );
+    }
+
+    var manager = find((v) => v == target);
+    if (manager.isEmpty) {
+      manager = find((v) => v.contains(target) || target.contains(v));
+    }
+
+    final name = manager['fullName']?.toString().trim() ?? '';
+    return name.isNotEmpty ? "($name)" : blank;
   }
 
   Map<String, dynamic>? _getLatestLeaveInFiscalYear() {
@@ -2232,15 +2317,10 @@ ${autoPrint ? '''
                                 fontWeight: FontWeight.bold))),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        "ป่วย",
-                        "ลากิจส่วนตัว",
-                        "ลาคลอดบุตร",
-                        "ลาพักผ่อน"
-                      ].map((t) {
-                        bool isChecked = (leaf['leaveType'] ?? '')
-                            .toString()
-                            .contains(t.replaceAll('ลา', ''));
+                      // ดึงจากตาราง LeaveTypes ผ่านหน้าประวัติการลา
+                      children: _printableLeaveTypes.map((t) {
+                        final isChecked = _isSameLeaveType(
+                            leaf['leaveType']?.toString(), t);
                         return _buildPerfectCheckBox(t, isChecked);
                       }).toList(),
                     ),

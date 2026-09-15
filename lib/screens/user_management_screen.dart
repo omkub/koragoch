@@ -35,6 +35,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   final _userController = TextEditingController();
   final _passController = TextEditingController();
   final _adminPosController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _photoController =
       TextEditingController(); // 📸 ตัวแปรสำหรับลิ้งค์รูปภาพโปรไฟล์จาก Drive ครับ
   bool _isUploading = false; // 🔄 สถานะกำลังอัปโหลดรูปขึ้น Cloud ครับ 🥇🏆
@@ -84,6 +86,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   List<String> _roles = ['ครู'];
   List<String> _adminPositions = ['ไม่มีตำแหน่งบริหาร'];
   List<String> _leaveTypes = []; // 🔥 ตัวแปรสำหรับประเภทการลาครับ 🥇🏆
+  List<String> _leaveReasons = []; // 📝 เหตุผลการลาที่ใช้เป็นตัวเลือกด่วน
   bool _isLoadingDropdowns = true;
   String _searchText = ''; // 🔥 ตัวแปรสำหรับค้นหาแบบ Real-time ครับ 🥇🏆
   int _masterSubTab = 0; // 🔥 ตัวแปรสำหรับสลับหมวดหมู่ข้อมูลพื้นฐานครับ 🥇🏆
@@ -245,7 +248,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       case 'AdminRoles':
         return 'ID_AdminRoles';
       case 'LeaveTypes':
-        return 'ID_LeaveTypes';
+        return 'id_leaveType';
+      case 'LeaveReasons':
+        return 'id_leaveReason';
       default:
         return '';
     }
@@ -265,6 +270,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         return 'ตำแหน่งบริหาร';
       case 'LeaveTypes':
         return 'ประเภทการลา';
+      case 'LeaveReasons':
+        return 'เหตุผลการลา';
       default:
         return 'Value';
     }
@@ -307,6 +314,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       'Roles',
       'AdminRoles',
       'LeaveTypes',
+      'LeaveReasons',
     ];
     final orders = <String, int>{};
     final client = Supabase.instance.client;
@@ -316,7 +324,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       final nameField = _masterNameFieldForCollection(collection);
       try {
         final rows = await client
-            .from(collection.toLowerCase())
+            .from(_supabaseTableAndNameField(collection).$1)
             .select();
         for (final row in (rows as List)) {
           final name = (row[nameField] ?? row['Value'] ?? '').toString().trim();
@@ -342,6 +350,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         _firebaseService.getPermissions(),
         _firebaseService.getAdminRoles(),
         _firebaseService.getLeaveTypes(),
+        _firebaseService.getLeaveReasons(),
         _loadMasterOrderByKey(),
       ]);
 
@@ -351,7 +360,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       final pms = results[3] as List<String>;
       final adm = results[4] as List<String>;
       final lvt = results[5] as List<String>;
-      final masterOrders = results[6] as Map<String, int>;
+      final lvr = results[6] as List<String>;
+      final masterOrders = results[7] as Map<String, int>;
 
       setState(() {
         if (pos.isNotEmpty) _positions = ['---เลือก---', ...pos];
@@ -361,6 +371,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         if (pms.isNotEmpty) _roles = pms;
         if (adm.isNotEmpty) _adminPositions = adm;
         if (lvt.isNotEmpty) _leaveTypes = lvt; // 🥇 เชื่อมต่อข้อมูล
+        _leaveReasons = lvr;
 
         // 🔥 เริ่มต้นสถานะสิทธิ์สำหรับแต่ละบทบาทครับ
         for (var role in _roles) {
@@ -408,6 +419,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       'role': _selectedRole,
       'permission': _selectedRole,
       'ตำแหน่งงานบริหาร': _adminPosController.text,
+      'email': _emailController.text.trim(),
+      'phone': _phoneController.text.trim(),
       'profileImage': _photoController.text,
       'updatedAt': DateTime.now().toIso8601String(),
     };
@@ -463,6 +476,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           user['permission'] ??
           'ครู'; // 🔥 ตรวจสอบทั้งสองฟิลด์ครับ
       _adminPosController.text = user['ตำแหน่งงานบริหาร'] ?? '';
+      _emailController.text = user['email']?.toString() ?? '';
+      _phoneController.text = user['phone']?.toString() ?? '';
       _photoController.text = user['profileImage'] ?? ''; // 📸 ดึงข้อมูลรูปภาพ
       _oldPhotoUrl = _photoController
           .text; // 🥇 เก็บรูปภาพเดิมไว้เผื่อกรณีทีมีการลบ/เปลี่ยนรูป
@@ -482,6 +497,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       _selectedRank = '---เลือก---';
       _selectedRole = 'ครู';
       _adminPosController.text = 'ไม่มีตำแหน่งบริหาร';
+      _emailController.clear();
+      _phoneController.clear();
       _photoController.clear(); // 📸 ล้างข้อมูลรูปภาพ
     });
   }
@@ -2582,7 +2599,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       await supabase
           .from('Leaves')
           .select(
-              'id_leaves,id_user,timestamp,status,lastUpdatedAt,leaveDate,id_leaveType,reason,startDate,endDate,totalDays,id_year,receiveNumber,medicalCertificate')
+              'id_leaves,id_user,timestamp,status,lastUpdatedAt,leaveDate,id_leaveType,reason,startDate,endDate,totalDays,id_year,receiveNumber,receiveDate,receiveTime,medicalCertificate')
           .limit(0);
     } catch (e) {
       onLog('Leaves: ตรวจ schema ไม่สำเร็จ: $e');
@@ -2643,6 +2660,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           'totalDays': _numericForMigration(data['totalDays']),
           'id_year': idYear,
           'receiveNumber': data['receiveNumber']?.toString(),
+          // วันรับ/เวลารับจาก Firebase เก็บเป็นข้อความไทย (8/9/2569, '09:41 น.')
+          // ต้องแปลงเป็น ISO ก่อนลงคอลัมน์ date/time ของ Supabase
+          'receiveDate': _dateForMigration(data['receiveDate']),
+          'receiveTime': _timeForMigration(data['receiveTime']),
           'medicalCertificate': data['medicalCertificate']?.toString(),
         }..removeWhere((_, value) => value == null);
 
@@ -2944,6 +2965,29 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     return num.tryParse(value.toString());
   }
 
+  /// แปลงเวลารับใบลาเป็นรูปแบบที่คอลัมน์ time รับได้
+  /// รองรับ '09:41 น.', '9:41', '09:41:00'
+  String? _timeForMigration(dynamic value) {
+    if (value == null) return null;
+    if (value is Timestamp) return _timeForMigration(value.toDate());
+    if (value is DateTime) {
+      return '${value.hour.toString().padLeft(2, '0')}:'
+          '${value.minute.toString().padLeft(2, '0')}:'
+          '${value.second.toString().padLeft(2, '0')}';
+    }
+    final text = value.toString().replaceAll('น.', '').trim();
+    if (text.isEmpty) return null;
+    final match = RegExp(r'^(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$').firstMatch(text);
+    if (match == null) return null;
+    final h = int.parse(match[1]!);
+    final m = int.parse(match[2]!);
+    final sec = match[3] == null ? 0 : int.parse(match[3]!);
+    if (h > 23 || m > 59 || sec > 59) return null;
+    return '${h.toString().padLeft(2, '0')}:'
+        '${m.toString().padLeft(2, '0')}:'
+        '${sec.toString().padLeft(2, '0')}';
+  }
+
   String? _dateForMigration(dynamic value) {
     if (value == null) return null;
     if (value is Timestamp) return _dateForMigration(value.toDate());
@@ -3167,6 +3211,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   4, "ตำแหน่งบริหาร", Icons.edit_document, Colors.orange),
               _buildSubTabButton(
                   5, "ประเภทการลา", Icons.description_rounded, Colors.pink),
+              _buildSubTabButton(
+                  6, "เหตุผลการลา", Icons.notes_rounded, Colors.indigo),
             ],
           ),
         ),
@@ -3232,6 +3278,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       case 5:
         return _buildMasterCard("จัดการประเภทการลา", Icons.description_rounded,
             Colors.pink, _leaveTypes);
+      case 6:
+        return _buildMasterCard("จัดการเหตุผลการลา", Icons.notes_rounded,
+            Colors.indigo, _leaveReasons);
       default:
         return const SizedBox();
     }
@@ -3251,6 +3300,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         return 'AdminRoles';
       case 5:
         return 'LeaveTypes';
+      case 6:
+        return 'LeaveReasons';
       default:
         return '';
     }
@@ -3270,6 +3321,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         return 'adminPositions';
       case 5:
         return 'leaveTypes';
+      case 6:
+        return 'leaveReasons';
       default:
         return '';
     }
@@ -3289,6 +3342,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         return _adminPositions;
       case 5:
         return _leaveTypes;
+      case 6:
+        return _leaveReasons;
       default:
         return const [];
     }
@@ -3337,9 +3392,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     String idField,
   ) async {
     final client = Supabase.instance.client;
-    final rows = await client
-        .from(collection.toLowerCase())
-        .select(idField);
+    // ชื่อตารางต้องมาจาก mapping ไม่ใช่ toLowerCase()
+    // เพราะ PostgREST แยกตัวพิมพ์ (เช่น LeaveTypes ไม่ใช่ leavetypes)
+    final table = _supabaseTableAndNameField(collection).$1;
+    final rows = await client.from(table).select(idField);
     var maxId = 0;
     for (final row in (rows as List)) {
       final current = _toIntValue(row[idField]);
@@ -3362,6 +3418,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         return ('adminroles', 'AdminRolesName');
       case 'leavetypes':
         return ('LeaveTypes', 'leaveName');
+      case 'leavereasons':
+        return ('LeaveReasons', 'reasonName');
       default:
         return (collection, 'Value');
     }
@@ -3379,21 +3437,185 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
     try {
       final client = _firebaseService.supabaseClient;
-      if (client != null) {
-        if (idField.isNotEmpty) {
-          final nextId = await _nextMasterNumericId(collection, idField);
-          await client.from(table).insert({
-            idField: nextId,
-            nameField: value,
-          });
-        } else {
-          await client.from(table).insert({
-            nameField: value,
-          });
-        }
+      if (client == null) return;
+
+      if (idField.isEmpty) {
+        await client.from(table).insert({nameField: value});
+        return;
+      }
+
+      try {
+        final nextId = await _nextMasterNumericId(collection, idField);
+        await client.from(table).insert({
+          idField: nextId,
+          nameField: value,
+        });
+      } on PostgrestException catch (e) {
+        // บางตาราง (เช่น LeaveTypes) ตั้ง PK เป็น identity แบบ GENERATED ALWAYS
+        // ฐานข้อมูลออกเลขให้เอง ห้ามส่งค่าไปเอง -> insert ใหม่โดยไม่ใส่ id
+        final isIdentityColumn = e.code == '428C9' ||
+            e.message.contains('GENERATED ALWAYS') ||
+            e.message.contains('identity column');
+        if (!isIdentityColumn) rethrow;
+        await client.from(table).insert({nameField: value});
       }
     } catch (e) {
       debugPrint('Supabase _createMasterItem error: $e');
+      rethrow; // ต้องให้ UI รู้ ไม่งั้นจะขึ้นว่าบันทึกสำเร็จทั้งที่ไม่ได้บันทึก
+    }
+  }
+
+  /// ตัดช่องว่างซ้ำและอักขระวรรคตอนท้ายออก เพื่อเทียบข้อความอย่างยุติธรรม
+  String _normalizeReason(String value) {
+    return value
+        .replaceAll(RegExp(r'\s+'), '')
+        .replaceAll(RegExp(r'[.,!?ๆฯ]+$'), '')
+        .trim();
+  }
+
+  /// ระยะห่างของข้อความสองชุด (Levenshtein) ใช้วัดว่าพิมพ์ใกล้เคียงกันแค่ไหน
+  int _levenshtein(String a, String b) {
+    if (a == b) return 0;
+    if (a.isEmpty) return b.length;
+    if (b.isEmpty) return a.length;
+
+    var previous = List<int>.generate(b.length + 1, (i) => i);
+    var current = List<int>.filled(b.length + 1, 0);
+
+    for (var i = 0; i < a.length; i++) {
+      current[0] = i + 1;
+      for (var j = 0; j < b.length; j++) {
+        final cost = a.codeUnitAt(i) == b.codeUnitAt(j) ? 0 : 1;
+        final deletion = previous[j + 1] + 1;
+        final insertion = current[j] + 1;
+        final substitution = previous[j] + cost;
+        current[j + 1] =
+            [deletion, insertion, substitution].reduce((x, y) => x < y ? x : y);
+      }
+      final swap = previous;
+      previous = current;
+      current = swap;
+    }
+    return previous[b.length];
+  }
+
+  /// ถือว่า "ใกล้เคียงกัน" เมื่อข้อความเหมือนกันเกิน 85%
+  /// หรือข้อความหนึ่งเป็นส่วนหนึ่งของอีกข้อความ (เช่น 'ปวดหัว' กับ 'ปวดหัวมาก')
+  bool _isSimilarReason(String a, String b) {
+    final x = _normalizeReason(a);
+    final y = _normalizeReason(b);
+    if (x.isEmpty || y.isEmpty) return false;
+    if (x == y) return true;
+    if (x.contains(y) || y.contains(x)) return true;
+
+    final longest = x.length > y.length ? x.length : y.length;
+    final similarity = 1 - (_levenshtein(x, y) / longest);
+    return similarity >= 0.85;
+  }
+
+  /// วิเคราะห์เหตุผลที่ครูเคยกรอกใน Leaves แล้วเติมเฉพาะรายการใหม่
+  /// ลงตาราง LeaveReasons — ข้ามรายการที่ซ้ำหรือใกล้เคียงกับที่มีอยู่แล้ว
+  Future<void> _syncLeaveReasonsFromLeaves() async {
+    final used = await _firebaseService.getUsedLeaveReasonsFromLeaves();
+    if (used.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('ไม่พบเหตุผลการลาในใบลาที่บันทึกไว้'),
+          backgroundColor: Colors.orange,
+        ));
+      }
+      return;
+    }
+
+    final existing = List<String>.from(_leaveReasons);
+    final additions = <String>[];
+
+    for (final reason in used) {
+      final isDuplicate = existing.any((e) => _isSimilarReason(e, reason)) ||
+          additions.any((e) => _isSimilarReason(e, reason));
+      if (!isDuplicate) additions.add(reason);
+    }
+
+    if (!mounted) return;
+
+    if (additions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            'ตรวจแล้ว ${used.length} เหตุผล — ไม่มีรายการใหม่ ทุกรายการซ้ำหรือใกล้เคียงกับที่มีอยู่'),
+        backgroundColor: Colors.blueGrey,
+      ));
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('พบเหตุผลใหม่ ${additions.length} รายการ',
+            style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+        content: SizedBox(
+          width: 420,
+          height: 360,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'จากใบลาทั้งหมด ${used.length} เหตุผลที่ไม่ซ้ำกัน '
+                'รายการด้านล่างยังไม่มีในระบบ',
+                style: GoogleFonts.sarabun(
+                    fontSize: 12, color: Colors.blueGrey.shade600),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: Scrollbar(
+                  child: ListView.separated(
+                    itemCount: additions.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (_, i) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          Text('${i + 1}.',
+                              style: GoogleFonts.sarabun(
+                                  fontSize: 12, color: Colors.grey)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(additions[i],
+                                style: GoogleFonts.sarabun(fontSize: 13)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('ยกเลิก', style: GoogleFonts.sarabun()),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+            child: Text('บันทึกทั้งหมด', style: GoogleFonts.sarabun()),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    await _firebaseService.addLeaveReasons(additions);
+    await _loadDropdownData();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('เพิ่มเหตุผลใหม่ ${additions.length} รายการเรียบร้อย'),
+        backgroundColor: Colors.green,
+      ));
     }
   }
 
@@ -3418,6 +3640,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       }
     } catch (e) {
       debugPrint('Supabase _renameMasterItem error: $e');
+      await _loadDropdownData();
+      rethrow;
     }
 
     await _loadDropdownData();
@@ -3439,6 +3663,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       }
     } catch (e) {
       debugPrint('Supabase _deleteMasterItem error: $e');
+      await _loadDropdownData();
+      rethrow;
     }
 
     await _loadDropdownData();
@@ -3550,11 +3776,22 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     onPressed: () async {
                       try {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('กำลังอัปเดตข้อมูลเดิม...'),
-                            duration: Duration(seconds: 1),
+                          SnackBar(
+                            content: Text(masterCollection == 'LeaveReasons'
+                                ? 'กำลังวิเคราะห์เหตุผลจากใบลาทั้งหมด...'
+                                : 'กำลังอัปเดตข้อมูลเดิม...'),
+                            duration: const Duration(seconds: 1),
                           ),
                         );
+
+                        // แท็บเหตุผลการลา: วิเคราะห์จากเหตุผลที่ครูเคยกรอกจริง
+                        if (masterCollection == 'LeaveReasons') {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                          }
+                          await _syncLeaveReasonsFromLeaves();
+                          return;
+                        }
 
                         final updated = await _migrateMasterToNumericSchema(
                             masterCollection);
@@ -4495,6 +4732,30 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             ],
           ),
           const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    _buildFieldLabel('อีเมล'),
+                    _buildTextField(_emailController, 'name@example.com',
+                        icon: Icons.email_outlined,
+                        keyboardType: TextInputType.emailAddress)
+                  ])),
+              const SizedBox(width: 16),
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    _buildFieldLabel('เบอร์โทรติดต่อ'),
+                    _buildTextField(_phoneController, '08X-XXX-XXXX',
+                        icon: Icons.phone_outlined,
+                        keyboardType: TextInputType.phone)
+                  ])),
+            ],
+          ),
+          const SizedBox(height: 20),
           _buildFieldLabel('ตำแหน่ง'),
           _buildDropdownField(
               items: _positions,
@@ -5336,6 +5597,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         'permission',
         'position',
         'department',
+        'ตำแหน่งงานบริหาร',
+        'วิทยฐานะ',
         'firebase_uid',
         'created_at',
         'updated_at'
@@ -5360,6 +5623,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         'totalDays',
         'year',
         'receiveNumber',
+        'receiveDate',
+        'receiveTime',
         'medicalCertificate'
       ],
       'UserRoles': [
@@ -6398,10 +6663,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               color: Colors.blueGrey)));
 
   Widget _buildTextField(TextEditingController ctrl, String hint,
-          {bool obscure = false, IconData? icon}) =>
+          {bool obscure = false,
+          IconData? icon,
+          TextInputType? keyboardType}) =>
       TextField(
           controller: ctrl,
           obscureText: obscure,
+          keyboardType: keyboardType,
           decoration: InputDecoration(
               hintText: hint,
               prefixIcon: icon != null
