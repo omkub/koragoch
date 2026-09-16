@@ -35,6 +35,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
   String? _userRole;
   String? _selectedLeaveType = '---เลือก---';
   List<String> _leaveTypeNames = [];
+  List<String> _leaveReasons = []; // ตัวเลือกด่วนจากตาราง LeaveReasons
   DateTime _startDate = DateTime.now();
   DateTime _endDate = DateTime.now();
   bool _isHalfDay = false;
@@ -89,9 +90,11 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
       // 🚀 อ่านจาก Supabase — ห้ามเขียน Firebase
       final users = await _firebaseService.getUsersFromSupabase();
       final leaveTypes = await _firebaseService.getLeaveTypesRawFromSupabase();
+      final leaveReasons = await _firebaseService.getLeaveReasons();
       if (!mounted) return;
       setState(() {
         _allUsers = users;
+        _leaveReasons = leaveReasons;
         _loggedInUser = prefs.getString('currentUser');
         _userRole = prefs.getString('userRole');
         _leaveTypeNames = leaveTypes
@@ -738,6 +741,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                                 _reasonController, Icons.edit_note_outlined,
                                 hint: "ระบุเหตุผลการลาอย่างละเอียด",
                                 maxLines: 2),
+                            _buildReasonSuggestions(),
                           ],
                         )),
                     const SizedBox(height: 24),
@@ -999,13 +1003,11 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                                           fontWeight: FontWeight.bold))),
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  "ป่วย",
-                                  "ลากิจส่วนตัว",
-                                  "ลาคลอดบุตร",
-                                  "ลาพักผ่อน"
-                                ].map((t) {
-                                  bool isChecked = _selectedLeaveType == t;
+                                // รายการประเภทการลาดึงจากตาราง LeaveTypes
+                                // เพิ่ม/ลบในหน้าข้อมูลพื้นฐานระบบแล้วสะท้อนที่นี่ทันที
+                                children: _printableLeaveTypes.map((t) {
+                                  final isChecked =
+                                      _isSameLeaveType(_selectedLeaveType, t);
                                   return _buildPerfectCheckBox(t, isChecked);
                                 }).toList(),
                               ),
@@ -1569,13 +1571,32 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
   }
 
   String _getManagerName(String adminTitle) {
-    if (_allUsers.isEmpty) return "(................................)";
-    final manager = _allUsers.firstWhere(
-        (u) => (u['ตำแหน่งงานบริหาร']?.toString() == adminTitle),
-        orElse: () => {});
-    return manager.isNotEmpty
-        ? "(${manager['fullName'] ?? '................................'})"
-        : "(................................)";
+    const blank = "(................................)";
+    if (_allUsers.isEmpty) return blank;
+
+    String norm(String v) => v.replaceAll(RegExp(r'\s+'), '').trim();
+    final target = norm(adminTitle);
+
+    // เทียบชื่อตำแหน่งแบบไม่สนช่องว่าง และยอมให้ชื่อในฐานยาวกว่า/สั้นกว่าได้
+    // เช่น 'ผู้อำนวยการโรงเรียน' กับ 'ผู้อำนวยการโรงเรียนรมย์บุรีพิทยาคม'
+    Map<String, dynamic> find(bool Function(String) match) {
+      return _allUsers.firstWhere(
+        (u) {
+          final value = u['ตำแหน่งงานบริหาร']?.toString() ?? '';
+          if (value.isEmpty) return false;
+          return match(norm(value));
+        },
+        orElse: () => <String, dynamic>{},
+      );
+    }
+
+    var manager = find((v) => v == target);
+    if (manager.isEmpty) {
+      manager = find((v) => v.contains(target) || target.contains(v));
+    }
+
+    final name = manager['fullName']?.toString().trim() ?? '';
+    return name.isNotEmpty ? "($name)" : blank;
   }
 
   Widget _buildDatePickerField(String label, String value, VoidCallback onTap) {
@@ -1610,6 +1631,111 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
           ),
         ),
       ],
+    );
+  }
+
+  /// รายการเหตุผลที่ตั้งไว้ในระบบ แสดงต่อจากช่องกรอกทันที
+  /// พิมพ์เองก็ได้ หรือแตะเลือกจากรายการก็ได้ (ไม่มีปุ่มกดเปิด)
+  /// เมื่อเริ่มพิมพ์ รายการจะกรองเฉพาะที่ตรงกับคำที่พิมพ์
+  /// เทียบประเภทการลาแบบตรงตัวตามที่เก็บในตาราง LeaveTypes
+  /// (ชื่อที่แสดงและชื่อที่เทียบมาจากฐานข้อมูลชุดเดียวกัน จึงตรงกันเสมอ)
+  static bool _isSameLeaveType(String? selected, String candidate) {
+    final a = (selected ?? '').trim();
+    final b = candidate.trim();
+    if (a.isEmpty || b.isEmpty) return false;
+    return a == b;
+  }
+
+  /// ประเภทการลาที่แสดงเป็นช่องติ๊กในแบบฟอร์ม
+  /// แสดงตามตาราง LeaveTypes ทั้งหมด (มีค่าสำรองเผื่อโหลดฐานไม่ทัน)
+  List<String> get _printableLeaveTypes {
+    final names = _leaveTypeNames
+        .where((t) => t.trim().isNotEmpty && !t.contains('เลือก'))
+        .toList();
+    if (names.isEmpty) {
+      return const ['ลาป่วย', 'ลากิจส่วนตัว', 'ลาคลอดบุตร'];
+    }
+    return names;
+  }
+
+  Widget _buildReasonSuggestions() {
+    if (_leaveReasons.isEmpty) return const SizedBox.shrink();
+
+    final typed = _reasonController.text.trim();
+    final matches = typed.isEmpty
+        ? _leaveReasons
+        : _leaveReasons
+            .where((r) =>
+                r.contains(typed) || r.toLowerCase().contains(typed.toLowerCase()))
+            .toList();
+
+    // พิมพ์ตรงกับตัวเลือกใดตัวเลือกหนึ่งพอดีแล้ว ไม่ต้องเสนออะไรอีก
+    if (matches.isEmpty || (matches.length == 1 && matches.first == typed)) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.bolt_rounded,
+                  size: 14, color: Color(0xFF94A3B8)),
+              const SizedBox(width: 4),
+              Text(
+                typed.isEmpty ? 'เหตุผลที่ใช้บ่อย' : 'ตัวเลือกที่ใกล้เคียง',
+                style: GoogleFonts.sarabun(
+                    fontSize: 11,
+                    color: const Color(0xFF94A3B8),
+                    fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: matches.map((reason) {
+              final isSelected = reason == typed;
+              return InkWell(
+                onTap: () {
+                  setState(() {
+                    _reasonController.text = reason;
+                    _reasonController.selection = TextSelection.fromPosition(
+                        TextPosition(offset: reason.length));
+                  });
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? const Color(0xFF0F172A)
+                        : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: isSelected
+                            ? const Color(0xFF0F172A)
+                            : const Color(0xFFE2E8F0)),
+                  ),
+                  child: Text(
+                    reason,
+                    style: GoogleFonts.sarabun(
+                      fontSize: 12,
+                      color: isSelected ? Colors.white : const Color(0xFF334155),
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.w500,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
     );
   }
 

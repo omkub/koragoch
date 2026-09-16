@@ -160,7 +160,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Container(
             color: const Color(0xFFF1F5F9),
             child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
+              // ไม่บังคับให้เลื่อนเสมอ ถ้าเนื้อหาพอดีจอจะเลื่อนไม่ได้เลย
+              // (AlwaysScrollableScrollPhysics ทำให้ลากขึ้นลงได้ทั้งที่ไม่มีอะไรให้ดูต่อ)
               padding: EdgeInsets.symmetric(
                   horizontal: isMobile ? 12 : 24, vertical: 20),
               child: Column(
@@ -178,8 +179,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     _buildMiddleSection(
                         isMobile, typeCountMap, totalAll, leaves),
                   ],
-                  // 🕵️‍♂️ เพิ่มพ่วงพื้นที่ด้านล่างเล็กน้อยกันโดนบังครับ
-                  const SizedBox(height: 100),
+                  // เว้นท้ายไว้กันแถบเมนูล่างบังเฉพาะจอมือถือ
+                  // บนจอใหญ่ไม่มีอะไรบัง เว้นไว้ 100 จะทำให้หน้าเลื่อนได้ทั้งที่
+                  // เนื้อหาพอดีจออยู่แล้วครับ
+                  SizedBox(height: isMobile ? 100 : 8),
                 ],
               ),
             ),

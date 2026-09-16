@@ -9,6 +9,7 @@ import '../login_screen.dart';
 import '../personnel_screen.dart';
 import 'mobile_password_reset_screen.dart'; // 🔐 เพิ่ม Import สำหรับหน้าอนุมัติรีเซ็ตรหัสครับ 🥇
 import '../user_management_screen.dart'; // 👤 เพิ่มหน้าจัดการผู้ใช้ครับ
+import '../../utils/profile_image.dart';
 
 class MobileProfileScreen extends StatefulWidget {
   const MobileProfileScreen({super.key});
@@ -373,32 +374,9 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
     }
   }
 
-  // 🖼️ ฟังก์ชันแปลงลิงก์ Google Drive ให้เป็น Direct Link สำหรับแสดงผลครับ 🥇🏆🏎️
-  String _getDisplayImageUrl(String? url) {
-    if (url == null || url.isEmpty) return '';
-
-    String? fileId;
-    // 🕵️‍♂️ ตรวจจับรูปแบบ 1: drive.google.com/file/d/ID/...
-    if (url.contains('drive.google.com/file/d/')) {
-      final match = RegExp(r"\/d\/([a-zA-Z0-9_-]+)").firstMatch(url);
-      if (match != null && match.groupCount >= 1) fileId = match.group(1);
-    }
-    // 🕵️‍♂️ ตรวจจับรูปแบบ 2: drive.google.com/uc?export=view&id=ID (จาก Google Apps Script)
-    else if (url.contains('id=')) {
-      final match = RegExp(r"id=([a-zA-Z0-9_-]+)").firstMatch(url);
-      if (match != null && match.groupCount >= 1) fileId = match.group(1);
-    }
-
-    if (fileId != null) {
-      // 🚀 รูปแบบ Direct Link ขั้นสุดสำหรับภาพโปรไฟล์ ลดปัญหา CORS บนมือถือ 100% ครับ 🥇🏆
-      return "https://lh3.googleusercontent.com/d/$fileId";
-    }
-
-    // 🔄 เพิ่ม Cache Buster เพื่อให้รูปอัปเดตทันทีครับ
-    return url.contains('?')
-        ? "$url&t=${DateTime.now().millisecondsSinceEpoch}"
-        : "$url?t=${DateTime.now().millisecondsSinceEpoch}";
-  }
+  // 🖼️ การแปลงลิงก์รูปย้ายไปอยู่ที่ lib/utils/profile_image.dart แล้ว
+  // ใช้ widget ProfileAvatar แทน (เดิมต่อ ?t=timestamp ท้าย URL ทำให้ URL
+  // เปลี่ยนทุกครั้งที่ build → โหลดรูปใหม่ไม่หยุดและภาพกระพริบครับ)
 
   @override
   Widget build(BuildContext context) {
@@ -517,15 +495,12 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
                 child: ClipOval(
                   child: _isUploadingImage
                       ? const Center(child: CircularProgressIndicator())
-                      : (profileImg != null && profileImg.isNotEmpty)
-                          ? Image.network(_getDisplayImageUrl(profileImg),
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const Icon(
-                                  Icons.person,
-                                  size: 60,
-                                  color: Color(0xFF94A3B8)))
-                          : const Icon(Icons.person,
-                              size: 60, color: Color(0xFF94A3B8)),
+                      : ProfileAvatar(
+                          imageUrl: profileImg,
+                          size: 122, // 130 ลบขอบขาว 4 ด้าน
+                          backgroundColor: const Color(0xFFF1F5F9),
+                          foregroundColor: const Color(0xFF94A3B8),
+                        ),
                 ),
               ),
               Positioned(

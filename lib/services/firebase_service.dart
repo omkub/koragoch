@@ -242,6 +242,10 @@ class FirebaseService {
     final rec = Map<String, dynamic>.from(newData);
     rec.remove('id');
     rec.remove('docId');
+    // Teachers ใช้ชื่อคอลัมน์ updated_at (snake_case)
+    if (rec.containsKey('updatedAt')) {
+      rec['updated_at'] = rec.remove('updatedAt');
+    }
 
     // ถ้ามีการส่งตำแหน่ง/กลุ่มสาระ/สิทธิ์เป็นชื่อ ให้แปลงเป็น FK
     if (rec.containsKey('position')) {
@@ -256,6 +260,7 @@ class FirebaseService {
           rec['id_position'] = posRows.first['ID_Positions'];
         }
       }
+      rec.remove('position'); // Teachers เก็บเป็น FK id_position เท่านั้น
     }
     if (rec.containsKey('department')) {
       final deptName = rec['department']?.toString().trim();
@@ -269,6 +274,7 @@ class FirebaseService {
           rec['id_department'] = deptRows.first['ID_Departments'];
         }
       }
+      rec.remove('department'); // Teachers เก็บเป็น FK id_department เท่านั้น
     }
     if (rec.containsKey('role')) {
       final roleName = rec['role']?.toString().trim();
@@ -284,6 +290,29 @@ class FirebaseService {
         }
       }
     }
+    // ตำแหน่งงานบริหาร: UI ส่งมาเป็นชื่อภาษาไทย ต้องแปลงเป็น FK id_adminrole
+    // (ถ้าเลือก 'ไม่มีตำแหน่งบริหาร' หรือเว้นว่าง ให้ล้างค่าเป็น null)
+    if (rec.containsKey('ตำแหน่งงานบริหาร') || rec.containsKey('adminRole')) {
+      final adminName =
+          (rec['ตำแหน่งงานบริหาร'] ?? rec['adminRole'])?.toString().trim();
+      rec.remove('ตำแหน่งงานบริหาร');
+      rec.remove('adminRole');
+      if (adminName == null ||
+          adminName.isEmpty ||
+          adminName == 'ไม่มีตำแหน่งบริหาร') {
+        rec['id_adminrole'] = null;
+      } else {
+        final adminRows = await client
+            .from('adminroles')
+            .select('ID_AdminRoles')
+            .ilike('AdminRolesName', adminName)
+            .limit(1);
+        if ((adminRows as List).isNotEmpty) {
+          rec['id_adminrole'] = adminRows.first['ID_AdminRoles'];
+        }
+      }
+    }
+
     // วิทยฐานะ: ตรวจสอบและแปลงทั้ง ID_Academics และ academicStanding
     if (rec.containsKey('academicStanding') ||
         rec.containsKey('ID_Academics') ||
@@ -301,29 +330,34 @@ class FirebaseService {
             .limit(1);
         if ((rankRows as List).isNotEmpty) {
           rec['ID_Academics'] = rankRows.first['ID_Academics'];
-          rec['academicStanding'] = rankRows.first['AcademicsName'];
         }
       }
+      rec.remove('academicStanding');
+      rec.remove('วิทยฐานะ');
     }
 
-    try {
-      if (parsedId != null) {
-        await client.from('Teachers').update(rec).eq('id_user', parsedId);
-      } else {
-        await client.from('Teachers').update(rec).eq('firebase_uid', docId);
-      }
-    } on PostgrestException catch (e) {
-      final match =
-          RegExp(r"Could not find the '([^']+)' column").firstMatch(e.message);
-      if (match != null && rec.containsKey(match.group(1))) {
-        rec.remove(match.group(1));
+    // ตัดคอลัมน์ที่ตาราง Teachers ไม่มีจริงออกทีละตัวแล้วลองใหม่
+    // (เดิมลองใหม่ได้ครั้งเดียว ถ้ามีคีย์ส่วนเกินมากกว่าหนึ่งตัวจะล้มทันที)
+    for (var attempt = 0; attempt < 10; attempt++) {
+      try {
         if (parsedId != null) {
           await client.from('Teachers').update(rec).eq('id_user', parsedId);
         } else {
           await client.from('Teachers').update(rec).eq('firebase_uid', docId);
         }
-      } else {
-        rethrow;
+        return;
+      } on PostgrestException catch (e) {
+        final missing =
+            RegExp(r"Could not find the '([^']+)' column").firstMatch(e.message)
+                    ?.group(1) ??
+                RegExp(r'column "?([^"\s]+)"? does not exist')
+                    .firstMatch(e.message)
+                    ?.group(1);
+        final key = missing?.split('.').last;
+        if (key == null || !rec.containsKey(key)) rethrow;
+        debugPrint('⚠️  Teachers ไม่มีคอลัมน์ $key — ข้ามคอลัมน์นี้');
+        rec.remove(key);
+        if (rec.isEmpty) return;
       }
     }
   }
@@ -379,6 +413,48 @@ class FirebaseService {
   // ดึงประเภทการลา — Supabase
   Future<List<String>> getLeaveTypes() async {
     return getLeaveTypesFromSupabase();
+  }
+
+  // ดึงเหตุผลการลาที่ตั้งไว้เป็นตัวเลือกด่วน — Supabase
+  Future<List<String>> getLeaveReasons() async {
+    return getLeaveReasonsFromSupabase();
+  }
+
+  Future<List<String>> getLeaveReasonsFromSupabase() async {
+    return _getMasterListFromSupabase(
+        'LeaveReasons', ['reasonName', 'reasonname', 'name', 'value']);
+  }
+
+  /// ดึงเหตุผลการลาที่ครูเคยกรอกไว้จริงในตาราง Leaves (ไม่ซ้ำ)
+  /// ใช้สำหรับวิเคราะห์หาเหตุผลใหม่มาเติมในตาราง LeaveReasons
+  Future<List<String>> getUsedLeaveReasonsFromLeaves() async {
+    final client = _supabaseIfReady;
+    if (client == null) return [];
+    try {
+      final rows = await client.from('Leaves').select('reason');
+      final seen = <String>{};
+      final result = <String>[];
+      for (final row in (rows as List)) {
+        final value = (row['reason'] ?? '').toString().trim();
+        if (value.isEmpty) continue;
+        if (seen.add(value)) result.add(value);
+      }
+      return result;
+    } catch (e) {
+      debugPrint('❌ getUsedLeaveReasonsFromLeaves error: $e');
+      return [];
+    }
+  }
+
+  /// เพิ่มเหตุผลการลาใหม่ลงตาราง LeaveReasons
+  /// (PK เป็น identity GENERATED ALWAYS จึงไม่ส่งค่า id ไปเอง)
+  Future<void> addLeaveReasons(List<String> names) async {
+    final client = _supabaseIfReady;
+    if (client == null) throw Exception('Supabase not initialized');
+    if (names.isEmpty) return;
+    await client
+        .from('LeaveReasons')
+        .insert(names.map((n) => {'reasonName': n}).toList());
   }
 
   // ดึงกลุ่มสาระการเรียนรู้ — Supabase
@@ -451,6 +527,31 @@ class FirebaseService {
 
     return s;
   }
+
+  /// แปลงเวลาจาก DB (เช่น '09:41:00') → รูปแบบไทย '09:41 น.'
+  static String formatToThaiTime(dynamic value) {
+    if (value == null) return '';
+    final s = value.toString().trim();
+    if (s.isEmpty) return '';
+    if (s.contains('น.')) return s; // ข้อมูลเก่าที่เป็นข้อความอยู่แล้ว
+    final p = s.split(':');
+    if (p.length >= 2) {
+      final h = int.tryParse(p[0]);
+      final m = int.tryParse(p[1]);
+      if (h != null && m != null) {
+        return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')} น.';
+      }
+    }
+    return s;
+  }
+
+  /// วันที่สำหรับเขียนลงคอลัมน์ date ของ Supabase (ค.ศ. รูปแบบ ISO)
+  static String toIsoDate(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  /// เวลาสำหรับเขียนลงคอลัมน์ time ของ Supabase
+  static String toIsoTime(int hour, int minute) =>
+      '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}:00';
 
   // 🛠️ ฟังก์ชันช่วยตรวจสอบว่าวันที่อยู่ในช่วงงบประมาณหรือไม่ (รูปแบบ วว/ดด/ปปปป) 🥇
   static bool isDateInRange(String dateStr, String startStr, String endStr) {
@@ -625,8 +726,8 @@ class FirebaseService {
     if (client == null) throw Exception('Supabase not initialized');
     await client
         .from('Leaves')
-        .update({'receivenumber': null, 'receivedate': null, 'receivetime': null})
-        .not('receivenumber', 'is', null);
+        .update({'receiveNumber': null, 'receiveDate': null, 'receiveTime': null})
+        .not('receiveNumber', 'is', null);
   }
 
   // 🚀 ส่งใบลาเข้าระบบ (Supabase-only) 🏎️🏁
@@ -691,12 +792,20 @@ class FirebaseService {
   }
 
   // แก้ไขใบลาครับ 🏎️🏁
+  // หมายเหตุ: Leaves ใช้ primary key ชื่อ id_leaves (ไม่ใช่ id)
+  // จึงต้อง update ตรง ๆ แทนการ upsert ด้วยคีย์ 'id'
   Future<void> updateLeaveRequest(
       String requestId, Map<String, dynamic> data) async {
-    await _supabaseUpdate('Leaves', requestId, {
+    final client = _supabaseIfReady;
+    if (client == null) throw Exception('Supabase not initialized');
+    final record = <String, dynamic>{
       ...data,
       'lastUpdatedAt': DateTime.now().toUtc().toIso8601String(),
-    });
+    };
+    record.remove('id');
+    record.remove('id_leaves');
+    record.remove('requestId');
+    await client.from('Leaves').update(record).eq('id_leaves', requestId);
   }
 
   // 🚀 นับเลขรับจาก Supabase
@@ -704,11 +813,19 @@ class FirebaseService {
     final client = _supabaseIfReady;
     if (client == null) throw Exception('Supabase not initialized');
     final fiscalYear = DateTime.now().year + 543;
-    final rows = await client
-        .from('Leaves')
-        .select('receivenumber')
-        .eq('year', fiscalYear)
-        .not('receivenumber', 'is', null);
+
+    // Leaves ไม่มีคอลัมน์ year — ต้องหา id_year จาก FiscalRounds ก่อน
+    final yearRow = await client
+        .from('FiscalRounds')
+        .select('id_year')
+        .eq('year', fiscalYear.toString())
+        .limit(1)
+        .maybeSingle();
+    final idYear = yearRow?['id_year'];
+
+    var query = client.from('Leaves').select('receiveNumber');
+    if (idYear != null) query = query.eq('id_year', idYear);
+    final rows = await query.not('receiveNumber', 'is', null);
     return (rows as List).length + 1;
   }
 
@@ -1172,6 +1289,41 @@ class FirebaseService {
     return null;
   }
 
+  /// หาข้อมูลครูจากตัวระบุที่มีอยู่ ไล่จากที่แม่นที่สุดก่อน
+  /// (id_user → username → fullName) ใช้ตอนต้องรีเฟรชข้อมูลผู้ใช้ที่ล็อกอินอยู่
+  /// เพราะการเทียบด้วย fullName อย่างเดียวพลาดได้ถ้าชื่อในเครื่องกับในฐานข้อมูล
+  /// ไม่ตรงกันเป๊ะ (เช่น มีช่องว่างเกิน หรือเพิ่งเปลี่ยนชื่อ)
+  Future<Map<String, dynamic>?> findTeacher({
+    dynamic idUser,
+    String? username,
+    String? fullName,
+  }) async {
+    final client = _supabaseIfReady;
+    if (client == null) return null;
+
+    Future<Map<String, dynamic>?> byColumn(String column, dynamic value) async {
+      if (value == null || value.toString().trim().isEmpty) return null;
+      try {
+        final rows =
+            await client.from('Teachers').select().eq(column, value).limit(1);
+        if ((rows as List).isEmpty) return null;
+        return {
+          ...rows.first,
+          'docId':
+              (rows.first['id_user'] ?? rows.first['firebase_uid']).toString()
+        };
+      } catch (e) {
+        debugPrint('⚠️  findTeacher($column) error: $e');
+        return null;
+      }
+    }
+
+    final id = idUser is int ? idUser : int.tryParse(idUser?.toString() ?? '');
+    return await byColumn('id_user', id) ??
+        await byColumn('username', username?.trim()) ??
+        await byColumn('fullName', fullName?.trim());
+  }
+
   Future<Map<String, dynamic>?> searchTeacherByName(String fullName) async {
     final client = _supabaseIfReady;
     if (client == null) return null;
@@ -1236,12 +1388,56 @@ class FirebaseService {
         query = query.lte('timestamp', endDate.toIso8601String());
       }
       final rows = await query.order('timestamp', ascending: false);
+
+      // LoginLogs เก็บแค่ id_user (FK) ไม่มีชื่อ/username อยู่ในตาราง
+      // จึงต้องดึง Teachers มาเทียบเอง ไม่งั้นหน้าประวัติการเข้าใช้งาน
+      // จะแสดง 'ไม่ระบุชื่อ' ทุกแถว
+      final teacherById = <String, Map<String, dynamic>>{};
+      final roleNameById = <String, String>{};
+      try {
+        final results = await Future.wait([
+          client.from('Teachers').select('id_user,fullName,username,id_role'),
+          client.from('roles').select('ID_Roles,Accessrights'),
+        ]);
+        for (final t in results[0] as List) {
+          final t2 = Map<String, dynamic>.from(t as Map);
+          final id = t2['id_user']?.toString();
+          if (id != null && id.isNotEmpty) teacherById[id] = t2;
+        }
+        for (final r in results[1] as List) {
+          final r2 = Map<String, dynamic>.from(r as Map);
+          final id = r2['ID_Roles']?.toString();
+          final name = r2['Accessrights']?.toString().trim();
+          if (id != null && name != null && name.isNotEmpty) {
+            roleNameById[id] = name;
+          }
+        }
+      } catch (e) {
+        debugPrint('⚠️  getLoginLogsFromSupabase: ดึงรายชื่อครูไม่สำเร็จ: $e');
+      }
+
       return (rows as List).map((row) {
         final r = Map<String, dynamic>.from(row as Map);
+        final teacher = teacherById[r['id_user']?.toString() ?? ''];
+        final fullName = (r['fullname'] ??
+                r['fullName'] ??
+                teacher?['fullName'] ??
+                '')
+            .toString()
+            .trim();
+        final username =
+            (r['username'] ?? teacher?['username'] ?? '').toString().trim();
+        final role = (r['role'] ??
+                roleNameById[teacher?['id_role']?.toString() ?? ''] ??
+                '')
+            .toString()
+            .trim();
         return {
           ...r,
-          'id': r['id']?.toString() ?? '',
-          'fullName': r['fullname'] ?? r['fullName'] ?? '',
+          'id': (r['id'] ?? r['id_LoginLogs'])?.toString() ?? '',
+          'fullName': fullName,
+          'username': username,
+          if (role.isNotEmpty) 'role': role,
           'timestamp': r['timestamp'],
         };
       }).toList();
@@ -1376,7 +1572,9 @@ class FirebaseService {
       'role': r['role'] ?? '',
       'permission': r['permission'] ?? r['role'] ?? '',
       'phone': r['phone'] ?? '',
-      'profileImage': r['profileimage'] ?? r['profileImage'] ?? '',
+      'profileImage': [r['profileImage'], r['profileimage'], r['photoUrl'], r['profilePhoto']]
+          .map((value) => value?.toString().trim() ?? '')
+          .firstWhere((value) => value.isNotEmpty, orElse: () => ''),
     };
   }
 
@@ -1412,8 +1610,10 @@ class FirebaseService {
       'ID_Academics': r['ID_Academics'] ?? r['id_academic'] ?? r['id_academics'],
       'วิทยฐานะ': academicVal,
       'receiveNumber': r['receivenumber'] ?? r['receiveNumber'],
-      'receiveDate': r['receivedate'] ?? r['receiveDate'],
-      'receiveTime': r['receivetime'] ?? r['receiveTime'],
+      'receiveDate':
+          formatToThaiSlashDate(r['receivedate'] ?? r['receiveDate'] ?? ''),
+      'receiveTime':
+          formatToThaiTime(r['receivetime'] ?? r['receiveTime'] ?? ''),
       'lastUpdatedAt': r['lastupdatedat'] ?? r['lastUpdatedAt'],
     };
   }
@@ -1441,6 +1641,19 @@ class FirebaseService {
   }
 
   // ── Teachers ────────────────────────────────────────────────────
+
+  /// อ่านค่าจาก row โดยเทียบชื่อคีย์แบบไม่สนตัวพิมพ์เล็ก/ใหญ่
+  static dynamic _pickValueIgnoreCase(
+      Map<String, dynamic> row, List<String> candidates) {
+    for (final key in row.keys) {
+      final normalized = key.toLowerCase();
+      if (candidates.contains(normalized)) {
+        final value = row[key];
+        if (value != null && value.toString().trim().isNotEmpty) return value;
+      }
+    }
+    return null;
+  }
 
   Future<List<Map<String, dynamic>>> getUsersFromSupabase() async {
     final client = _supabaseIfReady;
@@ -1503,9 +1716,17 @@ class FirebaseService {
 
       final adminRoleMap = <String, String>{};
       for (final ar in adminRoles) {
-        final id = (ar['ID_AdminRoles'] ?? ar['id'])?.toString();
-        final name = (ar['AdminRolesName'] ?? ar['name'] ?? '').toString();
-        if (id != null && name.isNotEmpty) adminRoleMap[id] = name;
+        final row = Map<String, dynamic>.from(ar as Map);
+        final id = _pickValueIgnoreCase(
+                row, const ['id_adminroles', 'id_adminrole', 'id'])
+            ?.toString();
+        final name = _pickValueIgnoreCase(row,
+                const ['adminrolesname', 'adminrolename', 'name', 'value'])
+            ?.toString()
+            .trim();
+        if (id != null && name != null && name.isNotEmpty) {
+          adminRoleMap[id] = name;
+        }
       }
 
       final list = rows.map((row) {
@@ -1515,8 +1736,13 @@ class FirebaseService {
         final roleId = r['id_role']?.toString() ?? '';
         final academicId =
             (r['ID_Academics'] ?? r['id_academic'] ?? r['id_academics'])?.toString() ?? '';
-        final adminRoleId =
-            (r['id_AdminRoles'] ?? r['id_adminroles'] ?? r['id_adminRole'] ?? r['ID_AdminRoles'])?.toString() ?? '';
+        // ชื่อคอลัมน์ FK ของตำแหน่งบริหารสะกดไม่เหมือนกันในแต่ละชุดข้อมูล
+        // (id_adminrole / id_adminRole / id_AdminRoles / ID_AdminRoles / ...)
+        // จึงหาแบบไม่สนตัวพิมพ์ เพื่อไม่ให้ตำแหน่งหลุดหายตอนขึ้นฟอร์มใบลา
+        final adminRoleId = _pickValueIgnoreCase(r,
+                const ['id_adminrole', 'id_adminroles', 'id_admin_role'])
+            ?.toString() ??
+            '';
 
         final resolvedDept =
             (r['department'] ?? deptMap[deptId] ?? '').toString();
@@ -1529,7 +1755,10 @@ class FirebaseService {
                 '')
             .toString();
 
-        final resolvedAdminRole = (adminRoleMap[adminRoleId] ?? '').toString();
+        final resolvedAdminRole =
+            (r['ตำแหน่งงานบริหาร'] ?? adminRoleMap[adminRoleId] ?? '')
+                .toString()
+                .trim();
 
         return _fromSupabaseTeacher({
           ...r,
@@ -1681,10 +1910,10 @@ class FirebaseService {
     final client = _supabaseIfReady;
     if (client == null) throw Exception('Supabase not initialized');
     await client.from('Leaves').update({
-      'receivenumber': receiveNumber,
-      'receivedate': receiveDate,
-      'receivetime': receiveTime,
-    }).eq('id', requestId);
+      'receiveNumber': receiveNumber,
+      'receiveDate': receiveDate,
+      'receiveTime': receiveTime,
+    }).eq('id_leaves', requestId);
   }
 
   /// ลบใบลาจาก Supabase
@@ -1696,7 +1925,15 @@ class FirebaseService {
 
   // ── FiscalRounds ────────────────────────────────────────────────
 
-  Future<List<Map<String, dynamic>>> getFiscalRoundsFromSupabase() async {
+  Future<List<Map<String, dynamic>>>? _fiscalRoundsInFlight;
+
+  // Share concurrent reads only; subsequent refreshes still fetch current data.
+  Future<List<Map<String, dynamic>>> getFiscalRoundsFromSupabase() {
+    return _fiscalRoundsInFlight ??= _fetchFiscalRoundsFromSupabase()
+        .whenComplete(() => _fiscalRoundsInFlight = null);
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchFiscalRoundsFromSupabase() async {
     final client = _supabaseIfReady;
     if (client == null) return getFiscalRounds();
     try {

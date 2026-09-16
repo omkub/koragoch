@@ -6,6 +6,7 @@ import 'dart:js_interop';
 import 'package:web/web.dart' as web;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
+import '../utils/teacher_sort.dart';
 
 class ReportOverviewScreen extends StatefulWidget {
   const ReportOverviewScreen({super.key});
@@ -136,93 +137,9 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
     }
   }
 
-  static const List<List<String>> _departmentPriorityAliases = [
-    ['ฝ่ายบริหาร', 'บริหาร'],
-    ['ภาษาไทย', 'ไทย'],
-    ['คณิตศาสตร์', 'คณิต'],
-    ['วิทยาศาสตร์และเทคโนโลยี', 'วิทยาศาสตร์', 'วิท'],
-    ['สังคมศึกษา ศาสนา และวัฒนธรรม', 'สังคมศึกษา', 'สังคม'],
-    ['ศิลปะ'],
-    ['สุขศึกษาและพลศึกษา', 'สุขศึกษา', 'สุข'],
-    ['การงานอาชีพ', 'การงาน'],
-    ['ภาษาต่างประเทศ', 'ต่างประเทศ'],
-    ['อื่นๆ', 'อื่น ๆ', 'อื่น'],
-  ];
-
-  static const List<String> _academicPriorityHighToLow = [
-    'เชี่ยวชาญพิเศษ',
-    'เชี่ยวชาญ',
-    'ชำนาญการพิเศษ',
-    'ชำนาญการ',
-    'ไม่มีวิทยฐานะ',
-  ];
-
-  String _textValue(Map<String, dynamic> data, List<String> keys) {
-    for (final key in keys) {
-      final value = data[key]?.toString().trim();
-      if (value != null && value.isNotEmpty && value != '---เลือก---') {
-        return value;
-      }
-    }
-    return '';
-  }
-
-  String _departmentOf(Map<String, dynamic> teacher) =>
-      _textValue(teacher, ['department', 'กลุ่มสาระการเรียนรู้', 'กลุ่มสาระ']);
-
-  String _positionOf(Map<String, dynamic> teacher) =>
-      _textValue(teacher, ['position', 'ตำแหน่ง', 'adminPosition']);
-
-  String _academicOf(Map<String, dynamic> teacher) =>
-      _textValue(teacher, ['academicStanding', 'วิทยฐานะ', 'rank']);
-
-  int _departmentPriorityIndex(String department) {
-    final index = _departmentPriorityAliases.indexWhere(
-      (aliases) => aliases.any((item) => department.contains(item)),
-    );
-    return index == -1 ? 999 : index;
-  }
-
-  int _academicPriorityIndex(String academic) {
-    final index =
-        _academicPriorityHighToLow.indexWhere((item) => academic.contains(item));
-    return index == -1 ? 999 : index;
-  }
-
-  int _managementPriority(Map<String, dynamic> teacher) {
-    final position = _positionOf(teacher);
-    if (position.contains('ผู้อำนวยการ') && !position.contains('รอง')) {
-      return 0;
-    }
-    if (position.contains('รองผู้อำนวยการ') || position.contains('รอง')) {
-      return 1;
-    }
-    return 2;
-  }
-
-  List<Map<String, dynamic>> get _visibleTeachers {
-    final visible = _teachers.toList();
-
-    visible.sort((a, b) {
-      final deptCompare = _departmentPriorityIndex(_departmentOf(a))
-          .compareTo(_departmentPriorityIndex(_departmentOf(b)));
-      if (deptCompare != 0) return deptCompare;
-
-      final managementCompare =
-          _managementPriority(a).compareTo(_managementPriority(b));
-      if (managementCompare != 0) return managementCompare;
-
-      final academicCompare = _academicPriorityIndex(_academicOf(a))
-          .compareTo(_academicPriorityIndex(_academicOf(b)));
-      if (academicCompare != 0) return academicCompare;
-
-      return (a['fullName'] ?? '').toString().compareTo(
-            (b['fullName'] ?? '').toString(),
-          );
-    });
-
-    return visible;
-  }
+  // ตรรกะการเรียง (กลุ่มสาระ → บริหาร → วิทยฐานะ → ชื่อ) ย้ายไปอยู่ที่
+  // lib/utils/teacher_sort.dart แล้ว เพื่อให้หน้าบุคลากรใช้ชุดเดียวกัน
+  List<Map<String, dynamic>> get _visibleTeachers => sortedTeachers(_teachers);
 
   @override
   Widget build(BuildContext context) {

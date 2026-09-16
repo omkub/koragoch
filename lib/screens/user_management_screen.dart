@@ -17,6 +17,7 @@ import 'package:web/web.dart' as web;
 import 'line_settings_screen.dart';
 import 'calendar_settings_tab.dart';
 import '../widgets/thai_buddhist_calendar_widget.dart';
+import '../utils/profile_image.dart';
 
 class UserManagementScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -28,6 +29,71 @@ class UserManagementScreen extends StatefulWidget {
 
 class _UserManagementScreenState extends State<UserManagementScreen> {
   final FirebaseService _firebaseService = FirebaseService();
+  late Stream<List<Map<String, dynamic>>> _usersStream =
+      _firebaseService.getUsersStream();
+  StateSetter? _formDialogSetState;
+  BuildContext? _formDialogContext;
+  bool _isSavingUser = false;
+  String? _userFormError;
+  int _usersPage = 0;
+  int _usersPageSize = 10; // 0 means all matching users.
+
+  void _changeUsersPage(int page) {
+    setState(() => _usersPage = page);
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
+  }
+
+  void _refreshUsers() {
+    if (mounted) {
+      setState(() {
+        _usersPage = 0;
+        _usersStream = _firebaseService.getUsersStream();
+      });
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    }
+  }
+
+  void _updateUserForm(VoidCallback update) {
+    if (!mounted) return;
+    setState(update);
+    _formDialogSetState?.call(() {});
+  }
+
+  Future<void> _openUserForm({Map<String, dynamic>? user}) async {
+    _userFormError = null;
+    if (user == null) {
+      _resetForm();
+    } else {
+      _editUser(user);
+    }
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, updateDialog) {
+          _formDialogContext = dialogContext;
+          _formDialogSetState = updateDialog;
+          return PopScope(
+            canPop: !_isSavingUser && !_isUploading,
+            child: Dialog(
+              insetPadding: const EdgeInsets.all(16),
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24)),
+              child: SizedBox(
+                width: 600,
+                child: SingleChildScrollView(child: _buildAddForm(true)),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    _formDialogSetState = null;
+    _formDialogContext = null;
+    if (mounted) _resetForm();
+  }
+
   Future<List<Map<String, dynamic>>>? _permsFuture;
 
   // Controllers
@@ -35,6 +101,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   final _userController = TextEditingController();
   final _passController = TextEditingController();
   final _adminPosController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _photoController =
       TextEditingController(); // 📸 ตัวแปรสำหรับลิ้งค์รูปภาพโปรไฟล์จาก Drive ครับ
   bool _isUploading = false; // 🔄 สถานะกำลังอัปโหลดรูปขึ้น Cloud ครับ 🥇🏆
@@ -84,6 +152,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   List<String> _roles = ['ครู'];
   List<String> _adminPositions = ['ไม่มีตำแหน่งบริหาร'];
   List<String> _leaveTypes = []; // 🔥 ตัวแปรสำหรับประเภทการลาครับ 🥇🏆
+  List<String> _leaveReasons = []; // 📝 เหตุผลการลาที่ใช้เป็นตัวเลือกด่วน
   bool _isLoadingDropdowns = true;
   String _searchText = ''; // 🔥 ตัวแปรสำหรับค้นหาแบบ Real-time ครับ 🥇🏆
   int _masterSubTab = 0; // 🔥 ตัวแปรสำหรับสลับหมวดหมู่ข้อมูลพื้นฐานครับ 🥇🏆
@@ -245,7 +314,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       case 'AdminRoles':
         return 'ID_AdminRoles';
       case 'LeaveTypes':
-        return 'ID_LeaveTypes';
+        return 'id_leaveType';
+      case 'LeaveReasons':
+        return 'id_leaveReason';
       default:
         return '';
     }
@@ -265,6 +336,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         return 'ตำแหน่งบริหาร';
       case 'LeaveTypes':
         return 'ประเภทการลา';
+      case 'LeaveReasons':
+        return 'เหตุผลการลา';
       default:
         return 'Value';
     }
@@ -307,6 +380,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       'Roles',
       'AdminRoles',
       'LeaveTypes',
+      'LeaveReasons',
     ];
     final orders = <String, int>{};
     final client = Supabase.instance.client;
@@ -316,7 +390,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       final nameField = _masterNameFieldForCollection(collection);
       try {
         final rows = await client
-            .from(collection.toLowerCase())
+            .from(_supabaseTableAndNameField(collection).$1)
             .select();
         for (final row in (rows as List)) {
           final name = (row[nameField] ?? row['Value'] ?? '').toString().trim();
@@ -342,6 +416,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         _firebaseService.getPermissions(),
         _firebaseService.getAdminRoles(),
         _firebaseService.getLeaveTypes(),
+        _firebaseService.getLeaveReasons(),
         _loadMasterOrderByKey(),
       ]);
 
@@ -351,7 +426,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       final pms = results[3] as List<String>;
       final adm = results[4] as List<String>;
       final lvt = results[5] as List<String>;
-      final masterOrders = results[6] as Map<String, int>;
+      final lvr = results[6] as List<String>;
+      final masterOrders = results[7] as Map<String, int>;
 
       setState(() {
         if (pos.isNotEmpty) _positions = ['---เลือก---', ...pos];
@@ -361,6 +437,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         if (pms.isNotEmpty) _roles = pms;
         if (adm.isNotEmpty) _adminPositions = adm;
         if (lvt.isNotEmpty) _leaveTypes = lvt; // 🥇 เชื่อมต่อข้อมูล
+        _leaveReasons = lvr;
 
         // 🔥 เริ่มต้นสถานะสิทธิ์สำหรับแต่ละบทบาทครับ
         for (var role in _roles) {
@@ -386,13 +463,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   Future<void> _saveUser() async {
+    if (_isSavingUser || _isUploading) return;
     if (_nameController.text.isEmpty ||
         _userController.text.isEmpty ||
-        _passController.text.isEmpty ||
+        (!_isEditing && _passController.text.isEmpty) ||
         _selectedDept == '---เลือก---' ||
         _selectedPos == '---เลือก---') {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('กรุณากรอกข้อมูลให้ครบถ้วนครับ')));
+      _updateUserForm(() => _userFormError = 'กรุณากรอกข้อมูลให้ครบถ้วนครับ');
       return;
     }
 
@@ -408,11 +485,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       'role': _selectedRole,
       'permission': _selectedRole,
       'ตำแหน่งงานบริหาร': _adminPosController.text,
+      'email': _emailController.text.trim(),
+      'phone': _phoneController.text.trim(),
       'profileImage': _photoController.text,
       'updatedAt': DateTime.now().toIso8601String(),
     };
 
-    final String inputPassword = _passController.text.trim();
+    _updateUserForm(() {
+      _isSavingUser = true;
+      _userFormError = null;
+    });
 
     try {
       await _syncCurrentUserRole();
@@ -438,11 +520,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('บันทึกผู้ใช้ใหม่เรียบร้อยแล้ว')));
       }
-      _resetForm();
+      if (!mounted) return;
+      _updateUserForm(() => _isSavingUser = false);
+      final dialogContext = _formDialogContext;
+      if (dialogContext != null && dialogContext.mounted) {
+        Navigator.of(dialogContext).pop();
+      }
+      _refreshUsers();
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
+      _updateUserForm(() => _userFormError = 'เกิดข้อผิดพลาด: $e');
+    } finally {
+      _updateUserForm(() => _isSavingUser = false);
     }
   }
 
@@ -456,13 +544,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       _passController.text = (user['password']?.toString() ?? '');
       _selectedPos = user['position'] ?? '---เลือก---';
       _selectedDept = user['department'] ?? '---เลือก---';
-      _selectedRank = user['academicStanding'] ??
-          user['วิทยฐานะ'] ??
-          '---เลือก---';
+      _selectedRank =
+          user['academicStanding'] ?? user['วิทยฐานะ'] ?? '---เลือก---';
       _selectedRole = user['role'] ??
           user['permission'] ??
           'ครู'; // 🔥 ตรวจสอบทั้งสองฟิลด์ครับ
       _adminPosController.text = user['ตำแหน่งงานบริหาร'] ?? '';
+      _emailController.text = user['email']?.toString() ?? '';
+      _phoneController.text = user['phone']?.toString() ?? '';
       _photoController.text = user['profileImage'] ?? ''; // 📸 ดึงข้อมูลรูปภาพ
       _oldPhotoUrl = _photoController
           .text; // 🥇 เก็บรูปภาพเดิมไว้เผื่อกรณีทีมีการลบ/เปลี่ยนรูป
@@ -482,6 +571,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       _selectedRank = '---เลือก---';
       _selectedRole = 'ครู';
       _adminPosController.text = 'ไม่มีตำแหน่งบริหาร';
+      _emailController.clear();
+      _phoneController.clear();
       _photoController.clear(); // 📸 ล้างข้อมูลรูปภาพ
     });
   }
@@ -530,6 +621,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         }
 
         await _firebaseService.deleteUser(id);
+        _refreshUsers();
 
         if (mounted)
           ScaffoldMessenger.of(context).showSnackBar(
@@ -588,7 +680,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             final compressedData = canvas.toDataURL('image/jpeg', 0.85.toJS);
 
             // 🔄 เริ่มกระบวนการส่งขึ้น Google Drive ครับ 🏎️💨
-            setState(() => _isUploading = true);
+            _updateUserForm(() => _isUploading = true);
 
             try {
               final resBody = await _firebaseService.uploadDriveFile(
@@ -613,7 +705,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                     content: Text('เกิดข้อผิดพลาดในการอัปโหลด: $err')));
             } finally {
-              if (mounted) setState(() => _isUploading = false);
+              if (mounted) _updateUserForm(() => _isUploading = false);
             }
           });
         });
@@ -1613,7 +1705,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     try {
       final auth = FirebaseAuth.instance;
       if (auth.currentUser != null) {
-        onLog('🔐 Firebase Auth: บัญชีพร้อมใช้งาน (${auth.currentUser?.email ?? auth.currentUser?.uid})');
+        onLog(
+            '🔐 Firebase Auth: บัญชีพร้อมใช้งาน (${auth.currentUser?.email ?? auth.currentUser?.uid})');
         return;
       }
 
@@ -1659,7 +1752,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       if (auth.currentUser != null) {
         onLog('✅ Firebase Auth พร้อมใช้งาน (${auth.currentUser?.email})');
       } else {
-        onLog('⚠️ ไม่สามารถล็อกอิน Firebase Auth อัตโนมัติได้ — ดำเนินการต่อตามปกติ');
+        onLog(
+            '⚠️ ไม่สามารถล็อกอิน Firebase Auth อัตโนมัติได้ — ดำเนินการต่อตามปกติ');
       }
     } catch (e) {
       onLog('⚠️ แจ้งเตือน Firebase Auth: $e');
@@ -1853,10 +1947,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 onCopyAll: infoLines.isEmpty
                                     ? null
                                     : () async {
-                                        await Clipboard.setData(
-                                            ClipboardData(text: infoLines.join('\n')));
+                                        await Clipboard.setData(ClipboardData(
+                                            text: infoLines.join('\n')));
                                         if (mounted) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
                                             SnackBar(
                                               content: Text(
                                                   'คัดลอกข้อความนำเข้าทั้งหมดแล้ว (${infoLines.length} บรรทัด)',
@@ -1892,10 +1987,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                           }
                                           buffer.writeln();
                                         });
-                                        await Clipboard.setData(
-                                            ClipboardData(text: buffer.toString().trim()));
+                                        await Clipboard.setData(ClipboardData(
+                                            text: buffer.toString().trim()));
                                         if (mounted) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
                                             SnackBar(
                                               content: Text(
                                                   'คัดลอกปัญหาทั้งหมดแล้ว',
@@ -1929,7 +2025,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                         await Clipboard.setData(
                                             ClipboardData(text: lines));
                                         if (mounted) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
                                             SnackBar(
                                               content: Text(
                                                   'คัดลอกสรุปจำนวนสำเร็จทั้งหมดแล้ว',
@@ -2582,7 +2679,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       await supabase
           .from('Leaves')
           .select(
-              'id_leaves,id_user,timestamp,status,lastUpdatedAt,leaveDate,id_leaveType,reason,startDate,endDate,totalDays,id_year,receiveNumber,medicalCertificate')
+              'id_leaves,id_user,timestamp,status,lastUpdatedAt,leaveDate,id_leaveType,reason,startDate,endDate,totalDays,id_year,receiveNumber,receiveDate,receiveTime,medicalCertificate')
           .limit(0);
     } catch (e) {
       onLog('Leaves: ตรวจ schema ไม่สำเร็จ: $e');
@@ -2643,6 +2740,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           'totalDays': _numericForMigration(data['totalDays']),
           'id_year': idYear,
           'receiveNumber': data['receiveNumber']?.toString(),
+          // วันรับ/เวลารับจาก Firebase เก็บเป็นข้อความไทย (8/9/2569, '09:41 น.')
+          // ต้องแปลงเป็น ISO ก่อนลงคอลัมน์ date/time ของ Supabase
+          'receiveDate': _dateForMigration(data['receiveDate']),
+          'receiveTime': _timeForMigration(data['receiveTime']),
           'medicalCertificate': data['medicalCertificate']?.toString(),
         }..removeWhere((_, value) => value == null);
 
@@ -2907,7 +3008,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         final start = DateTime.tryParse(row['startDate']?.toString() ?? '');
         final end = DateTime.tryParse(row['endDate']?.toString() ?? '');
         if (start != null && end != null) {
-          final inRange = !targetDate.isBefore(start) && !targetDate.isAfter(end);
+          final inRange =
+              !targetDate.isBefore(start) && !targetDate.isAfter(end);
           if (inRange) return _intValue(row['id_year']);
         }
       }
@@ -2942,6 +3044,30 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     if (value == null) return null;
     if (value is num) return value;
     return num.tryParse(value.toString());
+  }
+
+  /// แปลงเวลารับใบลาเป็นรูปแบบที่คอลัมน์ time รับได้
+  /// รองรับ '09:41 น.', '9:41', '09:41:00'
+  String? _timeForMigration(dynamic value) {
+    if (value == null) return null;
+    if (value is Timestamp) return _timeForMigration(value.toDate());
+    if (value is DateTime) {
+      return '${value.hour.toString().padLeft(2, '0')}:'
+          '${value.minute.toString().padLeft(2, '0')}:'
+          '${value.second.toString().padLeft(2, '0')}';
+    }
+    final text = value.toString().replaceAll('น.', '').trim();
+    if (text.isEmpty) return null;
+    final match =
+        RegExp(r'^(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$').firstMatch(text);
+    if (match == null) return null;
+    final h = int.parse(match[1]!);
+    final m = int.parse(match[2]!);
+    final sec = match[3] == null ? 0 : int.parse(match[3]!);
+    if (h > 23 || m > 59 || sec > 59) return null;
+    return '${h.toString().padLeft(2, '0')}:'
+        '${m.toString().padLeft(2, '0')}:'
+        '${sec.toString().padLeft(2, '0')}';
   }
 
   String? _dateForMigration(dynamic value) {
@@ -3015,14 +3141,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
       body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: _firebaseService.getUsersStream(),
+        stream: _usersStream,
         builder: (context, snapshot) {
           final allUsers = snapshot.data ?? [];
 
           // 🔥 ระบบกรองข้อมูลแบบ Real-time ครับ
           final users = allUsers.where((u) {
-            final name = (u['fullName'] ?? '').toString().toLowerCase();
-            final search = _searchText.toLowerCase();
+            final name = [u['id_user'] ?? u['id'], u['fullName'], u['username']]
+                .join(' ')
+                .toLowerCase();
+            final search = _searchText.trim().toLowerCase();
             return name.contains(search);
           }).toList();
 
@@ -3067,30 +3195,45 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           if (_isLoadingDropdowns) {
             return const Center(child: CircularProgressIndicator());
           }
-          return Container(
-            height: MediaQuery.of(context).size.height,
-            padding: EdgeInsets.symmetric(
-              horizontal: isMedium ? 32 : 16,
-              vertical: 40,
+          return Padding(
+            // ขอบบน/ล่างบางลง แถบแท็บจึงขยับขึ้นเกือบชิดขอบจอ
+            // และการ์ดตารางยืดลงมาเกือบสุดจอครับ 🏎️🏆
+            padding: EdgeInsets.fromLTRB(
+              isMedium ? 32 : 16,
+              12,
+              isMedium ? 32 : 16,
+              12,
             ),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(isMedium),
-                  const SizedBox(height: 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader(isMedium),
+                const SizedBox(height: 16),
 
-                  // สลับการแสดงผลตาม Tab ครับ 🕵️‍♂️🏎️🏆
-                  if (_currentTab == 0) _buildUsersTab(users, isWide),
-                  if (_currentTab == 1) _buildMasterTab(),
-                  if (_currentTab == 2) _buildPermsTab(),
-                  if (_currentTab == 3) _buildSyncTab(isWide),
-                  if (_currentTab == 4) const LineSettingsScreen(),
-                  if (_currentTab == 5) const CalendarSettingsTab(tabIndex: 0),
-                  if (_currentTab == 6) const CalendarSettingsTab(tabIndex: 1),
-                  if (_currentTab == 7) const CalendarSettingsTab(tabIndex: 2),
-                ],
-              ),
+                // สลับการแสดงผลตาม Tab ครับ 🕵️‍♂️🏎️🏆
+                // แท็บจัดการผู้ใช้ยืดเต็มพื้นที่ที่เหลือ ส่วนแท็บอื่นเลื่อนตามเดิม
+                Expanded(
+                  child: _currentTab == 0
+                      ? _buildUsersTab(users, isWide)
+                      : SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (_currentTab == 1) _buildMasterTab(),
+                              if (_currentTab == 2) _buildPermsTab(),
+                              if (_currentTab == 3) _buildSyncTab(isWide),
+                              if (_currentTab == 4) const LineSettingsScreen(),
+                              if (_currentTab == 5)
+                                const CalendarSettingsTab(tabIndex: 0),
+                              if (_currentTab == 6)
+                                const CalendarSettingsTab(tabIndex: 1),
+                              if (_currentTab == 7)
+                                const CalendarSettingsTab(tabIndex: 2),
+                            ],
+                          ),
+                        ),
+                ),
+              ],
             ),
           );
         },
@@ -3102,33 +3245,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   // TAB 1: ระบบจัดการผู้ใช้งานแบบเดิม
   // ==========================================
   Widget _buildUsersTab(List<Map<String, dynamic>> users, bool isWide) {
-    if (!isWide) {
-      return Column(
-        children: [
-          _buildAddForm(true),
-          const SizedBox(height: 24),
-          SizedBox(height: 600, child: _buildUserList(true, users)),
-        ],
-      );
-    }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          flex: 4,
-          child: _buildAddForm(false),
-        ),
-        const SizedBox(width: 24),
-        Expanded(
-            flex: 8,
-            child: SizedBox(height: 800, child: _buildUserList(false, users)))
-      ],
-    );
+    // ไม่ล็อกความสูงแล้ว ปล่อยให้ยืดเต็มพื้นที่ที่เหลือของจอครับ
+    return SizedBox(
+        width: double.infinity, child: _buildUserList(false, users));
   }
 
-  // ==========================================
-  // TAB 2: ระบบจัดการข้อมูลพื้นฐาน (Master Data)
-  // ==========================================
   Widget _buildMasterTab() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3167,6 +3288,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   4, "ตำแหน่งบริหาร", Icons.edit_document, Colors.orange),
               _buildSubTabButton(
                   5, "ประเภทการลา", Icons.description_rounded, Colors.pink),
+              _buildSubTabButton(
+                  6, "เหตุผลการลา", Icons.notes_rounded, Colors.indigo),
             ],
           ),
         ),
@@ -3232,6 +3355,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       case 5:
         return _buildMasterCard("จัดการประเภทการลา", Icons.description_rounded,
             Colors.pink, _leaveTypes);
+      case 6:
+        return _buildMasterCard("จัดการเหตุผลการลา", Icons.notes_rounded,
+            Colors.indigo, _leaveReasons);
       default:
         return const SizedBox();
     }
@@ -3251,6 +3377,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         return 'AdminRoles';
       case 5:
         return 'LeaveTypes';
+      case 6:
+        return 'LeaveReasons';
       default:
         return '';
     }
@@ -3270,6 +3398,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         return 'adminPositions';
       case 5:
         return 'leaveTypes';
+      case 6:
+        return 'leaveReasons';
       default:
         return '';
     }
@@ -3289,6 +3419,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         return _adminPositions;
       case 5:
         return _leaveTypes;
+      case 6:
+        return _leaveReasons;
       default:
         return const [];
     }
@@ -3337,9 +3469,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     String idField,
   ) async {
     final client = Supabase.instance.client;
-    final rows = await client
-        .from(collection.toLowerCase())
-        .select(idField);
+    // ชื่อตารางต้องมาจาก mapping ไม่ใช่ toLowerCase()
+    // เพราะ PostgREST แยกตัวพิมพ์ (เช่น LeaveTypes ไม่ใช่ leavetypes)
+    final table = _supabaseTableAndNameField(collection).$1;
+    final rows = await client.from(table).select(idField);
     var maxId = 0;
     for (final row in (rows as List)) {
       final current = _toIntValue(row[idField]);
@@ -3362,6 +3495,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         return ('adminroles', 'AdminRolesName');
       case 'leavetypes':
         return ('LeaveTypes', 'leaveName');
+      case 'leavereasons':
+        return ('LeaveReasons', 'reasonName');
       default:
         return (collection, 'Value');
     }
@@ -3379,21 +3514,185 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
     try {
       final client = _firebaseService.supabaseClient;
-      if (client != null) {
-        if (idField.isNotEmpty) {
-          final nextId = await _nextMasterNumericId(collection, idField);
-          await client.from(table).insert({
-            idField: nextId,
-            nameField: value,
-          });
-        } else {
-          await client.from(table).insert({
-            nameField: value,
-          });
-        }
+      if (client == null) return;
+
+      if (idField.isEmpty) {
+        await client.from(table).insert({nameField: value});
+        return;
+      }
+
+      try {
+        final nextId = await _nextMasterNumericId(collection, idField);
+        await client.from(table).insert({
+          idField: nextId,
+          nameField: value,
+        });
+      } on PostgrestException catch (e) {
+        // บางตาราง (เช่น LeaveTypes) ตั้ง PK เป็น identity แบบ GENERATED ALWAYS
+        // ฐานข้อมูลออกเลขให้เอง ห้ามส่งค่าไปเอง -> insert ใหม่โดยไม่ใส่ id
+        final isIdentityColumn = e.code == '428C9' ||
+            e.message.contains('GENERATED ALWAYS') ||
+            e.message.contains('identity column');
+        if (!isIdentityColumn) rethrow;
+        await client.from(table).insert({nameField: value});
       }
     } catch (e) {
       debugPrint('Supabase _createMasterItem error: $e');
+      rethrow; // ต้องให้ UI รู้ ไม่งั้นจะขึ้นว่าบันทึกสำเร็จทั้งที่ไม่ได้บันทึก
+    }
+  }
+
+  /// ตัดช่องว่างซ้ำและอักขระวรรคตอนท้ายออก เพื่อเทียบข้อความอย่างยุติธรรม
+  String _normalizeReason(String value) {
+    return value
+        .replaceAll(RegExp(r'\s+'), '')
+        .replaceAll(RegExp(r'[.,!?ๆฯ]+$'), '')
+        .trim();
+  }
+
+  /// ระยะห่างของข้อความสองชุด (Levenshtein) ใช้วัดว่าพิมพ์ใกล้เคียงกันแค่ไหน
+  int _levenshtein(String a, String b) {
+    if (a == b) return 0;
+    if (a.isEmpty) return b.length;
+    if (b.isEmpty) return a.length;
+
+    var previous = List<int>.generate(b.length + 1, (i) => i);
+    var current = List<int>.filled(b.length + 1, 0);
+
+    for (var i = 0; i < a.length; i++) {
+      current[0] = i + 1;
+      for (var j = 0; j < b.length; j++) {
+        final cost = a.codeUnitAt(i) == b.codeUnitAt(j) ? 0 : 1;
+        final deletion = previous[j + 1] + 1;
+        final insertion = current[j] + 1;
+        final substitution = previous[j] + cost;
+        current[j + 1] =
+            [deletion, insertion, substitution].reduce((x, y) => x < y ? x : y);
+      }
+      final swap = previous;
+      previous = current;
+      current = swap;
+    }
+    return previous[b.length];
+  }
+
+  /// ถือว่า "ใกล้เคียงกัน" เมื่อข้อความเหมือนกันเกิน 85%
+  /// หรือข้อความหนึ่งเป็นส่วนหนึ่งของอีกข้อความ (เช่น 'ปวดหัว' กับ 'ปวดหัวมาก')
+  bool _isSimilarReason(String a, String b) {
+    final x = _normalizeReason(a);
+    final y = _normalizeReason(b);
+    if (x.isEmpty || y.isEmpty) return false;
+    if (x == y) return true;
+    if (x.contains(y) || y.contains(x)) return true;
+
+    final longest = x.length > y.length ? x.length : y.length;
+    final similarity = 1 - (_levenshtein(x, y) / longest);
+    return similarity >= 0.85;
+  }
+
+  /// วิเคราะห์เหตุผลที่ครูเคยกรอกใน Leaves แล้วเติมเฉพาะรายการใหม่
+  /// ลงตาราง LeaveReasons — ข้ามรายการที่ซ้ำหรือใกล้เคียงกับที่มีอยู่แล้ว
+  Future<void> _syncLeaveReasonsFromLeaves() async {
+    final used = await _firebaseService.getUsedLeaveReasonsFromLeaves();
+    if (used.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('ไม่พบเหตุผลการลาในใบลาที่บันทึกไว้'),
+          backgroundColor: Colors.orange,
+        ));
+      }
+      return;
+    }
+
+    final existing = List<String>.from(_leaveReasons);
+    final additions = <String>[];
+
+    for (final reason in used) {
+      final isDuplicate = existing.any((e) => _isSimilarReason(e, reason)) ||
+          additions.any((e) => _isSimilarReason(e, reason));
+      if (!isDuplicate) additions.add(reason);
+    }
+
+    if (!mounted) return;
+
+    if (additions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            'ตรวจแล้ว ${used.length} เหตุผล — ไม่มีรายการใหม่ ทุกรายการซ้ำหรือใกล้เคียงกับที่มีอยู่'),
+        backgroundColor: Colors.blueGrey,
+      ));
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('พบเหตุผลใหม่ ${additions.length} รายการ',
+            style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+        content: SizedBox(
+          width: 420,
+          height: 360,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'จากใบลาทั้งหมด ${used.length} เหตุผลที่ไม่ซ้ำกัน '
+                'รายการด้านล่างยังไม่มีในระบบ',
+                style: GoogleFonts.sarabun(
+                    fontSize: 12, color: Colors.blueGrey.shade600),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: Scrollbar(
+                  child: ListView.separated(
+                    itemCount: additions.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (_, i) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          Text('${i + 1}.',
+                              style: GoogleFonts.sarabun(
+                                  fontSize: 12, color: Colors.grey)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(additions[i],
+                                style: GoogleFonts.sarabun(fontSize: 13)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('ยกเลิก', style: GoogleFonts.sarabun()),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+            child: Text('บันทึกทั้งหมด', style: GoogleFonts.sarabun()),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    await _firebaseService.addLeaveReasons(additions);
+    await _loadDropdownData();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('เพิ่มเหตุผลใหม่ ${additions.length} รายการเรียบร้อย'),
+        backgroundColor: Colors.green,
+      ));
     }
   }
 
@@ -3414,10 +3713,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     try {
       final client = _firebaseService.supabaseClient;
       if (client != null) {
-        await client.from(table).update({nameField: newValue}).eq(nameField, oldValue);
+        await client
+            .from(table)
+            .update({nameField: newValue}).eq(nameField, oldValue);
       }
     } catch (e) {
       debugPrint('Supabase _renameMasterItem error: $e');
+      await _loadDropdownData();
+      rethrow;
     }
 
     await _loadDropdownData();
@@ -3439,6 +3742,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       }
     } catch (e) {
       debugPrint('Supabase _deleteMasterItem error: $e');
+      await _loadDropdownData();
+      rethrow;
     }
 
     await _loadDropdownData();
@@ -3550,11 +3855,22 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     onPressed: () async {
                       try {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('กำลังอัปเดตข้อมูลเดิม...'),
-                            duration: Duration(seconds: 1),
+                          SnackBar(
+                            content: Text(masterCollection == 'LeaveReasons'
+                                ? 'กำลังวิเคราะห์เหตุผลจากใบลาทั้งหมด...'
+                                : 'กำลังอัปเดตข้อมูลเดิม...'),
+                            duration: const Duration(seconds: 1),
                           ),
                         );
+
+                        // แท็บเหตุผลการลา: วิเคราะห์จากเหตุผลที่ครูเคยกรอกจริง
+                        if (masterCollection == 'LeaveReasons') {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                          }
+                          await _syncLeaveReasonsFromLeaves();
+                          return;
+                        }
 
                         final updated = await _migrateMasterToNumericSchema(
                             masterCollection);
@@ -3947,8 +4263,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   Widget _buildPermsTab() {
     final menuEntries = _permissionMenuMapping.entries.toList();
 
-    _permsFuture ??= _firebaseService.getAllPermissionDocsFromSupabase(
-        _permissionCollectionName);
+    _permsFuture ??= _firebaseService
+        .getAllPermissionDocsFromSupabase(_permissionCollectionName);
 
     return _buildGlassCard(
       padding: EdgeInsets.zero,
@@ -4152,10 +4468,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                   onChanged: isLockAdmin
                                       ? null
                                       : (val) async {
-                                          final client = _firebaseService.supabaseClient;
+                                          final client =
+                                              _firebaseService.supabaseClient;
                                           if (client == null) return;
                                           try {
-                                            int? resolvedId = int.tryParse(currentData['id_role']?.toString() ?? '');
+                                            int? resolvedId = int.tryParse(
+                                                currentData['id_role']
+                                                        ?.toString() ??
+                                                    '');
                                             if (resolvedId == null) {
                                               final roleRow = await client
                                                   .from('roles')
@@ -4163,21 +4483,26 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                                   .eq('Accessrights', role)
                                                   .maybeSingle();
                                               if (roleRow == null) return;
-                                              resolvedId = roleRow['ID_Roles'] as int;
+                                              resolvedId =
+                                                  roleRow['ID_Roles'] as int;
                                             }
                                             await client
                                                 .from(_permissionCollectionName)
                                                 .upsert({
                                               'id_role': resolvedId,
-                                              'menu_id': int.tryParse(pageId) ?? 0,
+                                              'menu_id':
+                                                  int.tryParse(pageId) ?? 0,
                                               'status': val ? '1' : '0',
-                                              'updatedAt': DateTime.now().toIso8601String(),
+                                              'updatedAt': DateTime.now()
+                                                  .toIso8601String(),
                                             }, onConflict: 'id_role,menu_id');
-                                            if (mounted) setState(() {
-                                              _permsFuture = null;
-                                            });
+                                            if (mounted)
+                                              setState(() {
+                                                _permsFuture = null;
+                                              });
                                           } catch (e) {
-                                            debugPrint('❌ Supabase permission toggle error: $e');
+                                            debugPrint(
+                                                '❌ Supabase permission toggle error: $e');
                                           }
                                         },
                                 ),
@@ -4205,77 +4530,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       spacing: 20,
       runSpacing: 20,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                if (widget.onBack != null)
-                  IconButton(
-                    onPressed: widget.onBack,
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                        color: Colors.black, size: 22),
-                  ),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF3B82F6), Color(0xFF0F172A)],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                          color: Colors.blue.withValues(alpha: 0.3),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4))
-                    ],
-                  ),
-                  child: const Icon(Icons.people_alt,
-                      color: Colors.white, size: 32),
-                ),
-                const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "จัดการข้อมูลผู้ใช้",
-                      style: GoogleFonts.sarabun(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w900,
-                          color: primaryColor),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      "บริหารจัดการรายชื่อครู เจ้าหน้าที่ และกำหนดสิทธิ์การเข้าถึง",
-                      style: GoogleFonts.sarabun(
-                          fontSize: 14,
-                          color: Colors.blueGrey,
-                          fontWeight: FontWeight.w500),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-
-        // 🔄 ปุ่มเดียวจบ: Export จาก Firebase → Import เข้า Supabase พร้อม popup แสดงความคืบหน้า
-        ElevatedButton.icon(
-          onPressed: _showMigrationProgressDialog,
-          icon: const Icon(Icons.cloud_sync_rounded),
-          label: Text('Export to Supabase',
-              style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF10B981),
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        if (widget.onBack != null)
+          IconButton(
+            onPressed: widget.onBack,
+            icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                color: Colors.black, size: 22),
           ),
-        ),
-
         // Segmented Tabs (Glassmorphism style)
         Container(
           padding: const EdgeInsets.all(4),
@@ -4317,7 +4577,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   Widget _buildTabButton(int index, IconData icon, String title) {
     bool isActive = _currentTab == index;
     return InkWell(
-      onTap: () => setState(() => _currentTab = index),
+      onTap: () {
+        setState(() => _currentTab = index);
+        if (index == 0) _refreshUsers();
+      },
       borderRadius: BorderRadius.circular(12),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
@@ -4384,6 +4647,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               Text(_isEditing ? 'แก้ไขผู้ใช้งาน' : 'เพิ่มผู้ใช้งาน',
                   style: GoogleFonts.sarabun(
                       fontSize: 18, fontWeight: FontWeight.bold)),
+              const Spacer(),
+              IconButton(
+                tooltip: 'ปิด',
+                onPressed: _isSavingUser || _isUploading
+                    ? null
+                    : () => Navigator.of(_formDialogContext!).pop(),
+                icon: const Icon(Icons.close),
+              ),
             ],
           ),
           const SizedBox(height: 32),
@@ -4417,22 +4688,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                     child: CircularProgressIndicator(
                                         strokeWidth: 2, color: Colors.blue)));
                           }
-                          String url = val.text;
-                          if (url.isNotEmpty && url.startsWith('data:image')) {
-                            return Image.network(url, fit: BoxFit.cover);
-                          } else if (url.isNotEmpty && url.startsWith('http')) {
-                            String imgUrl = url;
-                            // 🔥 ใช้เทคนิค Thumbnail API ของ Google Drive เพื่อหลบ CORS และบีบอัดรูปให้โหลดเร็วขึ้น 🥇
-                            if (url.contains('drive.google.com')) {
-                              final regExp =
-                                  RegExp(r'(?:id=|\/d\/)([a-zA-Z0-9-_]+)');
-                              final match = regExp.firstMatch(url);
-                              if (match != null) {
-                                imgUrl =
-                                    'https://wsrv.nl/?url=drive.google.com/uc%3Fid%3D${match.group(1)}';
-                              }
-                            }
+                          // แปลงลิงก์ด้วยตัวกลางเดียวกับหน้าอื่น ๆ ครับ
+                          final imgUrl = resolveDisplayImageUrl(val.text);
+                          if (imgUrl != null) {
                             return Image.network(imgUrl,
+                                webHtmlElementStrategy:
+                                    WebHtmlElementStrategy.prefer,
                                 fit: BoxFit.cover,
                                 errorBuilder: (c, e, s) => const Icon(
                                     Icons.people,
@@ -4495,11 +4756,35 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             ],
           ),
           const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    _buildFieldLabel('อีเมล'),
+                    _buildTextField(_emailController, 'name@example.com',
+                        icon: Icons.email_outlined,
+                        keyboardType: TextInputType.emailAddress)
+                  ])),
+              const SizedBox(width: 16),
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    _buildFieldLabel('เบอร์โทรติดต่อ'),
+                    _buildTextField(_phoneController, '08X-XXX-XXXX',
+                        icon: Icons.phone_outlined,
+                        keyboardType: TextInputType.phone)
+                  ])),
+            ],
+          ),
+          const SizedBox(height: 20),
           _buildFieldLabel('ตำแหน่ง'),
           _buildDropdownField(
               items: _positions,
               val: _selectedPos,
-              onC: (v) => setState(() => _selectedPos = v!),
+              onC: (v) => _updateUserForm(() => _selectedPos = v!),
               icon: Icons.business_center_outlined,
               hint: 'เลือกตำแหน่ง'),
           const SizedBox(height: 20),
@@ -4507,7 +4792,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           _buildDropdownField(
               items: _departments,
               val: _selectedDept,
-              onC: (v) => setState(() => _selectedDept = v!),
+              onC: (v) => _updateUserForm(() => _selectedDept = v!),
               icon: Icons.grid_view_outlined,
               hint: 'เลือกกลุ่มสาระการเรียนรู้'),
           const SizedBox(height: 20),
@@ -4521,7 +4806,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     _buildDropdownField(
                         items: _ranks,
                         val: _selectedRank,
-                        onC: (v) => setState(() => _selectedRank = v!),
+                        onC: (v) => _updateUserForm(() => _selectedRank = v!),
                         hint: 'เลือกวิทยฐานะ'),
                   ],
                 ),
@@ -4535,7 +4820,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     _buildDropdownField(
                         items: _roles,
                         val: _selectedRole,
-                        onC: (v) => setState(() => _selectedRole = v!),
+                        onC: (v) => _updateUserForm(() => _selectedRole = v!),
                         hint: 'เลือกสิทธิ์'),
                   ],
                 ),
@@ -4559,7 +4844,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           _buildDropdownField(
               items: _adminPositions,
               val: _adminPosController.text,
-              onC: (v) => setState(() => _adminPosController.text = v!),
+              onC: (v) => _updateUserForm(() => _adminPosController.text = v!),
               icon: Icons.stars_outlined,
               color: Colors.orange.shade50,
               iconColor: Colors.orange,
@@ -4572,10 +4857,19 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     GoogleFonts.sarabun(fontSize: 10, color: Colors.black26)),
           ),
           const SizedBox(height: 40),
+          if (_userFormError != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Text(_userFormError!,
+                  style: GoogleFonts.sarabun(color: Colors.red)),
+            ),
           ElevatedButton.icon(
-            onPressed: _saveUser,
+            onPressed: _isSavingUser || _isUploading ? null : _saveUser,
             icon: const Icon(Icons.save_outlined, size: 18),
-            label: Text(_isEditing ? 'แก้ไขข้อมูล' : 'บันทึกข้อมูลผู้ใช้',
+            label: Text(
+                _isSavingUser
+                    ? 'กำลังบันทึก...'
+                    : (_isEditing ? 'แก้ไขข้อมูล' : 'บันทึกข้อมูลผู้ใช้'),
                 style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF0F172A),
@@ -4591,375 +4885,240 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   Widget _buildUserList(bool isMobile, List<Map<String, dynamic>> users) {
+    final pageSize = _usersPageSize == 0
+        ? (users.isEmpty ? 1 : users.length)
+        : _usersPageSize;
+    final pageCount = users.isEmpty ? 1 : (users.length / pageSize).ceil();
+    final page = _usersPage.clamp(0, pageCount - 1);
+    final start = page * pageSize;
+    final end = (start + pageSize).clamp(0, users.length);
+    final pageUsers = users.sublist(start, end);
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 20,
-                offset: const Offset(0, 10))
-          ]),
-      child: Column(
-        children: [
-          _buildUserListHeader(users),
-          const SizedBox(height: 16),
-          // 🚨 แถบแจ้งเตือนด่วนสำหรับแอดมิน (Emergency Notification Bar) 🔔🥇🏆
-          if (users.any((u) => u['forgotPasswordStatus'] == 'waiting'))
-            _buildEmergencyAlertBar(users
-                .where((u) => u['forgotPasswordStatus'] == 'waiting')
-                .length),
-
-          // 🔥 เพิ่มหัวตารางเพื่อให้ข้อมูลตรงกันครับ 🥇🏆
-          if (!isMobile) _buildTableLabelHeader(),
-          const SizedBox(height: 12),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
-          const SizedBox(height: 12),
-          // 🔥 ส่วนรายการเลื่อนได้พร้อม Scrollbar ครับ
-          Expanded(
-            child: Scrollbar(
-              controller: _scrollController, // เชื่อม Controller
-              thumbVisibility: true,
-              trackVisibility: true,
-              thickness: 6,
-              radius: const Radius.circular(10),
-              child: ListView.builder(
-                controller: _scrollController, // เชื่อม Controller เดียวกัน
-                padding: const EdgeInsets.only(right: 12),
-                itemCount: users.length,
-                itemBuilder: (context, index) {
-                  final user = users[index];
-                  return _buildUserRow(user, isMobile);
-                },
-              ),
+          color: Colors.white, borderRadius: BorderRadius.circular(24)),
+      child: Column(children: [
+        _buildUserListHeader(users),
+        const SizedBox(height: 16),
+        if (users.any((u) => u['forgotPasswordStatus'] == 'waiting'))
+          _buildEmergencyAlertBar(users
+              .where((u) => u['forgotPasswordStatus'] == 'waiting')
+              .length),
+        Expanded(child: LayoutBuilder(builder: (context, constraints) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: constraints.maxWidth < 1200 ? 1200 : constraints.maxWidth,
+              child: Column(children: [
+                _buildUsersTableHeader(),
+                const Divider(height: 1),
+                Expanded(
+                    child: users.isEmpty
+                        ? const Center(child: Text('ไม่พบผู้ใช้งาน'))
+                        : Scrollbar(
+                            controller: _scrollController,
+                            thumbVisibility: true,
+                            child: ListView.builder(
+                              controller: _scrollController,
+                              itemCount: pageUsers.length,
+                              itemBuilder: (context, index) =>
+                                  _buildUsersTableRow(pageUsers[index]),
+                            ),
+                          )),
+              ]),
             ),
+          );
+        })),
+        const Divider(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 16,
+            runSpacing: 12,
+            children: [
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                const Text('แสดงต่อหน้า'),
+                const SizedBox(width: 12),
+                DropdownButton<int>(
+                  value: _usersPageSize,
+                  items: const [
+                    DropdownMenuItem(value: 10, child: Text('10')),
+                    DropdownMenuItem(value: 15, child: Text('15')),
+                    DropdownMenuItem(value: 20, child: Text('20')),
+                    DropdownMenuItem(value: 25, child: Text('25')),
+                    DropdownMenuItem(value: 0, child: Text('ทั้งหมด')),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _usersPageSize = value);
+                    _changeUsersPage(0);
+                  },
+                ),
+              ]),
+              Text(
+                  'แสดง ${users.isEmpty ? 0 : start + 1}–$end จาก ${users.length} รายการ'),
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                IconButton(
+                  tooltip: 'หน้าก่อนหน้า',
+                  onPressed: page > 0 ? () => _changeUsersPage(page - 1) : null,
+                  icon: const Icon(Icons.chevron_left),
+                ),
+                Text('หน้า ${page + 1} / $pageCount'),
+                IconButton(
+                  tooltip: 'หน้าถัดไป',
+                  onPressed: page + 1 < pageCount
+                      ? () => _changeUsersPage(page + 1)
+                      : null,
+                  icon: const Icon(Icons.chevron_right),
+                ),
+              ]),
+            ],
           ),
-        ],
-      ),
+        ),
+      ]),
     );
   }
 
   Widget _buildUserListHeader(List<Map<String, dynamic>> users) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
+    return SizedBox(
+        width: double.infinity,
+        child: Wrap(
+          spacing: 24,
+          runSpacing: 16,
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.people_alt_outlined,
-                    size: 20, color: Colors.blueGrey)),
-            const SizedBox(width: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('รายชื่อผู้ใช้งาน',
-                    style: GoogleFonts.sarabun(
-                        fontSize: 18, fontWeight: FontWeight.bold)),
-                Text('บุคลากรทั้งหมด ${users.length} คน',
-                    style: GoogleFonts.sarabun(
-                        fontSize: 11, color: Colors.blueGrey)),
-              ],
-            ),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('รายชื่อผู้ใช้งาน',
+                  style: GoogleFonts.sarabun(
+                      fontSize: 18, fontWeight: FontWeight.bold)),
+              Text('แสดง ' + users.length.toString() + ' คน',
+                  style: GoogleFonts.sarabun(
+                      fontSize: 12, color: Colors.blueGrey)),
+            ]),
+            Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  SizedBox(
+                      width: 230,
+                      child: TextField(
+                        onChanged: (value) {
+                          setState(() => _searchText = value);
+                          _changeUsersPage(0);
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'ค้นหา ID ชื่อ หรือ username',
+                          prefixIcon: const Icon(Icons.search, size: 18),
+                          isDense: true,
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                        ),
+                        style: GoogleFonts.sarabun(fontSize: 12),
+                      )),
+                  FilledButton.icon(
+                    onPressed: () => _openUserForm(),
+                    icon: const Icon(Icons.person_add_alt_1, size: 18),
+                    label: const Text('เพิ่มผู้ใช้ใหม่'),
+                    style:
+                        FilledButton.styleFrom(backgroundColor: primaryColor),
+                  ),
+                  IconButton(
+                      tooltip: 'รีเฟรช',
+                      onPressed: _refreshUsers,
+                      icon: const Icon(Icons.refresh)),
+                ]),
           ],
-        ),
-        Row(
-          children: [
-            Container(
-              width: 180,
-              height: 40,
-              decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFE2E8F0))),
-              child: TextField(
-                onChanged: (val) => setState(() =>
-                    _searchText = val), // 🔥 อัปเดตการค้นหาทันทีที่พิมพ์ครับ
-                decoration: const InputDecoration(
-                    hintText: 'ค้นหา...',
-                    prefixIcon: Icon(Icons.search, size: 16),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 10)),
-                style: const TextStyle(fontSize: 12),
-              ),
-            ),
-            const SizedBox(width: 12),
-            IconButton(
-                onPressed: () {},
-                icon: const Icon(Icons.refresh, size: 18),
-                style: IconButton.styleFrom(
-                    backgroundColor: const Color(0xFFF8FAFC),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        side: const BorderSide(color: Color(0xFFE2E8F0))))),
-          ],
-        ),
-      ],
-    );
+        ));
   }
 
-  Widget _buildAvatar(Map<String, dynamic> user) {
-    return Builder(builder: (context) {
-      String? photoUrl = user['profileImage']?.toString();
-      if (photoUrl != null && photoUrl.startsWith('http')) {
-        String imgUrl = photoUrl;
-        if (photoUrl.contains('drive.google.com')) {
-          final regExp = RegExp(r'(?:id=|\/d\/)([a-zA-Z0-9-_]+)');
-          final match = regExp.firstMatch(photoUrl);
-          if (match != null) {
-            imgUrl =
-                'https://wsrv.nl/?url=drive.google.com/uc%3Fid%3D${match.group(1)}';
-          }
-        }
-        return CircleAvatar(
-          radius: 18,
-          backgroundImage: NetworkImage(imgUrl),
-          backgroundColor: const Color(0xFFF1F5F9),
-          onBackgroundImageError: (exception, stackTrace) {},
-          child: imgUrl.isNotEmpty
-              ? null
-              : Text(user['fullName']?[0] ?? '?',
-                  style: const TextStyle(fontSize: 12)),
-        );
-      }
-      return CircleAvatar(
-        radius: 18,
-        backgroundColor: const Color(0xFFF1F5F9),
-        child: Text(user['fullName']?[0] ?? '?',
-            style: const TextStyle(fontSize: 12)),
-      );
-    });
+  Widget _userTableCell(String value, int flex, {bool heading = false}) {
+    return Expanded(
+        flex: flex,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+          child: heading
+              ? Text(value,
+                  style: GoogleFonts.sarabun(
+                      fontSize: 12, fontWeight: FontWeight.bold))
+              : SelectableText(value.trim().isEmpty ? '-' : value,
+                  style: GoogleFonts.sarabun(fontSize: 12)),
+        ));
   }
 
-  Widget _buildUserRow(Map<String, dynamic> user, bool isMobile) {
-    bool isAdmin = user['permission'] == 'ผู้ดูแลระบบ';
+  Widget _buildUsersTableHeader() {
+    return Row(children: [
+      _userTableCell('ID', 1, heading: true),
+      const SizedBox(
+          width: 72,
+          child: Text('รูปโปรไฟล์',
+              textAlign: TextAlign.center, style: TextStyle(fontSize: 12))),
+      _userTableCell('ชื่อ-นามสกุล', 3, heading: true),
+      _userTableCell('Username', 2, heading: true),
+      _userTableCell('Password', 2, heading: true),
+      _userTableCell('วิทยฐานะ', 2, heading: true),
+      _userTableCell('ตำแหน่งบริหาร', 2, heading: true),
+      _userTableCell('กลุ่มสาระการเรียนรู้', 3, heading: true),
+      _userTableCell('สิทธิ์', 2, heading: true),
+      const SizedBox(
+          width: 144, child: Text('จัดการ', textAlign: TextAlign.center)),
+    ]);
+  }
 
-    // 🔥 โมบายโหมด: เปลี่ยนเป็นรูปแบบ Card เพื่อให้กดปุ่ม Action ได้ครบถ้วนครับ 🥇🏆
-    if (isMobile) {
-      return Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFF1F5F9), width: 1.5),
-        ),
-        child: Column(
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildAvatar(user),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          if (user['forgotPasswordStatus'] == 'waiting')
-                            const Padding(
-                              padding: EdgeInsets.only(right: 6),
-                              child: Icon(Icons.notifications_active,
-                                  color: Colors.orange, size: 16),
-                            ),
-                          Expanded(
-                            child: Text(user['fullName'] ?? '-',
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.sarabun(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: user['forgotPasswordStatus'] ==
-                                            'waiting'
-                                        ? Colors.orange.shade800
-                                        : Colors.black)),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(user['position'] ?? 'ครู',
-                          style: GoogleFonts.sarabun(
-                              fontSize: 12, color: Colors.black54)),
-                      if (user['ตำแหน่งงานบริหาร'] != null &&
-                          user['ตำแหน่งงานบริหาร'].toString().isNotEmpty)
-                        Text("${user['ตำแหน่งงานบริหาร']}",
-                            style: GoogleFonts.sarabun(
-                                fontSize: 11,
-                                color: Colors.blue,
-                                fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-                _buildActionMenu(user),
-              ],
-            ),
-            const Divider(height: 24, color: Color(0xFFF1F5F9)),
-            Row(
-              children: [
-                Expanded(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      Text('กลุ่มสาระฯ',
-                          style: GoogleFonts.sarabun(
-                              fontSize: 10, color: Colors.black38)),
-                      Text(user['department'] ?? '-',
-                          style: GoogleFonts.sarabun(
-                              fontSize: 12, color: Colors.blueGrey)),
-                    ])),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isAdmin
-                        ? const Color(0xFFFFF7ED)
-                        : const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    user['permission'] ?? 'ครู',
-                    style: GoogleFonts.sarabun(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: isAdmin ? Colors.orange : Colors.blueGrey),
-                  ),
-                ),
-              ],
-            ),
-            // 🔔 ปุ่มอนุมัติรีเซ็ตรหัส: แสดงเฉพาะเมื่อมีการแจ้งลืมรหัสรอดำเนินการครับ 🥇🏆
-            if (user['forgotPasswordStatus'] == 'waiting') ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => _enablePasswordReset(user),
-                  icon: const Icon(Icons.key_rounded, size: 18),
-                  label: Text('อนุมัติการรีเซ็ตรหัสผ่าน',
-                      style: GoogleFonts.sarabun(
-                          fontWeight: FontWeight.bold, fontSize: 13)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.shade600,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    elevation: 0,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      );
-    }
-
+  Widget _buildUsersTableRow(Map<String, dynamic> user) {
+    final waiting = user['forgotPasswordStatus'] == 'waiting';
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9)))),
-      child: Row(
-        children: [
-          _buildAvatar(user),
-          const SizedBox(width: 16),
-          // ช่อง 1: ชื่อและตำแหน่ง (Flex 3)
-          Expanded(
-            flex: 3,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    if (user['forgotPasswordStatus'] == 'waiting')
-                      const Padding(
-                        padding: EdgeInsets.only(right: 6),
-                        child: Icon(Icons.notifications_active,
-                            color: Colors.orange, size: 16),
-                      ),
-                    Expanded(
-                      child: Text(user['fullName'] ?? '-',
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.sarabun(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: user['forgotPasswordStatus'] == 'waiting'
-                                  ? Colors.orange.shade800
-                                  : Colors.black)),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    if (user['ตำแหน่งงานบริหาร'] != null &&
-                        user['ตำแหน่งงานบริหาร'].toString().isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 4),
-                        child: Text("${user['ตำแหน่งงานบริหาร']} /",
-                            style: GoogleFonts.sarabun(
-                                fontSize: 11,
-                                color: Colors.blue,
-                                fontWeight: FontWeight.bold)),
-                      ),
-                    Text(user['position'] ?? 'ครู',
-                        style: GoogleFonts.sarabun(
-                            fontSize: 11, color: Colors.black38)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          // ช่อง 2: กลุ่มสาระ (Flex 2)
-          Expanded(
-            flex: 2,
-            child: Text(user['department'] ?? '-',
-                style:
-                    GoogleFonts.sarabun(fontSize: 12, color: Colors.blueGrey)),
-          ),
-          // ช่อง 3: วิทยฐานะ (Flex 2)
-          Expanded(
-            flex: 2,
-            child: Text(
-                user['academicStanding'] == '---เลือก---'
-                    ? '-'
-                    : (user['academicStanding'] ?? '-'),
-                style: GoogleFonts.sarabun(
-                    fontSize: 11,
-                    color: Colors.blueGrey.shade400,
-                    fontWeight: FontWeight.w500)),
-          ),
-          // ช่อง 4: สิทธิ์ (Flex 1)
-          Expanded(
-            flex: 1,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color:
-                    isAdmin ? const Color(0xFFFFF7ED) : const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                user['permission'] ?? 'ครู',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.sarabun(
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
-                    color: isAdmin ? Colors.orange : Colors.blueGrey),
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          _buildActionMenu(user),
-        ],
+      constraints: const BoxConstraints(minHeight: 68),
+      decoration: BoxDecoration(
+        color: waiting ? Colors.orange.shade50 : Colors.white,
+        border: const Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
       ),
+      child: Row(children: [
+        _userTableCell((user['id_user'] ?? user['id'] ?? '').toString(), 1),
+        SizedBox(width: 72, child: Center(child: _buildUserProfilePhoto(user))),
+        _userTableCell((user['fullName'] ?? user['name'] ?? '').toString(), 3),
+        _userTableCell((user['username'] ?? '').toString(), 2),
+        _userTableCell((user['password'] ?? '').toString(), 2),
+        _userTableCell(
+            (user['academicStanding'] ?? user['วิทยฐานะ'] ?? '').toString(), 2),
+        _userTableCell((user['ตำแหน่งงานบริหาร'] ?? '').toString(), 2),
+        _userTableCell((user['department'] ?? '').toString(), 3),
+        _userTableCell(
+            (user['permission'] ?? user['role'] ?? '').toString(), 2),
+        SizedBox(
+            width: 144,
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              IconButton(
+                  tooltip: 'แก้ไข',
+                  onPressed: () => _openUserForm(user: user),
+                  color: Colors.blue,
+                  icon: const Icon(Icons.edit_outlined, size: 20)),
+              IconButton(
+                  tooltip: waiting ? 'อนุมัติรีเซ็ต' : 'รีเซ็ตรหัสผ่าน',
+                  onPressed: () => _enablePasswordReset(user),
+                  color: Colors.orange.shade800,
+                  icon: const Icon(Icons.lock_reset, size: 20)),
+              IconButton(
+                  tooltip: 'ลบข้อมูล',
+                  onPressed: () => _deleteUser(user),
+                  color: Colors.red,
+                  icon: const Icon(Icons.delete_outline, size: 20)),
+            ])),
+      ]),
     );
   }
 
-  // 🚨 แถบแจ้งเตือนด่วนสำหรับแอดมิน (Emergency Alert Bar) 🥇🏆
+  Widget _buildUserProfilePhoto(Map<String, dynamic> user) {
+    return ProfileAvatar(
+      imageUrl: user['profileImage'],
+      size: 40,
+      name: (user['fullName'] ?? user['name'] ?? '').toString(),
+    );
+  }
+
   Widget _buildEmergencyAlertBar(int count) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -5336,6 +5495,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         'permission',
         'position',
         'department',
+        'ตำแหน่งงานบริหาร',
+        'วิทยฐานะ',
         'firebase_uid',
         'created_at',
         'updated_at'
@@ -5360,6 +5521,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         'totalDays',
         'year',
         'receiveNumber',
+        'receiveDate',
+        'receiveTime',
         'medicalCertificate'
       ],
       'UserRoles': [
@@ -5806,17 +5969,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
                               Widget cellContent;
                               if (isMedicalCert && isLink) {
-                                // 🕵️‍♂️ แปลงลิงก์ Google Drive ให้เป็นภาพตัวอย่าง (Thumbnail) ครับ 🥇🏆
-                                String imgUrl = val;
-                                if (val.contains('drive.google.com/file/d/')) {
-                                  final regExp =
-                                      RegExp(r'file/d/([a-zA-Z0-9-_]+)');
-                                  final match = regExp.firstMatch(val);
-                                  if (match != null) {
-                                    imgUrl =
-                                        'https://drive.google.com/uc?export=view&id=${match.group(1)}';
-                                  }
-                                }
+                                // 🕵️‍♂️ แปลงลิงก์ Google Drive ให้เป็นภาพตัวอย่างครับ 🥇🏆
+                                // (uc?export=view ไม่มี CORS header จึงโหลดไม่ขึ้นบนเว็บ)
+                                final imgUrl =
+                                    resolveDisplayImageUrl(val) ?? val;
 
                                 cellContent = InkWell(
                                   onTap: () => launchUrl(
@@ -5834,6 +5990,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                     clipBehavior: Clip.antiAlias,
                                     child: Image.network(
                                       imgUrl,
+                                      webHtmlElementStrategy:
+                                          WebHtmlElementStrategy.prefer,
                                       fit: BoxFit.cover,
                                       errorBuilder: (ctx, err, stack) => Center(
                                           child: Icon(
@@ -6158,89 +6316,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   // 🔥 ฟังก์ชันสำหรับสร้างหัวตารางให้ตรงแนวครับ
-  Widget _buildTableLabelHeader() {
-    TextStyle headerStyle = GoogleFonts.sarabun(
-        fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black26);
-    return Padding(
-      padding: const EdgeInsets.only(
-          left: 52, right: 48), // เผื่อที่สำหรับ Avatar และ Action Icon
-      child: Row(
-        children: [
-          Expanded(
-              flex: 3, child: Text('ชื่อ-ตำแหน่งบริหาร', style: headerStyle)),
-          Expanded(
-              flex: 2, child: Text('กลุ่มสาระการเรียนรู้', style: headerStyle)),
-          Expanded(flex: 2, child: Text('วิทยฐานะ', style: headerStyle)),
-          Expanded(
-              flex: 1,
-              child: Text('สิทธิ์',
-                  textAlign: TextAlign.center, style: headerStyle)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionMenu(Map<String, dynamic> user) {
-    final bool isWaiting = (user['forgotPasswordStatus'] ?? '') == 'waiting';
-
-    return PopupMenuButton<String>(
-      icon:
-          const Icon(Icons.more_vert_rounded, size: 18, color: Colors.blueGrey),
-      onSelected: (val) {
-        if (val == 'edit') {
-          _editUser(user);
-        } else if (val == 'delete') {
-          _deleteUser(user);
-        } else if (val == 'view_password') {
-          _viewPassword(user);
-        } else if (val == 'allow_reset') {
-          _enablePasswordReset(user);
-        }
-      },
-      itemBuilder: (ctx) => [
-        const PopupMenuItem(
-            value: 'edit',
-            child: Row(children: [
-              Icon(Icons.edit_outlined, size: 16, color: Colors.blue),
-              SizedBox(width: 8),
-              Text('แก้ไข')
-            ])),
-        const PopupMenuItem(
-            value: 'view_password',
-            child: Row(children: [
-              Icon(Icons.visibility_outlined, size: 16, color: Colors.indigo),
-              SizedBox(width: 8),
-              Text('ดูรหัสผ่าน')
-            ])),
-        // 🔴 ปุ่มเปลี่ยนตามสถานะ: "อนุมัติการรีเซ็ต" หรือ "รีเซ็ตรหัส"
-        PopupMenuItem(
-            value: 'allow_reset',
-            child: Row(children: [
-              Icon(
-                isWaiting ? Icons.key_rounded : Icons.lock_reset_rounded,
-                size: 16,
-                color: isWaiting ? Colors.red : Colors.orange,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                isWaiting ? 'อนุมัติการรีเซ็ต' : 'รีเซ็ตรหัส',
-                style: TextStyle(
-                  color: isWaiting ? Colors.red : Colors.black87,
-                  fontWeight: isWaiting ? FontWeight.bold : FontWeight.normal,
-                ),
-              ),
-            ])),
-        const PopupMenuItem(
-            value: 'delete',
-            child: Row(children: [
-              Icon(Icons.delete_outline_rounded, size: 16, color: Colors.red),
-              SizedBox(width: 8),
-              Text('ลบข้อมูล', style: TextStyle(color: Colors.red))
-            ])),
-      ],
-    );
-  }
-
   void _enablePasswordReset(Map<String, dynamic> user) async {
     final DateTime expiry = DateTime.now().add(const Duration(hours: 24));
     final String resetCode = FirebaseService.generateResetCode();
@@ -6253,6 +6328,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         'forgotPasswordStatus': 'reset_by_admin',
         'resetAllowedUntil': expiry.toIso8601String(),
       });
+      _refreshUsers();
 
       if (mounted) {
         showDialog(
@@ -6316,79 +6392,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     }
   }
 
-  void _viewPassword(Map<String, dynamic> user) {
-    final pwd = (user['password'] ?? '').toString().trim();
-    final bool hasPassword = pwd.isNotEmpty;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Icon(hasPassword ? Icons.vpn_key_outlined : Icons.lock_rounded,
-                color: hasPassword ? Colors.indigo : Colors.green),
-            const SizedBox(width: 12),
-            Text(hasPassword ? 'ตรวจสอบรหัสผ่าน' : 'ยังไม่ได้ตั้งรหัสผ่าน',
-                style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (!hasPassword) ...[
-              Text(
-                  'ผู้ใช้ ${user['fullName'] ?? 'ผู้ใช้งาน'} ยังไม่มีรหัสผ่านในระบบครับ',
-                  style: GoogleFonts.sarabun(color: Colors.blueGrey)),
-              const SizedBox(height: 16),
-              Text(
-                  'หากต้องการ ให้ใช้ปุ่ม "รีเซ็ตรหัสผ่าน" เพื่อตั้งรหัสใหม่ให้ครูครับ',
-                  style: GoogleFonts.sarabun(
-                      fontSize: 12, color: Colors.blueGrey)),
-            ] else ...[
-              Text('รหัสผ่านของ ${user['fullName'] ?? 'ผู้ใช้งาน'}:',
-                  style: GoogleFonts.sarabun(color: Colors.blueGrey)),
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(16),
-                  border:
-                      Border.all(color: Colors.indigo.withValues(alpha: 0.1)),
-                ),
-                child: SelectableText(
-                  pwd,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.sarabun(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.indigo.shade900,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('ตกลง',
-                style: GoogleFonts.sarabun(
-                    fontWeight: FontWeight.bold,
-                    color: hasPassword ? Colors.indigo : Colors.green)),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildFieldLabel(String t) => Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Text(t,
@@ -6398,10 +6401,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               color: Colors.blueGrey)));
 
   Widget _buildTextField(TextEditingController ctrl, String hint,
-          {bool obscure = false, IconData? icon}) =>
+          {bool obscure = false,
+          IconData? icon,
+          TextInputType? keyboardType}) =>
       TextField(
           controller: ctrl,
           obscureText: obscure,
+          keyboardType: keyboardType,
           decoration: InputDecoration(
               hintText: hint,
               prefixIcon: icon != null

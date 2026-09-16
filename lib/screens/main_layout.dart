@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,6 +14,7 @@ import 'login_screen.dart';
 import 'mobile/mobile_profile_screen.dart';
 import 'login_logs_screen.dart'; // 🛡️ นำเข้าหน้าประวัติการเข้าใช้งาน 🥇🏆
 import 'calendar_screen.dart'; // 📅 นำเข้าหน้าปฏิทินกิจกรรม 🥇🏆
+import '../utils/profile_image.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -30,6 +33,68 @@ class _MainLayoutState extends State<MainLayout> {
   Map<String, dynamic>? _permissionData;
   final _firebaseService = FirebaseService();
   late final List<Widget> _cachedScreens = _buildScreens();
+
+  // 🔍 ระดับการซูมของเนื้อหา (body) — ไม่กระทบแถบเมนูด้านซ้าย
+  static const double _minZoom = 0.6;
+  static const double _maxZoom = 1.6;
+  static const double _zoomStep = 0.1;
+  double _bodyZoom = 1.0;
+
+  // ข้อมูลผู้ใช้ที่ล็อกอิน สำหรับการ์ดโปรไฟล์ท้ายแถบเมนู
+  String _userFullName = '';
+  String _userAcademicStanding = '';
+  String _userProfileImage = '';
+  // ตัวระบุตัวตนจาก cache ใช้หาแถวใน Teachers ตอนรีเฟรชข้อมูลจากคลาวด์
+  dynamic _cachedIdUser;
+  String _cachedUsername = '';
+
+  void _changeZoom(double delta) {
+    final next = (_bodyZoom + delta).clamp(_minZoom, _maxZoom);
+    if (next != _bodyZoom) setState(() => _bodyZoom = next);
+  }
+
+  void _resetZoom() {
+    if (_bodyZoom != 1.0) setState(() => _bodyZoom = 1.0);
+  }
+
+  /// ห่อเนื้อหาให้ย่อ/ขยายได้ โดยยังจัด layout ตามพื้นที่จริง
+  /// (ให้ความรู้สึกเหมือนซูมของเบราว์เซอร์ ไม่ใช่แค่ขยายภาพจนล้นขอบ)
+  ///
+  /// สำคัญ: หลายหน้าจัด layout จาก MediaQuery.size ไม่ใช่ constraints
+  /// (เช่น ความกว้างตารางในหน้าประวัติการลา) ถ้าไม่ขยาย MediaQuery ให้ด้วย
+  /// เนื้อหาจะถูกย่อลงแต่ไม่ขยายกลับมาเต็มกรอบ เหลือพื้นที่ว่างด้านข้าง
+  Widget _buildZoomableBody(Widget child) {
+    if (_bodyZoom == 1.0) return child;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mq = MediaQuery.of(context);
+        final logicalWidth = constraints.maxWidth / _bodyZoom;
+        final logicalHeight = constraints.maxHeight / _bodyZoom;
+
+        // ใช้ FittedBox แทน Transform + OverflowBox:
+        // Transform ส่ง constraints เดิมต่อให้ลูก ต้องปลดด้วย OverflowBox ก่อน
+        // แต่ OverflowBox มีขนาดเท่าพื้นที่จริง ทำให้การกดใกล้ขอบขวา/ล่าง
+        // ถูกตีว่าอยู่นอกกรอบจนกดไม่ติด (เช่น ปุ่มสามจุดท้ายแถว)
+        // FittedBox ให้ลูกกำหนดขนาดเองแล้วย่อทั้งก้อน พร้อมแปลงพิกัดสัมผัส
+        // ให้ตรงกับที่เห็นบนจอ ทุกจุดจึงกดได้ตามปกติ
+        return FittedBox(
+          fit: BoxFit.fill,
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: logicalWidth,
+            height: logicalHeight,
+            child: MediaQuery(
+              data: mq.copyWith(
+                size: Size(
+                    mq.size.width / _bodyZoom, mq.size.height / _bodyZoom),
+              ),
+              child: child,
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   Future<void> _clearSessionPrefs(SharedPreferences prefs) async {
     await prefs.remove('isLoggedIn');
@@ -58,12 +123,86 @@ class _MainLayoutState extends State<MainLayout> {
 
     if (role.isEmpty) role = 'ครู';
 
+    // ข้อมูลเต็มของผู้ใช้ถูกเก็บไว้ตอนเข้าสู่ระบบ และอัปเดตทุกครั้งที่แก้โปรไฟล์
+    String fullName = '';
+    String standing = '';
+    String photo = '';
+    final cachedJson = prefs.getString('userFullDataJson');
+    if (cachedJson != null && cachedJson.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(cachedJson) as Map<String, dynamic>;
+        _cachedIdUser = decoded['id_user'];
+        _cachedUsername = (decoded['username'] ?? '').toString().trim();
+        fullName =
+            (decoded['fullName'] ?? decoded['name'] ?? '').toString().trim();
+        standing = (decoded['academicStanding'] ??
+                decoded['วิทยฐานะ'] ??
+                '')
+            .toString()
+            .trim();
+        photo = (decoded['profileImage'] ?? '').toString().trim();
+      } catch (e) {
+        debugPrint('⚠️  อ่านข้อมูลผู้ใช้จากเครื่องไม่สำเร็จ: $e');
+      }
+    }
+
     setState(() {
       _currentUser = cUser;
       _userRole = role;
+      _userFullName = fullName;
+      _userAcademicStanding = standing;
+      _userProfileImage = photo;
     });
 
     _loadPermissions();
+    _refreshUserFromCloud(cUser);
+  }
+
+  /// ข้อมูลใน SharedPreferences เป็นสแนปช็อตตอนล็อกอิน ถ้าผู้ใช้เพิ่งอัปโหลด
+  /// รูปโปรไฟล์ (หรือแอดมินเพิ่งตั้งให้) รูปจะยังไม่ขึ้นจนกว่าจะล็อกอินใหม่
+  /// จึงดึงข้อมูลล่าสุดจาก Supabase มาทับเบื้องหลังครับ 🥇🏆
+  Future<void> _refreshUserFromCloud(String fullName) async {
+    try {
+      final serverData = await _firebaseService.findTeacher(
+        idUser: _cachedIdUser,
+        username: _cachedUsername,
+        fullName: fullName.isNotEmpty ? fullName : _userFullName,
+      );
+      if (serverData == null || !mounted) return;
+
+      final photo = (serverData['profileImage'] ?? '').toString().trim();
+      if (photo != _userProfileImage) {
+        setState(() => _userProfileImage = photo);
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final cachedJson = prefs.getString('userFullDataJson');
+      if (cachedJson != null && cachedJson.isNotEmpty) {
+        final decoded = jsonDecode(cachedJson);
+        if (decoded is Map) {
+          final merged = Map<String, dynamic>.from(decoded)
+            ..['profileImage'] = photo;
+          await prefs.setString('userFullDataJson', jsonEncode(merged));
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️  รีเฟรชรูปโปรไฟล์จากคลาวด์ไม่สำเร็จ: $e');
+    }
+  }
+
+  /// ชื่อที่แสดงในการ์ดโปรไฟล์ — ใช้ชื่อ-นามสกุลจริงถ้ามี
+  String get _displayName =>
+      _userFullName.isNotEmpty ? _userFullName : _currentUser;
+
+  /// บรรทัดใต้ชื่อ: "ครู ชำนาญการพิเศษ" (ถ้าไม่มีวิทยฐานะก็แสดงแค่บทบาท)
+  String get _displaySubtitle {
+    final role = _currentUser == 'ผู้ดูแลระบบ' ? 'ผู้ดูแลระบบ' : _userRole;
+    if (_userAcademicStanding.isEmpty ||
+        _userAcademicStanding.contains('ไม่มี') ||
+        _userAcademicStanding.contains('เลือก')) {
+      return role;
+    }
+    return '$role $_userAcademicStanding';
   }
 
   Future<void> _loadPermissions() async {
@@ -181,12 +320,12 @@ class _MainLayoutState extends State<MainLayout> {
                   Expanded(
                     child: Material(
                       color: const Color(0xFFF1F5F9),
-                      child: Container(
+                      child: SizedBox(
                         width: double.infinity,
                         height: double.infinity,
-                        child: _selectedIndex == -1
+                        child: _buildZoomableBody(_selectedIndex == -1
                             ? const MobileProfileScreen()
-                            : _getScreen(effectiveIndex),
+                            : _getScreen(effectiveIndex)),
                       ),
                     ),
                   ),
@@ -240,12 +379,12 @@ class _MainLayoutState extends State<MainLayout> {
                 Expanded(
                   child: Material(
                     color: const Color(0xFFF1F5F9),
-                    child: Container(
+                    child: SizedBox(
                       width: double.infinity,
                       height: double.infinity,
-                      child: _selectedIndex == -1
+                      child: _buildZoomableBody(_selectedIndex == -1
                           ? const MobileProfileScreen()
-                          : _getScreen(effectiveIndex),
+                          : _getScreen(effectiveIndex)),
                     ),
                   ),
                 ),
@@ -302,6 +441,81 @@ class _MainLayoutState extends State<MainLayout> {
     return 2;
   }
 
+  // 🔍 ปุ่มย่อ/ขยายเนื้อหา — มีผลเฉพาะ body ไม่กระทบแถบเมนูนี้
+  Widget _buildZoomBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _buildZoomButton(
+            icon: Icons.remove_rounded,
+            tooltip: 'ย่อขนาดเนื้อหา',
+            onPressed: _bodyZoom > _minZoom ? () => _changeZoom(-_zoomStep) : null,
+          ),
+          Expanded(
+            child: InkWell(
+              onTap: _resetZoom,
+              borderRadius: BorderRadius.circular(8),
+              child: Tooltip(
+                message: 'คลิกเพื่อกลับเป็น 100%',
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Text(
+                    '${(_bodyZoom * 100).round()}%',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.sarabun(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF0F172A),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          _buildZoomButton(
+            icon: Icons.add_rounded,
+            tooltip: 'ขยายขนาดเนื้อหา',
+            onPressed: _bodyZoom < _maxZoom ? () => _changeZoom(_zoomStep) : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildZoomButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback? onPressed,
+  }) {
+    final enabled = onPressed != null;
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: enabled ? Colors.white : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+          ),
+          child: Icon(icon,
+              size: 20,
+              color: enabled ? const Color(0xFF0F172A) : Colors.black26),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSidebar(bool isWeb, List<int> allowedMenus) {
     return Container(
       width: 280,
@@ -334,8 +548,9 @@ class _MainLayoutState extends State<MainLayout> {
                   decoration: BoxDecoration(
                       color: const Color(0xFF0F172A),
                       borderRadius: BorderRadius.circular(10)),
-                  child: const Icon(Icons.dashboard_customize,
-                      color: Colors.white, size: 24),
+                  clipBehavior: Clip.antiAlias,
+                  // โลโก้เดียวกับหน้าเข้าสู่ระบบ
+                  child: Image.asset('image/Logo.jpg', fit: BoxFit.cover),
                 ),
                 const SizedBox(width: 12),
                 Column(
@@ -389,6 +604,10 @@ class _MainLayoutState extends State<MainLayout> {
             ),
           ),
 
+          // 🔍 แถบปรับขนาดเนื้อหา
+          _buildZoomBar(),
+          const SizedBox(height: 12),
+
           // Footer Profile
           Container(
             padding: const EdgeInsets.all(12),
@@ -406,20 +625,13 @@ class _MainLayoutState extends State<MainLayout> {
                     borderRadius: BorderRadius.circular(12),
                     child: Row(
                       children: [
-                        Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                              color: const Color(0xFFE2E8F0),
-                              borderRadius: BorderRadius.circular(10)),
-                          child: Center(
-                              child: Text(
-                                  _currentUser.isNotEmpty
-                                      ? _currentUser[0]
-                                      : '?',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14))),
+                        ProfileAvatar(
+                          imageUrl: _userProfileImage,
+                          size: 36,
+                          name: _displayName.isNotEmpty ? _displayName : '?',
+                          backgroundColor: const Color(0xFFE2E8F0),
+                          foregroundColor: Colors.black87,
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -427,17 +639,15 @@ class _MainLayoutState extends State<MainLayout> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(_currentUser,
+                              Text(_displayName,
                                   style: GoogleFonts.sarabun(
                                       fontSize: 13,
                                       fontWeight: FontWeight.bold),
                                   overflow: TextOverflow.ellipsis),
-                              Text(
-                                  _currentUser == 'ผู้ดูแลระบบ'
-                                      ? 'ผู้ดูแลระบบ'
-                                      : _userRole,
+                              Text(_displaySubtitle,
                                   style: GoogleFonts.sarabun(
-                                      fontSize: 11, color: Colors.black38)),
+                                      fontSize: 11, color: Colors.black38),
+                                  overflow: TextOverflow.ellipsis),
                             ],
                           ),
                         ),
@@ -467,7 +677,10 @@ class _MainLayoutState extends State<MainLayout> {
       padding: const EdgeInsets.only(bottom: 8),
       child: InkWell(
         onTap: () {
+          // กลับออกจากหน้าโปรไฟล์ = อาจเพิ่งเปลี่ยนรูป จึงโหลดข้อมูลใหม่
+          final wasOnProfile = _selectedIndex == -1;
           setState(() => _selectedIndex = index);
+          if (wasOnProfile) _loadUser();
           if (Navigator.canPop(context)) Navigator.pop(context);
         },
         borderRadius: BorderRadius.circular(12),

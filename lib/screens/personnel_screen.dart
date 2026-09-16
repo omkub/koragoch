@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/firebase_service.dart';
+import '../utils/profile_image.dart';
+import '../utils/teacher_sort.dart';
 
 class PersonnelScreen extends StatefulWidget {
   final VoidCallback? onBack; // 🔥 เพิ่ม callback สำหรับกดย้อนกลับครับ 🥇🏆
@@ -55,15 +57,8 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
             groups[dept]!.add(u);
           }
 
-          final List<String> priorityDepts = ['คณิตศาสตร์', 'วิทยาศาสตร์และเทคโนโลยี', 'ภาษาไทย', 'ภาษาต่างประเทศ', 'สังคมศึกษา ศาสนา และวัฒนธรรม', 'ศิลปะ', 'การงานอาชีพ', 'สุขศึกษาและพลศึกษา', 'ฝ่ายบริหาร', 'งานสำนักงาน'];
-          final sortedDepts = groups.keys.toList()..sort((a, b) {
-            int idxA = priorityDepts.indexWhere((e) => a.contains(e));
-            int idxB = priorityDepts.indexWhere((e) => b.contains(e));
-            if (idxA != -1 && idxB != -1) return idxA.compareTo(idxB);
-            if (idxA != -1) return -1;
-            if (idxB != -1) return 1;
-            return a.compareTo(b);
-          });
+          // เรียงแท็บกลุ่มสาระด้วยลำดับกลางของระบบ (ฝ่ายบริหาร → ภาษาไทย → ...)
+          final sortedDepts = sortedDepartmentNames(groups.keys);
           
           final finalTabs = ['รวมทั้งหมด', ...sortedDepts];
           
@@ -165,20 +160,10 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
                     physics: const BouncingScrollPhysics(),
                     children: finalTabs.map((dept) {
                       final rawMembers = dept == 'รวมทั้งหมด' ? users : (groups[dept] ?? []);
-                      final List<String> rankPriority = ['เชี่ยวชาญพิเศษ', 'เชี่ยวชาญ', 'ชำนาญการพิเศษ', 'ชำนาญการ', 'ไม่มีวิทยฐานะ'];
-                      final members = List<Map<String, dynamic>>.from(rawMembers);
-                      members.sort((a, b) {
-                        String rankA = a['academicStanding']?.toString() ?? a['วิทยฐานะ']?.toString() ?? '';
-                        String rankB = b['academicStanding']?.toString() ?? b['วิทยฐานะ']?.toString() ?? '';
-                        int idxA = rankPriority.indexWhere((e) => rankA.contains(e));
-                        int idxB = rankPriority.indexWhere((e) => rankB.contains(e));
-                        if (idxA == -1) idxA = 99;
-                        if (idxB == -1) idxB = 99;
-                        if (idxA != idxB) return idxA.compareTo(idxB);
-                        String nameA = a['fullName']?.toString() ?? '';
-                        String nameB = b['fullName']?.toString() ?? '';
-                        return nameA.compareTo(nameB);
-                      });
+                      // เรียงกลุ่มสาระก่อน แล้วค่อยบริหาร/วิทยฐานะ/ชื่อ
+                      // (แท็บรวมทั้งหมดจึงไล่เป็นกลุ่ม ไม่ปนกันเหมือนเดิม)
+                      final members = sortedTeachers(
+                          List<Map<String, dynamic>>.from(rawMembers));
                       final color = dept == 'รวมทั้งหมด' ? const Color(0xFF3B82F6) : _getDeptColor(dept);
                       if (members.isEmpty) return Center(child: Text('ไม่มีข้อมูลบุคลากรในกลุ่มนี้', style: GoogleFonts.sarabun(color: Colors.blueGrey)));
                       return _buildDataTable(members, color);
@@ -316,31 +301,12 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 2),
       ),
-      child: ClipOval(
-        child: Builder(
-          builder: (context) {
-            String? url = u['profileImage'];
-            if (url != null && url.isNotEmpty) {
-              String imgUrl = url;
-              if (url.contains('drive.google.com')) {
-                final regExp = RegExp(r'(?:id=|\/d\/)([a-zA-Z0-9-_]+)');
-                final match = regExp.firstMatch(url);
-                if (match != null) {
-                  // ใช้ wsrv.nl พร็อกซีเสถียรกว่า lh3 สำหรับภาพโปรไฟล์ 🏆
-                  imgUrl = 'https://wsrv.nl/?url=drive.google.com/uc%3Fid%3D${match.group(1)}';
-                }
-              }
-              return Image.network(imgUrl, fit: BoxFit.cover, 
-                errorBuilder: (c, e, s) => Center(child: Text(u['fullName']?[0] ?? '?', style: GoogleFonts.sarabun(fontSize: 16, fontWeight: FontWeight.bold, color: color)))
-              );
-            }
-            return Center(
-              child: Text(u['fullName']?[0] ?? '?', 
-                style: GoogleFonts.sarabun(fontSize: 16, fontWeight: FontWeight.bold, color: color)
-              ),
-            );
-          }
-        ),
+      child: ProfileAvatar(
+        imageUrl: u['profileImage'],
+        size: 36, // 40 ลบขอบขาว 2 ด้าน
+        name: (u['fullName'] ?? '').toString(),
+        backgroundColor: Colors.transparent,
+        foregroundColor: color,
       ),
     );
   }

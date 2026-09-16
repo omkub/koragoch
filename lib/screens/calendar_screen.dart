@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/firebase_service.dart';
+import 'leave_history_screen.dart' show LeaveFormPreview;
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -22,10 +23,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
   String _userRole = '';
   Map<DateTime, List<dynamic>> _events = {};
 
+  // ข้อมูลประกอบสำหรับเปิด "ฟอร์มใบลา" แบบ popup เมื่อกดการ์ดรายชื่อ
+  List<Map<String, dynamic>> _allUsers = [];
+  List<Map<String, dynamic>> _allLeaveRequests = [];
+  List<String> _leaveTypeNames = [];
+
   @override
   void initState() {
     super.initState();
     _loadUserInfo();
+    _loadFormReferenceData();
   }
 
   Future<void> _loadUserInfo() async {
@@ -34,6 +41,56 @@ class _CalendarScreenState extends State<CalendarScreen> {
       _currentUser = prefs.getString('currentUser') ?? '';
       _userRole = prefs.getString('userRole') ?? '';
     });
+  }
+
+  /// ฟอร์มใบลาต้องใช้ข้อมูลครู (ตำแหน่ง/วิทยฐานะ), ใบลาทั้งหมด (หาการลาครั้งก่อน)
+  /// และรายชื่อประเภทการลา (ช่องติ๊กในแบบฟอร์ม) จึงโหลดเตรียมไว้เบื้องหลัง
+  Future<void> _loadFormReferenceData() async {
+    try {
+      final results = await Future.wait([
+        _firebaseService.getUsers(),
+        _firebaseService.getLeaveRequestsFromSupabase(),
+        _firebaseService.getLeaveTypes(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _allUsers = results[0] as List<Map<String, dynamic>>;
+        _allLeaveRequests = results[1] as List<Map<String, dynamic>>;
+        _leaveTypeNames = results[2] as List<String>;
+      });
+    } catch (e) {
+      debugPrint('⚠️  โหลดข้อมูลประกอบฟอร์มใบลาไม่สำเร็จ: $e');
+    }
+  }
+
+  /// 📄 เปิดฟอร์มใบลาเป็น popup เมื่อกดการ์ดรายชื่อคนลา
+  void _showLeaveFormPopup(Map<String, dynamic> leave) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.6),
+      builder: (ctx) {
+        final size = MediaQuery.of(ctx).size;
+        return Dialog(
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: size.width < 900 ? 12 : 40,
+            vertical: 24,
+          ),
+          clipBehavior: Clip.antiAlias,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: SizedBox(
+            width: 900,
+            height: size.height,
+            child: LeaveFormPreview(
+              leaf: leave,
+              allUsers: _allUsers,
+              allLeaveRequests: _allLeaveRequests,
+              leaveTypeNames: _leaveTypeNames,
+            ),
+          ),
+        );
+      },
+    );
   }
 
   // 🛠️ แปลงวันที่จาก String "วว/ดด/ปปปป" เป็น DateTime ค.ศ.
@@ -123,7 +180,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'ปฏิทินกิจกรรมส่วนกลาง',
+                          'ปฏิทิน โรงเรียนรมบุรีพิทยาคม',
                           style: GoogleFonts.sarabun(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
@@ -199,8 +256,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             eventLoader: _getEventsForDay,
                             calendarStyle: CalendarStyle(
                               todayDecoration: BoxDecoration(
-                                  color:
-                                      const Color(0xFF0F172A).withValues(alpha: 0.1),
+                                  color: const Color(0xFF0F172A)
+                                      .withValues(alpha: 0.1),
                                   shape: BoxShape.circle),
                               todayTextStyle: const TextStyle(
                                   color: Color(0xFF0F172A),
@@ -297,67 +354,75 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
             border: Border(left: BorderSide(color: color, width: 4)),
             boxShadow: [
-              BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)
             ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          clipBehavior: Clip.antiAlias,
+          // 👆 กดการ์ดเพื่อเปิดฟอร์มใบลาของคนนั้นขึ้นมาดูครับ
+          child: InkWell(
+            onTap: () => _showLeaveFormPopup(Map<String, dynamic>.from(event)),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      event['fullName'] ?? 'ไม่ระบุชื่อ',
-                      style: GoogleFonts.sarabun(
-                          fontWeight: FontWeight.bold, fontSize: 15),
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          event['fullName'] ?? 'ไม่ระบุชื่อ',
+                          style: GoogleFonts.sarabun(
+                              fontWeight: FontWeight.bold, fontSize: 15),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8)),
+                        child: Text(type,
+                            style: GoogleFonts.sarabun(
+                                fontSize: 11,
+                                color: color,
+                                fontWeight: FontWeight.bold)),
+                      ),
+                    ],
                   ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8)),
-                    child: Text(type,
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.calendar_today,
+                          size: 14, color: Colors.black38),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${event['startDate']} - ${event['endDate']}',
                         style: GoogleFonts.sarabun(
-                            fontSize: 11,
-                            color: color,
-                            fontWeight: FontWeight.bold)),
+                            fontSize: 12, color: Colors.black54),
+                      ),
+                    ],
                   ),
+                  if (event['reason'] != null &&
+                      event['reason'].toString().isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'เหตุผล: ${event['reason']}',
+                      style: GoogleFonts.sarabun(
+                          fontSize: 12, color: Colors.black38),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ],
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.calendar_today,
-                      size: 14, color: Colors.black38),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${event['startDate']} - ${event['endDate']}',
-                    style: GoogleFonts.sarabun(
-                        fontSize: 12, color: Colors.black54),
-                  ),
-                ],
-              ),
-              if (event['reason'] != null &&
-                  event['reason'].toString().isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'เหตุผล: ${event['reason']}',
-                  style:
-                      GoogleFonts.sarabun(fontSize: 12, color: Colors.black38),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ],
+            ),
           ),
         );
       },

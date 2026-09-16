@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/firebase_service.dart';
 import '../../widgets/thai_buddhist_calendar_widget.dart';
+import '../../utils/profile_image.dart';
 
 class MobileLeaveFormScreen extends StatefulWidget {
   final Map<String, dynamic>? initialData;
@@ -587,27 +588,8 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
     );
   }
 
-  // 🖼️ ฟังก์ชันแปลงลิงก์ Google Drive ให้เป็น Direct Link สำหรับแสดงผลครับ 🥇🏆🏎️
-  String _getDisplayImageUrl(String? url) {
-    if (url == null || url.isEmpty) return '';
-
-    String? fileId;
-    if (url.contains('drive.google.com/file/d/')) {
-      final match = RegExp(r"\/d\/([a-zA-Z0-9_-]+)").firstMatch(url);
-      if (match != null && match.groupCount >= 1) fileId = match.group(1);
-    } else if (url.contains('id=')) {
-      final match = RegExp(r"id=([a-zA-Z0-9_-]+)").firstMatch(url);
-      if (match != null && match.groupCount >= 1) fileId = match.group(1);
-    }
-
-    if (fileId != null) {
-      return "https://lh3.googleusercontent.com/d/$fileId";
-    }
-
-    return url.contains('?')
-        ? "$url&t=${DateTime.now().millisecondsSinceEpoch}"
-        : "$url?t=${DateTime.now().millisecondsSinceEpoch}";
-  }
+  // 🖼️ การแปลงลิงก์รูปย้ายไปอยู่ที่ lib/utils/profile_image.dart แล้ว
+  // (ใช้ widget ProfileAvatar แทน)
 
   @override
   Widget build(BuildContext context) {
@@ -694,28 +676,11 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
                                       color: Colors.blue.withValues(alpha: 0.1))),
                               child: Row(
                                 children: [
-                                  ClipOval(
-                                    child: _selectedUser?['profileImage'] !=
-                                                null &&
-                                            _selectedUser!['profileImage']
-                                                .toString()
-                                                .isNotEmpty
-                                        ? Image.network(_getDisplayImageUrl(_selectedUser!['profileImage']),
-                                            width: 40,
-                                            height: 40,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) =>
-                                                const CircleAvatar(
-                                                    backgroundColor:
-                                                        Color(0xFFEFF6FF),
-                                                    child: Icon(
-                                                        Icons.person_rounded,
-                                                        color:
-                                                            Color(0xFF2563EB))))
-                                        : const CircleAvatar(
-                                            backgroundColor: Color(0xFFEFF6FF),
-                                            child: Icon(Icons.person_rounded,
-                                                color: Color(0xFF2563EB))),
+                                  ProfileAvatar(
+                                    imageUrl: _selectedUser?['profileImage'],
+                                    size: 40,
+                                    backgroundColor: const Color(0xFFEFF6FF),
+                                    foregroundColor: const Color(0xFF2563EB),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(

@@ -10,13 +10,27 @@
 
 ## เริ่มใช้งานบนเครื่องใหม่
 
+เครื่องใหม่สามารถ clone จาก GitHub แล้วรัน/แก้ไขต่อได้เหมือนเครื่องเดิม โดยใช้ GitHub เป็นที่เก็บโค้ดเท่านั้น ไม่ได้ผูกกับ hosting หรือ deployment
+
 ### 1) ติดตั้งของที่ต้องมี
 - [Git](https://git-scm.com/download/win)
 - [Flutter SDK](https://docs.flutter.dev/get-started/install/windows)
 - Google Chrome (สำหรับรัน web)
 - (ถ้าจะ push กลับ) [GitHub CLI](https://cli.github.com/) — `gh`
 
-### 2) Clone โปรเจกต์
+ตรวจว่า Flutter พร้อมใช้งาน:
+```bash
+flutter doctor
+```
+
+ถ้าต้องการแก้โค้ดแล้ว push กลับ GitHub ให้ล็อกอินครั้งแรกบนเครื่องใหม่:
+```bash
+gh auth login
+```
+
+เลือก `GitHub.com` → `HTTPS` → เปิด browser เพื่อล็อกอิน
+
+### 2) Clone โปรเจกต์จาก GitHub
 ```bash
 git clone https://github.com/omkub/koragoch.git SchoolLeaveApp
 cd SchoolLeaveApp
@@ -35,6 +49,20 @@ flutter run -d chrome
 
 > config สำคัญ (`lib/firebase_options.dart`, Supabase anon key ใน `lib/main.dart`, `firebase.json`, `firestore.rules`) อยู่ใน repo แล้ว เครื่องใหม่ใช้ได้เลยไม่ต้องตั้งค่าเพิ่ม
 > ไฟล์ที่ถูก `.gitignore` (`node_modules/`, `build/`, `.dart_tool/`) จะถูกสร้างใหม่อัตโนมัติจากขั้นตอนด้านบน
+
+### 5) แก้โค้ดแล้วอัพกลับ GitHub
+```bash
+git status
+git add -A
+git commit -m "อธิบายสิ่งที่แก้"
+git push origin main
+```
+
+ถ้าเครื่องใหม่แก้ต่อจากงานเดิม ให้ดึงโค้ดล่าสุดก่อนเริ่มทุกครั้ง:
+```bash
+git pull origin main
+flutter pub get
+```
 
 ---
 
