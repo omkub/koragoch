@@ -828,16 +828,20 @@ class FirebaseService {
         .not('receiveNumber', 'is', null);
   }
 
-  // 🚀 ส่งใบลาเข้าระบบ (Supabase-only) 🏎️🏁
-  Future<void> submitLeaveRequest(Map<String, dynamic> data) async {
-    final client = _supabaseIfReady;
-    if (client == null) throw Exception('Supabase not initialized');
+  /// แปลงข้อมูลใบลาจากหน้าจอ → คอลัมน์จริงของตาราง Leaves
+  ///
+  /// หน้าจอส่ง ชื่อครู / ประเภทลา / ปีงบ มาเป็น "ข้อความ" แต่ตารางเก็บเป็น FK
+  /// และยังส่งบางคีย์ที่ไม่มีคอลัมน์รองรับ (เช่น phone) มาด้วย ถ้าส่งเข้า
+  /// Supabase ตรง ๆ จะได้ error PGRST204 "Could not find the 'x' column"
+  ///
+  /// คืนเฉพาะคีย์ที่ผู้เรียกส่งมาจริง จะได้ใช้กับ update ได้โดยไม่ไปล้าง
+  /// ค่าคอลัมน์อื่นที่ผู้ใช้ไม่ได้แก้ 🥇🏆
+  Future<Map<String, dynamic>> _leaveRecordForSupabase(
+      SupabaseClient client, Map<String, dynamic> data) async {
+    final record = <String, dynamic>{};
 
-    final leaveTypeName = data['leaveType']?.toString() ?? '';
-    final fullName = data['fullName']?.toString() ?? '';
-    final yearText = data['year']?.toString() ?? '';
-
-    int? idUser;
+    // ชื่อครู → id_user
+    final fullName = data['fullName']?.toString().trim() ?? '';
     if (fullName.isNotEmpty) {
       final row = await client
           .from('Teachers')
@@ -845,22 +849,29 @@ class FirebaseService {
           .eq('fullName', fullName)
           .limit(1)
           .maybeSingle();
-      idUser = row?['id_user'] as int?;
+      final idUser = row?['id_user'];
+      if (idUser != null) record['id_user'] = idUser;
     }
 
-    int? idLeaveType;
+    // ประเภทการลา → id_leaveType (เทียบแบบยืดหยุ่น เช่น "ลาป่วย" กับ "ป่วย")
+    final leaveTypeName = data['leaveType']?.toString().trim() ?? '';
     if (leaveTypeName.isNotEmpty) {
-      final ltRows = await client.from('LeaveTypes').select('id_leaveType, leaveName');
+      final ltRows =
+          await client.from('LeaveTypes').select('id_leaveType, leaveName');
       for (final lt in ltRows) {
         final name = (lt['leaveName'] ?? '').toString();
-        if (name == leaveTypeName || name.contains(leaveTypeName) || leaveTypeName.contains(name)) {
-          idLeaveType = lt['id_leaveType'] as int?;
+        if (name.isEmpty) continue;
+        if (name == leaveTypeName ||
+            name.contains(leaveTypeName) ||
+            leaveTypeName.contains(name)) {
+          record['id_leaveType'] = lt['id_leaveType'];
           break;
         }
       }
     }
 
-    int? idYear;
+    // ปีงบประมาณ → id_year
+    final yearText = data['year']?.toString().trim() ?? '';
     if (yearText.isNotEmpty) {
       final row = await client
           .from('FiscalRounds')
@@ -868,22 +879,52 @@ class FirebaseService {
           .eq('year', yearText)
           .limit(1)
           .maybeSingle();
-      idYear = row?['id_year'] as int?;
+      final idYear = row?['id_year'];
+      if (idYear != null) record['id_year'] = idYear;
     }
 
-    final record = <String, dynamic>{
-      'id_user': idUser,
-      'id_leaveType': idLeaveType,
-      'id_year': idYear,
-      'reason': data['reason'],
-      'startDate': _thaiDateToIso(data['startDate']?.toString()),
-      'endDate': _thaiDateToIso(data['endDate']?.toString()),
-      'leaveDate': _thaiDateToIso(data['startDate']?.toString()),
-      'totalDays': data['totalDays'],
-      'status': 'รอพิจารณา',
-      'timestamp': DateTime.now().toIso8601String(),
-      'medicalCertificate': data['medicalCertificate'],
-    };
+    // เผื่อผู้เรียกส่ง FK มาให้ตรง ๆ อยู่แล้ว
+    for (final key in ['id_user', 'id_leaveType', 'id_year']) {
+      if (data[key] != null) record[key] = data[key];
+    }
+
+    // วันที่: หน้าจอส่งเป็น พ.ศ. (dd/MM/yyyy) แต่คอลัมน์เป็น date ต้องแปลงก่อน
+    if (data.containsKey('startDate')) {
+      final iso = _thaiDateToIso(data['startDate']?.toString());
+      record['startDate'] = iso;
+      record['leaveDate'] = iso; // leaveDate ยึดตามวันเริ่มลาเสมอ
+    }
+    if (data.containsKey('endDate')) {
+      record['endDate'] = _thaiDateToIso(data['endDate']?.toString());
+    }
+
+    // คอลัมน์ที่ชื่อตรงกันอยู่แล้ว เอามาเฉพาะที่ส่งมาจริง
+    const sameNameColumns = [
+      'reason',
+      'status',
+      'totalDays',
+      'isHalfDay',
+      'halfDayPeriod',
+      'medicalCertificate',
+      'receiveNumber',
+      'receiveDate',
+      'receiveTime',
+    ];
+    for (final key in sameNameColumns) {
+      if (data.containsKey(key)) record[key] = data[key];
+    }
+
+    return record;
+  }
+
+  // 🚀 ส่งใบลาเข้าระบบ (Supabase-only) 🏎️🏁
+  Future<void> submitLeaveRequest(Map<String, dynamic> data) async {
+    final client = _supabaseIfReady;
+    if (client == null) throw Exception('Supabase not initialized');
+
+    final record = await _leaveRecordForSupabase(client, data);
+    record['status'] = data['status'] ?? 'รอพิจารณา';
+    record['timestamp'] = DateTime.now().toIso8601String();
     record.removeWhere((_, v) => v == null);
 
     await client.from('Leaves').insert(record);
@@ -896,14 +937,15 @@ class FirebaseService {
       String requestId, Map<String, dynamic> data) async {
     final client = _supabaseIfReady;
     if (client == null) throw Exception('Supabase not initialized');
-    final record = <String, dynamic>{
-      ...data,
-      'lastUpdatedAt': DateTime.now().toUtc().toIso8601String(),
-    };
-    record.remove('id');
-    record.remove('id_leaves');
-    record.remove('requestId');
-    await client.from('Leaves').update(record).eq('id_leaves', requestId);
+
+    final record = await _leaveRecordForSupabase(client, data);
+    record['lastUpdatedAt'] = DateTime.now().toUtc().toIso8601String();
+    if (record.isEmpty) return;
+
+    await client
+        .from('Leaves')
+        .update(record)
+        .eq('id_leaves', _pkValue(requestId));
   }
 
   // 🚀 นับเลขรับจาก Supabase
