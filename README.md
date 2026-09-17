@@ -10,7 +10,11 @@
 
 ## เริ่มใช้งานบนเครื่องใหม่
 
-เครื่องใหม่สามารถ clone จาก GitHub แล้วรัน/แก้ไขต่อได้เหมือนเครื่องเดิม โดยใช้ GitHub เป็นที่เก็บโค้ดเท่านั้น ไม่ได้ผูกกับ hosting หรือ deployment
+เครื่องใหม่สามารถ clone จาก GitHub แล้วรัน/แก้ไขต่อได้เหมือนเครื่องเดิม เมื่อ push ไปที่ `main` GitHub Actions จะ build และ deploy GitHub Pages อัตโนมัติ
+
+- เว็บไซต์: https://omkub.github.io/koragoch/
+- ตรวจสถานะ deploy: https://github.com/omkub/koragoch/actions
+- เวอร์ชันปัจจุบัน: `26.9.17+4`
 
 ### 1) ติดตั้งของที่ต้องมี
 - [Git](https://git-scm.com/download/win)
@@ -101,7 +105,7 @@ gh auth login        # เลือก GitHub.com → HTTPS → web browser
 
 ## การออกเวอร์ชัน (Release)
 
-ใช้เลขเวอร์ชันแบบวันที่ `YY.M.D` (เช่น `26.9.11`) ตรงกับ `version:` ใน `pubspec.yaml`
+ใช้เลขเวอร์ชันแบบวันที่พร้อม build number `YY.M.D+N` (เช่น `26.9.17+4`) ใน `pubspec.yaml` และใช้ tag `YY.M.D.N` (เช่น `26.9.17.4`) สำหรับ release แต่ละครั้ง
 
 ```bash
 git add -A
