@@ -1163,6 +1163,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
       await _firebaseService.updateLeaveRequest(requestId, updateData);
 
       if (mounted) {
+        _reloadLeaves(); // ดึงรายการใหม่ ไม่งั้นสถานะในตารางยังเป็นค่าเดิม
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(_isApproveStatus(status)
               ? '✅ อนุมัติเรียบร้อย (รับที่ ${updateData['receiveNumber']})'
@@ -1293,6 +1294,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                     );
                     if (mounted) {
                       Navigator.pop(ctx);
+                      _reloadLeaves(); // ดึงรายการใหม่ให้เลขรับขึ้นทันที
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                         content: Text('✅ บันทึกรับที่ $receiveVal เรียบร้อย'),
                         backgroundColor: Colors.green,
@@ -1380,6 +1382,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                 await _firebaseService.deleteLeaveFromSupabase(requestId);
                 if (mounted) {
                   setState(() => _selectedIds.remove(requestId));
+                  _reloadLeaves(); // ดึงรายการใหม่ ไม่งั้นแถวที่ลบไปยังค้างอยู่
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                       content: Text('✅ ลบรายการเรียบร้อยแล้ว'),
                       backgroundColor: Colors.red.shade400,
@@ -1448,6 +1451,17 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
     );
   }
 
+  /// โหลดรายการใบลาใหม่จาก Supabase
+  ///
+  /// สตรีมของหน้านี้เป็นแบบยิงครั้งเดียวจบ (Stream.value / Stream.fromFuture)
+  /// เมื่อมีการลบหรือแก้สถานะ ต้องสร้างสตรีมใหม่เอง ไม่งั้นตารางจะค้างข้อมูลเก่า
+  void _reloadLeaves() {
+    if (!mounted) return;
+    setState(() {
+      _leaveRequestsStream = _createLeaveRequestsStream(_userRole, _currentUser);
+    });
+  }
+
   Future<void> _handleBulkDelete(List<Map<String, dynamic>> allLeaves) async {
     setState(() => _isDeletingBulk = true);
     int count = 0;
@@ -1470,8 +1484,9 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
           _selectedIds.clear();
           _isDeletingBulk = false;
         });
+        _reloadLeaves(); // ดึงรายการใหม่หลังลบหลายรายการ
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('✅ ลบรสำเร็จทั้งหมด $count รายการ'),
+            content: Text('✅ ลบสำเร็จทั้งหมด $count รายการ'),
             backgroundColor: Colors.red.shade400,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
