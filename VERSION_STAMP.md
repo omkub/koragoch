@@ -1,5 +1,5 @@
 # Version Stamp
 
-- Version: 26.9.17+4
+- Version: 26.9.17+5
 - Updated: 2026-09-17
-- Purpose: Publish the latest source and GitHub Pages release for development across machines.
+- Purpose: Simplify dashboard controls and refresh dashboard data automatically.

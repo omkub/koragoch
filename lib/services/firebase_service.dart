@@ -775,10 +775,13 @@ class FirebaseService {
 
   // 🛠️ รวมข้อมูลรอบงบประมาณ ข้อมูลใบลา และประเภทการลาจาก Supabase 🥇🏆🏎️
   Future<Map<String, dynamic>> getDashboardDataFromSupabase() async {
+    if (_supabaseIfReady == null) {
+      throw StateError('Supabase not initialized');
+    }
     final results = await Future.wait([
-      getFiscalRoundsFromSupabase(),
-      getLeaveRequestsFromSupabase(),
-      getLeaveTypesRawFromSupabase(),
+      _fetchFiscalRoundsFromSupabase(throwOnError: true),
+      getLeaveRequestsFromSupabase(throwOnError: true),
+      getLeaveTypesRawFromSupabase(throwOnError: true),
     ]);
     return {
       'rounds': results[0],
@@ -1931,13 +1934,16 @@ class FirebaseService {
   // ── Leaves ──────────────────────────────────────────────────────
 
   Future<List<Map<String, dynamic>>> getLeaveRequestsFromSupabase(
-      {int? year}) async {
+      {int? year, bool throwOnError = false}) async {
     final client = _supabaseIfReady;
     if (client == null) return getLeaveRequests(year: year);
     try {
       final futureTeachers = client.from('Teachers').select('id_user, fullName');
-      final futureLeaveTypes = getLeaveTypesRawFromSupabase();
-      final futureFiscalRounds = getFiscalRoundsFromSupabase();
+      final futureLeaveTypes =
+          getLeaveTypesRawFromSupabase(throwOnError: throwOnError);
+      final futureFiscalRounds = throwOnError
+          ? _fetchFiscalRoundsFromSupabase(throwOnError: true)
+          : getFiscalRoundsFromSupabase();
       var query = client.from('Leaves').select();
       final results = await Future.wait([query, futureTeachers, futureLeaveTypes, futureFiscalRounds]);
       final rows = results[0] as List;
@@ -2002,6 +2008,7 @@ class FirebaseService {
         ..sort(compareLeaveRecency);
     } catch (e) {
       debugPrint('❌ getLeaveRequestsFromSupabase error: $e');
+      if (throwOnError) rethrow;
       return [];
     }
   }
@@ -2076,7 +2083,8 @@ class FirebaseService {
         .whenComplete(() => _fiscalRoundsInFlight = null);
   }
 
-  Future<List<Map<String, dynamic>>> _fetchFiscalRoundsFromSupabase() async {
+  Future<List<Map<String, dynamic>>> _fetchFiscalRoundsFromSupabase(
+      {bool throwOnError = false}) async {
     final client = _supabaseIfReady;
     if (client == null) return getFiscalRounds();
     try {
@@ -2089,6 +2097,7 @@ class FirebaseService {
           .toList();
     } catch (e) {
       debugPrint('❌ getFiscalRoundsFromSupabase error: $e');
+      if (throwOnError) rethrow;
       return [];
     }
   }
@@ -2203,7 +2212,8 @@ class FirebaseService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getLeaveTypesRawFromSupabase() async {
+  Future<List<Map<String, dynamic>>> getLeaveTypesRawFromSupabase(
+      {bool throwOnError = false}) async {
     final client = _supabaseIfReady;
     if (client == null) return [];
     try {
@@ -2216,6 +2226,7 @@ class FirebaseService {
       }).toList();
     } catch (e) {
       debugPrint('❌ getLeaveTypesRawFromSupabase error: $e');
+      if (throwOnError) rethrow;
       return [];
     }
   }

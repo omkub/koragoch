@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -13,24 +14,79 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen>
+    with WidgetsBindingObserver {
   final FirebaseService _firebaseService = FirebaseService();
   String _currentUser = 'ผู้ใช้งาน';
   String _userRole = 'ครู';
-  Map<String, dynamic>? _activeRound; // 📅 รอบงบประมาณปัจจุบัน (ตามปฏิทิน)
-  Map<String, dynamic>? _selectedRound; // 📅 รอบที่เลือกดูอยู่ครับ
-  List<Map<String, dynamic>> _allRounds = []; // 📅 รายรายการรอบทั้งหมด
-
-  int _refreshTick = 0;
+  final _dashboardUpdates = StreamController<Map<String, dynamic>>();
+  Timer? _refreshTimer;
+  bool _isRefreshing = false;
+  bool _hasData = false;
 
   @override
   void initState() {
     super.initState();
-    _loadUser();
+    WidgetsBinding.instance.addObserver(this);
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    await _loadUser();
+    if (!mounted) return;
+    _startRefreshing();
+  }
+
+  void _startRefreshing() {
+    _refreshTimer?.cancel();
+    final state = WidgetsBinding.instance.lifecycleState;
+    if (state != null && state != AppLifecycleState.resumed) return;
+    _refreshDashboard();
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => _refreshDashboard(),
+    );
+  }
+
+  Future<void> _refreshDashboard() async {
+    if (_isRefreshing || !mounted) return;
+    _isRefreshing = true;
+    try {
+      final data = await _firebaseService.getDashboardDataFromSupabase();
+      if (!mounted) return;
+      _hasData = true;
+      _dashboardUpdates.add(data);
+    } catch (error, stackTrace) {
+      // Keep the last successful snapshot during temporary connection failures.
+      // Initial failures are shown and retried on the next polling interval.
+      if (mounted && !_hasData) {
+        _dashboardUpdates.addError(error, stackTrace);
+      }
+    } finally {
+      _isRefreshing = false;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startRefreshing();
+    } else {
+      _refreshTimer?.cancel();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _refreshTimer?.cancel();
+    _dashboardUpdates.close();
+    super.dispose();
   }
 
   Future<void> _loadUser() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() {
       _currentUser = prefs.getString('currentUser') ?? 'ผู้ใช้งาน';
       _userRole = prefs.getString('userRole') ?? 'ครู';
@@ -43,8 +99,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     // 🛡️ ดึงข้อมูล Dashboard จาก Supabase ผ่าน StreamBuilder 🥇🏆
     return StreamBuilder<Map<String, dynamic>>(
-      key: ValueKey(_refreshTick),
-      stream: _firebaseService.getDashboardDataStream(),
+      stream: _dashboardUpdates.stream,
       builder: (context, snapshot) {
         // 🔄 จังหวะรอโหลดข้อมูลแบบพรีเมียมครับ 🕵️‍♂️
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -83,14 +138,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
               (r) => FirebaseService.isDateInRange(
                   todayStr, r['startDate'] ?? '', r['endDate'] ?? ''),
               orElse: () => allRounds.isNotEmpty ? allRounds.first : {});
-          if (currentActiveRound != null && currentActiveRound.isEmpty)
+          if (currentActiveRound.isEmpty) {
             currentActiveRound = null;
+          }
         } catch (e) {
           currentActiveRound = allRounds.isNotEmpty ? allRounds.first : null;
         }
 
         // 🎯 กำหนดรอบที่จะแสดงผล
-        final viewRound = _selectedRound ?? currentActiveRound;
+        final viewRound = currentActiveRound;
 
         // 🏎️ เตรียมช่วงวันที่ให้พร้อมก่อนเข้า Loop เพื่อความเร็วครับ 🏆
         DateTime? rangeStart, rangeEnd;
@@ -167,9 +223,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildHeader(
-                      isMobile, viewRound, allRounds, currentActiveRound),
-                  const SizedBox(height: 32),
                   if (allRounds.isEmpty)
                     _buildNoBudgetWarning()
                   else ...[
@@ -250,171 +303,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(bool isMobile, Map<String, dynamic>? selectedRound,
-      List<Map<String, dynamic>> allRounds, Map<String, dynamic>? activeRound) {
-    return Container(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Wrap(
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 16,
-        runSpacing: 16,
-        children: [
-          if (allRounds.isNotEmpty)
-            Container(
-              width: isMobile ? double.infinity : 280,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.indigo.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.indigo.withValues(alpha: 0.1)),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: () {
-                  // กรองให้แน่ใจว่าแต่ละ round มี id ที่ไม่เป็น null/empty และไม่ซ้ำกัน
-                  final uniqueRounds = <String, Map<String, dynamic>>{};
-                  for (final r in allRounds) {
-                    final id = (r['id'] ?? r['id_year'] ?? '').toString().trim();
-                    if (id.isNotEmpty && id != 'null' && !uniqueRounds.containsKey(id)) {
-                      uniqueRounds[id] = r;
-                    }
-                  }
-                  final displayRounds = uniqueRounds.values.toList();
-                  if (displayRounds.isEmpty) return const SizedBox.shrink();
-
-                  final String? currentId =
-                      (selectedRound?['id'] ?? selectedRound?['id_year'] ??
-                       activeRound?['id'] ?? activeRound?['id_year'])?.toString().trim();
-
-                  final String safeValue = (currentId != null &&
-                          displayRounds.any((r) => r['id'].toString() == currentId))
-                      ? currentId
-                      : displayRounds.first['id'].toString();
-
-                  return DropdownButton<String>(
-                    value: safeValue,
-                    icon: const Icon(Icons.calendar_today_outlined,
-                        size: 16, color: Colors.indigo),
-                    isExpanded: true,
-                    dropdownColor: const Color(0xFFF8FAFC),
-                    selectedItemBuilder: (BuildContext context) {
-                      return displayRounds.map<Widget>((round) {
-                        return Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            "ปี ${round['year']} รอบที่ ${round['round']}",
-                            style: GoogleFonts.sarabun(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.indigo),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        );
-                      }).toList();
-                    },
-                    items: displayRounds.map((round) {
-                      final roundId = round['id'].toString();
-                      bool isCurrent = roundId == (activeRound?['id'] ?? activeRound?['id_year'])?.toString();
-                      String dateRange = "ไม่ระบุช่วงวันที่";
-                      if (round['startDate'] != null &&
-                          round['endDate'] != null &&
-                          round['startDate'].toString().isNotEmpty &&
-                          round['endDate'].toString().isNotEmpty) {
-                        dateRange =
-                            "${FirebaseService.formatThaiDate(round['startDate'])} - ${FirebaseService.formatThaiDate(round['endDate'])}";
-                      }
-
-                      return DropdownMenuItem<String>(
-                        value: roundId,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Row(
-                                  children: [
-                                    Text(
-                                      "ปี ${round['year']} รอบที่ ${round['round']}",
-                                      style: GoogleFonts.sarabun(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.indigo),
-                                    ),
-                                    if (isCurrent) ...[
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                            color: Colors.green,
-                                            borderRadius:
-                                                BorderRadius.circular(4)),
-                                        child: Text("ปัจจุบัน",
-                                            style: GoogleFonts.sarabun(
-                                                fontSize: 10,
-                                                color: Colors.white)),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                                Text(
-                                  dateRange,
-                                  style: GoogleFonts.sarabun(
-                                      fontSize: 11,
-                                      color: Colors.indigo.withValues(alpha: 0.6)),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (val) {
-                      if (val != null) {
-                        setState(() {
-                          _selectedRound = displayRounds
-                              .firstWhere((r) => r['id'].toString() == val);
-                        });
-                      }
-                    },
-                  );
-                }(),
-              ),
-            ),
-          Wrap(
-            spacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.refresh, color: Color(0xFF0F172A)),
-                tooltip: 'รีเฟรชข้อมูล',
-                onPressed: () => setState(() => _refreshTick++),
-              ),
-              ElevatedButton.icon(
-                onPressed: () {
-                  if (widget.onNavigate != null) widget.onNavigate!(2);
-                },
-                icon: const Icon(Icons.add, size: 18),
-                label: Text('สร้างใบลาใหม่',
-                    style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F172A),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                  elevation: 0,
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }
