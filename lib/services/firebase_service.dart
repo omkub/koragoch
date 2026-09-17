@@ -121,25 +121,85 @@ class FirebaseService {
     }
   }
 
-  // 🚀 Supabase-only add (ห้ามเขียน Firebase — production hosting ใช้อยู่)
-  Future<String> _supabaseAdd(
-    String collectionName,
-    Map<String, dynamic> data,
+  // ═══════════════════════════════════════════════════════════════
+  // ชื่อคอลัมน์ Primary Key ของแต่ละตาราง
+  //
+  // Firebase ใช้ document id ตัวเดียวชื่อ 'id' ทุก collection โค้ดเดิมจึง
+  // เขียน .eq('id', ...) ไว้ทั่ว แต่ Supabase ตั้งชื่อ PK แยกกันทุกตาราง
+  // และ "ไม่มีตารางไหนมีคอลัมน์ชื่อ id เลย" ทำให้คำสั่ง insert/update/delete
+  // ที่อ้าง 'id' ล้มเหลวทั้งหมด (PostgREST ตอบ 400) 🥇🏆
+  // ═══════════════════════════════════════════════════════════════
+  static const Map<String, String> _primaryKeyByTable = {
+    'Teachers': 'id_user',
+    'Leaves': 'id_leaves',
+    'FiscalRounds': 'id_year',
+    'LeaveTypes': 'id_leaveType',
+    'LeaveReasons': 'id_leaveReason',
+    'SpecialHolidays': 'id_holiday',
+    'SpecialWorkingDays': 'id_SpecialWorkingDays',
+    'Settings': 'id_Settings',
+    'LoginLogs': 'id_LoginLogs',
+    'UserRoles': 'id_UserRole',
+    'Permissions': 'id_Permissions',
+    'MobilePermissions': 'id_MobilePermissions',
+    'academics': 'ID_Academics',
+    'adminroles': 'ID_AdminRoles',
+    'departments': 'ID_Departments',
+    'positions': 'ID_Positions',
+    'roles': 'ID_Roles',
+    'appconfig': 'ID_AppConfig',
+  };
+
+  /// ชื่อคอลัมน์ PK ของตารางนั้น (ไม่รู้จัก = เดาว่า 'id' ไว้ก่อน)
+  static String primaryKeyFor(String table) =>
+      _primaryKeyByTable[table] ?? 'id';
+
+  /// PK ทุกตัวเป็น bigint แต่ UI ส่งมาเป็น String จึงแปลงให้ก่อนถ้าแปลงได้
+  static dynamic _pkValue(dynamic raw) {
+    final text = raw?.toString().trim() ?? '';
+    return int.tryParse(text) ?? text;
+  }
+
+  /// ดึงชื่อคอลัมน์ที่ไม่มีอยู่จริงออกจากข้อความ error ของ PostgREST
+  static String? _missingColumnFromError(String message) {
+    final missing =
+        RegExp(r"Could not find the '([^']+)' column").firstMatch(message)
+                ?.group(1) ??
+            RegExp(r'column "?([^"\s]+)"? does not exist')
+                .firstMatch(message)
+                ?.group(1);
+    return missing?.split('.').last;
+  }
+
+  /// insert พร้อมตัดคอลัมน์ที่ตารางไม่มีออกทีละตัวแล้วลองใหม่
+  /// (ใช้ตรรกะเดียวกับ updateTeacherById เพื่อให้ข้อมูลส่วนที่ลงได้ไม่ตกหล่น)
+  static Future<Map<String, dynamic>?> _insertWithColumnRetry(
+    SupabaseClient client,
+    String table,
+    Map<String, dynamic> record,
   ) async {
-    final client = _supabaseIfReady;
-    if (client == null) throw Exception('Supabase not initialized; cannot add to $collectionName');
-    final prefix = collectionName.length >= 2
-        ? collectionName.substring(0, 2).toUpperCase()
-        : collectionName.toUpperCase();
-    final docId = '$prefix-${DateTime.now().millisecondsSinceEpoch}';
-    try {
-      final record = _toSupabaseRecord(data, docId);
-      await client.from(collectionName).insert(record);
-      return docId;
-    } catch (e) {
-      debugPrint('❌ Supabase insert error ($collectionName): $e');
-      rethrow;
+    final rec = Map<String, dynamic>.from(record);
+    // PK เป็น identity ฐานข้อมูลออกเลขให้เอง ห้ามส่งไปเอง
+    rec.remove('id');
+    rec.remove('docId');
+    rec.remove(primaryKeyFor(table));
+
+    for (var attempt = 0; attempt < 10; attempt++) {
+      try {
+        final rows = await client.from(table).insert(rec).select();
+        final list = rows as List;
+        return list.isEmpty
+            ? null
+            : Map<String, dynamic>.from(list.first as Map);
+      } on PostgrestException catch (e) {
+        final key = _missingColumnFromError(e.message);
+        if (key == null || !rec.containsKey(key)) rethrow;
+        debugPrint('⚠️  $table ไม่มีคอลัมน์ $key — ข้ามคอลัมน์นี้');
+        rec.remove(key);
+        if (rec.isEmpty) return null;
+      }
     }
+    return null;
   }
 
   // 🚀 โหลด config จาก Supabase (ตาราง Settings) — Supabase แตกเป็นหลายแถว
@@ -225,8 +285,36 @@ class FirebaseService {
   }
 
   // เพิ่มรายชื่อครูคนใหม่ลงฐานข้อมูลครับ 🏎️🏆
+  //
+  // เดิมส่ง data ดิบเข้า insert ตรง ๆ ทำให้ล้มทุกครั้ง เพราะ
+  //   1) แนบคอลัมน์ 'id' ที่ตาราง Teachers ไม่มี
+  //   2) ส่ง position/department/วิทยฐานะ เป็นข้อความ แต่ตารางเก็บเป็น FK ตัวเลข
+  // ตอนนี้ใช้ตัวแปลงชุดเดียวกับตอนแก้ไขผู้ใช้ และตัดคอลัมน์ส่วนเกินให้อัตโนมัติ
   Future<void> addUser(Map<String, dynamic> data) async {
-    await _supabaseAdd('Teachers', data);
+    final client = _supabaseIfReady;
+    if (client == null) throw Exception('Supabase not initialized');
+
+    final username = (data['username'] ?? '').toString().trim();
+    if (username.isEmpty) {
+      throw Exception('กรุณาระบุชื่อผู้ใช้ (username) ก่อนบันทึกครับ');
+    }
+
+    // กันชื่อผู้ใช้ซ้ำตั้งแต่ต้นทาง จะได้ขึ้นข้อความที่อ่านรู้เรื่อง
+    final duplicated = await client
+        .from('Teachers')
+        .select('id_user')
+        .eq('username', username)
+        .limit(1);
+    if ((duplicated as List).isNotEmpty) {
+      throw Exception('ชื่อผู้ใช้ "$username" ถูกใช้ไปแล้ว กรุณาตั้งชื่อใหม่ครับ');
+    }
+
+    final rec = await _teacherRecordForSupabase(client, data);
+    final now = DateTime.now().toIso8601String();
+    rec['created_at'] = rec['created_at'] ?? now;
+    rec['updated_at'] = now;
+
+    await _insertWithColumnRetry(client, 'Teachers', rec);
   }
 
   // แก้ไขข้อมูลครูครับ 🏎️🏆
@@ -234,11 +322,12 @@ class FirebaseService {
     await updateTeacherById(docId, data);
   }
 
-  Future<void> updateTeacherById(
-      String docId, Map<String, dynamic> newData) async {
-    final client = _supabaseIfReady;
-    if (client == null) throw Exception('Supabase not initialized');
-    final parsedId = int.tryParse(docId);
+  /// แปลงข้อมูลครูจากหน้าจอ (ที่ส่งตำแหน่ง/กลุ่มสาระ/สิทธิ์มาเป็น "ชื่อภาษาไทย")
+  /// ให้เป็น record ที่ตาราง Teachers รับได้จริง (FK เป็นตัวเลข)
+  ///
+  /// ใช้ร่วมกันทั้งตอนเพิ่มผู้ใช้ใหม่และตอนแก้ไข เพื่อไม่ให้ตรรกะสองทางหลุดจากกัน
+  Future<Map<String, dynamic>> _teacherRecordForSupabase(
+      SupabaseClient client, Map<String, dynamic> newData) async {
     final rec = Map<String, dynamic>.from(newData);
     rec.remove('id');
     rec.remove('docId');
@@ -336,6 +425,16 @@ class FirebaseService {
       rec.remove('วิทยฐานะ');
     }
 
+    return rec;
+  }
+
+  Future<void> updateTeacherById(
+      String docId, Map<String, dynamic> newData) async {
+    final client = _supabaseIfReady;
+    if (client == null) throw Exception('Supabase not initialized');
+    final parsedId = int.tryParse(docId);
+    final rec = await _teacherRecordForSupabase(client, newData);
+
     // ตัดคอลัมน์ที่ตาราง Teachers ไม่มีจริงออกทีละตัวแล้วลองใหม่
     // (เดิมลองใหม่ได้ครั้งเดียว ถ้ามีคีย์ส่วนเกินมากกว่าหนึ่งตัวจะล้มทันที)
     for (var attempt = 0; attempt < 10; attempt++) {
@@ -347,13 +446,7 @@ class FirebaseService {
         }
         return;
       } on PostgrestException catch (e) {
-        final missing =
-            RegExp(r"Could not find the '([^']+)' column").firstMatch(e.message)
-                    ?.group(1) ??
-                RegExp(r'column "?([^"\s]+)"? does not exist')
-                    .firstMatch(e.message)
-                    ?.group(1);
-        final key = missing?.split('.').last;
+        final key = _missingColumnFromError(e.message);
         if (key == null || !rec.containsKey(key)) rethrow;
         debugPrint('⚠️  Teachers ไม่มีคอลัมน์ $key — ข้ามคอลัมน์นี้');
         rec.remove(key);
@@ -478,18 +571,23 @@ class FirebaseService {
   }
 
   Future<void> addFiscalRound(Map<String, dynamic> data) async {
-    await _supabaseAdd('FiscalRounds', {
+    final client = _supabaseIfReady;
+    if (client == null) throw Exception('Supabase not initialized');
+    await _insertWithColumnRetry(client, 'FiscalRounds', {
       ...data,
       'isActive': false,
       'createdAt': DateTime.now().toUtc().toIso8601String(),
     });
   }
 
-  // 🚀 ลบรอบงบประมาณ (Supabase-only)
+  // 🚀 ลบรอบงบประมาณ (Supabase-only) — PK คือ id_year ไม่ใช่ id
   Future<void> deleteFiscalRound(String docId) async {
     final client = _supabaseIfReady;
     if (client == null) throw Exception('Supabase not initialized');
-    await client.from('FiscalRounds').delete().eq('id', docId);
+    await client
+        .from('FiscalRounds')
+        .delete()
+        .eq(primaryKeyFor('FiscalRounds'), _pkValue(docId));
   }
 
   // ดึงรายการรอบงบประมาณที่ตรงกับปฏิทินปัจจุบัน (Auto-match) — Supabase
@@ -1916,11 +2014,14 @@ class FirebaseService {
     }).eq('id_leaves', requestId);
   }
 
-  /// ลบใบลาจาก Supabase
+  /// ลบใบลาจาก Supabase — PK คือ id_leaves ไม่ใช่ id
   Future<void> deleteLeaveFromSupabase(String requestId) async {
     final client = _supabaseIfReady;
     if (client == null) throw Exception('Supabase not initialized');
-    await client.from('Leaves').delete().eq('id', requestId);
+    await client
+        .from('Leaves')
+        .delete()
+        .eq(primaryKeyFor('Leaves'), _pkValue(requestId));
   }
 
   // ── FiscalRounds ────────────────────────────────────────────────
@@ -1974,9 +2075,13 @@ class FirebaseService {
     if (client == null) return [];
     try {
       final rows = await client.from('SpecialHolidays').select();
-      return (rows as List)
-          .map((r) => Map<String, dynamic>.from(r as Map))
-          .toList();
+      // เติมคีย์ 'id' ให้หน้าจอใช้ได้เหมือนสมัย Firebase (PK จริงคือ id_holiday)
+      // ไม่งั้นปุ่มลบจะส่ง null ไปลบ แล้วไม่มีอะไรเกิดขึ้น
+      return (rows as List).map((r) {
+        final row = Map<String, dynamic>.from(r as Map);
+        row['id'] = row['id_holiday'];
+        return row;
+      }).toList();
     } catch (e) {
       debugPrint('❌ getSpecialHolidaysFromSupabase error: $e');
       return [];
@@ -1988,9 +2093,12 @@ class FirebaseService {
     if (client == null) return [];
     try {
       final rows = await client.from('SpecialWorkingDays').select();
-      return (rows as List)
-          .map((r) => Map<String, dynamic>.from(r as Map))
-          .toList();
+      // เติมคีย์ 'id' ด้วยเหตุผลเดียวกับ SpecialHolidays
+      return (rows as List).map((r) {
+        final row = Map<String, dynamic>.from(r as Map);
+        row['id'] = row['id_SpecialWorkingDays'];
+        return row;
+      }).toList();
     } catch (e) {
       debugPrint('❌ getSpecialWorkingDaysFromSupabase error: $e');
       return [];
@@ -2138,14 +2246,20 @@ class FirebaseService {
       String supabaseTable, String id, Map<String, dynamic> data) async {
     final client = _supabaseIfReady;
     if (client == null) throw Exception('Supabase not initialized');
-    await client.from(supabaseTable).update(data).eq('id', id);
+    await client
+        .from(supabaseTable)
+        .update(data)
+        .eq(primaryKeyFor(supabaseTable), _pkValue(id));
   }
 
   Future<void> deleteMasterItemFromSupabase(
       String supabaseTable, String id) async {
     final client = _supabaseIfReady;
     if (client == null) throw Exception('Supabase not initialized');
-    await client.from(supabaseTable).delete().eq('id', id);
+    await client
+        .from(supabaseTable)
+        .delete()
+        .eq(primaryKeyFor(supabaseTable), _pkValue(id));
   }
 
   // ── Permissions doc (for menu access) ────────────────────────────
