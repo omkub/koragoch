@@ -220,8 +220,14 @@ class _LoginScreenState extends State<LoginScreen> {
         await _firebaseService.logLogin(teacherPk);
 
         // 🚀 ขั้นสุดยอด: เซฟข้อมูลทั้งก้อนไว้ในเครื่อง พร้อมระบบป้องกัน JSON Error ขั้นเทพ 🥇🏆🏎️
+        //
+        // เติมชื่อจริงของ ตำแหน่ง/กลุ่มสาระ/วิทยฐานะ ก่อนเก็บ เพราะแถวดิบจาก
+        // Teachers เก็บเป็น FK ตัวเลข หน้าจอที่อ่านแคชนี้ (เช่นการ์ดผู้ยื่นใบลา)
+        // จะได้ไม่แสดงเป็น "-" ตอนเปิดหน้าครั้งแรก
+        final enrichedUser = await _firebaseService.enrichTeacher(userData);
+
         final safeJson = jsonEncode({
-          ...userData,
+          ...enrichedUser,
           'id': teacherDocId,
           'role': effectiveRole,
           'permission': effectiveRole,

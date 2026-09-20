@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:file_picker/file_picker.dart';
@@ -694,7 +694,7 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
                                                 color:
                                                     const Color(0xFF0F172A))),
                                         Text(
-                                            "${_selectedUser?['position'] ?? '-'} | ${_selectedUser?['department'] ?? '-'}",
+                                            _selectedUserSummary,
                                             style: GoogleFonts.sarabun(
                                                 fontSize: 12,
                                                 color: Colors.grey)),
@@ -987,6 +987,31 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
         width: 1, height: double.infinity, color: const Color(0xFF94A3B8));
   }
 
+  /// บรรทัดสรุปตำแหน่งของผู้ยื่นใบลา: "ครู | ชำนาญการพิเศษ | ภาษาไทย"
+  /// ข้ามช่องที่ไม่มีค่าไปเลย จะได้ไม่เหลือขีดคั่นโดด ๆ
+  String get _selectedUserSummary {
+    String valueOf(List<String> keys) {
+      for (final key in keys) {
+        final value = (_selectedUser?[key] ?? '').toString().trim();
+        if (value.isNotEmpty &&
+            value != '-' &&
+            value != '---เลือก---' &&
+            !value.contains('ไม่มีวิทยฐานะ')) {
+          return value;
+        }
+      }
+      return '';
+    }
+
+    final parts = [
+      valueOf(['position', 'ตำแหน่ง']),
+      valueOf(['academicStanding', 'วิทยฐานะ']),
+      valueOf(['department', 'กลุ่มสาระการเรียนรู้', 'กลุ่มสาระ']),
+    ].where((part) => part.isNotEmpty).toList();
+
+    return parts.isEmpty ? 'กำลังโหลดข้อมูล...' : parts.join('  |  ');
+  }
+
   Widget _buildUserInfoTag() {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -999,7 +1024,7 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-                "${_selectedUser?['position'] ?? '-'} | ${_selectedUser?['department'] ?? '-'}",
+                _selectedUserSummary,
                 style: GoogleFonts.sarabun(
                     fontSize: 13,
                     color: const Color(0xFF1E40AF),

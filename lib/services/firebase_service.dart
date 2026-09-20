@@ -1438,8 +1438,10 @@ class FirebaseService {
         .eq('firebase_uid', uid)
         .limit(1);
     if ((rows as List).isNotEmpty) {
+      final enriched =
+          await enrichTeacher(Map<String, dynamic>.from(rows.first as Map));
       return {
-        ...rows.first,
+        ...enriched,
         'docId':
             (rows.first['id_user'] ?? rows.first['firebase_uid']).toString()
       };
@@ -1465,8 +1467,10 @@ class FirebaseService {
         final rows =
             await client.from('Teachers').select().eq(column, value).limit(1);
         if ((rows as List).isEmpty) return null;
+        final enriched =
+            await enrichTeacher(Map<String, dynamic>.from(rows.first as Map));
         return {
-          ...rows.first,
+          ...enriched,
           'docId':
               (rows.first['id_user'] ?? rows.first['firebase_uid']).toString()
         };
@@ -1480,6 +1484,71 @@ class FirebaseService {
     return await byColumn('id_user', id) ??
         await byColumn('username', username?.trim()) ??
         await byColumn('fullName', fullName?.trim());
+  }
+
+  /// เติมชื่อจริงของ ตำแหน่ง/กลุ่มสาระ/วิทยฐานะ/สิทธิ์ ให้แถวครูหนึ่งแถว
+  ///
+  /// ตาราง Teachers เก็บค่าพวกนี้เป็น FK ตัวเลข (id_position, id_department,
+  /// ID_Academics, id_role, id_adminrole) หน้าจอที่ดึงแถวดิบไปใช้ตรง ๆ จึงได้
+  /// ค่าว่างแล้วแสดงเป็น "-" เช่นการ์ดผู้ยื่นใบลา
+  ///
+  /// getUsersFromSupabase() แปลงให้อยู่แล้วโดยโหลดตาราง master ทั้งใบ แต่สำหรับ
+  /// ครูคนเดียวใช้วิธียิงถามเฉพาะ id ที่ต้องการ จะเบากว่ามาก
+  Future<Map<String, dynamic>> enrichTeacher(Map<String, dynamic> row) async {
+    final client = _supabaseIfReady;
+    final r = Map<String, dynamic>.from(row);
+    if (client == null) return _fromSupabaseTeacher(r);
+
+    Future<String> nameOf(
+        String table, String idColumn, String nameColumn, dynamic id) async {
+      if (id == null || id.toString().trim().isEmpty) return '';
+      try {
+        final found = await client
+            .from(table)
+            .select(nameColumn)
+            .eq(idColumn, id)
+            .limit(1)
+            .maybeSingle();
+        return (found?[nameColumn] ?? '').toString().trim();
+      } catch (e) {
+        debugPrint('⚠️  enrichTeacher: อ่าน $table ไม่สำเร็จ: $e');
+        return '';
+      }
+    }
+
+    /// ค่าที่ติดมากับแถวอยู่แล้วให้ชนะ FK ที่เพิ่งไปหามา
+    String pick(dynamic existing, String resolved) {
+      final value = (existing ?? '').toString().trim();
+      if (value.isNotEmpty && value != '-' && value != '---เลือก---') {
+        return value;
+      }
+      return resolved;
+    }
+
+    final names = await Future.wait([
+      nameOf('positions', 'ID_Positions', 'positionName', r['id_position']),
+      nameOf('departments', 'ID_Departments', 'DepartmentsName',
+          r['id_department']),
+      nameOf('roles', 'ID_Roles', 'Accessrights', r['id_role']),
+      nameOf('academics', 'ID_Academics', 'AcademicsName',
+          r['ID_Academics'] ?? r['id_academic'] ?? r['id_academics']),
+      nameOf('adminroles', 'ID_AdminRoles', 'AdminRolesName',
+          r['id_adminrole']),
+    ]);
+
+    final role = pick(r['role'], names[2]);
+    final academic = pick(r['academicStanding'] ?? r['วิทยฐานะ'], names[3]);
+
+    return _fromSupabaseTeacher({
+      ...r,
+      'position': pick(r['position'], names[0]),
+      'department': pick(r['department'], names[1]),
+      'role': role,
+      'permission': pick(r['permission'], role),
+      'academicStanding': academic,
+      'วิทยฐานะ': academic,
+      'ตำแหน่งงานบริหาร': pick(r['ตำแหน่งงานบริหาร'], names[4]),
+    });
   }
 
   Future<Map<String, dynamic>?> searchTeacherByName(String fullName) async {
