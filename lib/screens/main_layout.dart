@@ -254,7 +254,7 @@ class _MainLayoutState extends State<MainLayout> {
       ),
       const UserManagementScreen(),
       const PersonnelScreen(),
-      const Center(child: Text('จัดการข้อมูลครูเวน (เร็วๆ นี้)')),
+      const SizedBox.shrink(), // Reserved menu ID 6; removed from this app.
       const LoginLogsScreen(),
       const CalendarScreen(),
     ];
@@ -344,6 +344,7 @@ class _MainLayoutState extends State<MainLayout> {
             }
 
             for (int i = 0; i <= 8; i++) {
+              if (i == 6) continue;
               final val = data[i.toString()];
               if (isTruthy(val)) allowed.add(i);
             }
@@ -356,7 +357,6 @@ class _MainLayoutState extends State<MainLayout> {
               'จัดการระบบ (รายชื่อบุคลากร)': 4,
               'จัดการระบบ': 4,
               'บุคลากร (กลุ่มสาระ)': 5,
-              'จัดการข้อมูลครูเวร': 6,
               'ประวัติการเข้าใช้งาน': 7,
               'ปฏิทินกิจกรรมส่วนกลาง': 8,
             };
@@ -591,9 +591,6 @@ class _MainLayoutState extends State<MainLayout> {
                 if (allowedMenus.contains(5))
                   _buildMenuItem(
                       5, Icons.people_outline, 'บุคลากร (กลุ่มสาระ)'),
-                if (allowedMenus.contains(6))
-                  _buildMenuItem(
-                      6, Icons.assignment_ind_outlined, 'จัดการข้อมูลครูเวร'),
                 if (allowedMenus.contains(7))
                   _buildMenuItem(
                       7, Icons.security_rounded, 'ประวัติการเข้าใช้งาน'),

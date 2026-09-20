@@ -56,7 +56,7 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
 
   List<int> _defaultAllowedMenus() {
     final allowed = _isAdmin
-        ? [...List<int>.generate(9, (index) => index), -1]
+        ? [0, 1, 2, 3, 4, 5, 7, 8, -1]
         : [0, 2, 3, -1];
     if (_userRole.contains('ครู')) allowed.remove(0);
     return allowed;
@@ -72,6 +72,7 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
   List<int> _allowedMenusFromData(Map<String, dynamic> data) {
     final allowed = <int>[];
     for (int i = 0; i <= 8; i++) {
+      if (i == 6) continue;
       final val = data[i.toString()];
       if (_isTruthy(val)) {
         allowed.add(i);
@@ -86,7 +87,6 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
       'จัดการระบบ (รายชื่อบุคลากร)': 4,
       'จัดการระบบ': 4,
       'บุคลากร (กลุ่มสาระ)': 5,
-      'จัดการข้อมูลครูเวร': 6,
       'ประวัติการเข้าใช้งาน': 7,
       'ปฏิทินกิจกรรมส่วนกลาง': 8,
     };
@@ -156,8 +156,6 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
         return const UserManagementScreen();
       case 5:
         return const PersonnelScreen();
-      case 6:
-        return const Center(child: Text('จัดการข้อมูลครูเวน (เร็วๆ นี้)'));
       case 7:
         return const LoginLogsScreen();
       case 8:
@@ -185,10 +183,6 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
         return active ? Icons.settings_rounded : Icons.settings_outlined;
       case 5:
         return active ? Icons.people_alt_rounded : Icons.people_outline;
-      case 6:
-        return active
-            ? Icons.assignment_ind_rounded
-            : Icons.assignment_ind_outlined;
       case 7:
         return Icons.security_rounded;
       case 8:
@@ -216,8 +210,6 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
         return 'ระบบ';
       case 5:
         return 'บุคลากร';
-      case 6:
-        return 'ครูเวร';
       case 7:
         return 'เข้าใช้งาน';
       case 8:

@@ -5162,70 +5162,40 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   ///
   /// รหัสยืนยันถูกสร้างและตรวจที่ Edge Function เท่านั้น ฝั่งเว็บไม่เคยเห็น
   /// ค่าที่ถูกต้อง จึงเดา/ข้ามด่านจากหน้าเว็บไม่ได้
+  /// ขั้นตอนดูรหัสผ่าน: ยืนยันด้วยรหัสผ่านของแอดมินเอง แล้วจึงแสดงรหัสของครู
+  ///
+  /// เดิมส่งรหัสยืนยัน 6 หลักเข้ากลุ่มไลน์ แต่แพ็กเกจ LINE จำกัดจำนวนข้อความ
+  /// ต่อเดือนและต้องแบ่งโควตากับงานหลักคือแจ้งเตือนใบลา จึงเปลี่ยนมาใช้
+  /// รหัสผ่านของแอดมินแทน ไม่กินโควตาและไม่ต้องสลับไปเปิดแอปอื่น
+  ///
+  /// การตรวจรหัสเกิดที่ Edge Function เท่านั้น ฝั่งเว็บไม่ได้ตัดสินใจเอง
   void _showViewPasswordDialog(Map<String, dynamic> user) {
     final idUser = user['id_user'] ?? user['id'];
-    final codeCtrl = TextEditingController();
-    bool sending = true;
+    final passCtrl = TextEditingController();
     bool verifying = false;
     String? errorText;
-    String? infoText;
-
-    // กันยิงซ้ำ 2 ชั้น — ตั้งค่าแบบ synchronous นอก setState ทั้งคู่
-    // (เคยพลาดจนกดครั้งเดียวแล้วยิงไลน์รัวเป็นสิบข้อความ)
-    bool codeRequested = false; // ขอรหัสอัตโนมัติครั้งแรกไปแล้วหรือยัง
-    bool inFlight = false; // มีคำขอค้างอยู่หรือไม่ กันกดปุ่มรัว
 
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) {
-          Future<void> requestCode() async {
-            if (inFlight) return; // มีคำขอค้างอยู่ อย่าส่งซ้อน
-            inFlight = true;
-            setLocal(() {
-              sending = true;
-              errorText = null;
-              infoText = null;
-            });
-            try {
-              await _firebaseService.requestPasswordViewCode(idUser);
-              setLocal(() {
-                sending = false;
-                infoText = 'ส่งรหัสยืนยันเข้ากลุ่มไลน์แล้ว กรุณาเปิดไลน์ดูครับ';
-              });
-            } catch (e) {
-              setLocal(() {
-                sending = false;
-                errorText = e.toString().replaceFirst('Exception: ', '');
-              });
-            } finally {
-              inFlight = false;
-            }
-          }
-
-          // ขอรหัสครั้งแรกครั้งเดียวตอนเปิดหน้าต่าง
-          // ต้องตั้ง codeRequested แบบ synchronous ตรงนี้ ไม่ใช่ใน requestCode
-          // ไม่งั้นการวาดหน้าจอรอบถัดไปจะสั่งขอซ้ำก่อนที่ค่าจะถูกตั้ง
-          if (!codeRequested) {
-            codeRequested = true;
-            WidgetsBinding.instance
-                .addPostFrameCallback((_) => requestCode());
-          }
-
-          Future<void> verify() async {
-            final code = codeCtrl.text.trim();
-            if (code.isEmpty) {
-              setLocal(() => errorText = 'กรุณากรอกรหัสยืนยันครับ');
+          Future<void> submit() async {
+            if (verifying) return; // กันกดรัว
+            final ownPassword = passCtrl.text.trim();
+            if (ownPassword.isEmpty) {
+              setLocal(() => errorText = 'กรุณากรอกรหัสผ่านของคุณครับ');
               return;
             }
+
             setLocal(() {
               verifying = true;
               errorText = null;
             });
+
             try {
-              final password =
-                  await _firebaseService.verifyPasswordViewCode(idUser, code);
+              final password = await _firebaseService.viewTeacherPassword(
+                  idUser, ownPassword);
               if (ctx.mounted) Navigator.pop(ctx);
               if (mounted) {
                 setState(() => _revealedPasswords[idUser.toString()] =
@@ -5260,38 +5230,21 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       style: GoogleFonts.sarabun(
                           fontSize: 13, color: Colors.blueGrey)),
                   const SizedBox(height: 16),
-                  if (sending)
-                    Row(children: [
-                      const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2)),
-                      const SizedBox(width: 10),
-                      Text('กำลังส่งรหัสเข้ากลุ่มไลน์...',
-                          style: GoogleFonts.sarabun(fontSize: 13)),
-                    ])
-                  else ...[
-                    if (infoText != null)
-                      Text(infoText!,
-                          style: GoogleFonts.sarabun(
-                              fontSize: 12, color: Colors.green.shade700)),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: codeCtrl,
-                      enabled: !verifying,
-                      keyboardType: TextInputType.number,
-                      maxLength: 6,
-                      style: GoogleFonts.sarabun(
-                          fontSize: 20, letterSpacing: 6, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
-                      decoration: InputDecoration(
-                        counterText: '',
-                        hintText: '000000',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                      ),
+                  TextField(
+                    controller: passCtrl,
+                    enabled: !verifying,
+                    obscureText: true,
+                    autofocus: true,
+                    onSubmitted: (_) => submit(),
+                    style: GoogleFonts.sarabun(fontSize: 14),
+                    decoration: InputDecoration(
+                      labelText: 'รหัสผ่านของคุณ',
+                      labelStyle: GoogleFonts.sarabun(fontSize: 13),
+                      isDense: true,
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
-                  ],
+                  ),
                   if (errorText != null) ...[
                     const SizedBox(height: 8),
                     Text(errorText!,
@@ -5307,13 +5260,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 child: Text('ยกเลิก',
                     style: GoogleFonts.sarabun(color: Colors.grey.shade600)),
               ),
-              if (!sending)
-                TextButton(
-                  onPressed: verifying ? null : requestCode,
-                  child: Text('ขอรหัสใหม่', style: GoogleFonts.sarabun()),
-                ),
               ElevatedButton(
-                onPressed: (sending || verifying) ? null : verify,
+                onPressed: verifying ? null : submit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF2563EB),
                   foregroundColor: Colors.white,

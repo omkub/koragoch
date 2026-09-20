@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Edge Function: admin-users
  * ============================================================
  * งานที่ต้องใช้สิทธิ์ระดับแอดมินของ Supabase Auth ซึ่งเรียกจากเว็บตรง ๆ ไม่ได้
@@ -40,72 +40,24 @@ function reply(status: number, body: Record<string, unknown>) {
 const emailFor = (username: string) =>
   `${username.trim().toLowerCase()}@${EMAIL_DOMAIN}`;
 
-/** รหัสยืนยัน 6 หลัก สุ่มด้วยตัวสุ่มเชิงรหัสลับ ไม่ใช่เวลาปัจจุบัน */
-function generateCode(): string {
-  const buf = new Uint32Array(1);
-  crypto.getRandomValues(buf);
-  return String((buf[0] % 900000) + 100000);
-}
-
 /**
- * รวมค่าจากตาราง Settings — ข้อมูลกระจายอยู่หลายแถว ต้องหยิบค่าที่ไม่ว่าง
- * จากทุกแถวมารวมกัน (ตรรกะเดียวกับ ensureConfigLoaded ในแอป)
+ * ตรวจว่ารหัสผ่านที่ผู้เรียกกรอกมาเป็นของตัวเองจริง
+ *
+ * ใช้ signInWithPassword กับอีเมลของผู้เรียกเอง ถ้าผ่านแปลว่ารู้รหัสจริง
+ * ไม่ได้เอา session ที่ได้ไปใช้ต่อ แค่ยืนยันตัวตนเท่านั้น
  */
-async function loadSettings(
-  // deno-lint-ignore no-explicit-any
-  admin: any,
-): Promise<Record<string, string>> {
-  const { data } = await admin.from('Settings').select('*');
-  const merged: Record<string, string> = {};
-  for (const row of data ?? []) {
-    for (const [key, value] of Object.entries(row ?? {})) {
-      if (value === null || value === undefined) continue;
-      const text = String(value).trim();
-      if (text && !merged[key]) merged[key] = text;
-    }
-  }
-  return merged;
-}
-
-/**
- * ส่งข้อความเข้ากลุ่มไลน์ผ่าน Apps Script bridge
- * ใช้เส้นทางเดียวกับการแจ้งเตือนใบลา (action=line_notification)
- * จะได้ใช้ secretKey / กลุ่ม / สคริปต์ชุดเดียวกันทั้งระบบ
- */
-async function pushLine(
-  settings: Record<string, string>,
-  message: string,
-): Promise<string | null> {
-  const bridgeUrl = settings['appsScriptUrl'] ?? '';
-  const secretKey = settings['secretKey'] ?? '';
-  const to = settings['groupId'] ?? '';
-
-  if (!bridgeUrl) return 'ยังไม่ได้ตั้งค่า appsScriptUrl ในหน้าตั้งค่า LINE';
-  if (!to) return 'ยังไม่ได้ตั้งค่ากลุ่มไลน์ (groupId)';
-
-  const url = new URL(bridgeUrl);
-  url.searchParams.set('action', 'line_notification');
-  url.searchParams.set('secretKey', secretKey);
-  url.searchParams.set('to', to);
-  url.searchParams.set('message', message);
-
-  try {
-    const res = await fetch(url.toString(), { method: 'GET' });
-    const text = await res.text();
-    if (!res.ok) return `ส่งไลน์ไม่สำเร็จ (HTTP ${res.status})`;
-    // Apps Script ตอบ JSON {status: success|error}
-    try {
-      const parsed = JSON.parse(text);
-      if (parsed.status && parsed.status !== 'success') {
-        return `ส่งไลน์ไม่สำเร็จ: ${parsed.message ?? parsed.status}`;
-      }
-    } catch {
-      // ตอบกลับไม่ใช่ JSON ถือว่าผ่านถ้า HTTP 200
-    }
-    return null;
-  } catch (e) {
-    return `เชื่อมต่อระบบส่งไลน์ไม่ได้: ${e}`;
-  }
+async function verifyOwnPassword(
+  email: string,
+  password: string,
+): Promise<boolean> {
+  const verifier = createClient(SUPABASE_URL, ANON_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data, error } = await verifier.auth.signInWithPassword({
+    email,
+    password,
+  });
+  return !error && !!data.user;
 }
 
 Deno.serve(async (req) => {
@@ -263,87 +215,26 @@ Deno.serve(async (req) => {
     return reply(200, { ok: true, auth_uid: target.auth_uid });
   }
 
-  // ── ขอรหัสยืนยันก่อนดูรหัสผ่านของครู (2FA ผ่านไลน์) ──────────
-  if (action === 'request_view_code') {
-    // 🛡️ กันยิงรัว: ถ้าเพิ่งขอรหัสสำหรับครูคนนี้ไปไม่ถึง 60 วินาที ให้ใช้ของเดิม
-    // ไม่ส่งไลน์ซ้ำ ป้องกันบั๊กฝั่งหน้าจอเผาโควตาข้อความของโรงเรียน
-    const recentCutoff = new Date(Date.now() - 60 * 1000).toISOString();
-    const { data: recent } = await admin
-      .from('AdminViewCodes')
-      .select('id_code, created_at')
-      .eq('requested_by', callerUser.id)
-      .eq('target_id_user', target.id_user)
-      .is('used_at', null)
-      .gte('created_at', recentCutoff)
-      .limit(1)
-      .maybeSingle();
-
-    if (recent) {
-      return reply(200, {
-        ok: true,
-        sent: false,
-        note: 'เพิ่งส่งรหัสไปเมื่อสักครู่ กรุณาตรวจในกลุ่มไลน์',
-      });
+  // ── ดูรหัสผ่านของครู (ยืนยันด้วยรหัสผ่านของแอดมินเอง) ──────────
+  //
+  // เดิมใช้รหัสยืนยัน 6 หลักส่งเข้าไลน์ แต่แพ็กเกจ LINE จำกัดจำนวนข้อความ
+  // ต่อเดือน และต้องแบ่งโควตากับงานหลักคือแจ้งเตือนใบลา จึงเปลี่ยนมายืนยัน
+  // ด้วยรหัสผ่านของแอดมินเองแทน ไม่กินโควตาเลย
+  if (action === 'view_password') {
+    const ownPassword = String(payload.admin_password ?? '');
+    if (ownPassword.length === 0) {
+      return reply(400, { error: 'กรุณากรอกรหัสผ่านของคุณเพื่อยืนยันตัวตนครับ' });
     }
 
-    const settings = await loadSettings(admin);
-    const code = generateCode();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 นาที
-
-    const { error: insertError } = await admin.from('AdminViewCodes').insert({
-      code,
-      requested_by: callerUser.id,
-      target_id_user: target.id_user,
-      expires_at: expiresAt.toISOString(),
-    });
-    if (insertError) {
-      return reply(500, { error: `บันทึกรหัสยืนยันไม่สำเร็จ: ${insertError.message}` });
+    const callerEmail = String(callerUser.email ?? '');
+    if (!callerEmail) {
+      return reply(400, { error: 'บัญชีของคุณไม่มีอีเมลสำหรับยืนยันตัวตน' });
     }
 
-    const adminName = String(me.fullName ?? '').trim() || 'ผู้ดูแลระบบ';
-    const lineError = await pushLine(
-      settings,
-      '🔐 คำขอดูรหัสผ่าน\n' +
-        `ผู้ขอ: ${adminName}\n` +
-        `ต้องการดูรหัสผ่านของ: ${target.fullName ?? username}\n` +
-        `รหัสยืนยัน: ${code}\n` +
-        'ใช้ได้ครั้งเดียว หมดอายุใน 5 นาที\n' +
-        'ถ้าไม่ได้เป็นคนขอเอง แจ้งผู้ดูแลระบบทันที',
-    );
-
-    if (lineError) return reply(502, { error: lineError });
-
-    return reply(200, { ok: true, sent: true });
-  }
-
-  // ── ตรวจรหัสยืนยันแล้วคืนรหัสผ่านของครู ───────────────────────
-  if (action === 'verify_view_code') {
-    const code = String(payload.code ?? '').trim();
-    if (code.length === 0) {
-      return reply(400, { error: 'กรุณากรอกรหัสยืนยันครับ' });
+    const verified = await verifyOwnPassword(callerEmail, ownPassword);
+    if (!verified) {
+      return reply(401, { error: 'รหัสผ่านของคุณไม่ถูกต้องครับ' });
     }
-
-    const { data: row } = await admin
-      .from('AdminViewCodes')
-      .select('id_code, expires_at, used_at')
-      .eq('code', code)
-      .eq('requested_by', callerUser.id)
-      .eq('target_id_user', target.id_user)
-      .is('used_at', null)
-      .order('id_code', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (!row) return reply(400, { error: 'รหัสยืนยันไม่ถูกต้องครับ' });
-
-    if (new Date(row.expires_at).getTime() < Date.now()) {
-      return reply(400, { error: 'รหัสยืนยันหมดอายุแล้ว กรุณาขอรหัสใหม่' });
-    }
-
-    await admin
-      .from('AdminViewCodes')
-      .update({ used_at: new Date().toISOString() })
-      .eq('id_code', row.id_code);
 
     const { data: secret } = await admin
       .from('Teachers')

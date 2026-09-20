@@ -79,8 +79,8 @@ class FirebaseService {
         await client.from(table).upsert(rec, onConflict: 'id');
         return;
       } on PostgrestException catch (e) {
-        final match =
-            RegExp(r"Could not find the '([^']+)' column").firstMatch(e.message);
+        final match = RegExp(r"Could not find the '([^']+)' column")
+            .firstMatch(e.message);
         if (match != null && rec.containsKey(match.group(1))) {
           rec.remove(match.group(1));
           continue;
@@ -98,10 +98,10 @@ class FirebaseService {
     bool merge = false,
   }) async {
     try {
-      await _supabaseUpsert(
-          collectionName, _toSupabaseRecord(data, docId));
+      await _supabaseUpsert(collectionName, _toSupabaseRecord(data, docId));
     } catch (e) {
-      debugPrint('❌ Supabase write error in _supabaseSet ($collectionName): $e');
+      debugPrint(
+          '❌ Supabase write error in _supabaseSet ($collectionName): $e');
       rethrow;
     }
   }
@@ -113,10 +113,10 @@ class FirebaseService {
     Map<String, dynamic> data,
   ) async {
     try {
-      await _supabaseUpsert(
-          collectionName, _toSupabaseRecord(data, docId));
+      await _supabaseUpsert(collectionName, _toSupabaseRecord(data, docId));
     } catch (e) {
-      debugPrint('❌ Supabase write error in _supabaseUpdate ($collectionName): $e');
+      debugPrint(
+          '❌ Supabase write error in _supabaseUpdate ($collectionName): $e');
       rethrow;
     }
   }
@@ -184,7 +184,7 @@ class FirebaseService {
     required String action,
     required dynamic idUser,
     String? password,
-    String? code,
+    String? adminPassword,
   }) async {
     final client = _supabaseIfReady;
     if (client == null) throw Exception('Supabase not initialized');
@@ -200,7 +200,8 @@ class FirebaseService {
         'action': action,
         'id_user': parsedId,
         if (password != null && password.isNotEmpty) 'password': password,
-        if (code != null && code.isNotEmpty) 'code': code,
+        if (adminPassword != null && adminPassword.isNotEmpty)
+          'admin_password': adminPassword,
       },
     );
 
@@ -214,16 +215,16 @@ class FirebaseService {
     return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
   }
 
-  /// ขอรหัสยืนยัน 6 หลัก ระบบจะยิงเข้ากลุ่มไลน์ (ทางเดียวกับแจ้งเตือนใบลา)
-  Future<void> requestPasswordViewCode(dynamic idUser) =>
-      _callAdminUsersFunction(action: 'request_view_code', idUser: idUser);
-
-  /// กรอกรหัสจากไลน์เพื่อขอดูรหัสผ่านของครู — คืนรหัสผ่านถ้ารหัสยืนยันถูกต้อง
-  Future<String> verifyPasswordViewCode(dynamic idUser, String code) async {
+  /// ดูรหัสผ่านของครู โดยยืนยันตัวตนด้วยรหัสผ่านของแอดมินเอง
+  ///
+  /// รหัสผ่านของแอดมินถูกส่งไปตรวจที่ Edge Function เท่านั้น ฝั่งเว็บไม่ได้
+  /// ตัดสินใจอะไรเอง และไม่มีทางข้ามด่านนี้จากหน้าเว็บได้
+  Future<String> viewTeacherPassword(
+      dynamic idUser, String adminPassword) async {
     final result = await _callAdminUsersFunction(
-      action: 'verify_view_code',
+      action: 'view_password',
       idUser: idUser,
-      code: code,
+      adminPassword: adminPassword,
     );
     return (result['password'] ?? '').toString();
   }
@@ -252,12 +253,12 @@ class FirebaseService {
 
   /// ดึงชื่อคอลัมน์ที่ไม่มีอยู่จริงออกจากข้อความ error ของ PostgREST
   static String? _missingColumnFromError(String message) {
-    final missing =
-        RegExp(r"Could not find the '([^']+)' column").firstMatch(message)
-                ?.group(1) ??
-            RegExp(r'column "?([^"\s]+)"? does not exist')
-                .firstMatch(message)
-                ?.group(1);
+    final missing = RegExp(r"Could not find the '([^']+)' column")
+            .firstMatch(message)
+            ?.group(1) ??
+        RegExp(r'column "?([^"\s]+)"? does not exist')
+            .firstMatch(message)
+            ?.group(1);
     return missing?.split('.').last;
   }
 
@@ -396,7 +397,8 @@ class FirebaseService {
         .eq('username', username)
         .limit(1);
     if ((duplicated as List).isNotEmpty) {
-      throw Exception('ชื่อผู้ใช้ "$username" ถูกใช้ไปแล้ว กรุณาตั้งชื่อใหม่ครับ');
+      throw Exception(
+          'ชื่อผู้ใช้ "$username" ถูกใช้ไปแล้ว กรุณาตั้งชื่อใหม่ครับ');
     }
 
     final rec = await _teacherRecordForSupabase(client, data);
@@ -410,10 +412,9 @@ class FirebaseService {
     // หลังปิดทางถอย (ตอนเปิด RLS)
     final newId = inserted?['id_user'];
     if (newId != null) {
-      final password =
-          (data['password'] ?? '').toString().trim().isEmpty
-              ? '123456'
-              : data['password'].toString().trim();
+      final password = (data['password'] ?? '').toString().trim().isEmpty
+          ? '123456'
+          : data['password'].toString().trim();
       try {
         await adminCreateAuthAccount(newId, password);
       } catch (e) {
@@ -515,11 +516,10 @@ class FirebaseService {
     if (rec.containsKey('academicStanding') ||
         rec.containsKey('ID_Academics') ||
         rec.containsKey('วิทยฐานะ')) {
-      final rankName = (rec['academicStanding'] ??
-              rec['วิทยฐานะ'] ??
-              rec['ID_Academics'])
-          ?.toString()
-          .trim();
+      final rankName =
+          (rec['academicStanding'] ?? rec['วิทยฐานะ'] ?? rec['ID_Academics'])
+              ?.toString()
+              .trim();
       if (rankName != null && rankName.isNotEmpty) {
         final rankRows = await client
             .from('academics')
@@ -574,8 +574,8 @@ class FirebaseService {
         .eq('fullName', fullName)
         .limit(1);
     if ((rows as List).isNotEmpty) {
-      final docId = (rows.first['id_user'] ?? rows.first['firebase_uid'])
-          .toString();
+      final docId =
+          (rows.first['id_user'] ?? rows.first['firebase_uid']).toString();
       await updateTeacherById(docId, newData);
     }
   }
@@ -934,10 +934,11 @@ class FirebaseService {
   Future<void> clearAllReceiveNumbers() async {
     final client = _supabaseIfReady;
     if (client == null) throw Exception('Supabase not initialized');
-    await client
-        .from('Leaves')
-        .update({'receiveNumber': null, 'receiveDate': null, 'receiveTime': null})
-        .not('receiveNumber', 'is', null);
+    await client.from('Leaves').update({
+      'receiveNumber': null,
+      'receiveDate': null,
+      'receiveTime': null
+    }).not('receiveNumber', 'is', null);
   }
 
   /// แปลงข้อมูลใบลาจากหน้าจอ → คอลัมน์จริงของตาราง Leaves
@@ -1399,7 +1400,8 @@ class FirebaseService {
           return false;
         });
       """;
-      final result = await (globalContext.callMethod<JSAny>('eval'.toJS, jsCode.toJS) as JSPromise)
+      final result = await (globalContext.callMethod<JSAny>(
+              'eval'.toJS, jsCode.toJS) as JSPromise)
           .toDart
           .timeout(const Duration(seconds: 12), onTimeout: () => false.toJS);
       return result == true.toJS;
@@ -1417,7 +1419,8 @@ class FirebaseService {
 
     globalContext[callbackName] = ((JSAny? data) {
       if (!completer.isCompleted) {
-        completer.complete(data != null ? jsonEncode((data as JSObject).dartify()) : '{}');
+        completer.complete(
+            data != null ? jsonEncode((data as JSObject).dartify()) : '{}');
       }
     }).toJS;
 
@@ -1475,7 +1478,8 @@ class FirebaseService {
           img.src = ${jsonEncode(url + '&_ts=${DateTime.now().millisecondsSinceEpoch}')};
         });
       """;
-      final result = await (globalContext.callMethod<JSAny>('eval'.toJS, jsCode.toJS) as JSPromise)
+      final result = await (globalContext.callMethod<JSAny>(
+              'eval'.toJS, jsCode.toJS) as JSPromise)
           .toDart
           .timeout(const Duration(seconds: 13), onTimeout: () => false.toJS);
       return result == true.toJS;
@@ -1526,11 +1530,8 @@ class FirebaseService {
   Future<Map<String, dynamic>?> searchTeacherByUid(String uid) async {
     final client = _supabaseIfReady;
     if (client == null) return null;
-    final rows = await client
-        .from('Teachers')
-        .select()
-        .eq('firebase_uid', uid)
-        .limit(1);
+    final rows =
+        await client.from('Teachers').select().eq('firebase_uid', uid).limit(1);
     if ((rows as List).isNotEmpty) {
       final enriched =
           await enrichTeacher(Map<String, dynamic>.from(rows.first as Map));
@@ -1626,8 +1627,8 @@ class FirebaseService {
       nameOf('roles', 'ID_Roles', 'Accessrights', r['id_role']),
       nameOf('academics', 'ID_Academics', 'AcademicsName',
           r['ID_Academics'] ?? r['id_academic'] ?? r['id_academics']),
-      nameOf('adminroles', 'ID_AdminRoles', 'AdminRolesName',
-          r['id_adminrole']),
+      nameOf(
+          'adminroles', 'ID_AdminRoles', 'AdminRolesName', r['id_adminrole']),
     ]);
 
     final role = pick(r['role'], names[2]);
@@ -1740,12 +1741,10 @@ class FirebaseService {
       return (rows as List).map((row) {
         final r = Map<String, dynamic>.from(row as Map);
         final teacher = teacherById[r['id_user']?.toString() ?? ''];
-        final fullName = (r['fullname'] ??
-                r['fullName'] ??
-                teacher?['fullName'] ??
-                '')
-            .toString()
-            .trim();
+        final fullName =
+            (r['fullname'] ?? r['fullName'] ?? teacher?['fullName'] ?? '')
+                .toString()
+                .trim();
         final username =
             (r['username'] ?? teacher?['username'] ?? '').toString().trim();
         final role = (r['role'] ??
@@ -1780,9 +1779,11 @@ class FirebaseService {
     if (client == null) return [];
     try {
       final futureLeaves = client.from('Leaves').select();
-      final futureTeachers = client.from('Teachers').select('id_user, fullName');
+      final futureTeachers =
+          client.from('Teachers').select('id_user, fullName');
       final futureLeaveTypes = getLeaveTypesRawFromSupabase();
-      final results = await Future.wait([futureLeaves, futureTeachers, futureLeaveTypes]);
+      final results =
+          await Future.wait([futureLeaves, futureTeachers, futureLeaveTypes]);
       final rows = results[0] as List;
       final teachers = results[1] as List;
       final leaveTypes = results[2] as List<Map<String, dynamic>>;
@@ -1798,8 +1799,10 @@ class FirebaseService {
       final typeMap = <String, String>{};
       for (final t in leaveTypes) {
         final tid = (t['id_leaveType'] ?? t['id'])?.toString();
-        final name = (t['leaveName'] ?? t['name'] ?? t['Value'] ?? '').toString();
-        if (tid != null && tid.isNotEmpty && name.isNotEmpty) typeMap[tid] = name;
+        final name =
+            (t['leaveName'] ?? t['name'] ?? t['Value'] ?? '').toString();
+        if (tid != null && tid.isNotEmpty && name.isNotEmpty)
+          typeMap[tid] = name;
       }
 
       var mapped = rows.map((row) {
@@ -1807,7 +1810,8 @@ class FirebaseService {
         final userId = r['id_user']?.toString() ?? '';
         final typeId = r['id_leaveType']?.toString() ?? '';
         final teacher = userMap[userId] ?? {};
-        final resolvedName = (teacher['fullName'] ?? teacher['name'] ?? '').toString();
+        final resolvedName =
+            (teacher['fullName'] ?? teacher['name'] ?? '').toString();
         final resolvedType = (typeMap[typeId] ?? '').toString();
         return _fromSupabaseLeave({
           ...r,
@@ -1818,8 +1822,9 @@ class FirebaseService {
 
       if (fullName != null && fullName != 'ผู้ดูแลระบบ') {
         final target = fullName.trim();
-        mapped = mapped.where((l) =>
-            (l['fullName'] ?? '').toString().trim() == target).toList();
+        mapped = mapped
+            .where((l) => (l['fullName'] ?? '').toString().trim() == target)
+            .toList();
       }
 
       return mapped;
@@ -1885,7 +1890,8 @@ class FirebaseService {
       ...r,
       'id': docId,
       'fullName': r['fullname'] ?? r['fullName'] ?? r['name'] ?? '',
-      'ID_Academics': r['ID_Academics'] ?? r['id_academic'] ?? r['id_academics'],
+      'ID_Academics':
+          r['ID_Academics'] ?? r['id_academic'] ?? r['id_academics'],
       'academicStanding': academicVal,
       'วิทยฐานะ': academicVal,
       'position': r['position'] ?? '',
@@ -1893,7 +1899,12 @@ class FirebaseService {
       'role': r['role'] ?? '',
       'permission': r['permission'] ?? r['role'] ?? '',
       'phone': r['phone'] ?? '',
-      'profileImage': [r['profileImage'], r['profileimage'], r['photoUrl'], r['profilePhoto']]
+      'profileImage': [
+        r['profileImage'],
+        r['profileimage'],
+        r['photoUrl'],
+        r['profilePhoto']
+      ]
           .map((value) => value?.toString().trim() ?? '')
           .firstWhere((value) => value.isNotEmpty, orElse: () => ''),
     };
@@ -1902,25 +1913,22 @@ class FirebaseService {
   /// แปลง row จาก Supabase Leaves → format ที่ UI คาดหวัง
   static Map<String, dynamic> _fromSupabaseLeave(Map<dynamic, dynamic> row) {
     final r = Map<String, dynamic>.from(row);
-    final id = (r['id'] ??
-            r['id_leaves'] ??
-            r['requestId'] ??
-            r['requestid'] ??
-            '')
-        .toString();
-    final academicVal = r['academicstanding'] ??
-        r['academicStanding'] ??
-        r['วิทยฐานะ'] ??
-        '';
+    final id =
+        (r['id'] ?? r['id_leaves'] ?? r['requestId'] ?? r['requestid'] ?? '')
+            .toString();
+    final academicVal =
+        r['academicstanding'] ?? r['academicStanding'] ?? r['วิทยฐานะ'] ?? '';
     return {
       ...r,
       'id': id,
       'requestId': id.isNotEmpty ? id : (r['id']?.toString() ?? ''),
       'fullName': r['fullname'] ?? r['fullName'] ?? '',
       'leaveType': r['leavetype'] ?? r['leaveType'] ?? '',
-      'startDate': formatToThaiSlashDate(r['startdate'] ?? r['startDate'] ?? ''),
+      'startDate':
+          formatToThaiSlashDate(r['startdate'] ?? r['startDate'] ?? ''),
       'endDate': formatToThaiSlashDate(r['enddate'] ?? r['endDate'] ?? ''),
-      'leaveDate': formatToThaiSlashDate(r['leavedate'] ?? r['leaveDate'] ?? ''),
+      'leaveDate':
+          formatToThaiSlashDate(r['leavedate'] ?? r['leaveDate'] ?? ''),
       'totalDays': r['totaldays'] ?? r['totalDays'] ?? 0,
       'isHalfDay': r['ishalfday'] ?? r['isHalfDay'] ?? false,
       'halfDayPeriod': r['halfdayperiod'] ?? r['halfDayPeriod'] ?? '',
@@ -1928,7 +1936,8 @@ class FirebaseService {
       'medicalCertificate':
           r['medicalcertificate'] ?? r['medicalCertificate'] ?? '',
       'academicStanding': academicVal,
-      'ID_Academics': r['ID_Academics'] ?? r['id_academic'] ?? r['id_academics'],
+      'ID_Academics':
+          r['ID_Academics'] ?? r['id_academic'] ?? r['id_academics'],
       'วิทยฐานะ': academicVal,
       'receiveNumber': r['receivenumber'] ?? r['receiveNumber'],
       'receiveDate':
@@ -2031,7 +2040,8 @@ class FirebaseService {
       for (final a in academics) {
         final id = (a['ID_Academics'] ?? a['id'])?.toString();
         final name =
-            (a['AcademicsName'] ?? a['academicsname'] ?? a['name'] ?? '').toString();
+            (a['AcademicsName'] ?? a['academicsname'] ?? a['name'] ?? '')
+                .toString();
         if (id != null && name.isNotEmpty) academicMap[id] = name;
       }
 
@@ -2039,10 +2049,9 @@ class FirebaseService {
       for (final ar in adminRoles) {
         final row = Map<String, dynamic>.from(ar as Map);
         final id = _pickValueIgnoreCase(
-                row, const ['id_adminroles', 'id_adminrole', 'id'])
-            ?.toString();
-        final name = _pickValueIgnoreCase(row,
-                const ['adminrolesname', 'adminrolename', 'name', 'value'])
+            row, const ['id_adminroles', 'id_adminrole', 'id'])?.toString();
+        final name = _pickValueIgnoreCase(
+                row, const ['adminrolesname', 'adminrolename', 'name', 'value'])
             ?.toString()
             .trim();
         if (id != null && name != null && name.isNotEmpty) {
@@ -2056,19 +2065,20 @@ class FirebaseService {
         final posId = r['id_position']?.toString() ?? '';
         final roleId = r['id_role']?.toString() ?? '';
         final academicId =
-            (r['ID_Academics'] ?? r['id_academic'] ?? r['id_academics'])?.toString() ?? '';
+            (r['ID_Academics'] ?? r['id_academic'] ?? r['id_academics'])
+                    ?.toString() ??
+                '';
         // ชื่อคอลัมน์ FK ของตำแหน่งบริหารสะกดไม่เหมือนกันในแต่ละชุดข้อมูล
         // (id_adminrole / id_adminRole / id_AdminRoles / ID_AdminRoles / ...)
         // จึงหาแบบไม่สนตัวพิมพ์ เพื่อไม่ให้ตำแหน่งหลุดหายตอนขึ้นฟอร์มใบลา
-        final adminRoleId = _pickValueIgnoreCase(r,
-                const ['id_adminrole', 'id_adminroles', 'id_admin_role'])
-            ?.toString() ??
+        final adminRoleId = _pickValueIgnoreCase(
+                    r, const ['id_adminrole', 'id_adminroles', 'id_admin_role'])
+                ?.toString() ??
             '';
 
         final resolvedDept =
             (r['department'] ?? deptMap[deptId] ?? '').toString();
-        final resolvedPos =
-            (r['position'] ?? posMap[posId] ?? '').toString();
+        final resolvedPos = (r['position'] ?? posMap[posId] ?? '').toString();
         final resolvedRole = (r['role'] ?? roleMap[roleId] ?? '').toString();
         final resolvedAcademic = (r['academicStanding'] ??
                 r['academicstanding'] ??
@@ -2116,14 +2126,16 @@ class FirebaseService {
     final client = _supabaseIfReady;
     if (client == null) return getLeaveRequests(year: year);
     try {
-      final futureTeachers = client.from('Teachers').select('id_user, fullName');
+      final futureTeachers =
+          client.from('Teachers').select('id_user, fullName');
       final futureLeaveTypes =
           getLeaveTypesRawFromSupabase(throwOnError: throwOnError);
       final futureFiscalRounds = throwOnError
           ? _fetchFiscalRoundsFromSupabase(throwOnError: true)
           : getFiscalRoundsFromSupabase();
       var query = client.from('Leaves').select();
-      final results = await Future.wait([query, futureTeachers, futureLeaveTypes, futureFiscalRounds]);
+      final results = await Future.wait(
+          [query, futureTeachers, futureLeaveTypes, futureFiscalRounds]);
       final rows = results[0] as List;
       final teachers = results[1] as List;
       final leaveTypes = results[2];
@@ -2165,11 +2177,9 @@ class FirebaseService {
                 teacher['name'] ??
                 '')
             .toString();
-        final resolvedType = (r['leavetype'] ??
-                r['leaveType'] ??
-                typeMap[typeId] ??
-                '')
-            .toString();
+        final resolvedType =
+            (r['leavetype'] ?? r['leaveType'] ?? typeMap[typeId] ?? '')
+                .toString();
         final resolvedYear = yearMap[yearId] ?? r['year'] ?? r['id_year'];
         return _fromSupabaseLeave({
           ...r,
@@ -2178,7 +2188,8 @@ class FirebaseService {
           'year': resolvedYear,
           'department': teacher['department'] ?? '',
           'position': teacher['position'] ?? '',
-          'academicStanding': teacher['academicStanding'] ?? teacher['วิทยฐานะ'] ?? '',
+          'academicStanding':
+              teacher['academicStanding'] ?? teacher['วิทยฐานะ'] ?? '',
           'ID_Academics': teacher['ID_Academics'],
           'วิทยฐานะ': teacher['academicStanding'] ?? teacher['วิทยฐานะ'] ?? '',
         });
@@ -2229,9 +2240,8 @@ class FirebaseService {
   }
 
   /// อัปเดตเลขรับใบลาใน Supabase
-  Future<void> updateLeaveReceiveNumberInSupabase(
-      String requestId, String receiveNumber, String receiveDate,
-      String receiveTime) async {
+  Future<void> updateLeaveReceiveNumberInSupabase(String requestId,
+      String receiveNumber, String receiveDate, String receiveTime) async {
     final client = _supabaseIfReady;
     if (client == null) throw Exception('Supabase not initialized');
     await client.from('Leaves').update({
@@ -2286,8 +2296,7 @@ class FirebaseService {
       final now = DateTime.now();
       final todayStr = '${now.day}/${now.month}/${now.year + 543}';
       for (final r in rounds) {
-        if (isDateInRange(
-            todayStr, r['startDate'] ?? '', r['endDate'] ?? '')) {
+        if (isDateInRange(todayStr, r['startDate'] ?? '', r['endDate'] ?? '')) {
           return {...r, 'isAutoSelected': true};
         }
       }
@@ -2410,8 +2419,14 @@ class FirebaseService {
   }
 
   Future<List<String>> getAdminRolesFromSupabase() async {
-    final roles = await _getMasterListFromSupabase('adminroles',
-        ['AdminRolesName', 'adminrolename', 'name', 'value', 'adminrole', 'ตำแหน่งบริหาร']);
+    final roles = await _getMasterListFromSupabase('adminroles', [
+      'AdminRolesName',
+      'adminrolename',
+      'name',
+      'value',
+      'adminrole',
+      'ตำแหน่งบริหาร'
+    ]);
     if (!roles.contains('ไม่มีตำแหน่งบริหาร')) {
       roles.insert(0, 'ไม่มีตำแหน่งบริหาร');
     }
@@ -2419,8 +2434,14 @@ class FirebaseService {
   }
 
   Future<List<String>> getPositionsFromSupabase() async {
-    return _getMasterListFromSupabase(
-        'positions', ['positionName', 'positionname', 'name', 'value', 'position', 'ตำแหน่ง']);
+    return _getMasterListFromSupabase('positions', [
+      'positionName',
+      'positionname',
+      'name',
+      'value',
+      'position',
+      'ตำแหน่ง'
+    ]);
   }
 
   Future<List<String>> getDepartmentsFromSupabase() async {
@@ -2435,18 +2456,22 @@ class FirebaseService {
   }
 
   Future<List<String>> getAcademicsFromSupabase() async {
-    return _getMasterListFromSupabase(
-        'academics', ['AcademicsName', 'academicname', 'name', 'value', 'academic', 'วิทยฐานะ']);
+    return _getMasterListFromSupabase('academics', [
+      'AcademicsName',
+      'academicname',
+      'name',
+      'value',
+      'academic',
+      'วิทยฐานะ'
+    ]);
   }
 
   Future<List<String>> getPermissionsFromSupabase() async {
     final client = _supabaseIfReady;
     if (client == null) return getPermissions();
     try {
-      final rows = await client
-          .from('roles')
-          .select('Accessrights')
-          .order('ID_Roles');
+      final rows =
+          await client.from('roles').select('Accessrights').order('ID_Roles');
       final seen = <String>{};
       final result = <String>[];
       for (final row in (rows as List)) {
@@ -2518,7 +2543,10 @@ class FirebaseService {
         final menuId = row['menu_id']?.toString();
         final status = row['status'];
         if (menuId != null) {
-          result[menuId] = status == true || status == 1 || status.toString() == '1' || status.toString().toUpperCase() == 'TRUE';
+          result[menuId] = status == true ||
+              status == 1 ||
+              status.toString() == '1' ||
+              status.toString().toUpperCase() == 'TRUE';
         }
       }
       return result.isNotEmpty ? result : null;
@@ -2534,7 +2562,8 @@ class FirebaseService {
     if (client == null) return [];
     try {
       final rows = await client.from(collection).select();
-      final rolesRows = await client.from('roles').select('ID_Roles, Accessrights');
+      final rolesRows =
+          await client.from('roles').select('ID_Roles, Accessrights');
 
       final roleNameMap = <String, String>{};
       for (final r in (rolesRows as List)) {
@@ -2550,9 +2579,12 @@ class FirebaseService {
         final status = row['status'];
         if (idRole.isEmpty || menuId == null) continue;
         final roleName = roleNameMap[idRole] ?? idRole;
-        grouped.putIfAbsent(roleName, () => {'id': roleName, 'id_role': idRole});
-        grouped[roleName]![menuId] =
-            status == true || status == 1 || status.toString() == '1' || status.toString().toUpperCase() == 'TRUE';
+        grouped.putIfAbsent(
+            roleName, () => {'id': roleName, 'id_role': idRole});
+        grouped[roleName]![menuId] = status == true ||
+            status == 1 ||
+            status.toString() == '1' ||
+            status.toString().toUpperCase() == 'TRUE';
       }
 
       return grouped.values.toList();
@@ -2584,9 +2616,7 @@ class FirebaseService {
           .from('Teachers')
           .select()
           .eq('forgotPasswordStatus', 'waiting');
-      return (rows as List)
-          .map((r) => _fromSupabaseTeacher(r as Map))
-          .toList();
+      return (rows as List).map((r) => _fromSupabaseTeacher(r as Map)).toList();
     } catch (e) {
       debugPrint('❌ getPendingResetsFromSupabase error: $e');
       return [];
@@ -2600,7 +2630,8 @@ class FirebaseService {
     await ensureConfigLoaded();
     // ensureConfigLoaded() merge ทุก row จาก Supabase Settings table แล้ว
     return {
-      'groupId': config('groupid').isNotEmpty ? config('groupid') : config('groupId'),
+      'groupId':
+          config('groupid').isNotEmpty ? config('groupid') : config('groupId'),
       'webhookUrl': config('webhookurl').isNotEmpty
           ? config('webhookurl')
           : config('webhookUrl').isNotEmpty
