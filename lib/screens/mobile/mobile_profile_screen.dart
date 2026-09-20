@@ -1,9 +1,10 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/firebase_service.dart';
 import '../login_screen.dart';
 import '../personnel_screen.dart';
@@ -44,7 +45,6 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
   // Controllers for editing
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _positionController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _fullNameController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
 
@@ -66,7 +66,6 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
   @override
   void dispose() {
     _phoneController.dispose();
-    _passwordController.dispose();
     _fullNameController.dispose();
     _usernameController.dispose();
     super.dispose();
@@ -106,7 +105,6 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
 
           _phoneController.text =
               decoded['phone'] ?? decoded['phoneNumber'] ?? '';
-          _passwordController.text = (decoded['password'] ?? '').toString();
           _fullNameController.text =
               decoded['fullName'] ?? decoded['name'] ?? '';
           _usernameController.text = decoded['username'] ?? '';
@@ -146,7 +144,6 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
             _teacherData = serverData;
             _phoneController.text =
                 serverData['phone'] ?? serverData['phoneNumber'] ?? '';
-            _passwordController.text = (serverData['password'] ?? '').toString();
             _fullNameController.text =
                 serverData['fullName'] ?? serverData['name'] ?? '';
             _usernameController.text = serverData['username'] ?? '';
@@ -623,10 +620,7 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
                       "ชื่อผู้ใช้งาน (Username)", _usernameController,
                       isEdit: false)),
               const SizedBox(width: 16),
-              Expanded(
-                  child: _buildInfoItem(Icons.lock_outline_rounded, "รหัสผ่าน",
-                      _passwordController,
-                      isEdit: _isEditing)),
+              Expanded(child: _buildPasswordItem()),
             ],
           ),
           const SizedBox(height: 16),
@@ -652,6 +646,226 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
         ],
       ),
     );
+  }
+
+  /// ช่องรหัสผ่าน — ไม่แสดงรหัสจริงอีกต่อไป
+  ///
+  /// ตั้งแต่ย้ายไป Supabase Auth รหัสผ่านถูกแฮชด้วย bcrypt ไม่มีใครอ่านกลับได้
+  /// (รวมถึงแอดมิน) จึงเปลี่ยนจาก "ช่องแก้ข้อความ" เป็นปุ่มตั้งรหัสใหม่แทน
+  ///
+  /// ของเดิมเป็นช่องที่แก้ได้แต่ _saveProfile ไม่เคยส่งค่าไปบันทึก ครูแก้แล้ว
+  /// ค่าเด้งกลับทุกครั้ง — ถือเป็นบั๊กที่มีมาก่อนหน้านี้
+  Widget _buildPasswordItem() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.lock_outline_rounded,
+                size: 14, color: Color(0xFF94A3B8)),
+            const SizedBox(width: 8),
+            Text('รหัสผ่าน',
+                style: GoogleFonts.sarabun(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF64748B))),
+          ],
+        ),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: _showChangePasswordDialog,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              children: [
+                Text('••••••••',
+                    style: GoogleFonts.sarabun(
+                        fontSize: 15,
+                        letterSpacing: 2,
+                        color: const Color(0xFF94A3B8))),
+                const Spacer(),
+                Text('เปลี่ยนรหัสผ่าน',
+                    style: GoogleFonts.sarabun(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF2563EB))),
+                const SizedBox(width: 4),
+                const Icon(Icons.chevron_right_rounded,
+                    size: 18, color: Color(0xFF2563EB)),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// หน้าต่างตั้งรหัสผ่านใหม่ — ยืนยันด้วยรหัสปัจจุบันก่อนเสมอ
+  void _showChangePasswordDialog() {
+    final currentCtrl = TextEditingController();
+    final newCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    String? errorText;
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          Future<void> submit() async {
+            final current = currentCtrl.text.trim();
+            final next = newCtrl.text.trim();
+            final confirm = confirmCtrl.text.trim();
+
+            if (current.isEmpty || next.isEmpty) {
+              setLocal(() => errorText = 'กรุณากรอกให้ครบทุกช่องครับ');
+              return;
+            }
+            if (next.length < 6) {
+              setLocal(() => errorText = 'รหัสผ่านใหม่ต้องยาวอย่างน้อย 6 ตัว');
+              return;
+            }
+            if (next != confirm) {
+              setLocal(() => errorText = 'รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน');
+              return;
+            }
+
+            setLocal(() {
+              isSaving = true;
+              errorText = null;
+            });
+
+            final message = await _changePassword(current, next);
+
+            if (message != null) {
+              setLocal(() {
+                isSaving = false;
+                errorText = message;
+              });
+              return;
+            }
+
+            if (ctx.mounted) Navigator.pop(ctx);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text('✅ เปลี่ยนรหัสผ่านเรียบร้อยแล้วครับ',
+                    style: GoogleFonts.sarabun()),
+                backgroundColor: Colors.green,
+                behavior: SnackBarBehavior.floating,
+              ));
+            }
+          }
+
+          Widget field(String label, TextEditingController ctrl) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: TextField(
+                  controller: ctrl,
+                  obscureText: true,
+                  enabled: !isSaving,
+                  style: GoogleFonts.sarabun(fontSize: 14),
+                  decoration: InputDecoration(
+                    labelText: label,
+                    labelStyle: GoogleFonts.sarabun(fontSize: 13),
+                    isDense: true,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              );
+
+          return AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Text('เปลี่ยนรหัสผ่าน',
+                style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                field('รหัสผ่านปัจจุบัน', currentCtrl),
+                field('รหัสผ่านใหม่', newCtrl),
+                field('ยืนยันรหัสผ่านใหม่', confirmCtrl),
+                if (errorText != null)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(errorText!,
+                        style: GoogleFonts.sarabun(
+                            fontSize: 12, color: Colors.red.shade700)),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: isSaving ? null : () => Navigator.pop(ctx),
+                child: Text('ยกเลิก',
+                    style: GoogleFonts.sarabun(color: Colors.grey.shade600)),
+              ),
+              ElevatedButton(
+                onPressed: isSaving ? null : submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                child: isSaving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : Text('บันทึก',
+                        style:
+                            GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// เปลี่ยนรหัสผ่านจริง — คืน null ถ้าสำเร็จ หรือข้อความบอกสาเหตุถ้าไม่สำเร็จ
+  Future<String?> _changePassword(String current, String next) async {
+    final username = (_teacherData?['username'] ?? '').toString().trim();
+    if (username.isEmpty) return 'ไม่พบชื่อผู้ใช้ของคุณครูครับ';
+
+    final supabase = Supabase.instance.client;
+    final email = FirebaseService.authEmailForUsername(username);
+
+    try {
+      // ยืนยันตัวตนด้วยรหัสปัจจุบันก่อน (และได้ session มาใช้ตั้งรหัสใหม่ด้วย)
+      await supabase.auth.signInWithPassword(email: email, password: current);
+    } on AuthException {
+      return 'รหัสผ่านปัจจุบันไม่ถูกต้องครับ';
+    } catch (e) {
+      return 'เชื่อมต่อระบบยืนยันตัวตนไม่สำเร็จ: $e';
+    }
+
+    try {
+      await supabase.auth.updateUser(UserAttributes(password: next));
+    } catch (e) {
+      return 'ตั้งรหัสผ่านใหม่ไม่สำเร็จ: $e';
+    }
+
+    // ซิงก์คอลัมน์เดิมไว้ด้วย เพื่อให้ "ทางถอย" ในหน้าล็อกอินยังใช้ได้
+    // ระหว่างช่วงเปลี่ยนผ่าน (จะเลิกใช้เมื่อเปิด RLS แล้ว)
+    try {
+      final docId = (_teacherData?['docId'] ?? _teacherData?['id'])?.toString();
+      if (docId != null && docId.isNotEmpty) {
+        await _firebaseService.updateTeacherById(docId, {'password': next});
+      }
+    } catch (e) {
+      debugPrint('⚠️  ซิงก์รหัสผ่านลงตาราง Teachers ไม่สำเร็จ: $e');
+    }
+
+    return null;
   }
 
   Widget _buildInfoItem(IconData icon, String label, TextEditingController ctrl,
