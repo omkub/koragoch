@@ -154,6 +154,21 @@ class FirebaseService {
   static String primaryKeyFor(String table) =>
       _primaryKeyByTable[table] ?? 'id';
 
+  // ═══════════════════════════════════════════════════════════════
+  // Supabase Auth
+  //
+  // ครูส่วนใหญ่ไม่มีอีเมลจริง (มีแค่ 1 คนจาก 68) จึงประกอบอีเมลสังเคราะห์
+  // จาก username ให้ Auth ใช้เป็นตัวระบุตัวตน ครูไม่เห็นและไม่ต้องรู้
+  // ยังพิมพ์แค่ username กับรหัสผ่านเหมือนเดิม
+  //
+  // ⚠️ สูตรนี้ต้องตรงกับ tools/create_auth_users.mjs เป๊ะ ๆ (รวมการแปลง
+  // เป็นตัวพิมพ์เล็ก) ไม่งั้นครูที่ username ขึ้นต้นด้วยตัวใหญ่จะล็อกอินไม่ได้
+  // ═══════════════════════════════════════════════════════════════
+  static const String authEmailDomain = 'leave.local';
+
+  static String authEmailForUsername(String username) =>
+      '${username.trim().toLowerCase()}@$authEmailDomain';
+
   /// PK ทุกตัวเป็น bigint แต่ UI ส่งมาเป็น String จึงแปลงให้ก่อนถ้าแปลงได้
   static dynamic _pkValue(dynamic raw) {
     final text = raw?.toString().trim() ?? '';

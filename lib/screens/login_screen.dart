@@ -106,8 +106,8 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 🚀 ล็อกอินผ่าน Supabase: กรอก user/pass เทียบกับตาราง Teachers ตรงๆ
-      // (ยังไม่ใช้ Supabase Auth — จะพัฒนาเป็นเฟสสุดท้ายหลังข้อมูลตรงกับของเก่าแล้ว)
+      // 🚀 ล็อกอินผ่าน Supabase Auth (รหัสผ่านแฮชด้วย bcrypt)
+      // ยังคงอ่านตาราง Teachers เพื่อเอาสิทธิ์/สถานะรีเซ็ตรหัสมาใช้เหมือนเดิม
       final supabase = Supabase.instance.client;
 
       final String username = _usernameController.text.trim();
@@ -154,9 +154,32 @@ class _LoginScreenState extends State<LoginScreen> {
         userData['password'] = '123456';
       }
 
-      // 🛡️ [ด่านตรวจที่ 2] ตรวจสอบว่ารหัสผ่านถูกต้อง
-      final bool passValid = (userData['password'].toString().trim() == password) ||
-          (isMigrated && (password == '123456' || password == 'MIGRATED'));
+      // 🛡️ [ด่านตรวจที่ 2] ตรวจสอบรหัสผ่าน
+      //
+      // ทางหลัก: Supabase Auth — รหัสผ่านถูกแฮชด้วย bcrypt ฝั่งเซิร์ฟเวอร์
+      // ไม่มีใครอ่านรหัสจริงได้ และได้ session/token มาใช้กับ RLS ต่อ
+      bool passValid = false;
+      try {
+        final authResult = await supabase.auth.signInWithPassword(
+          email: FirebaseService.authEmailForUsername(username),
+          password: password,
+        );
+        passValid = authResult.user != null;
+      } on AuthException catch (e) {
+        debugPrint('ℹ️  Supabase Auth ปฏิเสธ (${e.message}) — จะลองทางเดิมต่อ');
+      } catch (e) {
+        debugPrint('⚠️  เรียก Supabase Auth ไม่สำเร็จ: $e');
+      }
+
+      // ทางถอยชั่วคราว: เทียบกับคอลัมน์ password เดิมในตาราง Teachers
+      //
+      // มีไว้ให้ช่วงเปลี่ยนผ่านไม่สะดุด — ครูที่ยังไม่มีบัญชี Auth หรือเพิ่งถูก
+      // แอดมินรีเซ็ตรหัส (ซึ่งยังเขียนลงคอลัมน์เดิม) จะยังเข้าระบบได้
+      // ทางนี้จะถูกตัดออกตอนเปิด RLS เพราะ anon จะอ่านตารางไม่ได้อีกต่อไป
+      if (!passValid) {
+        passValid = (userData['password'].toString().trim() == password) ||
+            (isMigrated && (password == '123456' || password == 'MIGRATED'));
+      }
 
       if (!passValid) {
         _showError('รหัสผ่านไม่ถูกต้องครับ 🔐');
@@ -602,16 +625,31 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  /// ตั้งรหัสผ่านใหม่หลังผ่านการยืนยันสิทธิ์จากแอดมิน
+  ///
+  /// เดิมใช้ `.eq('id', ...)` ซึ่งตาราง Teachers ไม่มีคอลัมน์นี้ คำสั่งจึงไม่โดน
+  /// แถวไหนเลยและล้มเหลวแบบเงียบ ๆ — ตอนนี้ใช้ id_user ซึ่งเป็น PK จริง
   Future<bool> _saveNewPassword(String userId, String newPassword) async {
     try {
       final client = Supabase.instance.client;
+      final parsedId = int.tryParse(userId);
+      if (parsedId == null) {
+        _showError('ไม่พบรหัสผู้ใช้ที่จะตั้งรหัสผ่านใหม่ครับ');
+        return false;
+      }
+
       await client.from('Teachers').update({
         'password': newPassword,
         'forgotPasswordStatus': null,
         'resetAllowedUntil': null,
         'tempPassword': null,
-        'updatedAt': DateTime.now().toUtc().toIso8601String(),
-      }).eq('id', int.parse(userId));
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id_user', parsedId);
+
+      // ⚠️ ค้างไว้: รหัสใน Supabase Auth ยังเป็นตัวเดิม เพราะการตั้งรหัสให้ผู้ใช้
+      // ที่ยังไม่ได้ล็อกอินต้องใช้สิทธิ์ระดับแอดมิน ซึ่งเรียกจากเว็บไม่ได้
+      // ช่วงนี้ครูจะเข้าระบบได้ด้วย "ทางถอย" ในหน้าล็อกอิน (เทียบคอลัมน์เดิม)
+      // ต้องทำ Edge Function ให้เสร็จก่อนเปิด RLS ไม่งั้นเส้นทางนี้จะขาด
       return true;
     } catch (e) {
       _showError('ไม่สามารถบันทึกรหัสใหม่ได้: $e');
