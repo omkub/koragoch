@@ -482,13 +482,33 @@ class _LineSettingsScreenState extends State<LineSettingsScreen> {
       }
       final client = _firebaseService.supabaseClient;
       if (client == null) throw Exception('Supabase not initialized');
-      await client.from('Settings').upsert({
-        'id': 'line_messaging',
+
+      final payload = {
         'groupId': groupId,
         'webhookUrl': webhookUrl,
         'template': _lineNotifyTemplate,
         'updatedAt': DateTime.now().toIso8601String(),
-      }, onConflict: 'id');
+      };
+
+      // ตาราง Settings ไม่มีคอลัมน์ 'id' (PK จริงคือ id_Settings แบบ identity)
+      // ของเดิม upsert ด้วยคีย์ 'id' ซึ่งเป็นแนวคิดสมัย Firebase จึงล้มด้วย
+      // PGRST204 ทุกครั้ง — ตอนนี้หาแถวที่เก็บค่า LINE อยู่แล้วอัปเดตแถวนั้นแทน
+      final existing = await client
+          .from('Settings')
+          .select('id_Settings')
+          .not('groupId', 'is', null)
+          .limit(1)
+          .maybeSingle();
+
+      if (existing != null) {
+        await client
+            .from('Settings')
+            .update(payload)
+            .eq('id_Settings', existing['id_Settings']);
+      } else {
+        // ยังไม่เคยตั้งค่า LINE มาก่อน สร้างแถวใหม่ (id_Settings ฐานข้อมูลออกให้เอง)
+        await client.from('Settings').insert(payload);
+      }
       setState(() { _lineStatusMsg = '✅ บันทึกข้อมูลเรียบร้อย (ระบบ Secure Bridge)!'; _lineStatusIsError = false; });
     } catch (e) {
       setState(() { _lineStatusMsg = '❌ ข้อผิดพลาด: $e'; _lineStatusIsError = true; });
