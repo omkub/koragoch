@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // 🚀 ล็อกอินผ่าน Supabase แล้วครับ
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -134,11 +134,15 @@ class _LoginScreenState extends State<LoginScreen> {
       // 🚀 หาชื่อสิทธิ์จาก id_role -> roles.Accessrights
       final effectiveRole = await _resolveRoleFromSupabase(supabase, userData);
 
-      // 🛡️ [ด่านตรวจที่ 1] เช็คสถานะการแจ้งลืมรหัสก่อนเลยครับ
+      // 🛡️ [ด่านตรวจที่ 1] อยู่ระหว่างรอแอดมินออกรหัสชั่วคราวหรือไม่
+      //
+      // ถ้าแอดมินออกรหัสให้แล้ว (reset_by_admin) จะไม่บล็อกที่นี่ — ปล่อยให้ตรวจ
+      // รหัสตามปกติ เพราะรหัสชั่วคราวคือรหัสผ่านจริงชั่วคราว แล้วค่อยเด้งให้
+      // ตั้งรหัสใหม่หลังผ่านด่านรหัสผ่าน (ดูด้านล่าง)
       final forgotStatus = (userData['forgotPasswordStatus'] ?? '').toString();
-      if ((forgotStatus == 'waiting' || forgotStatus == 'reset_by_admin')) {
+      if (forgotStatus == 'waiting') {
         _showError(
-            '⚠️ บัญชีนี้อยู่ระหว่างการรีเซ็ตรหัสผ่านครับ\nโปรดใช้รหัสชั่วคราวที่ได้รับจากแอดมิน ตั้งรหัสใหม่ผ่านเมนู "แจ้งลืมรหัสผ่าน" ที่หน้าล็อกอินครับ');
+            '⚠️ คำขอรีเซ็ตรหัสผ่านของคุณครูกำลังรอแอดมินอนุมัติครับ\nเมื่อได้รหัสชั่วคราวแล้วนำมากรอกในช่องรหัสผ่านนี้ได้เลย');
         return;
       }
       // 🔄 ถ้าในฐานข้อมูลเป็น MIGRATED หรือผู้ใช้กรอกรหัสด้วย MIGRATED
@@ -184,6 +188,42 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!passValid) {
         _showError('รหัสผ่านไม่ถูกต้องครับ 🔐');
         return;
+      }
+
+      // 🔑 [ด่านตรวจที่ 3] เพิ่งใช้ "รหัสชั่วคราว" เข้ามา ต้องตั้งรหัสใหม่ก่อน
+      //
+      // ตอนแอดมินกดรีเซ็ต ระบบตั้งรหัสชั่วคราวไว้ทั้งใน Auth และคอลัมน์สำเนา
+      // ครูจึงผ่านด่านรหัสผ่านมาได้ด้วยรหัสนั้น — บังคับตั้งรหัสใหม่ตรงนี้
+      // แล้วพาเข้าระบบต่อเลย ไม่ต้องให้กรอกรหัสใหม่อีกรอบ
+      if (forgotStatus == 'reset_by_admin') {
+        final newPassword = await _promptNewPasswordAfterReset();
+        if (newPassword == null) {
+          // ครูกดยกเลิก — ออกจากระบบที่เพิ่งล็อกอินไว้ กันค้างสถานะครึ่ง ๆ กลาง ๆ
+          await supabase.auth.signOut();
+          return;
+        }
+
+        try {
+          await _firebaseService.completePasswordReset(
+              username, password, newPassword);
+        } catch (e) {
+          await supabase.auth.signOut();
+          _showError(e.toString().replaceFirst('Exception: ', ''));
+          return;
+        }
+
+        // รหัสใน Auth เพิ่งเปลี่ยน เซสชันเดิมใช้ต่อไม่ได้ ต้องเข้าใหม่ด้วยรหัสใหม่
+        try {
+          await supabase.auth.signInWithPassword(
+            email: FirebaseService.authEmailForUsername(username),
+            password: newPassword,
+          );
+        } catch (e) {
+          debugPrint('⚠️  เข้าสู่ระบบด้วยรหัสใหม่ไม่สำเร็จ: $e');
+        }
+
+        userData['password'] = newPassword;
+        if (_rememberMe) _passwordController.text = newPassword;
       }
 
       // ✅ ผ่านทุกด่าน = ล็อกอินสำเร็จ (ไม่ต้องพึ่ง FirebaseAuth อีกต่อไป)
@@ -258,23 +298,22 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // 🔥 ฟังก์ชันแสดงหน้าจอ "ตรวจสอบตัวตน" (Forgot Password Dialog) ฉบับอัปเกรดพรีเมียม 100% 🕵️‍♂️🥇🏆
   // 🕵️‍♂️ ปฏิรูประบบกู้คืนรหัสผ่านพรีเมียมแบบ 2-Step ครับ 🥇🏆
+  /// หน้าต่าง "แจ้งลืมรหัสผ่าน" — กรอกแค่ชื่อผู้ใช้ช่องเดียว
+  ///
+  /// ขั้นตอนใหม่: แจ้งแอดมิน -> กลับมาหน้าล็อกอินพร้อมชื่อผู้ใช้ที่กรอกไว้
+  /// -> พอได้รหัสชั่วคราวก็พิมพ์ในช่องรหัสผ่านหน้าล็อกอินได้เลย
+  /// ระบบจะเด้งให้ตั้งรหัสใหม่เองแล้วพาเข้าระบบต่อทันที (ดูที่ _login)
   void _showForgotPasswordDialog() {
-    int currentStep = 0; // 0: Verify, 1: Reset New Password
-    String targetUserId = '';
-    String targetFullname = '';
-
-    final TextEditingController recoverUserCtrl = TextEditingController();
-    final TextEditingController recoverKeyCtrl = TextEditingController();
-    final TextEditingController newPassCtrl = TextEditingController();
-    final TextEditingController confirmPassCtrl = TextEditingController();
-
+    final recoverUserCtrl =
+        TextEditingController(text: _usernameController.text.trim());
     bool isProcessing = false;
+    String? errorText;
 
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
       barrierLabel: '',
-      barrierColor: Colors.black.withOpacity(0.6),
+      barrierColor: Colors.black.withValues(alpha: 0.6),
       transitionDuration: const Duration(milliseconds: 350),
       pageBuilder: (ctx, anim1, anim2) => const SizedBox(),
       transitionBuilder: (ctx, anim1, anim2, child) {
@@ -285,6 +324,38 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Center(
               child: SingleChildScrollView(
                 child: StatefulBuilder(builder: (context, setDialogState) {
+                  Future<void> submit() async {
+                    final username = recoverUserCtrl.text.trim();
+                    if (username.isEmpty) {
+                      setDialogState(
+                          () => errorText = 'กรุณากรอกชื่อผู้ใช้งานครับ');
+                      return;
+                    }
+                    setDialogState(() {
+                      isProcessing = true;
+                      errorText = null;
+                    });
+                    try {
+                      await _firebaseService.requestPasswordReset(username);
+                      if (ctx.mounted) Navigator.pop(ctx);
+                      if (!mounted) return;
+                      // เติมชื่อผู้ใช้กลับไปที่หน้าล็อกอิน ครูจะได้ไม่ต้องพิมพ์ซ้ำ
+                      setState(() {
+                        _usernameController.text = username;
+                        _passwordController.clear();
+                      });
+                      _showSuccessDialog(
+                          'ส่งคำขอเรียบร้อยแล้ว!',
+                          'แจ้งแอดมินให้ทราบแล้วครับ\nเมื่อได้รหัสชั่วคราวจากแอดมิน\nให้นำมากรอกในช่องรหัสผ่านที่หน้าเข้าสู่ระบบได้เลย');
+                    } catch (e) {
+                      setDialogState(() {
+                        isProcessing = false;
+                        errorText =
+                            e.toString().replaceFirst('Exception: ', '');
+                      });
+                    }
+                  }
+
                   return AlertDialog(
                     backgroundColor: Colors.white,
                     surfaceTintColor: Colors.white,
@@ -292,94 +363,97 @@ class _LoginScreenState extends State<LoginScreen> {
                         borderRadius: BorderRadius.circular(36)),
                     contentPadding: EdgeInsets.zero,
                     clipBehavior: Clip.antiAlias,
-                    content: Container(
+                    content: SizedBox(
                       width: 420,
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 400),
-                        child: Column(
-                          key: ValueKey<int>(currentStep),
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // 🔷 Modern Header
-                            _buildDialogHeader(currentStep == 0
-                                ? 'ตรวจสอบตัวตน'
-                                : 'ตั้งรหัสผ่านใหม่'),
-
-                            Padding(
-                              padding:
-                                  const EdgeInsets.fromLTRB(36, 32, 36, 32),
-                              child: currentStep == 0
-                                  ? _buildStep1View(
-                                      userCtrl: recoverUserCtrl,
-                                      keyCtrl: recoverKeyCtrl,
-                                      isLoading: isProcessing,
-                                      onVerify: () async {
-                                        setDialogState(
-                                            () => isProcessing = true);
-                                        final success = await _verifyResetSatus(
-                                            username:
-                                                recoverUserCtrl.text.trim(),
-                                            inputKey:
-                                                recoverKeyCtrl.text.trim(),
-                                            onUserFound: (id, name) {
-                                              targetUserId = id;
-                                              targetFullname = name;
-                                            });
-                                        setDialogState(() {
-                                          isProcessing = false;
-                                          if (success) currentStep = 1;
-                                        });
-                                      })
-                                  : _buildStep2View(
-                                      newPassCtrl: newPassCtrl,
-                                      confirmPassCtrl: confirmPassCtrl,
-                                      isLoading: isProcessing,
-                                      onSave: () async {
-                                        if (newPassCtrl.text !=
-                                            confirmPassCtrl.text) {
-                                          _showError('รหัสผ่านไม่ตรงกันครับ');
-                                          return;
-                                        }
-                                        if (newPassCtrl.text.length < 6) {
-                                          _showError(
-                                              'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษรครับ');
-                                          return;
-                                        }
-
-                                        setDialogState(
-                                            () => isProcessing = true);
-                                        final ok = await _saveNewPassword(
-                                            targetUserId,
-                                            recoverKeyCtrl.text.trim(),
-                                            newPassCtrl.text);
-                                        setDialogState(
-                                            () => isProcessing = false);
-
-                                        if (ok) {
-                                          Navigator.pop(ctx);
-                                          _showSuccessDialog(
-                                              'ตั้งรหัสผ่านใหม่สำเร็จ!',
-                                              'ขณะนี้คุณครูสามารถใช้รหัสผ่านใหม่\nในการเข้าสู่ระบบได้ทันทีครับ');
-                                        }
-                                      }),
-                            ),
-
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 24),
-                              child: Column(
-                                children: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(ctx),
-                                    child: Text('ยกเลิกและกลับหน้าเดิม',
-                                        style: GoogleFonts.sarabun(
-                                            color: const Color(0xFF94A3B8),
-                                            fontWeight: FontWeight.bold)),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildDialogHeader('แจ้งลืมรหัสผ่าน'),
+                          Padding(
+                            padding:
+                                const EdgeInsets.fromLTRB(36, 28, 36, 20),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'กรอกชื่อผู้ใช้งานของคุณครู ระบบจะแจ้งแอดมิน\nให้ออกรหัสชั่วคราวให้ครับ',
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.sarabun(
+                                      fontSize: 14,
+                                      color: const Color(0xFF64748B)),
+                                ),
+                                const SizedBox(height: 20),
+                                _buildDialogFieldLabel(
+                                    'ชื่อผู้ใช้งาน (Username)'),
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: recoverUserCtrl,
+                                  enabled: !isProcessing,
+                                  autofocus: true,
+                                  onSubmitted: (_) => submit(),
+                                  style: GoogleFonts.sarabun(fontSize: 15),
+                                  decoration: InputDecoration(
+                                    hintText: 'ระบุชื่อผู้ใช้งาน',
+                                    prefixIcon: const Icon(
+                                        Icons.person_outline_rounded,
+                                        size: 20),
+                                    filled: true,
+                                    fillColor: const Color(0xFFF8FAFC),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: BorderSide.none,
+                                    ),
                                   ),
+                                ),
+                                if (errorText != null) ...[
+                                  const SizedBox(height: 10),
+                                  Text(errorText!,
+                                      style: GoogleFonts.sarabun(
+                                          fontSize: 12,
+                                          color: Colors.red.shade700)),
                                 ],
-                              ),
+                                const SizedBox(height: 24),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 52,
+                                  child: ElevatedButton(
+                                    onPressed: isProcessing ? null : submit,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF0F172A),
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(14)),
+                                    ),
+                                    child: isProcessing
+                                        ? const SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Colors.white))
+                                        : Text('แจ้งแอดมิน',
+                                            style: GoogleFonts.sarabun(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold)),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 24),
+                            child: TextButton(
+                              onPressed: isProcessing
+                                  ? null
+                                  : () => Navigator.pop(ctx),
+                              child: Text('ยกเลิกและกลับหน้าเดิม',
+                                  style: GoogleFonts.sarabun(
+                                      color: const Color(0xFF94A3B8),
+                                      fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   );
@@ -392,7 +466,108 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // 🏛️ Header สำหรับหน้าต่างกู้รหัสครับ
+  /// หน้าต่างบังคับตั้งรหัสใหม่ ทันทีหลังครูเข้าระบบด้วยรหัสชั่วคราว
+  ///
+  /// คืนรหัสใหม่ถ้าตั้งสำเร็จ หรือ null ถ้าครูกดยกเลิก
+  Future<String?> _promptNewPasswordAfterReset() async {
+    final newCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    String? errorText;
+
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          void submit() {
+            final next = newCtrl.text.trim();
+            final confirm = confirmCtrl.text.trim();
+            if (next.length < 6) {
+              setLocal(() => errorText = 'รหัสผ่านใหม่ต้องยาวอย่างน้อย 6 ตัว');
+              return;
+            }
+            if (next != confirm) {
+              setLocal(() => errorText = 'รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน');
+              return;
+            }
+            Navigator.pop(ctx, next);
+          }
+
+          Widget field(String label, TextEditingController ctrl,
+                  {bool autofocus = false}) =>
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: TextField(
+                  controller: ctrl,
+                  obscureText: true,
+                  autofocus: autofocus,
+                  onSubmitted: (_) => submit(),
+                  style: GoogleFonts.sarabun(fontSize: 14),
+                  decoration: InputDecoration(
+                    labelText: label,
+                    labelStyle: GoogleFonts.sarabun(fontSize: 13),
+                    isDense: true,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              );
+
+          return AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            title: Row(children: [
+              const Icon(Icons.lock_reset_rounded, color: Color(0xFF0F172A)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text('ตั้งรหัสผ่านใหม่',
+                    style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+              ),
+            ]),
+            content: SizedBox(
+              width: 360,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                      'คุณครูเข้าระบบด้วยรหัสชั่วคราว\nกรุณาตั้งรหัสผ่านใหม่เพื่อใช้งานครั้งต่อไปครับ',
+                      style: GoogleFonts.sarabun(
+                          fontSize: 13, color: Colors.blueGrey)),
+                  const SizedBox(height: 18),
+                  field('รหัสผ่านใหม่', newCtrl, autofocus: true),
+                  field('ยืนยันรหัสผ่านใหม่', confirmCtrl),
+                  if (errorText != null)
+                    Text(errorText!,
+                        style: GoogleFonts.sarabun(
+                            fontSize: 12, color: Colors.red.shade700)),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: Text('ยกเลิก',
+                    style: GoogleFonts.sarabun(color: Colors.grey.shade600)),
+              ),
+              ElevatedButton(
+                onPressed: submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F172A),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                child: Text('บันทึกและเข้าสู่ระบบ',
+                    style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildDialogHeader(String title) {
     return Container(
       width: double.infinity,
@@ -416,194 +591,6 @@ class _LoginScreenState extends State<LoginScreen> {
         ],
       ),
     );
-  }
-
-  // 🏁 Step 1: ตรวจสอบ Username + รหัสชั่วคราว 6 หลักที่แอดมินสุ่มให้
-  Widget _buildStep1View({
-    required TextEditingController userCtrl,
-    required TextEditingController keyCtrl,
-    required bool isLoading,
-    required VoidCallback onVerify,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-            'ยืนยันสิทธิ์กู้คืนรหัสผ่านด้วยรหัสชั่วคราว\nที่คุณได้รับจากแอดมินโรงเรียนครับ',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.sarabun(
-                color: const Color(0xFF64748B), height: 1.5, fontSize: 13)),
-        const SizedBox(height: 32),
-        _buildDialogFieldLabel('ชื่อผู้ใช้งาน (Username)'),
-        const SizedBox(height: 8),
-        _buildPremiumDialogField(
-            controller: userCtrl,
-            hint: 'ระบุรอยชื่อผู้ใช้งาน',
-            icon: Icons.person_outline),
-        const SizedBox(height: 20),
-        _buildDialogFieldLabel('รหัสชั่วจากแอดมิน (24 ชม.)'),
-        const SizedBox(height: 8),
-        _buildPremiumDialogField(
-            controller: keyCtrl,
-            hint: 'กรอกรหัสลับ 6 หลัก',
-            icon: Icons.vpn_key_outlined),
-        const SizedBox(height: 12),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton.icon(
-            onPressed: isLoading
-                ? null
-                : () => _notifyAdminRequest(userCtrl.text.trim()),
-            icon: const Icon(Icons.notifications_active_outlined,
-                size: 16, color: Colors.orange),
-            label: Text('ยังไม่มีรหัส? แจ้งแอดมินที่นี่',
-                style: GoogleFonts.sarabun(
-                    fontSize: 12,
-                    color: Colors.orange,
-                    fontWeight: FontWeight.bold)),
-          ),
-        ),
-        const SizedBox(height: 28),
-        ElevatedButton(
-          onPressed: isLoading ? null : onVerify,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF0F172A),
-            foregroundColor: Colors.white,
-            minimumSize: const Size(double.infinity, 60),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          ),
-          child: isLoading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                      color: Colors.white, strokeWidth: 2))
-              : Text('ตรวจสอบสิทธิ์กู้คืนรหัส',
-                  style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
-        ),
-      ],
-    );
-  }
-
-  // 📝 Step 2: ตั้งรหัสผ่านใหม่
-  Widget _buildStep2View({
-    required TextEditingController newPassCtrl,
-    required TextEditingController confirmPassCtrl,
-    required bool isLoading,
-    required VoidCallback onSave,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-            'ยืนยันสิทธิ์สำเร็จ! กรุณาตั้งรหัสผ่านใหม่\nที่คุณต้องการใช้ล็อกอินในครั้งถัดไปครับ',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.sarabun(
-                color: Colors.green, height: 1.5, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 32),
-        _buildDialogFieldLabel('รหัสผ่านใหม่ (New Password)'),
-        const SizedBox(height: 8),
-        _buildPremiumDialogField(
-            controller: newPassCtrl,
-            hint: 'รหัสใหม่ 6 หลักขึ้นไป',
-            icon: Icons.lock_outline,
-            isPass: true),
-        const SizedBox(height: 20),
-        _buildDialogFieldLabel('ยืนยันรหัสผ่านใหม่อีกครั้ง'),
-        const SizedBox(height: 8),
-        _buildPremiumDialogField(
-            controller: confirmPassCtrl,
-            hint: 'กรอกรหัสเดิมอีกครั้ง',
-            icon: Icons.lock_reset_rounded,
-            isPass: true),
-        const SizedBox(height: 40),
-        ElevatedButton(
-          onPressed: isLoading ? null : onSave,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green.shade700,
-            foregroundColor: Colors.white,
-            minimumSize: const Size(double.infinity, 60),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          ),
-          child: isLoading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                      color: Colors.white, strokeWidth: 2))
-              : Text('บันทึกรหัสผ่านใหม่',
-                  style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
-        ),
-      ],
-    );
-  }
-
-  // 🔍 ตรวจสอบสิทธิ์กู้รหัสจาก Firestore
-  /// ตรวจสิทธิ์กู้รหัสผ่าน — ย้ายไปตรวจที่ Edge Function ทั้งหมด
-  ///
-  /// ของเดิมอ่านตาราง Teachers จากฝั่งเว็บตรง ๆ ด้วย `select('id', ...)` ซึ่งตาราง
-  /// ไม่มีคอลัมน์ `id` คำสั่งจึงล้มด้วย HTTP 400 ทุกครั้ง — ระบบกู้รหัสใช้ไม่ได้เลย
-  ///
-  /// และของเดิมเทียบรหัสกับค่าคงที่ '123456' ไม่ได้เทียบกับรหัสที่แอดมินสุ่มให้จริง
-  /// ใครรู้ชื่อผู้ใช้ของคนที่กำลังรอรีเซ็ตก็สวมรอยตั้งรหัสใหม่ได้
-  /// ตอนนี้เทียบกับ tempResetCode ตัวจริงที่ฝั่งเซิร์ฟเวอร์ และยังใช้ได้หลังเปิด RLS
-  Future<bool> _verifyResetSatus({
-    required String username,
-    required String inputKey,
-    required Function(String, String) onUserFound,
-  }) async {
-    if (username.isEmpty || inputKey.isEmpty) {
-      _showError('กรุณากรอกข้อมูลให้ครบถ้วนครับ');
-      return false;
-    }
-
-    try {
-      final fullName =
-          await _firebaseService.checkPasswordResetStatus(username, inputKey);
-      onUserFound(username, fullName);
-      return true;
-    } catch (e) {
-      _showError(e.toString().replaceFirst('Exception: ', ''));
-      return false;
-    }
-  }
-
-  // 🔔 ฟังก์ชันแจ้งเตือนแอดมิน (ส่งสัญญาณ Waiting ไปที่ Firestore) 🥇🏆
-  void _notifyAdminRequest(String username) async {
-    if (username.isEmpty) {
-      _showError('กรุณากรอก Username ก่อนกดแจ้งแอดมินครับ');
-      return;
-    }
-
-    // ทำผ่าน Edge Function เพราะครูที่ลืมรหัสยังล็อกอินไม่ได้ จึงเขียนตารางเองไม่ได้
-    // หลังเปิด RLS — ของเดิมยิงตารางตรง ๆ ด้วยคอลัมน์ 'id' ที่ไม่มีอยู่จริง
-    // และเขียน 'requestTimestamp' ที่ตาราง Teachers ก็ไม่มี จึงล้มทุกครั้ง
-    try {
-      await _firebaseService.requestPasswordReset(username);
-      _showSuccessDialog('ส่งคำขอสำเร็จ!',
-          'ระบบได้แจ้งแอดมินให้ทราบแล้ว\nโปรดรอแอดมินรีเซ็ตรหัสให้ภายในครู่เดียวครับ');
-    } catch (e) {
-      _showError('ไม่สามารถส่งคำขอได้: ${e.toString().replaceFirst('Exception: ', '')}');
-    }
-  }
-
-  /// ตั้งรหัสผ่านใหม่หลังผ่านการยืนยันสิทธิ์จากแอดมิน
-  ///
-  /// ทำผ่าน Edge Function เพราะการตั้งรหัสให้ผู้ใช้ที่ยังไม่ได้ล็อกอินต้องใช้
-  /// สิทธิ์ระดับแอดมิน ซึ่งเรียกจากเว็บตรง ๆ ไม่ได้
-  /// ฝั่งเซิร์ฟเวอร์จะตั้งให้ทั้งใน Supabase Auth และคอลัมน์สำเนาพร้อมกัน
-  Future<bool> _saveNewPassword(
-      String username, String resetCode, String newPassword) async {
-    try {
-      await _firebaseService.completePasswordReset(
-          username, resetCode, newPassword);
-      return true;
-    } catch (e) {
-      _showError(e.toString().replaceFirst('Exception: ', ''));
-      return false;
-    }
   }
 
   // 🏆 แสดงผลสำเร็จพรีเมียม
@@ -641,40 +628,6 @@ class _LoginScreenState extends State<LoginScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildPremiumDialogField(
-      {required TextEditingController controller,
-      required String hint,
-      required IconData icon,
-      bool isPass = false}) {
-    return TextField(
-      controller: controller,
-      obscureText: isPass,
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle:
-            GoogleFonts.sarabun(fontSize: 13, color: const Color(0xFF94A3B8)),
-        prefixIcon: Icon(icon, size: 20, color: const Color(0xFF0F172A)),
-        filled: true,
-        fillColor: const Color(0xFFF8FAFC),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.grey.shade100),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.grey.shade100),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
-        ),
-      ),
-      style: GoogleFonts.sarabun(fontSize: 14, color: const Color(0xFF1E293B)),
     );
   }
 
