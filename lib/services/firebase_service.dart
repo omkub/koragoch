@@ -169,6 +169,64 @@ class FirebaseService {
   static String authEmailForUsername(String username) =>
       '${username.trim().toLowerCase()}@$authEmailDomain';
 
+  /// ชื่อ (slug) ของ Edge Function ที่ทำงานต้องใช้สิทธิ์ระดับแอดมิน
+  ///
+  /// ⚠️ ชื่อที่แสดงในแดชบอร์ดคือ "admin-users" แต่ Supabase ตรึง slug/URL ไว้
+  /// ตั้งแต่ตอนสร้าง เปลี่ยนชื่อทีหลังไม่เปลี่ยน URL จึงยังต้องเรียกด้วยชื่อสุ่ม
+  /// ที่ระบบตั้งให้ตอนแรก ถ้าวันหลังลบแล้วสร้างใหม่ให้แก้ค่านี้ตามด้วย
+  static const String adminUsersFunction = 'clever-responder';
+
+  /// เรียก Edge Function ที่ทำงานแทนแอดมิน (รีเซ็ตรหัส / สร้างบัญชี Auth)
+  ///
+  /// service_role key อยู่ฝั่งเซิร์ฟเวอร์เท่านั้น ฝั่งเว็บส่งแค่ token ของคนที่
+  /// ล็อกอินอยู่ไปให้ฟังก์ชันตรวจสิทธิ์เอง
+  Future<void> _callAdminUsersFunction({
+    required String action,
+    required dynamic idUser,
+    String? password,
+  }) async {
+    final client = _supabaseIfReady;
+    if (client == null) throw Exception('Supabase not initialized');
+
+    final parsedId = int.tryParse(idUser?.toString() ?? '');
+    if (parsedId == null) {
+      throw Exception('ไม่พบรหัสผู้ใช้ (id_user) ที่จะดำเนินการครับ');
+    }
+
+    final response = await client.functions.invoke(
+      adminUsersFunction,
+      body: {
+        'action': action,
+        'id_user': parsedId,
+        if (password != null && password.isNotEmpty) 'password': password,
+      },
+    );
+
+    final data = response.data;
+    if (response.status >= 400) {
+      final message = (data is Map && data['error'] != null)
+          ? data['error'].toString()
+          : 'ดำเนินการไม่สำเร็จ (รหัส ${response.status})';
+      throw Exception(message);
+    }
+  }
+
+  /// ตั้งรหัสผ่านใหม่ให้ครูคนอื่น — ใช้ตอนแอดมินช่วยครูที่ลืมรหัส
+  Future<void> adminResetPassword(dynamic idUser, String newPassword) =>
+      _callAdminUsersFunction(
+        action: 'reset_password',
+        idUser: idUser,
+        password: newPassword,
+      );
+
+  /// สร้างบัญชี Supabase Auth ให้ครูที่เพิ่งถูกเพิ่มเข้าตาราง Teachers
+  Future<void> adminCreateAuthAccount(dynamic idUser, String password) =>
+      _callAdminUsersFunction(
+        action: 'create_auth',
+        idUser: idUser,
+        password: password,
+      );
+
   /// PK ทุกตัวเป็น bigint แต่ UI ส่งมาเป็น String จึงแปลงให้ก่อนถ้าแปลงได้
   static dynamic _pkValue(dynamic raw) {
     final text = raw?.toString().trim() ?? '';
@@ -329,7 +387,26 @@ class FirebaseService {
     rec['created_at'] = rec['created_at'] ?? now;
     rec['updated_at'] = now;
 
-    await _insertWithColumnRetry(client, 'Teachers', rec);
+    final inserted = await _insertWithColumnRetry(client, 'Teachers', rec);
+
+    // สร้างบัญชี Supabase Auth ให้ด้วย ไม่งั้นครูใหม่จะล็อกอินไม่ได้
+    // หลังปิดทางถอย (ตอนเปิด RLS)
+    final newId = inserted?['id_user'];
+    if (newId != null) {
+      final password =
+          (data['password'] ?? '').toString().trim().isEmpty
+              ? '123456'
+              : data['password'].toString().trim();
+      try {
+        await adminCreateAuthAccount(newId, password);
+      } catch (e) {
+        // แถวใน Teachers สร้างสำเร็จแล้ว จึงไม่ควรล้มทั้งรายการ
+        // แต่ต้องบอกให้ผู้ใช้รู้ว่ายังล็อกอินไม่ได้จนกว่าจะแก้
+        throw Exception(
+            'บันทึกข้อมูลครูเรียบร้อย แต่สร้างบัญชีเข้าสู่ระบบไม่สำเร็จ: $e\n'
+            'ให้แอดมินกด "รีเซ็ตรหัสผ่าน" ของครูคนนี้อีกครั้งเพื่อสร้างบัญชีครับ');
+      }
+    }
   }
 
   // แก้ไขข้อมูลครูครับ 🏎️🏆

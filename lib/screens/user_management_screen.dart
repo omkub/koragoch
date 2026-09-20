@@ -165,7 +165,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     3: 'ประวัติการลา',
     4: 'จัดการระบบ', // 🔥 ปรับชื่อให้ตรงกับ Sidebar ด้านซ้าย 100% ครับ
     5: 'บุคลากร (กลุ่มสาระ)',
-    6: 'จัดการข้อมูลครูเวร',
     7: 'ประวัติการเข้าใช้งาน',
     8: 'ปฏิทินกิจกรรมส่วนกลาง',
   };
@@ -177,7 +176,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     3: 'ประวัติ',
     4: 'ระบบ',
     5: 'บุคลากร',
-    6: 'ครูเวร',
     7: 'เข้าใช้งาน',
     8: 'ปฏิทิน',
     -1: 'บัญชี',
@@ -6321,7 +6319,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     final String resetCode = FirebaseService.generateResetCode();
 
     try {
-      // 🚀 อัปเดตรหัสผ่านลง Supabase เท่านั้น — ห้ามเขียน Firebase
+      // 🔐 ตั้งรหัสใหม่ใน Supabase Auth ผ่าน Edge Function
+      // (เว็บตั้งรหัสให้คนอื่นเองไม่ได้ ต้องใช้สิทธิ์ระดับแอดมินฝั่งเซิร์ฟเวอร์)
+      await _firebaseService.adminResetPassword(
+          user['id_user'] ?? user['id'], resetCode);
+
+      // อัปเดตคอลัมน์เดิมไว้ด้วย ให้ทางถอยในหน้าล็อกอินและหน้าจออื่นยังตรงกัน
       await _firebaseService.updateTeacherById(user['id'], {
         'password': resetCode,
         'tempResetCode': resetCode,
