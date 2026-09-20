@@ -55,3 +55,6 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 /android/build/
+
+# ไฟล์ชั่วคราวของ Supabase CLI
+supabase/.temp/
