@@ -71,7 +71,8 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
       final futureRounds = _firebaseService.getFiscalRoundsFromSupabase();
       final futureActive = _firebaseService.getActiveFiscalRoundFromSupabase();
 
-      final results = await Future.wait([futureLeaves, futureRounds, futureActive]);
+      final results =
+          await Future.wait([futureLeaves, futureRounds, futureActive]);
       final leaveList = results[0] as List<Map<String, dynamic>>;
       final roundsSnap = results[1] as List<Map<String, dynamic>>;
       final activeRound = results[2] as Map<String, dynamic>?;
@@ -93,7 +94,8 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
           _allUsers = users;
           _usersByName.clear();
           for (final user in users) {
-            final name = (user['fullName'] ?? user['name'] ?? '').toString().trim();
+            final name =
+                (user['fullName'] ?? user['name'] ?? '').toString().trim();
             if (name.isNotEmpty) _usersByName.putIfAbsent(name, () => user);
           }
         });
@@ -130,8 +132,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
       bool canViewAll, String? user) {
     // 🚀 ใช้ Supabase read แล้วห่อเป็น Stream ชั่วคราว (Part 5 ค่อยทำ Realtime)
     return canViewAll
-        ? Stream.fromFuture(
-            _firebaseService.getLeaveRequestsFromSupabase())
+        ? Stream.fromFuture(_firebaseService.getLeaveRequestsFromSupabase())
         : Stream.fromFuture(
             _firebaseService.getMyLeaveRequestsFromSupabase(user ?? ''));
   }
@@ -179,7 +180,8 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
         'สิทธิ์',
       ]);
 
-  List<String> _uniqueFilterOptions(String Function(Map<String, dynamic>) pick) {
+  List<String> _uniqueFilterOptions(
+      String Function(Map<String, dynamic>) pick) {
     final values = _allUsers
         .map(pick)
         .where((value) => value.trim().isNotEmpty)
@@ -416,8 +418,8 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                                     ),
                                   )
                                 : SizedBox(
-                                    height:
-                                        MediaQuery.of(context).size.height * 0.65,
+                                    height: MediaQuery.of(context).size.height *
+                                        0.65,
                                     child: ListView.separated(
                                       primary: false,
                                       itemCount: leaves.length,
@@ -519,17 +521,19 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
     final positionOptions = _uniqueFilterOptions(_positionFor);
     final academicOptions = _uniqueFilterOptions(_academicFor);
     final roleOptions = _uniqueFilterOptions(_roleFor);
-    final departmentValue = departmentOptions.contains(_selectedDepartmentFilter)
-        ? _selectedDepartmentFilter
-        : 'ทั้งหมด';
+    final departmentValue =
+        departmentOptions.contains(_selectedDepartmentFilter)
+            ? _selectedDepartmentFilter
+            : 'ทั้งหมด';
     final positionValue = positionOptions.contains(_selectedPositionFilter)
         ? _selectedPositionFilter
         : 'ทั้งหมด';
     final academicValue = academicOptions.contains(_selectedAcademicFilter)
         ? _selectedAcademicFilter
         : 'ทั้งหมด';
-    final roleValue =
-        roleOptions.contains(_selectedRoleFilter) ? _selectedRoleFilter : 'ทั้งหมด';
+    final roleValue = roleOptions.contains(_selectedRoleFilter)
+        ? _selectedRoleFilter
+        : 'ทั้งหมด';
 
     return Container(
       width: double.infinity,
@@ -986,22 +990,19 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
           _historyCell(
               'รับที่',
               Center(
-                  child: Text(
-                      leaf['receiveNumber']?.toString() ?? '-',
+                  child: Text(leaf['receiveNumber']?.toString() ?? '-',
                       style: GoogleFonts.sarabun(
                           fontSize: 12, color: Colors.black)))),
           _historyCell(
               'วันที่รับ',
               Center(
-                  child: Text(
-                      leaf['receiveDate']?.toString() ?? '-',
+                  child: Text(leaf['receiveDate']?.toString() ?? '-',
                       style: GoogleFonts.sarabun(
                           fontSize: 12, color: Colors.black)))),
           _historyCell(
               'เวลารับ',
               Center(
-                  child: Text(
-                      leaf['receiveTime']?.toString() ?? '-',
+                  child: Text(leaf['receiveTime']?.toString() ?? '-',
                       style: GoogleFonts.sarabun(
                           fontSize: 12, color: Colors.black)))),
           _historyCell(
@@ -1019,8 +1020,8 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                       decoration: BoxDecoration(
                           color: Colors.black.withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(8),
-                          border:
-                              Border.all(color: Colors.black.withValues(alpha: 0.1))),
+                          border: Border.all(
+                              color: Colors.black.withValues(alpha: 0.1))),
                       clipBehavior: Clip.antiAlias,
                       child: Image.network(imgUrl,
                           webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
@@ -1166,7 +1167,8 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
           content: Text(_isApproveStatus(status)
               ? '✅ อนุมัติเรียบร้อย (รับที่ ${updateData['receiveNumber']})'
               : '✅ ปรับปรุงสถานะเป็น: $status เรียบร้อยแล้ว'),
-          backgroundColor: _isApproveStatus(status) ? Colors.green : Colors.orange,
+          backgroundColor:
+              _isApproveStatus(status) ? Colors.green : Colors.orange,
           behavior: SnackBarBehavior.floating,
         ));
       }
@@ -1179,8 +1181,8 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
 
   void _showSetReceiveDialog(Map<String, dynamic> leaf) {
     final requestId = leaf['requestId']?.toString() ?? '';
-    final receiveCtrl = TextEditingController(
-        text: leaf['receiveNumber']?.toString() ?? '');
+    final receiveCtrl =
+        TextEditingController(text: leaf['receiveNumber']?.toString() ?? '');
     DateTime selectedDate = DateTime.now();
     TimeOfDay selectedTime = TimeOfDay.now();
 
@@ -1196,9 +1198,11 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
           return AlertDialog(
             backgroundColor: Colors.white,
             surfaceTintColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             title: Row(children: [
-              const Icon(Icons.assignment_turned_in_outlined, color: Colors.indigo),
+              const Icon(Icons.assignment_turned_in_outlined,
+                  color: Colors.indigo),
               const SizedBox(width: 12),
               Text('กำหนดรับใบลา',
                   style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
@@ -1208,21 +1212,26 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('ชื่อ: ${leaf['fullName'] ?? '-'}',
-                    style: GoogleFonts.sarabun(fontSize: 13, color: Colors.blueGrey)),
+                    style: GoogleFonts.sarabun(
+                        fontSize: 13, color: Colors.blueGrey)),
                 const SizedBox(height: 16),
-                Text('รับที่', style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                Text('รับที่',
+                    style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
                 TextField(
                   controller: receiveCtrl,
                   keyboardType: TextInputType.text,
                   decoration: InputDecoration(
                     hintText: 'เลขรับ',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
                   ),
                 ),
                 const SizedBox(height: 16),
-                Text('วันที่', style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                Text('วันที่',
+                    style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
                 InkWell(
                   onTap: () async {
@@ -1232,20 +1241,24 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                       firstDate: DateTime(2020),
                       lastDate: DateTime(2030),
                     );
-                    if (picked != null) setDialogState(() => selectedDate = picked);
+                    if (picked != null)
+                      setDialogState(() => selectedDate = picked);
                   },
                   child: Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.grey),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Text(dateStr, style: GoogleFonts.sarabun(fontSize: 14)),
+                    child:
+                        Text(dateStr, style: GoogleFonts.sarabun(fontSize: 14)),
                   ),
                 ),
                 const SizedBox(height: 16),
-                Text('เวลา', style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                Text('เวลา',
+                    style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
                 InkWell(
                   onTap: () async {
@@ -1253,16 +1266,19 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                       context: ctx,
                       initialTime: selectedTime,
                     );
-                    if (picked != null) setDialogState(() => selectedTime = picked);
+                    if (picked != null)
+                      setDialogState(() => selectedTime = picked);
                   },
                   child: Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.grey),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Text(timeStr, style: GoogleFonts.sarabun(fontSize: 14)),
+                    child:
+                        Text(timeStr, style: GoogleFonts.sarabun(fontSize: 14)),
                   ),
                 ),
               ],
@@ -1282,8 +1298,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                   }
                   try {
                     // 🚀 เขียน Supabase เท่านั้น — ห้ามเขียน Firebase
-                    await _firebaseService
-                        .updateLeaveReceiveNumberInSupabase(
+                    await _firebaseService.updateLeaveReceiveNumberInSupabase(
                       requestId,
                       receiveVal,
                       FirebaseService.toIsoDate(selectedDate),
@@ -1311,7 +1326,8 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.indigo,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
                 child: Text('บันทึก', style: GoogleFonts.sarabun()),
               ),
@@ -1456,7 +1472,8 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
   void _reloadLeaves() {
     if (!mounted) return;
     setState(() {
-      _leaveRequestsStream = _createLeaveRequestsStream(_canViewAll, _currentUser);
+      _leaveRequestsStream =
+          _createLeaveRequestsStream(_canViewAll, _currentUser);
     });
   }
 
@@ -1591,7 +1608,8 @@ class _LeaveFormPreviewState extends State<LeaveFormPreview> {
         : _htmlEscape(FirebaseService.formatThaiDate(latestLeave['endDate']));
     final latestDays = latestLeave == null
         ? ''
-        : _htmlEscape(FirebaseService.formatLeaveDayCount(latestLeave['totalDays']));
+        : _htmlEscape(
+            FirebaseService.formatLeaveDayCount(latestLeave['totalDays']));
     final requestDate =
         '${_htmlEscape(_getDay(leaf['timestamp']))} ${_htmlEscape(_getMonth(leaf['timestamp']))} ${_htmlEscape(_getYear(leaf['timestamp']))}';
 
@@ -1921,8 +1939,7 @@ ${autoPrint ? '''
     final currentDate = _leaveSequenceDate(currentLeaf);
     if (leaveDate == null || currentDate == null) return false;
 
-    final leaveDay =
-        DateTime(leaveDate.year, leaveDate.month, leaveDate.day);
+    final leaveDay = DateTime(leaveDate.year, leaveDate.month, leaveDate.day);
     final currentDay =
         DateTime(currentDate.year, currentDate.month, currentDate.day);
     if (leaveDay.isBefore(currentDay)) return true;
@@ -1934,8 +1951,9 @@ ${autoPrint ? '''
       return leaveTimestamp.isBefore(currentTimestamp);
     }
 
-    return (leave['requestId'] ?? '').toString().compareTo(
-            (currentLeaf['requestId'] ?? '').toString()) <
+    return (leave['requestId'] ?? '')
+            .toString()
+            .compareTo((currentLeaf['requestId'] ?? '').toString()) <
         0;
   }
 
@@ -2135,11 +2153,14 @@ ${autoPrint ? '''
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildPerfectDottedLabel("รับที่", value: widget.leaf['receiveNumber']?.toString()),
+                          _buildPerfectDottedLabel("รับที่",
+                              value: widget.leaf['receiveNumber']?.toString()),
                           const SizedBox(height: 6),
-                          _buildPerfectDottedLabel("วันที่", value: widget.leaf['receiveDate']?.toString()),
+                          _buildPerfectDottedLabel("วันที่",
+                              value: widget.leaf['receiveDate']?.toString()),
                           const SizedBox(height: 6),
-                          _buildPerfectDottedLabel("เวลา", value: widget.leaf['receiveTime']?.toString()),
+                          _buildPerfectDottedLabel("เวลา",
+                              value: widget.leaf['receiveTime']?.toString()),
                         ],
                       ),
                     ),
@@ -2214,8 +2235,8 @@ ${autoPrint ? '''
                       crossAxisAlignment: CrossAxisAlignment.start,
                       // ดึงจากตาราง LeaveTypes ผ่านหน้าประวัติการลา
                       children: _printableLeaveTypes.map((t) {
-                        final isChecked = _isSameLeaveType(
-                            leaf['leaveType']?.toString(), t);
+                        final isChecked =
+                            _isSameLeaveType(leaf['leaveType']?.toString(), t);
                         return _buildPerfectCheckBox(t, isChecked);
                       }).toList(),
                     ),
@@ -2269,8 +2290,10 @@ ${autoPrint ? '''
                 _buildPerfectFullWidthRow([
                   Text("ข้าพเจ้าได้ลา", style: docBaseStyle),
                   _buildPerfectCheckBox("ป่วย", latestLeaveLabel == 'ป่วย'),
-                  _buildPerfectCheckBox("ลากิจส่วนตัว", latestLeaveLabel == 'ลากิจส่วนตัว'),
-                  _buildPerfectCheckBox("ลาคลอดบุตร", latestLeaveLabel == 'ลาคลอดบุตร'),
+                  _buildPerfectCheckBox(
+                      "ลากิจส่วนตัว", latestLeaveLabel == 'ลากิจส่วนตัว'),
+                  _buildPerfectCheckBox(
+                      "ลาคลอดบุตร", latestLeaveLabel == 'ลาคลอดบุตร'),
                   Text("ครั้งสุดท้ายตั้งแต่วันที่", style: docBaseStyle),
                   _buildPerfectDottedLine(value: latestStart, flex: 1),
                   Text("ถึงวันที่", style: docBaseStyle),
@@ -2278,7 +2301,8 @@ ${autoPrint ? '''
                 ]),
                 _buildPerfectFullWidthRow([
                   Text("มีกำหนด", style: docBaseStyle),
-                  _buildPerfectDottedLine(flex: 0, width: 40, value: latestDays),
+                  _buildPerfectDottedLine(
+                      flex: 0, width: 40, value: latestDays),
                   Text("วัน ในระหว่างที่ลาติดต่อข้าพเจ้าได้ที่",
                       style: docBaseStyle),
                   _buildPerfectDottedLine(

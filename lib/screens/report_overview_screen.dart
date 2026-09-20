@@ -48,26 +48,24 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
       final leaves = results[2] as List<Map<String, dynamic>>;
       final rounds = results[3] as List<Map<String, dynamic>>;
       final activeRound = results[4] as Map<String, dynamic>?;
-      
+
       if (mounted) {
         // หากยังไม่ได้เลือก ให้ใช้ Active Round เป็นค่าเริ่มต้นครับ 🥇
         _allRounds = rounds;
-        
+
         // 🥇 เชื่อมโยง Instance ของ Active Round ให้ตรงกับที่มีใน Dropdown (ป้องกัน Error Crash) 🕵️‍♂️
         if (activeRound != null) {
           _activeRound = _allRounds.firstWhere(
-            (r) => r['id'] == activeRound['id'], 
-            orElse: () => activeRound
-          );
+              (r) => r['id'] == activeRound['id'],
+              orElse: () => activeRound);
         } else {
           _activeRound = null;
         }
 
         if (_selectedRound != null) {
           _selectedRound = _allRounds.firstWhere(
-            (r) => r['id'] == _selectedRound!['id'], 
-            orElse: () => _selectedRound!
-          );
+              (r) => r['id'] == _selectedRound!['id'],
+              orElse: () => _selectedRound!);
         } else {
           _selectedRound = _activeRound;
         }
@@ -92,7 +90,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
             'isShadow': true,
           });
         }
-            
+
         final currentViewRound = _selectedRound ?? activeRound;
 
         final activeLeaves = leaves.where((l) {
@@ -102,15 +100,14 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
             return false;
           }
           return FirebaseService.isDateInRange(
-            (l['startDate'] ?? '').toString(),
-            currentViewRound['startDate'],
-            currentViewRound['endDate']
-          );
+              (l['startDate'] ?? '').toString(),
+              currentViewRound['startDate'],
+              currentViewRound['endDate']);
         }).toList();
         final Set<String> registeredNames = allDisplayTeachers
             .map((t) => (t['fullName'] ?? '').toString().trim())
             .toSet();
-        
+
         for (var l in activeLeaves) {
           String name = (l['fullName'] ?? '').toString().trim();
           if (name.isNotEmpty && !registeredNames.contains(name)) {
@@ -118,7 +115,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
               'fullName': name,
               'position': 'บุคลากร (ยังไม่มีในระบบ)',
               'department': l['department'] ?? '-',
-              'isShadow': true, 
+              'isShadow': true,
             });
             registeredNames.add(name);
           }
@@ -160,11 +157,18 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('รายงานสรุปการลา', style: GoogleFonts.sarabun(fontSize: 28, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A))),
+                    Text('รายงานสรุปการลา',
+                        style: GoogleFonts.sarabun(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF0F172A))),
                     if (_selectedRound != null)
                       _buildRoundDropdown()
                     else
-                      Text('ข้อมูลการลาสะสมของคุณครูทั้งหมด (กรุณาตั้งค่ารอบงบประมาณ)', style: GoogleFonts.sarabun(fontSize: 14, color: Colors.blueGrey)),
+                      Text(
+                          'ข้อมูลการลาสะสมของคุณครูทั้งหมด (กรุณาตั้งค่ารอบงบประมาณ)',
+                          style: GoogleFonts.sarabun(
+                              fontSize: 14, color: Colors.blueGrey)),
                   ],
                 ),
                 Padding(
@@ -173,58 +177,75 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       ElevatedButton.icon(
-                      onPressed: _exportPdf,
-                      icon: const Icon(Icons.download, size: 18),
-                      label: Text('ไฟล์ PDF', style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0F172A),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        onPressed: _exportPdf,
+                        icon: const Icon(Icons.download, size: 18),
+                        label: Text('ไฟล์ PDF',
+                            style: GoogleFonts.sarabun(
+                                fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0F172A),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    ElevatedButton.icon(
-                      onPressed: _exportExcel,
-                      icon: const Icon(Icons.table_view_rounded, size: 18),
-                      label: Text('Export Excel', style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF047857),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: _exportExcel,
+                        icon: const Icon(Icons.table_view_rounded, size: 18),
+                        label: Text('Export Excel',
+                            style: GoogleFonts.sarabun(
+                                fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF047857),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    IconButton(
-                      onPressed: _loadData,
-                      icon: const Icon(Icons.refresh),
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: const BorderSide(color: Color(0xFFE2E8F0))),
+                      const SizedBox(width: 12),
+                      IconButton(
+                        onPressed: _loadData,
+                        icon: const Icon(Icons.refresh),
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              side: const BorderSide(color: Color(0xFFE2E8F0))),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
-
             Expanded(
               child: Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 15, offset: const Offset(0, 5))],
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 15,
+                        offset: const Offset(0, 5))
+                  ],
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(20),
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: SizedBox(
-                      width: isMobile ? 1000 : MediaQuery.of(context).size.width - (isMobile ? 32 : 320), // Responsive width
+                      width: isMobile
+                          ? 1000
+                          : MediaQuery.of(context).size.width -
+                              (isMobile ? 32 : 320), // Responsive width
                       child: Column(
                         children: [
                           // Grouped Header
@@ -232,7 +253,8 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                             color: const Color(0xFFF8FAFC),
                             child: Row(
                               children: [
-                                _buildHeaderCell('ชื่อ - สกุล / ตำแหน่ง', flex: 3),
+                                _buildHeaderCell('ชื่อ - สกุล / ตำแหน่ง',
+                                    flex: 3),
                                 _buildGroupedHeaderCell('ลาป่วย', flex: 2),
                                 _buildGroupedHeaderCell('ลากิจ', flex: 2),
                                 _buildGroupedHeaderCell('ลาคลอด', flex: 2),
@@ -262,12 +284,15 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                                   if (_isLoading)
                                     const Padding(
                                       padding: EdgeInsets.all(100),
-                                      child: Center(child: CircularProgressIndicator(color: Colors.black)),
+                                      child: Center(
+                                          child: CircularProgressIndicator(
+                                              color: Colors.black)),
                                     )
                                   else if (_activeRound == null)
                                     _buildNoBudgetWarning()
                                   else
-                                    ..._visibleTeachers.map((t) => _buildTeacherRow(t)),
+                                    ..._visibleTeachers
+                                        .map((t) => _buildTeacherRow(t)),
                                 ],
                               ),
                             ),
@@ -291,8 +316,15 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
       child: Container(
         height: 48,
         alignment: Alignment.center,
-        decoration: BoxDecoration(border: Border(right: BorderSide(color: Colors.black.withValues(alpha: 0.03)))),
-        child: Text(title, style: GoogleFonts.sarabun(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+        decoration: BoxDecoration(
+            border: Border(
+                right:
+                    BorderSide(color: Colors.black.withValues(alpha: 0.03)))),
+        child: Text(title,
+            style: GoogleFonts.sarabun(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF1E293B))),
       ),
     );
   }
@@ -304,8 +336,15 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
         height: 96,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         alignment: Alignment.centerLeft,
-        decoration: BoxDecoration(border: Border(right: BorderSide(color: Colors.black.withValues(alpha: 0.03)))),
-        child: Text(title, style: GoogleFonts.sarabun(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+        decoration: BoxDecoration(
+            border: Border(
+                right:
+                    BorderSide(color: Colors.black.withValues(alpha: 0.03)))),
+        child: Text(title,
+            style: GoogleFonts.sarabun(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF1E293B))),
       ),
     );
   }
@@ -315,9 +354,20 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
       flex: flex,
       child: Container(
         height: 36,
-        decoration: BoxDecoration(border: Border(right: BorderSide(color: Colors.black.withValues(alpha: 0.03)))),
+        decoration: BoxDecoration(
+            border: Border(
+                right:
+                    BorderSide(color: Colors.black.withValues(alpha: 0.03)))),
         child: Row(
-          children: titles.map((t) => Expanded(child: Center(child: Text(t, style: GoogleFonts.sarabun(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF64748B)))))).toList(),
+          children: titles
+              .map((t) => Expanded(
+                  child: Center(
+                      child: Text(t,
+                          style: GoogleFonts.sarabun(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF64748B))))))
+              .toList(),
         ),
       ),
     );
@@ -325,41 +375,46 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
 
   Widget _buildTeacherRow(Map<String, dynamic> teacher) {
     final name = teacher['fullName'] ?? '-';
-    
+
     // Filter approved leaves for this teacher in the current view round 🥇🏆
     final currentViewRound = _selectedRound ?? _activeRound;
-    
+
     final approvedLeaves = _allLeaves.where((l) {
       if (currentViewRound == null) return false;
-      
+
       // 🕵️‍♂️ กรองด้วยชื่อแบบไม่สนใจช่องว่างหัวท้ายครับ (Robust Name Matching) 🥇🏆
       final String leaveName = (l['fullName'] ?? '').toString().trim();
       final String teacherName = name.trim();
-      
+
       if (leaveName != teacherName) return false;
 
       // 🕵️‍♂️ กรองสถานะที่ได้รับอนุญาตแล้ว (ใช้ contains เพื่อความยืดหยุ่นครับ) 🥇
       final String status = (l['status'] ?? '').toString();
-      final bool isApproved = status.contains('อนุญาต') || 
-                              status.contains('ส่งใบลาแล้ว') || 
-                              status.contains('ส่งใบแล้ว') ||
-                              status.contains('อนุมัติ');
-      
+      final bool isApproved = status.contains('อนุญาต') ||
+          status.contains('ส่งใบลาแล้ว') ||
+          status.contains('ส่งใบแล้ว') ||
+          status.contains('อนุมัติ');
+
       if (!isApproved) return false;
 
       final String startDate = (l['startDate'] ?? '').toString();
-      return FirebaseService.isDateInRange(startDate, currentViewRound['startDate'], currentViewRound['endDate']);
+      return FirebaseService.isDateInRange(startDate,
+          currentViewRound['startDate'], currentViewRound['endDate']);
     }).toList();
 
     final sick = _calcType(approvedLeaves, "ป่วย");
     final personal = _calcType(approvedLeaves, "กิจ");
     final maternity = _calcType(approvedLeaves, "คลอด");
 
-    final totalTimes = sick['times']!.toInt() + personal['times']!.toInt() + maternity['times']!.toInt();
+    final totalTimes = sick['times']!.toInt() +
+        personal['times']!.toInt() +
+        maternity['times']!.toInt();
     final totalDays = sick['days']! + personal['days']! + maternity['days']!;
 
     return Container(
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.black.withValues(alpha: 0.03)))),
+      decoration: BoxDecoration(
+          border: Border(
+              bottom: BorderSide(color: Colors.black.withValues(alpha: 0.03)))),
       child: Row(
         children: [
           Expanded(
@@ -369,21 +424,35 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(name, style: GoogleFonts.sarabun(fontSize: 14, fontWeight: FontWeight.bold)),
-                  Text(_getPositionAndDept(teacher), style: GoogleFonts.sarabun(fontSize: 11, color: Colors.blueGrey)),
+                  Text(name,
+                      style: GoogleFonts.sarabun(
+                          fontSize: 14, fontWeight: FontWeight.bold)),
+                  Text(_getPositionAndDept(teacher),
+                      style: GoogleFonts.sarabun(
+                          fontSize: 11, color: Colors.blueGrey)),
                 ],
               ),
             ),
           ),
-          _buildValueCell(_formatNumber(sick['times']!), _formatNumber(sick['days']!), flex: 2, color: Colors.blue.shade700),
-          _buildValueCell(_formatNumber(personal['times']!), _formatNumber(personal['days']!), flex: 2, color: Colors.orange.shade700),
-          _buildValueCell(_formatNumber(maternity['times']!), _formatNumber(maternity['days']!), flex: 2, color: Colors.purple.shade700),
+          _buildValueCell(
+              _formatNumber(sick['times']!), _formatNumber(sick['days']!),
+              flex: 2, color: Colors.blue.shade700),
+          _buildValueCell(_formatNumber(personal['times']!),
+              _formatNumber(personal['days']!),
+              flex: 2, color: Colors.orange.shade700),
+          _buildValueCell(_formatNumber(maternity['times']!),
+              _formatNumber(maternity['days']!),
+              flex: 2, color: Colors.purple.shade700),
           Expanded(
             flex: 2,
             child: Container(
               height: 64,
               alignment: Alignment.center,
-              child: Text('$totalTimes / ${_formatNumber(totalDays)}', style: GoogleFonts.sarabun(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87)),
+              child: Text('$totalTimes / ${_formatNumber(totalDays)}',
+                  style: GoogleFonts.sarabun(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87)),
             ),
           ),
         ],
@@ -404,13 +473,17 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
         child: DropdownButton<Map<String, dynamic>>(
           value: _selectedRound,
           dropdownColor: Colors.white,
-          hint: Text("เลือกรอบงบประมาณ", style: GoogleFonts.sarabun(fontSize: 14)),
+          hint: Text("เลือกรอบงบประมาณ",
+              style: GoogleFonts.sarabun(fontSize: 14)),
           items: _allRounds.map((round) {
             return DropdownMenuItem(
               value: round,
               child: Text(
                 'ปี ${round['year']} รอบที่ ${round['round']}',
-                style: GoogleFonts.sarabun(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blue.shade800),
+                style: GoogleFonts.sarabun(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue.shade800),
               ),
             );
           }).toList(),
@@ -433,17 +506,21 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
         children: [
           Container(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: Colors.orange.shade50, shape: BoxShape.circle),
-            child: Icon(Icons.warning_amber_rounded, size: 64, color: Colors.orange.shade700),
+            decoration: BoxDecoration(
+                color: Colors.orange.shade50, shape: BoxShape.circle),
+            child: Icon(Icons.warning_amber_rounded,
+                size: 64, color: Colors.orange.shade700),
           ),
           const SizedBox(height: 24),
-          Text('ไม่พบรอบงบประมาณที่เปิดใช้งาน', 
-            style: GoogleFonts.sarabun(fontSize: 22, fontWeight: FontWeight.bold)),
+          Text('ไม่พบรอบงบประมาณที่เปิดใช้งาน',
+              style: GoogleFonts.sarabun(
+                  fontSize: 22, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
           Text(
             'กรุณาติดต่อผู้ดูแลระบบเพื่อเปิดใช้งานรอบงบประมาณ\nข้อมูลตารางสรุปจะแสดงผลตามช่วงเวลาของรอบที่เลือกครับ',
             textAlign: TextAlign.center,
-            style: GoogleFonts.sarabun(fontSize: 15, color: Colors.blueGrey, height: 1.6),
+            style: GoogleFonts.sarabun(
+                fontSize: 15, color: Colors.blueGrey, height: 1.6),
           ),
         ],
       ),
@@ -470,15 +547,18 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
     if (popup == null) {
       web.URL.revokeObjectURL(url);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('เบราว์เซอร์บล็อกหน้าต่าง PDF กรุณาอนุญาต pop-up')),
+        const SnackBar(
+            content: Text('เบราว์เซอร์บล็อกหน้าต่าง PDF กรุณาอนุญาต pop-up')),
       );
       return;
     }
 
-    Future.delayed(const Duration(seconds: 20), () => web.URL.revokeObjectURL(url));
+    Future.delayed(
+        const Duration(seconds: 20), () => web.URL.revokeObjectURL(url));
   }
 
-  String _htmlEscape(dynamic value) => const HtmlEscape().convert(value?.toString() ?? '');
+  String _htmlEscape(dynamic value) =>
+      const HtmlEscape().convert(value?.toString() ?? '');
 
   void _exportExcel() {
     final currentViewRound = _selectedRound ?? _activeRound;
@@ -495,7 +575,9 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
     final fileName = 'สรุปการลา_งบประมาณ_${year}_รอบที่_$round.xlsx';
     final blob = web.Blob(
       [bytes.toJS].toJS,
-      web.BlobPropertyBag(type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+      web.BlobPropertyBag(
+          type:
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
     );
     final url = web.URL.createObjectURL(blob);
     final anchor = web.document.createElement('a') as web.HTMLAnchorElement
@@ -508,7 +590,8 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
     web.URL.revokeObjectURL(url);
   }
 
-  List<_ReportSummaryRow> _buildSummaryRows(Map<String, dynamic> currentViewRound) {
+  List<_ReportSummaryRow> _buildSummaryRows(
+      Map<String, dynamic> currentViewRound) {
     return _visibleTeachers.map((teacher) {
       final name = (teacher['fullName'] ?? '-').toString();
       final position = (teacher['position'] ?? '-').toString();
@@ -570,7 +653,8 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
     return _ZipWriter.store(files);
   }
 
-  Uint8List _utf8Bytes(String value) => Uint8List.fromList(utf8.encode(value.trim()));
+  Uint8List _utf8Bytes(String value) =>
+      Uint8List.fromList(utf8.encode(value.trim()));
 
   String _cellRef(int row, int col) {
     var column = '';
@@ -588,12 +672,14 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
     Map<String, dynamic> currentViewRound,
   ) {
     final year = (currentViewRound['year'] ?? '').toString();
-    final startDate = FirebaseService.formatThaiDate(currentViewRound['startDate']);
+    final startDate =
+        FirebaseService.formatThaiDate(currentViewRound['startDate']);
     final endDate = FirebaseService.formatThaiDate(currentViewRound['endDate']);
     final dateRange = '$startDate - $endDate';
     final buffer = StringBuffer()
       ..write('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>')
-      ..write('<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">')
+      ..write(
+          '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">')
       ..write('<cols>')
       ..write('<col min="1" max="1" width="8" customWidth="1"/>')
       ..write('<col min="2" max="2" width="32" customWidth="1"/>')
@@ -693,7 +779,8 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
     return '<c r="$ref" s="$style" t="inlineStr"><is><t>${_xmlEscape(value)}</t></is></c>';
   }
 
-  String _xmlEscape(dynamic value) => const HtmlEscape().convert(value?.toString() ?? '');
+  String _xmlEscape(dynamic value) =>
+      const HtmlEscape().convert(value?.toString() ?? '');
 
   static const String _contentTypesXml = '''
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -769,7 +856,9 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
       final sick = _calcType(approvedLeaves, 'ป่วย');
       final personal = _calcType(approvedLeaves, 'กิจ');
       final maternity = _calcType(approvedLeaves, 'คลอด');
-      final totalTimes = sick['times']!.toInt() + personal['times']!.toInt() + maternity['times']!.toInt();
+      final totalTimes = sick['times']!.toInt() +
+          personal['times']!.toInt() +
+          maternity['times']!.toInt();
       final totalDays = sick['days']! + personal['days']! + maternity['days']!;
 
       return '''
@@ -834,8 +923,11 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
 ''';
   }
 
-  Map<String, double> _calcType(List<Map<String, dynamic>> leaves, String typePart) {
-    final filtered = leaves.where((l) => (l['leaveType'] ?? '').toString().contains(typePart)).toList();
+  Map<String, double> _calcType(
+      List<Map<String, dynamic>> leaves, String typePart) {
+    final filtered = leaves
+        .where((l) => (l['leaveType'] ?? '').toString().contains(typePart))
+        .toList();
     final days = filtered.fold<double>(0, (sum, l) {
       // 🕵️‍♂️ รองรับทั้งฟิลด์ totalDays และ days เพื่อความครอบคลุมครับ 🥇🏆
       var dValue = l['totalDays'] ?? l['days'];
@@ -861,16 +953,36 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
     return '$pos ($dept)';
   }
 
-  Widget _buildValueCell(String v1, String v2, {required int flex, Color? color}) {
+  Widget _buildValueCell(String v1, String v2,
+      {required int flex, Color? color}) {
     return Expanded(
       flex: flex,
       child: Container(
         height: 64,
-        decoration: BoxDecoration(border: Border(right: BorderSide(color: Colors.black.withValues(alpha: 0.02)))),
+        decoration: BoxDecoration(
+            border: Border(
+                right:
+                    BorderSide(color: Colors.black.withValues(alpha: 0.02)))),
         child: Row(
           children: [
-            Expanded(child: Center(child: Text(v1 == '0' ? '-' : v1, style: TextStyle(fontSize: 13, color: color ?? Colors.black38, fontWeight: v1 == '0' ? FontWeight.normal : FontWeight.bold)))),
-            Expanded(child: Center(child: Text(v2 == '0' ? '-' : v2, style: TextStyle(fontSize: 13, color: color ?? Colors.black38, fontWeight: v2 == '0' ? FontWeight.normal : FontWeight.bold)))),
+            Expanded(
+                child: Center(
+                    child: Text(v1 == '0' ? '-' : v1,
+                        style: TextStyle(
+                            fontSize: 13,
+                            color: color ?? Colors.black38,
+                            fontWeight: v1 == '0'
+                                ? FontWeight.normal
+                                : FontWeight.bold)))),
+            Expanded(
+                child: Center(
+                    child: Text(v2 == '0' ? '-' : v2,
+                        style: TextStyle(
+                            fontSize: 13,
+                            color: color ?? Colors.black38,
+                            fontWeight: v2 == '0'
+                                ? FontWeight.normal
+                                : FontWeight.bold)))),
           ],
         ),
       ),

@@ -93,18 +93,12 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                          _canViewAll
-                              ? "ข้อมูลภาพรวมระบบ"
-                              : "ข้อมูลส่วนตัว",
+                      Text(_canViewAll ? "ข้อมูลภาพรวมระบบ" : "ข้อมูลส่วนตัว",
                           style: GoogleFonts.sarabun(
                               fontSize: 16,
                               color: const Color(0xFF64748B),
                               fontWeight: FontWeight.w600)),
-                      Text(
-                          _canViewAll
-                              ? "ประวัติการลาทั้งหมด"
-                              : "ประวัติการลา",
+                      Text(_canViewAll ? "ประวัติการลาทั้งหมด" : "ประวัติการลา",
                           style: GoogleFonts.sarabun(
                               fontSize: 32,
                               fontWeight: FontWeight.w800,
@@ -209,7 +203,8 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
                                 shape: BoxShape.circle,
                                 boxShadow: [
                                   BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.03),
+                                      color:
+                                          Colors.black.withValues(alpha: 0.03),
                                       blurRadius: 20)
                                 ]),
                             child: const Icon(Icons.history_rounded,
@@ -557,7 +552,8 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
             content: Text(_isApproveStatus(newStatus)
                 ? '✅ อนุมัติเรียบร้อย (รับที่ ${updateData['receiveNumber']})'
                 : '✅ ปรับปรุงสถานะเป็น: $newStatus เรียบร้อยแล้ว'),
-            backgroundColor: _isApproveStatus(newStatus) ? Colors.green : Colors.orange));
+            backgroundColor:
+                _isApproveStatus(newStatus) ? Colors.green : Colors.orange));
     } catch (e) {
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(

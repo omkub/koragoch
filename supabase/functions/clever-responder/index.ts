@@ -4,6 +4,11 @@
  * งานที่ต้องใช้สิทธิ์ระดับแอดมินของ Supabase Auth ซึ่งเรียกจากเว็บตรง ๆ ไม่ได้
  * เพราะต้องใช้ service_role key ที่ห้ามฝังในโค้ดฝั่งผู้ใช้
  *
+ * ⚠️ ชื่อฟังก์ชันจริงบน Supabase คือ `clever-responder` (ตั้งพลาดตอนสร้างครั้งแรก
+ *    และ Supabase แก้ slug ทีหลังไม่ได้) โฟลเดอร์นี้จึงต้องชื่อเดียวกัน ไม่งั้น
+ *    `supabase functions deploy` จะหาไม่เจอ — ค่านี้อยู่ใน
+ *    FirebaseService.adminUsersFunction ฝั่งแอปด้วย
+ *
  *   create_auth    สร้างบัญชี Auth ให้ครูที่มีแถวใน Teachers แล้ว
  *   reset_password ตั้งรหัสผ่านใหม่ให้ครูคนอื่น (กรณีลืมรหัส)
  *
