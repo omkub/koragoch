@@ -865,6 +865,17 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
       debugPrint('⚠️  ซิงก์รหัสผ่านลงตาราง Teachers ไม่สำเร็จ: $e');
     }
 
+    // อัปเดตรหัสที่ฟังก์ชัน "จำรหัสผ่าน" เก็บไว้ด้วย ไม่งั้นครั้งหน้าหน้าล็อกอิน
+    // จะเติมรหัสเก่าให้อัตโนมัติ แล้วเข้าระบบไม่ได้ทั้งที่ดูเหมือนกรอกครบแล้ว
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool('remember_me') ?? false) {
+        await prefs.setString('saved_password', next);
+      }
+    } catch (e) {
+      debugPrint('⚠️  อัปเดตรหัสที่จำไว้ไม่สำเร็จ: $e');
+    }
+
     return null;
   }
 
