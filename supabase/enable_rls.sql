@@ -82,24 +82,27 @@ grant execute on function public.is_approver()         to authenticated;
 --    policy ข้างล่างจะค่อย ๆ เปิดช่องให้ทีละตาราง
 -- ----------------------------------------------------------------------------
 
-alter table "Teachers"           enable row level security;
-alter table "Leaves"             enable row level security;
-alter table "LeaveTypes"         enable row level security;
-alter table "LeaveReasons"       enable row level security;
-alter table "FiscalRounds"       enable row level security;
-alter table "SpecialHolidays"    enable row level security;
-alter table "SpecialWorkingDays" enable row level security;
-alter table "Settings"           enable row level security;
-alter table "LoginLogs"          enable row level security;
-alter table "UserRoles"          enable row level security;
-alter table "Permissions"        enable row level security;
-alter table "MobilePermissions"  enable row level security;
-alter table academics            enable row level security;
-alter table adminroles           enable row level security;
-alter table departments          enable row level security;
-alter table positions            enable row level security;
-alter table roles                enable row level security;
-alter table appconfig            enable row level security;
+--    ข้ามตารางที่ไม่มีอยู่จริงให้อัตโนมัติ (เช่น appconfig ที่ถูกลบไปแล้ว)
+--    จะได้ไม่ล้มทั้งสคริปต์เพราะตารางเดียว
+
+do $$
+declare
+  t text;
+begin
+  foreach t in array array[
+    'Teachers', 'Leaves', 'LeaveTypes', 'LeaveReasons', 'FiscalRounds',
+    'SpecialHolidays', 'SpecialWorkingDays', 'Settings', 'LoginLogs',
+    'UserRoles', 'Permissions', 'MobilePermissions',
+    'academics', 'adminroles', 'departments', 'positions', 'roles', 'appconfig'
+  ]
+  loop
+    if to_regclass(format('public.%I', t)) is null then
+      raise notice 'ข้ามตาราง % (ไม่มีอยู่จริง)', t;
+      continue;
+    end if;
+    execute format('alter table public.%I enable row level security', t);
+  end loop;
+end $$;
 
 
 -- ----------------------------------------------------------------------------
@@ -175,13 +178,19 @@ begin
     'academics', 'adminroles', 'departments', 'positions', 'roles', 'appconfig'
   ]
   loop
-    execute format('drop policy if exists master_select on %I', t);
-    execute format(
-      'create policy master_select on %I for select to authenticated using (true)', t);
+    if to_regclass(format('public.%I', t)) is null then
+      raise notice 'ข้ามตาราง % (ไม่มีอยู่จริง)', t;
+      continue;
+    end if;
 
-    execute format('drop policy if exists master_write on %I', t);
+    execute format('drop policy if exists master_select on public.%I', t);
     execute format(
-      'create policy master_write on %I for all to authenticated '
+      'create policy master_select on public.%I '
+      'for select to authenticated using (true)', t);
+
+    execute format('drop policy if exists master_write on public.%I', t);
+    execute format(
+      'create policy master_write on public.%I for all to authenticated '
       'using (public.is_admin()) with check (public.is_admin())', t);
   end loop;
 end $$;
