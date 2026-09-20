@@ -52,17 +52,13 @@ class _MobilePasswordResetScreenState extends State<MobilePasswordResetScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final DateTime expiry = DateTime.now().add(const Duration(hours: 24));
       final String resetCode = FirebaseService.generateResetCode();
-      final client = _firebaseService.supabaseClient;
-      if (client == null) throw Exception('Supabase not initialized');
-      await client.from('Teachers').update({
-        'forgotPasswordStatus': 'reset_by_admin',
-        'tempResetCode': resetCode,
-        'password': resetCode,
-        'resetAllowedUntil': expiry.toIso8601String(),
-        'updatedAt': DateTime.now().toIso8601String(),
-      }).eq('id', user['id']);
+      // ทำผ่าน Edge Function เพราะต้องตั้งรหัสใน Supabase Auth ด้วย ไม่ใช่แค่
+      // เขียนคอลัมน์ในตาราง — ของเดิมยิงตารางตรง ๆ ด้วยคอลัมน์ 'id' ที่ไม่มีจริง
+      // ทำให้ปุ่มนี้ใช้ไม่ได้มาตลอด และต่อให้เขียนสำเร็จครูก็ยังล็อกอินไม่ได้
+      // ฝั่งเซิร์ฟเวอร์จะตั้งสถานะ reset_by_admin + วันหมดอายุ 24 ชม. ให้เอง
+      await _firebaseService.adminResetPassword(
+          user['id_user'] ?? user['id'], resetCode);
 
       if (mounted) {
         showDialog(

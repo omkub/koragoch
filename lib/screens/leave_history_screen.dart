@@ -34,6 +34,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
       []; // 📋 cache รายการล่าสุดจาก stream ครับ
   String? _userRole;
   String? _currentUser;
+  bool _canViewAll = false;
   String _selectedDepartmentFilter = 'ทั้งหมด';
   String _selectedAcademicFilter = 'ทั้งหมด';
   String _selectedPositionFilter = 'ทั้งหมด';
@@ -61,9 +62,10 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
       final prefs = await SharedPreferences.getInstance();
       final role = prefs.getString('userRole');
       final user = prefs.getString('currentUser');
+      final canViewAll = await _firebaseService.currentUserHasAdminRole();
 
       // โหลดทุกอย่างพร้อมกัน
-      final futureLeaves = _canViewAllHistory(role)
+      final futureLeaves = canViewAll
           ? _firebaseService.getLeaveRequestsFromSupabase()
           : _firebaseService.getMyLeaveRequestsFromSupabase(user ?? '');
       final futureRounds = _firebaseService.getFiscalRoundsFromSupabase();
@@ -78,6 +80,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
         setState(() {
           _userRole = role;
           _currentUser = user;
+          _canViewAll = canViewAll;
           _leaveRequestsStream = Stream.value(leaveList);
           _allUsers = [];
         });
@@ -123,15 +126,10 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
     }
   }
 
-  bool _canViewAllHistory(String? role) {
-    final value = role ?? '';
-    return value.contains('ผู้ดูแลระบบ') || value.contains('ผู้บริหาร');
-  }
-
   Stream<List<Map<String, dynamic>>> _createLeaveRequestsStream(
-      String? role, String? user) {
+      bool canViewAll, String? user) {
     // 🚀 ใช้ Supabase read แล้วห่อเป็น Stream ชั่วคราว (Part 5 ค่อยทำ Realtime)
-    return _canViewAllHistory(role)
+    return canViewAll
         ? Stream.fromFuture(
             _firebaseService.getLeaveRequestsFromSupabase())
         : Stream.fromFuture(
@@ -627,7 +625,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
             child: OutlinedButton.icon(
               onPressed: () => setState(() {
                 _leaveRequestsStream =
-                    _createLeaveRequestsStream(_userRole, _currentUser);
+                    _createLeaveRequestsStream(_canViewAll, _currentUser);
                 _selectedIds.clear();
               }),
               icon: const Icon(Icons.refresh, size: 18),
@@ -1458,7 +1456,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
   void _reloadLeaves() {
     if (!mounted) return;
     setState(() {
-      _leaveRequestsStream = _createLeaveRequestsStream(_userRole, _currentUser);
+      _leaveRequestsStream = _createLeaveRequestsStream(_canViewAll, _currentUser);
     });
   }
 

@@ -17,6 +17,7 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   String _currentUserName = "";
   String _userRole = "";
+  bool _canViewAll = false;
   bool _isLoading = true;
 
   // 📅 ระบบจัดการรอบงบประมาณ 🥇🏆
@@ -59,9 +60,12 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
 
   Future<void> _loadUser() async {
     final prefs = await SharedPreferences.getInstance();
+    final canViewAll = await _firebaseService.currentUserHasAdminRole();
+    if (!mounted) return;
     setState(() {
       _currentUserName = prefs.getString('currentUser') ?? '';
       _userRole = prefs.getString('userRole') ?? 'ครู';
+      _canViewAll = canViewAll;
       _isLoading = false;
     });
   }
@@ -90,7 +94,7 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                          _userRole.contains('ผู้ดูแลระบบ')
+                          _canViewAll
                               ? "ข้อมูลภาพรวมระบบ"
                               : "ข้อมูลส่วนตัว",
                           style: GoogleFonts.sarabun(
@@ -98,7 +102,7 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
                               color: const Color(0xFF64748B),
                               fontWeight: FontWeight.w600)),
                       Text(
-                          _userRole.contains('ผู้ดูแลระบบ')
+                          _canViewAll
                               ? "ประวัติการลาทั้งหมด"
                               : "ประวัติการลา",
                           style: GoogleFonts.sarabun(
@@ -183,8 +187,7 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
 
             Expanded(
               child: StreamBuilder<List<Map<String, dynamic>>>(
-                stream: (_userRole.contains('ผู้ดูแลระบบ') ||
-                        _userRole.contains('ผู้บริหาร'))
+                stream: _canViewAll
                     ? _firebaseService.getLeaveRequestsStream()
                     : _firebaseService
                         .getMyLeaveRequestsStream(_currentUserName.trim()),
@@ -214,7 +217,7 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                              _userRole.contains('ผู้ดูแลระบบ')
+                              _canViewAll
                                   ? "ยังไม่มีข้อมูลการลาในระบบครับ"
                                   : "ยังไม่มีข้อมูลการลาของคุณครับ",
                               style: GoogleFonts.sarabun(

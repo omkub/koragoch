@@ -305,6 +305,23 @@ Deno.serve(async (req) => {
   }
 
   if (action === 'reset_password') {
+    // รหัสที่แอดมินตั้งให้ = "รหัสชั่วคราว" ครูใช้เข้าระบบได้ครั้งเดียว
+    // แล้วหน้า Login จะบังคับให้ตั้งรหัสใหม่ทันที (ดู complete_password_reset)
+    // จึงต้องเขียนสถานะ + รหัสชั่วคราว + วันหมดอายุไว้ด้วย ไม่ใช่ตั้งแค่ใน Auth
+    const markTemporary = async () => {
+      const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      await admin
+        .from('Teachers')
+        .update({
+          password,
+          forgotPasswordStatus: 'reset_by_admin',
+          tempResetCode: password,
+          resetAllowedUntil: expiry,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id_user', target.id_user);
+    };
+
     // ยังไม่มีบัญชี Auth ก็สร้างให้เลยด้วยรหัสใหม่นี้
     if (!target.auth_uid) {
       const { data: created, error: createError } =
@@ -327,6 +344,7 @@ Deno.serve(async (req) => {
         .from('Teachers')
         .update({ auth_uid: created.user.id })
         .eq('id_user', target.id_user);
+      await markTemporary();
       return reply(200, { ok: true, auth_uid: created.user.id, created: true });
     }
 
@@ -341,6 +359,7 @@ Deno.serve(async (req) => {
       });
     }
 
+    await markTemporary();
     return reply(200, { ok: true, auth_uid: target.auth_uid });
   }
 

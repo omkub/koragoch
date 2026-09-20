@@ -19,7 +19,6 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   bool _isLoading = true;
   String _currentUser = '';
-  String _userRole = '';
   List<Map<String, dynamic>> _teachers = [];
   List<Map<String, dynamic>> _allLeaves = [];
   List<Map<String, dynamic>> _allRounds = []; // 📅 รายการรอบงบประมาณทั้งหมดครับ
@@ -36,18 +35,19 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       _currentUser = prefs.getString('currentUser') ?? '';
-      _userRole = prefs.getString('userRole') ?? '';
 
       final results = await Future.wait([
+        _firebaseService.currentUserHasAdminRole(),
         _firebaseService.getUsers(),
         _firebaseService.getLeaveRequests(),
         _firebaseService.getFiscalRounds(),
         _firebaseService.getActiveFiscalRound(),
       ]);
-      final teachers = results[0] as List<Map<String, dynamic>>;
-      final leaves = results[1] as List<Map<String, dynamic>>;
-      final rounds = results[2] as List<Map<String, dynamic>>;
-      final activeRound = results[3] as Map<String, dynamic>?;
+      final canViewAll = results[0] as bool;
+      final teachers = results[1] as List<Map<String, dynamic>>;
+      final leaves = results[2] as List<Map<String, dynamic>>;
+      final rounds = results[3] as List<Map<String, dynamic>>;
+      final activeRound = results[4] as Map<String, dynamic>?;
       
       if (mounted) {
         // หากยังไม่ได้เลือก ให้ใช้ Active Round เป็นค่าเริ่มต้นครับ 🥇
@@ -73,8 +73,6 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
         }
 
         // 🕵️‍♂️ หาทุกชื่อที่มีใบลาในช่วงนี้ (Inclusive Logic) 🥇🏆
-        final bool canViewAll = _userRole.contains('ผู้ดูแลระบบ') ||
-            _userRole.contains('ผู้บริหาร');
         final String currentUserName = _currentUser.trim();
 
         final List<Map<String, dynamic>> allDisplayTeachers = canViewAll

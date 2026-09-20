@@ -50,15 +50,18 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   Widget _homeWidget = const LoginScreen();
 
+  /// งาน initialize ของ Supabase — เก็บไว้เพื่อให้ตอนเช็ก session รอได้ถูกจังหวะ
+  Future<void>? _supabaseReady;
+
   @override
   void initState() {
     super.initState();
-    _initializeSupabaseInBackground();
+    _supabaseReady = _initializeSupabaseInBackground();
     _handleBackgroundStartup();
   }
 
-  void _initializeSupabaseInBackground() {
-    Supabase.initialize(
+  Future<void> _initializeSupabaseInBackground() {
+    return Supabase.initialize(
       url: 'https://uziajblqlbrvqmxvizsi.supabase.co',
       anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV6aWFqYmxxbGJydnFteHZpenNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2Njc1MzIsImV4cCI6MjA5OTI0MzUzMn0.cpnt8uctNacuJWNelYx5C_oP0xEPtUhzvNDgyWkg0ZA',
     )
@@ -78,8 +81,24 @@ class _MyAppState extends State<MyApp> {
         // ตรวจสอบอายุการล็อกอิน (ตัวอย่าง 2 ชั่วโมง)
         if ((DateTime.now().millisecondsSinceEpoch - loginAt) <
             (2 * 60 * 60 * 1000)) {
-          // ยังไม่หมดอายุ + มีข้อมูลผู้ใช้ในเครื่อง = เข้าแอปต่อได้เลย ไม่หลุดตอน refresh
-          if (mounted) setState(() => _homeWidget = const ResponsiveLayout());
+          // ยังไม่หมดอายุ — แต่ต้องมี session ของ Supabase Auth อยู่จริงด้วย
+          //
+          // หลังเปิด RLS ถ้าเข้าหน้าหลักโดยไม่มี session จะอ่านฐานข้อมูลไม่ได้
+          // สักตาราง หน้าจอจะว่างเปล่าโดยไม่บอกสาเหตุ — เช็กตรงนี้แล้วเด้งกลับ
+          // ไปหน้า Login ให้ล็อกอินใหม่จะชัดเจนกว่า
+          try {
+            await _supabaseReady;
+          } catch (_) {
+            // ต่อ Supabase ไม่ได้ — ปล่อยให้ตกไปทางล้าง session ข้างล่าง
+          }
+          final hasSession =
+              Supabase.instance.client.auth.currentSession != null;
+          if (hasSession) {
+            if (mounted) setState(() => _homeWidget = const ResponsiveLayout());
+          } else {
+            debugPrint('ℹ️  ไม่พบ session ของ Supabase Auth — กลับไปหน้า Login');
+            await clearSessionPrefs(prefs);
+          }
         } else {
           // หมดอายุ → ล้าง session แล้วกลับไปหน้า Login
           await clearSessionPrefs(prefs);

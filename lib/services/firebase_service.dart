@@ -1631,6 +1631,35 @@ class FirebaseService {
         await byColumn('fullName', fullName?.trim());
   }
 
+  /// ผู้ใช้ปัจจุบันมีตำแหน่งบริหารที่ยังอยู่ในตาราง adminroles หรือไม่
+  Future<bool> currentUserHasAdminRole() async {
+    final client = _supabaseIfReady;
+    final authUid = client?.auth.currentUser?.id;
+    if (client == null || authUid == null || authUid.isEmpty) return false;
+
+    try {
+      final teacher = await client
+          .from('Teachers')
+          .select('id_adminrole')
+          .eq('auth_uid', authUid)
+          .maybeSingle();
+      final adminRoleId = teacher?['id_adminrole'];
+      if (adminRoleId == null || adminRoleId.toString().trim().isEmpty) {
+        return false;
+      }
+
+      final adminRole = await client
+          .from('adminroles')
+          .select('ID_AdminRoles')
+          .eq('ID_AdminRoles', adminRoleId)
+          .maybeSingle();
+      return adminRole != null;
+    } catch (e) {
+      debugPrint('currentUserHasAdminRole error: $e');
+      return false;
+    }
+  }
+
   /// เติมชื่อจริงของ ตำแหน่ง/กลุ่มสาระ/วิทยฐานะ/สิทธิ์ ให้แถวครูหนึ่งแถว
   ///
   /// ตาราง Teachers เก็บค่าพวกนี้เป็น FK ตัวเลข (id_position, id_department,

@@ -115,14 +115,45 @@ class _LoginScreenState extends State<LoginScreen> {
       bool loginSuccess = false;
       Map<String, dynamic>? userData;
 
-      // 🛡️ [ด่านตรวจที่ 0] หาผู้ใช้จากตาราง Teachers (Supabase) ด้วย username
+      if (username.isEmpty || password.isEmpty) {
+        _showError('กรุณากรอกชื่อผู้ใช้และรหัสผ่านครับ');
+        return;
+      }
+
+      // 🛡️ [ด่านตรวจที่ 1] ตรวจรหัสผ่านด้วย Supabase Auth
+      //
+      // ต้องทำเป็นขั้นแรกสุดเสมอ เพราะหลังเปิด RLS แล้วผู้ที่ยังไม่ล็อกอิน
+      // (anon) อ่านตาราง Teachers ไม่ได้อีกต่อไป — ของเดิมที่ไปอ่านตารางก่อน
+      // เพื่อหา username จึงใช้ไม่ได้แล้ว
+      //
+      // ทางถอยเดิมที่เทียบกับคอลัมน์ password ตรง ๆ ถูกตัดออกแล้ว
+      // Supabase Auth (bcrypt) คือทางเดียวที่ใช้ตรวจรหัสผ่าน
+      try {
+        await supabase.auth.signInWithPassword(
+          email: FirebaseService.authEmailForUsername(username),
+          password: password,
+        );
+      } on AuthException catch (e) {
+        debugPrint('ℹ️  Supabase Auth ปฏิเสธ: ${e.message}');
+        _showError('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้องครับ 🔐\n'
+            'ถ้าเพิ่งกดแจ้งลืมรหัสผ่าน กรุณารอรหัสชั่วคราวจากแอดมินก่อนนะครับ');
+        return;
+      }
+
+      // 🛡️ [ด่านตรวจที่ 2] ดึงข้อมูลของตัวเองจากตาราง Teachers
+      //
+      // ตอนนี้มี session แล้ว จึงอ่านผ่าน RLS ได้ และค้นด้วย auth_uid
+      // ซึ่งผูกกับบัญชีที่เพิ่งล็อกอิน ปลอมเป็นคนอื่นไม่ได้
+      final authUid = supabase.auth.currentUser?.id;
       final rows = await supabase
           .from('Teachers')
           .select()
-          .eq('username', username)
+          .eq('auth_uid', authUid as Object)
           .limit(1);
       if (rows.isEmpty) {
-        _showError('ไม่พบข้อมูลผู้ใช้งานนี้ในระบบครับ');
+        await supabase.auth.signOut();
+        _showError('บัญชีนี้ยังไม่ได้ผูกกับข้อมูลบุคลากรครับ\n'
+            'กรุณาแจ้งผู้ดูแลระบบให้ตรวจสอบให้อีกครั้ง');
         return;
       }
       userData = Map<String, dynamic>.from(rows.first as Map);
@@ -134,61 +165,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // 🚀 หาชื่อสิทธิ์จาก id_role -> roles.Accessrights
       final effectiveRole = await _resolveRoleFromSupabase(supabase, userData);
 
-      // 🛡️ [ด่านตรวจที่ 1] อยู่ระหว่างรอแอดมินออกรหัสชั่วคราวหรือไม่
-      //
-      // ถ้าแอดมินออกรหัสให้แล้ว (reset_by_admin) จะไม่บล็อกที่นี่ — ปล่อยให้ตรวจ
-      // รหัสตามปกติ เพราะรหัสชั่วคราวคือรหัสผ่านจริงชั่วคราว แล้วค่อยเด้งให้
-      // ตั้งรหัสใหม่หลังผ่านด่านรหัสผ่าน (ดูด้านล่าง)
       final forgotStatus = (userData['forgotPasswordStatus'] ?? '').toString();
-      if (forgotStatus == 'waiting') {
-        _showError(
-            '⚠️ คำขอรีเซ็ตรหัสผ่านของคุณครูกำลังรอแอดมินอนุมัติครับ\nเมื่อได้รหัสชั่วคราวแล้วนำมากรอกในช่องรหัสผ่านนี้ได้เลย');
-        return;
-      }
-      // 🔄 ถ้าในฐานข้อมูลเป็น MIGRATED หรือผู้ใช้กรอกรหัสด้วย MIGRATED
-      // ให้อัปเดตรหัสผ่านใน Supabase เป็น 123456 ทันที และอนุญาตให้เข้าใช้งานได้เลย
-      final String dbPassword = userData['password']?.toString().trim() ?? '';
-      final bool isMigrated = dbPassword == 'MIGRATED' || password == 'MIGRATED';
-
-      if (isMigrated) {
-        await supabase
-            .from('Teachers')
-            .update({'password': '123456', 'originalPassword': null}).eq(
-                'id_user', teacherPk);
-        userData['password'] = '123456';
-      }
-
-      // 🛡️ [ด่านตรวจที่ 2] ตรวจสอบรหัสผ่าน
-      //
-      // ทางหลัก: Supabase Auth — รหัสผ่านถูกแฮชด้วย bcrypt ฝั่งเซิร์ฟเวอร์
-      // ไม่มีใครอ่านรหัสจริงได้ และได้ session/token มาใช้กับ RLS ต่อ
-      bool passValid = false;
-      try {
-        final authResult = await supabase.auth.signInWithPassword(
-          email: FirebaseService.authEmailForUsername(username),
-          password: password,
-        );
-        passValid = authResult.user != null;
-      } on AuthException catch (e) {
-        debugPrint('ℹ️  Supabase Auth ปฏิเสธ (${e.message}) — จะลองทางเดิมต่อ');
-      } catch (e) {
-        debugPrint('⚠️  เรียก Supabase Auth ไม่สำเร็จ: $e');
-      }
-
-      // ทางถอยชั่วคราว: เทียบกับคอลัมน์ password เดิมในตาราง Teachers
-      //
-      // มีไว้ให้ช่วงเปลี่ยนผ่านไม่สะดุด — ครูที่ยังไม่มีบัญชี Auth หรือเพิ่งถูก
-      // แอดมินรีเซ็ตรหัส (ซึ่งยังเขียนลงคอลัมน์เดิม) จะยังเข้าระบบได้
-      // ทางนี้จะถูกตัดออกตอนเปิด RLS เพราะ anon จะอ่านตารางไม่ได้อีกต่อไป
-      if (!passValid) {
-        passValid = (userData['password'].toString().trim() == password) ||
-            (isMigrated && (password == '123456' || password == 'MIGRATED'));
-      }
-
-      if (!passValid) {
-        _showError('รหัสผ่านไม่ถูกต้องครับ 🔐');
-        return;
-      }
 
       // 🔑 [ด่านตรวจที่ 3] เพิ่งใช้ "รหัสชั่วคราว" เข้ามา ต้องตั้งรหัสใหม่ก่อน
       //
