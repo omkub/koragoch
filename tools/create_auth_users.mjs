@@ -32,9 +32,76 @@ const EMAIL_DOMAIN = process.env.AUTH_EMAIL_DOMAIN || 'leave.local';
 const DEFAULT_PASSWORD = '123456';
 const APPLY = process.argv.includes('--apply');
 
-if (!SERVICE_KEY) {
-  console.error('❌ ไม่พบ SUPABASE_SERVICE_KEY');
-  console.error('   ตั้งค่าก่อน:  $env:SUPABASE_SERVICE_KEY="<service_role key>"');
+/** ตรวจ key ให้ชัดก่อนยิงไปหา Supabase จะได้ไม่ไปเจอ error ที่อ่านไม่รู้เรื่องทีหลัง */
+function validateServiceKey(raw) {
+  if (!raw) {
+    return [
+      'ไม่พบ SUPABASE_SERVICE_KEY',
+      'ตั้งค่าก่อน แล้วค่อยรันใหม่:',
+      '   $env:SUPABASE_SERVICE_KEY="ey...."',
+    ];
+  }
+
+  const key = raw.trim();
+
+  // เคสที่เจอบ่อยที่สุด: ก๊อปข้อความตัวอย่างในคู่มือมาทั้งดุ้น
+  if (/[^\x20-\x7E]/.test(key)) {
+    return [
+      'SUPABASE_SERVICE_KEY มีอักขระที่ไม่ใช่ภาษาอังกฤษ (เช่นภาษาไทย) ปนอยู่',
+      'แปลว่ายังเป็น "ข้อความตัวอย่าง" ไม่ใช่ key จริง',
+      '',
+      'ต้องวาง key ตัวจริงลงไปตรง ๆ แบบนี้:',
+      '   $env:SUPABASE_SERVICE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6..."',
+    ];
+  }
+
+  if (key.includes('<') || key.includes('>')) {
+    return [
+      'SUPABASE_SERVICE_KEY ยังมีเครื่องหมาย < > อยู่',
+      'ให้ลบวงเล็บออกแล้ววาง key ตัวจริงแทนทั้งหมด',
+    ];
+  }
+
+  const isJwt = /^ey[\w-]+\.[\w-]+\.[\w-]+$/.test(key);
+  const isSecretKey = key.startsWith('sb_secret_');
+  if (!isJwt && !isSecretKey) {
+    return [
+      'รูปแบบ key ไม่ถูกต้อง',
+      'service_role key ต้องขึ้นต้นด้วย "ey" และมีจุดคั่น 2 จุด',
+      'หรือถ้าเป็นโปรเจกต์ใหม่จะขึ้นต้นด้วย "sb_secret_"',
+      '',
+      `ค่าที่ได้รับตอนนี้ขึ้นต้นด้วย: "${key.slice(0, 12)}..."`,
+    ];
+  }
+
+  // กันสลับกับ anon key ซึ่งสร้างบัญชีไม่ได้
+  if (isJwt) {
+    try {
+      const payload = JSON.parse(
+        Buffer.from(key.split('.')[1], 'base64').toString('utf8'),
+      );
+      if (payload.role && payload.role !== 'service_role') {
+        return [
+          `key ที่ใส่มาเป็นของ role "${payload.role}" ไม่ใช่ service_role`,
+          'anon key สร้างบัญชีผู้ใช้ไม่ได้ ต้องใช้ service_role เท่านั้น',
+          '',
+          'หาได้ที่ Dashboard > Project Settings > API > service_role (secret)',
+        ];
+      }
+    } catch {
+      // อ่าน payload ไม่ออกก็ปล่อยให้ Supabase ตัดสินเอง
+    }
+  }
+
+  return null;
+}
+
+const keyProblem = validateServiceKey(SERVICE_KEY);
+if (keyProblem) {
+  console.error(`❌ ${keyProblem[0]}`);
+  for (const line of keyProblem.slice(1)) console.error(`   ${line}`);
+  console.error('\n   หา key ได้ที่ Supabase Dashboard > Project Settings > API');
+  console.error('   ⚠️ key นี้เป็นความลับ ห้ามใส่ในไฟล์ ห้าม commit ขึ้น Git');
   process.exit(1);
 }
 
@@ -56,8 +123,17 @@ async function preflight() {
 
   if (error) {
     console.error(`❌ สร้างบัญชีทดสอบไม่สำเร็จ: ${error.message}`);
-    console.error(`   โดเมน "${EMAIL_DOMAIN}" อาจใช้ไม่ได้`);
-    console.error('   ลองเปลี่ยน:  $env:AUTH_EMAIL_DOMAIN="leave.internal"');
+
+    const msg = String(error.message).toLowerCase();
+    if (msg.includes('invalid') && (msg.includes('key') || msg.includes('jwt'))) {
+      console.error('   สาเหตุ: key ไม่ถูกต้องหรือหมดอายุ — ตรวจว่าคัดลอกมาครบทั้งเส้น');
+    } else if (msg.includes('email')) {
+      console.error(`   สาเหตุ: Supabase ไม่ยอมรับโดเมน "${EMAIL_DOMAIN}"`);
+      console.error('   ลองเปลี่ยน:  $env:AUTH_EMAIL_DOMAIN="leave.internal"');
+    } else {
+      console.error('   ถ้าข้อความข้างบนพูดถึงอีเมล ให้ลองเปลี่ยนโดเมน:');
+      console.error('     $env:AUTH_EMAIL_DOMAIN="leave.internal"');
+    }
     return false;
   }
 
