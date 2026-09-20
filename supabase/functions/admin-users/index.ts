@@ -72,6 +72,114 @@ Deno.serve(async (req) => {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
+  let payload: Record<string, unknown>;
+  try {
+    payload = await req.json();
+  } catch {
+    return reply(400, { error: 'รูปแบบข้อมูลไม่ถูกต้อง' });
+  }
+  const action = String(payload.action ?? '');
+
+  // ═══════════════════════════════════════════════════════════════
+  // คำสั่งที่ "ยังไม่ได้ล็อกอิน" ก็เรียกได้ — ใช้กับการกู้รหัสผ่าน
+  //
+  // ครูที่ลืมรหัสย่อมล็อกอินไม่ได้ จึงตรวจสิทธิ์ด้วยรหัสชั่วคราวที่แอดมิน
+  // ออกให้แทน (สุ่ม 6 หลัก + หมดอายุ 24 ชม. + ใช้ได้เมื่อแอดมินกดอนุมัติแล้ว)
+  // ═══════════════════════════════════════════════════════════════
+  if (action === 'check_reset_status' || action === 'complete_password_reset') {
+    const username = String(payload.username ?? '').trim();
+    const code = String(payload.code ?? '').trim();
+    if (!username || !code) {
+      return reply(400, { error: 'กรุณากรอกชื่อผู้ใช้และรหัสจากแอดมินครับ' });
+    }
+
+    const { data: row } = await admin
+      .from('Teachers')
+      .select(
+        'id_user, username, fullName, auth_uid, tempResetCode, resetAllowedUntil, forgotPasswordStatus',
+      )
+      .eq('username', username)
+      .maybeSingle();
+
+    if (!row) {
+      return reply(404, { error: 'ไม่พบชื่อผู้ใช้งานนี้ในระบบครับ' });
+    }
+    if (row.forgotPasswordStatus !== 'reset_by_admin') {
+      return reply(403, {
+        error:
+            'แอดมินยังไม่ได้อนุมัติการกู้รหัสของคุณครับ\nกรุณากด "แจ้งแอดมิน" แล้วรอสักครู่',
+      });
+    }
+    if (!row.resetAllowedUntil ||
+        new Date(String(row.resetAllowedUntil)).getTime() < Date.now()) {
+      return reply(403, {
+        error: 'สิทธิ์การกู้รหัสหมดอายุแล้วครับ กรุณาให้แอดมินเปิดสิทธิ์ใหม่',
+      });
+    }
+    if (String(row.tempResetCode ?? '') !== code) {
+      return reply(401, { error: 'รหัสจากแอดมินไม่ถูกต้องครับ' });
+    }
+
+    if (action === 'check_reset_status') {
+      return reply(200, { ok: true, fullName: row.fullName ?? username });
+    }
+
+    // ── ตั้งรหัสผ่านใหม่จริง ──
+    const newPassword = String(payload.new_password ?? '').trim();
+    if (newPassword.length < 6) {
+      return reply(400, { error: 'รหัสผ่านใหม่ต้องยาวอย่างน้อย 6 ตัวครับ' });
+    }
+
+    if (row.auth_uid) {
+      const { error: updateError } = await admin.auth.admin.updateUserById(
+        String(row.auth_uid),
+        { password: newPassword },
+      );
+      if (updateError) {
+        return reply(400, {
+          error: `ตั้งรหัสผ่านใหม่ไม่สำเร็จ: ${updateError.message}`,
+        });
+      }
+    } else {
+      // ยังไม่มีบัญชี Auth (ข้อมูลเก่าที่ตกหล่น) สร้างให้เลย
+      const { data: created, error: createError } =
+        await admin.auth.admin.createUser({
+          email: emailFor(String(row.username)),
+          password: newPassword,
+          email_confirm: true,
+          user_metadata: {
+            id_user: row.id_user,
+            username: row.username,
+            fullName: row.fullName,
+          },
+        });
+      if (createError) {
+        return reply(400, {
+          error: `สร้างบัญชีเข้าสู่ระบบไม่สำเร็จ: ${createError.message}`,
+        });
+      }
+      await admin
+        .from('Teachers')
+        .update({ auth_uid: created.user.id })
+        .eq('id_user', row.id_user);
+    }
+
+    // ล้างสถานะกู้รหัส และซิงก์สำเนารหัสที่แอดมินใช้ดู
+    await admin
+      .from('Teachers')
+      .update({
+        password: newPassword,
+        forgotPasswordStatus: null,
+        resetAllowedUntil: null,
+        tempResetCode: null,
+        tempPassword: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id_user', row.id_user);
+
+    return reply(200, { ok: true });
+  }
+
   // ── 1. ผู้เรียกเป็นใคร ────────────────────────────────────────
   const authHeader = req.headers.get('Authorization') ?? '';
   if (!authHeader) return reply(401, { error: 'กรุณาเข้าสู่ระบบก่อนครับ' });
@@ -110,14 +218,6 @@ Deno.serve(async (req) => {
   }
 
   // ── 3. ลงมือทำตาม action ──────────────────────────────────────
-  let payload: Record<string, unknown>;
-  try {
-    payload = await req.json();
-  } catch {
-    return reply(400, { error: 'รูปแบบข้อมูลไม่ถูกต้อง' });
-  }
-
-  const action = String(payload.action ?? '');
   const targetIdUser = Number(payload.id_user);
   if (!Number.isFinite(targetIdUser)) {
     return reply(400, { error: 'ต้องระบุ id_user ของครูที่ต้องการดำเนินการ' });

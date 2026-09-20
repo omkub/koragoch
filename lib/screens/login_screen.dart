@@ -138,7 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final forgotStatus = (userData['forgotPasswordStatus'] ?? '').toString();
       if ((forgotStatus == 'waiting' || forgotStatus == 'reset_by_admin')) {
         _showError(
-            '⚠️ บัญชีนี้อยู่ระหว่างการรีเซ็ตรหัสผ่านครับ\nโปรดใช้รหัสชั่วคราว 123456 เพื่อตั้งรหัสใหม่ผ่านเมนู "แจ้งลืมรหัสผ่าน" ที่หน้าล็อกอินครับ');
+            '⚠️ บัญชีนี้อยู่ระหว่างการรีเซ็ตรหัสผ่านครับ\nโปรดใช้รหัสชั่วคราวที่ได้รับจากแอดมิน ตั้งรหัสใหม่ผ่านเมนู "แจ้งลืมรหัสผ่าน" ที่หน้าล็อกอินครับ');
         return;
       }
       // 🔄 ถ้าในฐานข้อมูลเป็น MIGRATED หรือผู้ใช้กรอกรหัสด้วย MIGRATED
@@ -349,7 +349,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                         setDialogState(
                                             () => isProcessing = true);
                                         final ok = await _saveNewPassword(
-                                            targetUserId, newPassCtrl.text);
+                                            targetUserId,
+                                            recoverKeyCtrl.text.trim(),
+                                            newPassCtrl.text);
                                         setDialogState(
                                             () => isProcessing = false);
 
@@ -416,7 +418,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // 🏁 Step 1: ตรวจสอบ Username + รหัส 123456
+  // 🏁 Step 1: ตรวจสอบ Username + รหัสชั่วคราว 6 หลักที่แอดมินสุ่มให้
   Widget _buildStep1View({
     required TextEditingController userCtrl,
     required TextEditingController keyCtrl,
@@ -539,6 +541,14 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // 🔍 ตรวจสอบสิทธิ์กู้รหัสจาก Firestore
+  /// ตรวจสิทธิ์กู้รหัสผ่าน — ย้ายไปตรวจที่ Edge Function ทั้งหมด
+  ///
+  /// ของเดิมอ่านตาราง Teachers จากฝั่งเว็บตรง ๆ ด้วย `select('id', ...)` ซึ่งตาราง
+  /// ไม่มีคอลัมน์ `id` คำสั่งจึงล้มด้วย HTTP 400 ทุกครั้ง — ระบบกู้รหัสใช้ไม่ได้เลย
+  ///
+  /// และของเดิมเทียบรหัสกับค่าคงที่ '123456' ไม่ได้เทียบกับรหัสที่แอดมินสุ่มให้จริง
+  /// ใครรู้ชื่อผู้ใช้ของคนที่กำลังรอรีเซ็ตก็สวมรอยตั้งรหัสใหม่ได้
+  /// ตอนนี้เทียบกับ tempResetCode ตัวจริงที่ฝั่งเซิร์ฟเวอร์ และยังใช้ได้หลังเปิด RLS
   Future<bool> _verifyResetSatus({
     required String username,
     required String inputKey,
@@ -549,51 +559,13 @@ class _LoginScreenState extends State<LoginScreen> {
       return false;
     }
 
-    if (inputKey != '123456') {
-      _showError('รหัสลับจากแอดมินไม่ถูกต้องครับ!');
-      return false;
-    }
-
     try {
-      final client = Supabase.instance.client;
-      final rows = await client
-          .from('Teachers')
-          .select('id, fullName, forgotPasswordStatus, resetAllowedUntil')
-          .eq('username', username)
-          .limit(1);
-
-      if (rows.isEmpty) {
-        _showError('ไม่พบชื่อผู้ใช้งานนี้ในฐานข้อมูลครับ');
-        return false;
-      }
-
-      final status = rows.first;
-
-      if (status['forgotPasswordStatus'] != 'reset_by_admin') {
-        _showError(
-            'แอดมินยังไม่ได้รีเซ็ตรหัสให้คุณครับ\nกรุณากด "แจ้งแอดมิน" และรอสักครู่ครับ');
-        return false;
-      }
-
-      final expireValue = status['resetAllowedUntil'];
-      if (expireValue == null) {
-        _showError(
-            'แอดมินยังไม่ได้ "อนุญาต" การกู้รหัสของคุณครับ\nกรุณาติดต่อแอดมินก่อนครับ');
-        return false;
-      }
-
-      final expireDate = DateTime.parse(expireValue.toString());
-
-      if (expireDate.isBefore(DateTime.now())) {
-        _showError(
-            'สิทธิ์การกู้รหัสของคุณ "หมดอายุ" แล้วครับ\nกรุณาให้แอดมินเปิดสิทธิ์ให้ใหม่อีกครั้งครับ');
-        return false;
-      }
-
-      onUserFound(status['id'].toString(), status['fullName'] ?? '');
+      final fullName =
+          await _firebaseService.checkPasswordResetStatus(username, inputKey);
+      onUserFound(username, fullName);
       return true;
     } catch (e) {
-      _showError('เกิดความผิดพลาด: $e');
+      _showError(e.toString().replaceFirst('Exception: ', ''));
       return false;
     }
   }
@@ -633,32 +605,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// ตั้งรหัสผ่านใหม่หลังผ่านการยืนยันสิทธิ์จากแอดมิน
   ///
-  /// เดิมใช้ `.eq('id', ...)` ซึ่งตาราง Teachers ไม่มีคอลัมน์นี้ คำสั่งจึงไม่โดน
-  /// แถวไหนเลยและล้มเหลวแบบเงียบ ๆ — ตอนนี้ใช้ id_user ซึ่งเป็น PK จริง
-  Future<bool> _saveNewPassword(String userId, String newPassword) async {
+  /// ทำผ่าน Edge Function เพราะการตั้งรหัสให้ผู้ใช้ที่ยังไม่ได้ล็อกอินต้องใช้
+  /// สิทธิ์ระดับแอดมิน ซึ่งเรียกจากเว็บตรง ๆ ไม่ได้
+  /// ฝั่งเซิร์ฟเวอร์จะตั้งให้ทั้งใน Supabase Auth และคอลัมน์สำเนาพร้อมกัน
+  Future<bool> _saveNewPassword(
+      String username, String resetCode, String newPassword) async {
     try {
-      final client = Supabase.instance.client;
-      final parsedId = int.tryParse(userId);
-      if (parsedId == null) {
-        _showError('ไม่พบรหัสผู้ใช้ที่จะตั้งรหัสผ่านใหม่ครับ');
-        return false;
-      }
-
-      await client.from('Teachers').update({
-        'password': newPassword,
-        'forgotPasswordStatus': null,
-        'resetAllowedUntil': null,
-        'tempPassword': null,
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
-      }).eq('id_user', parsedId);
-
-      // ⚠️ ค้างไว้: รหัสใน Supabase Auth ยังเป็นตัวเดิม เพราะการตั้งรหัสให้ผู้ใช้
-      // ที่ยังไม่ได้ล็อกอินต้องใช้สิทธิ์ระดับแอดมิน ซึ่งเรียกจากเว็บไม่ได้
-      // ช่วงนี้ครูจะเข้าระบบได้ด้วย "ทางถอย" ในหน้าล็อกอิน (เทียบคอลัมน์เดิม)
-      // ต้องทำ Edge Function ให้เสร็จก่อนเปิด RLS ไม่งั้นเส้นทางนี้จะขาด
+      await _firebaseService.completePasswordReset(
+          username, resetCode, newPassword);
       return true;
     } catch (e) {
-      _showError('ไม่สามารถบันทึกรหัสใหม่ได้: $e');
+      _showError(e.toString().replaceFirst('Exception: ', ''));
       return false;
     }
   }

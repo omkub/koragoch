@@ -215,6 +215,48 @@ class FirebaseService {
     return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
   }
 
+  /// เรียก Edge Function สำหรับการกู้รหัสผ่าน — ใช้ได้ทั้งที่ยังไม่ได้ล็อกอิน
+  ///
+  /// ครูที่ลืมรหัสย่อมล็อกอินไม่ได้ ฝั่งเซิร์ฟเวอร์จึงตรวจสิทธิ์ด้วยรหัสชั่วคราว
+  /// ที่แอดมินออกให้แทน และเป็นคนตั้งรหัสใน Supabase Auth ให้ด้วย
+  Future<Map<String, dynamic>> _callResetFunction(
+      Map<String, dynamic> body) async {
+    final client = _supabaseIfReady;
+    if (client == null) throw Exception('Supabase not initialized');
+
+    final response =
+        await client.functions.invoke(adminUsersFunction, body: body);
+    final data = response.data;
+    if (response.status >= 400) {
+      final message = (data is Map && data['error'] != null)
+          ? data['error'].toString()
+          : 'ดำเนินการไม่สำเร็จ (รหัส ${response.status})';
+      throw Exception(message);
+    }
+    return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+  }
+
+  /// ตรวจว่าแอดมินอนุมัติการกู้รหัสแล้ว และรหัสชั่วคราวถูกต้อง — คืนชื่อ-นามสกุล
+  Future<String> checkPasswordResetStatus(String username, String code) async {
+    final result = await _callResetFunction({
+      'action': 'check_reset_status',
+      'username': username,
+      'code': code,
+    });
+    return (result['fullName'] ?? '').toString();
+  }
+
+  /// ตั้งรหัสผ่านใหม่หลังกู้รหัส — ตั้งทั้งใน Supabase Auth และคอลัมน์สำเนา
+  Future<void> completePasswordReset(
+      String username, String code, String newPassword) async {
+    await _callResetFunction({
+      'action': 'complete_password_reset',
+      'username': username,
+      'code': code,
+      'new_password': newPassword,
+    });
+  }
+
   /// ดูรหัสผ่านของครู โดยยืนยันตัวตนด้วยรหัสผ่านของแอดมินเอง
   ///
   /// รหัสผ่านของแอดมินถูกส่งไปตรวจที่ Edge Function เท่านั้น ฝั่งเว็บไม่ได้
