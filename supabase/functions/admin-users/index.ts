@@ -86,6 +86,35 @@ Deno.serve(async (req) => {
   // ครูที่ลืมรหัสย่อมล็อกอินไม่ได้ จึงตรวจสิทธิ์ด้วยรหัสชั่วคราวที่แอดมิน
   // ออกให้แทน (สุ่ม 6 หลัก + หมดอายุ 24 ชม. + ใช้ได้เมื่อแอดมินกดอนุมัติแล้ว)
   // ═══════════════════════════════════════════════════════════════
+  // ครูกดปุ่ม "แจ้งแอดมิน" ตอนลืมรหัส — ยังล็อกอินไม่ได้จึงต้องไม่ต้องยืนยันตัวตน
+  // ผลกระทบจำกัดมาก: ทำได้แค่ตั้งสถานะเป็น waiting ให้แอดมินเห็นเท่านั้น
+  if (action === 'request_password_reset') {
+    const username = String(payload.username ?? '').trim();
+    if (!username) return reply(400, { error: 'กรุณากรอกชื่อผู้ใช้ครับ' });
+
+    const { data: row } = await admin
+      .from('Teachers')
+      .select('id_user, fullName')
+      .eq('username', username)
+      .maybeSingle();
+
+    if (!row) return reply(404, { error: 'ไม่พบชื่อผู้ใช้งานนี้ในระบบครับ' });
+
+    const { error: updateError } = await admin
+      .from('Teachers')
+      .update({
+        forgotPasswordStatus: 'waiting',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id_user', row.id_user);
+
+    if (updateError) {
+      return reply(500, { error: `ส่งคำขอไม่สำเร็จ: ${updateError.message}` });
+    }
+
+    return reply(200, { ok: true, fullName: row.fullName ?? username });
+  }
+
   if (action === 'check_reset_status' || action === 'complete_password_reset') {
     const username = String(payload.username ?? '').trim();
     const code = String(payload.code ?? '').trim();

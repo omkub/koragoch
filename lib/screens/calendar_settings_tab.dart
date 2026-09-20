@@ -548,10 +548,11 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
         final totalDays = _calculateBusinessLeaveDays(leave, holidayKeys, specialWorkingKeys);
         final id = leave['requestId']?.toString() ?? leave['id']?.toString() ?? '';
         if (id.isEmpty) continue;
+        // Leaves ใช้ PK ชื่อ id_leaves ไม่ใช่ id
         await client.from('Leaves').update({
           'totaldays': totalDays,
           'lastupdatedat': DateTime.now().toIso8601String(),
-        }).eq('id', id);
+        }).eq('id_leaves', int.tryParse(id) ?? id);
         updated++;
       }
 

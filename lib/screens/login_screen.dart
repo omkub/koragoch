@@ -577,29 +577,15 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    // ทำผ่าน Edge Function เพราะครูที่ลืมรหัสยังล็อกอินไม่ได้ จึงเขียนตารางเองไม่ได้
+    // หลังเปิด RLS — ของเดิมยิงตารางตรง ๆ ด้วยคอลัมน์ 'id' ที่ไม่มีอยู่จริง
+    // และเขียน 'requestTimestamp' ที่ตาราง Teachers ก็ไม่มี จึงล้มทุกครั้ง
     try {
-      final client = Supabase.instance.client;
-      final rows = await client
-          .from('Teachers')
-          .select('id, fullName')
-          .eq('username', username)
-          .limit(1);
-
-      if (rows.isEmpty) {
-        _showError('ไม่พบชื่อผู้ใช้งานนี้ในระบบครับ');
-        return;
-      }
-
-      final teacherId = rows.first['id'];
-      await client.from('Teachers').update({
-        'forgotPasswordStatus': 'waiting',
-        'requestTimestamp': DateTime.now().toUtc().toIso8601String(),
-      }).eq('id', teacherId);
-
+      await _firebaseService.requestPasswordReset(username);
       _showSuccessDialog('ส่งคำขอสำเร็จ!',
           'ระบบได้แจ้งแอดมินให้ทราบแล้ว\nโปรดรอแอดมินรีเซ็ตรหัสให้ภายในครู่เดียวครับ');
     } catch (e) {
-      _showError('ไม่สามารถส่งคำขอได้: $e');
+      _showError('ไม่สามารถส่งคำขอได้: ${e.toString().replaceFirst('Exception: ', '')}');
     }
   }
 

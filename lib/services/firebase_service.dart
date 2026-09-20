@@ -236,6 +236,14 @@ class FirebaseService {
     return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
   }
 
+  /// ครูแจ้งแอดมินว่าลืมรหัสผ่าน — ตั้งสถานะรอการอนุมัติ
+  Future<void> requestPasswordReset(String username) async {
+    await _callResetFunction({
+      'action': 'request_password_reset',
+      'username': username,
+    });
+  }
+
   /// ตรวจว่าแอดมินอนุมัติการกู้รหัสแล้ว และรหัสชั่วคราวถูกต้อง — คืนชื่อ-นามสกุล
   Future<String> checkPasswordResetStatus(String username, String code) async {
     final result = await _callResetFunction({
@@ -2642,7 +2650,7 @@ class FirebaseService {
     try {
       final rows = await client
           .from('Teachers')
-          .select('id')
+          .select('id_user') // Teachers ไม่มีคอลัมน์ 'id' — PK คือ id_user
           .eq('forgotPasswordStatus', 'waiting');
       return (rows as List).length;
     } catch (e) {
