@@ -40,6 +40,74 @@ function reply(status: number, body: Record<string, unknown>) {
 const emailFor = (username: string) =>
   `${username.trim().toLowerCase()}@${EMAIL_DOMAIN}`;
 
+/** รหัสยืนยัน 6 หลัก สุ่มด้วยตัวสุ่มเชิงรหัสลับ ไม่ใช่เวลาปัจจุบัน */
+function generateCode(): string {
+  const buf = new Uint32Array(1);
+  crypto.getRandomValues(buf);
+  return String((buf[0] % 900000) + 100000);
+}
+
+/**
+ * รวมค่าจากตาราง Settings — ข้อมูลกระจายอยู่หลายแถว ต้องหยิบค่าที่ไม่ว่าง
+ * จากทุกแถวมารวมกัน (ตรรกะเดียวกับ ensureConfigLoaded ในแอป)
+ */
+async function loadSettings(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+): Promise<Record<string, string>> {
+  const { data } = await admin.from('Settings').select('*');
+  const merged: Record<string, string> = {};
+  for (const row of data ?? []) {
+    for (const [key, value] of Object.entries(row ?? {})) {
+      if (value === null || value === undefined) continue;
+      const text = String(value).trim();
+      if (text && !merged[key]) merged[key] = text;
+    }
+  }
+  return merged;
+}
+
+/**
+ * ส่งข้อความเข้ากลุ่มไลน์ผ่าน Apps Script bridge
+ * ใช้เส้นทางเดียวกับการแจ้งเตือนใบลา (action=line_notification)
+ * จะได้ใช้ secretKey / กลุ่ม / สคริปต์ชุดเดียวกันทั้งระบบ
+ */
+async function pushLine(
+  settings: Record<string, string>,
+  message: string,
+): Promise<string | null> {
+  const bridgeUrl = settings['appsScriptUrl'] ?? '';
+  const secretKey = settings['secretKey'] ?? '';
+  const to = settings['groupId'] ?? '';
+
+  if (!bridgeUrl) return 'ยังไม่ได้ตั้งค่า appsScriptUrl ในหน้าตั้งค่า LINE';
+  if (!to) return 'ยังไม่ได้ตั้งค่ากลุ่มไลน์ (groupId)';
+
+  const url = new URL(bridgeUrl);
+  url.searchParams.set('action', 'line_notification');
+  url.searchParams.set('secretKey', secretKey);
+  url.searchParams.set('to', to);
+  url.searchParams.set('message', message);
+
+  try {
+    const res = await fetch(url.toString(), { method: 'GET' });
+    const text = await res.text();
+    if (!res.ok) return `ส่งไลน์ไม่สำเร็จ (HTTP ${res.status})`;
+    // Apps Script ตอบ JSON {status: success|error}
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed.status && parsed.status !== 'success') {
+        return `ส่งไลน์ไม่สำเร็จ: ${parsed.message ?? parsed.status}`;
+      }
+    } catch {
+      // ตอบกลับไม่ใช่ JSON ถือว่าผ่านถ้า HTTP 200
+    }
+    return null;
+  } catch (e) {
+    return `เชื่อมต่อระบบส่งไลน์ไม่ได้: ${e}`;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS_HEADERS });
@@ -69,7 +137,7 @@ Deno.serve(async (req) => {
   // ── 2. ผู้เรียกเป็นผู้ดูแลระบบหรือไม่ ──────────────────────────
   const { data: me } = await admin
     .from('Teachers')
-    .select('id_user, id_role, role, permission')
+    .select('id_user, id_role, role, permission, fullName')
     .eq('auth_uid', callerUser.id)
     .maybeSingle();
 
@@ -193,6 +261,80 @@ Deno.serve(async (req) => {
     }
 
     return reply(200, { ok: true, auth_uid: target.auth_uid });
+  }
+
+  // ── ขอรหัสยืนยันก่อนดูรหัสผ่านของครู (2FA ผ่านไลน์) ──────────
+  if (action === 'request_view_code') {
+    const settings = await loadSettings(admin);
+    const code = generateCode();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 นาที
+
+    const { error: insertError } = await admin.from('AdminViewCodes').insert({
+      code,
+      requested_by: callerUser.id,
+      target_id_user: target.id_user,
+      expires_at: expiresAt.toISOString(),
+    });
+    if (insertError) {
+      return reply(500, { error: `บันทึกรหัสยืนยันไม่สำเร็จ: ${insertError.message}` });
+    }
+
+    const adminName = String(me.fullName ?? '').trim() || 'ผู้ดูแลระบบ';
+    const lineError = await pushLine(
+      settings,
+      '🔐 คำขอดูรหัสผ่าน\n' +
+        `ผู้ขอ: ${adminName}\n` +
+        `ต้องการดูรหัสผ่านของ: ${target.fullName ?? username}\n` +
+        `รหัสยืนยัน: ${code}\n` +
+        'ใช้ได้ครั้งเดียว หมดอายุใน 5 นาที\n' +
+        'ถ้าไม่ได้เป็นคนขอเอง แจ้งผู้ดูแลระบบทันที',
+    );
+
+    if (lineError) return reply(502, { error: lineError });
+
+    return reply(200, { ok: true, sent: true });
+  }
+
+  // ── ตรวจรหัสยืนยันแล้วคืนรหัสผ่านของครู ───────────────────────
+  if (action === 'verify_view_code') {
+    const code = String(payload.code ?? '').trim();
+    if (code.length === 0) {
+      return reply(400, { error: 'กรุณากรอกรหัสยืนยันครับ' });
+    }
+
+    const { data: row } = await admin
+      .from('AdminViewCodes')
+      .select('id_code, expires_at, used_at')
+      .eq('code', code)
+      .eq('requested_by', callerUser.id)
+      .eq('target_id_user', target.id_user)
+      .is('used_at', null)
+      .order('id_code', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!row) return reply(400, { error: 'รหัสยืนยันไม่ถูกต้องครับ' });
+
+    if (new Date(row.expires_at).getTime() < Date.now()) {
+      return reply(400, { error: 'รหัสยืนยันหมดอายุแล้ว กรุณาขอรหัสใหม่' });
+    }
+
+    await admin
+      .from('AdminViewCodes')
+      .update({ used_at: new Date().toISOString() })
+      .eq('id_code', row.id_code);
+
+    const { data: secret } = await admin
+      .from('Teachers')
+      .select('password')
+      .eq('id_user', target.id_user)
+      .maybeSingle();
+
+    return reply(200, {
+      ok: true,
+      password: String(secret?.password ?? ''),
+      fullName: target.fullName ?? username,
+    });
   }
 
   return reply(400, { error: `ไม่รู้จักคำสั่ง "${action}"` });

@@ -180,10 +180,11 @@ class FirebaseService {
   ///
   /// service_role key อยู่ฝั่งเซิร์ฟเวอร์เท่านั้น ฝั่งเว็บส่งแค่ token ของคนที่
   /// ล็อกอินอยู่ไปให้ฟังก์ชันตรวจสิทธิ์เอง
-  Future<void> _callAdminUsersFunction({
+  Future<Map<String, dynamic>> _callAdminUsersFunction({
     required String action,
     required dynamic idUser,
     String? password,
+    String? code,
   }) async {
     final client = _supabaseIfReady;
     if (client == null) throw Exception('Supabase not initialized');
@@ -199,6 +200,7 @@ class FirebaseService {
         'action': action,
         'id_user': parsedId,
         if (password != null && password.isNotEmpty) 'password': password,
+        if (code != null && code.isNotEmpty) 'code': code,
       },
     );
 
@@ -209,6 +211,21 @@ class FirebaseService {
           : 'ดำเนินการไม่สำเร็จ (รหัส ${response.status})';
       throw Exception(message);
     }
+    return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+  }
+
+  /// ขอรหัสยืนยัน 6 หลัก ระบบจะยิงเข้ากลุ่มไลน์ (ทางเดียวกับแจ้งเตือนใบลา)
+  Future<void> requestPasswordViewCode(dynamic idUser) =>
+      _callAdminUsersFunction(action: 'request_view_code', idUser: idUser);
+
+  /// กรอกรหัสจากไลน์เพื่อขอดูรหัสผ่านของครู — คืนรหัสผ่านถ้ารหัสยืนยันถูกต้อง
+  Future<String> verifyPasswordViewCode(dynamic idUser, String code) async {
+    final result = await _callAdminUsersFunction(
+      action: 'verify_view_code',
+      idUser: idUser,
+      code: code,
+    );
+    return (result['password'] ?? '').toString();
   }
 
   /// ตั้งรหัสผ่านใหม่ให้ครูคนอื่น — ใช้ตอนแอดมินช่วยครูที่ลืมรหัส

@@ -5079,7 +5079,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         SizedBox(width: 72, child: Center(child: _buildUserProfilePhoto(user))),
         _userTableCell((user['fullName'] ?? user['name'] ?? '').toString(), 3),
         _userTableCell((user['username'] ?? '').toString(), 2),
-        _userTableCell((user['password'] ?? '').toString(), 2),
+        Expanded(flex: 2, child: _buildPasswordCell(user)),
         _userTableCell(
             (user['academicStanding'] ?? user['วิทยฐานะ'] ?? '').toString(), 2),
         _userTableCell((user['ตำแหน่งงานบริหาร'] ?? '').toString(), 2),
@@ -5106,6 +5106,221 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   icon: const Icon(Icons.delete_outline, size: 20)),
             ])),
       ]),
+    );
+  }
+
+  /// รหัสผ่านที่เปิดเผยชั่วคราวหลังยืนยันตัวตนผ่านไลน์ (คีย์คือ id_user)
+  /// ไม่เก็บถาวร รีเฟรชหน้าหรือกดปิดแล้วต้องขอรหัสยืนยันใหม่
+  final Map<String, String> _revealedPasswords = {};
+
+  /// ช่องรหัสผ่านในตาราง — ปิดบังไว้ ต้องยืนยันตัวตนผ่านไลน์ก่อนถึงจะเห็น
+  Widget _buildPasswordCell(Map<String, dynamic> user) {
+    final key = (user['id_user'] ?? user['id'] ?? '').toString();
+    final revealed = _revealedPasswords[key];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: revealed == null
+                ? Text('••••••',
+                    style: GoogleFonts.sarabun(
+                        fontSize: 12,
+                        letterSpacing: 1.5,
+                        color: Colors.blueGrey))
+                : SelectableText(revealed,
+                    style: GoogleFonts.sarabun(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green.shade800)),
+          ),
+          IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            tooltip: revealed == null ? 'ขอดูรหัสผ่าน' : 'ซ่อนรหัสผ่าน',
+            icon: Icon(
+                revealed == null
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
+                size: 18,
+                color: revealed == null ? Colors.blueGrey : Colors.green),
+            onPressed: () {
+              if (revealed != null) {
+                setState(() => _revealedPasswords.remove(key));
+              } else {
+                _showViewPasswordDialog(user);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ขั้นตอนดูรหัสผ่าน: ขอรหัสยืนยัน → ระบบยิงเข้ากลุ่มไลน์ → กรอกกลับ → เห็นรหัส
+  ///
+  /// รหัสยืนยันถูกสร้างและตรวจที่ Edge Function เท่านั้น ฝั่งเว็บไม่เคยเห็น
+  /// ค่าที่ถูกต้อง จึงเดา/ข้ามด่านจากหน้าเว็บไม่ได้
+  void _showViewPasswordDialog(Map<String, dynamic> user) {
+    final idUser = user['id_user'] ?? user['id'];
+    final codeCtrl = TextEditingController();
+    bool sending = true;
+    bool verifying = false;
+    String? errorText;
+    String? infoText;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          Future<void> requestCode() async {
+            setLocal(() {
+              sending = true;
+              errorText = null;
+              infoText = null;
+            });
+            try {
+              await _firebaseService.requestPasswordViewCode(idUser);
+              setLocal(() {
+                sending = false;
+                infoText = 'ส่งรหัสยืนยันเข้ากลุ่มไลน์แล้ว กรุณาเปิดไลน์ดูครับ';
+              });
+            } catch (e) {
+              setLocal(() {
+                sending = false;
+                errorText = e.toString().replaceFirst('Exception: ', '');
+              });
+            }
+          }
+
+          if (sending && errorText == null && infoText == null) {
+            WidgetsBinding.instance
+                .addPostFrameCallback((_) => requestCode());
+          }
+
+          Future<void> verify() async {
+            final code = codeCtrl.text.trim();
+            if (code.isEmpty) {
+              setLocal(() => errorText = 'กรุณากรอกรหัสยืนยันครับ');
+              return;
+            }
+            setLocal(() {
+              verifying = true;
+              errorText = null;
+            });
+            try {
+              final password =
+                  await _firebaseService.verifyPasswordViewCode(idUser, code);
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (mounted) {
+                setState(() => _revealedPasswords[idUser.toString()] =
+                    password.isEmpty ? '(ไม่มีข้อมูล)' : password);
+              }
+            } catch (e) {
+              setLocal(() {
+                verifying = false;
+                errorText = e.toString().replaceFirst('Exception: ', '');
+              });
+            }
+          }
+
+          return AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(children: [
+              const Icon(Icons.shield_outlined, color: Color(0xFF2563EB)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text('ยืนยันตัวตน',
+                    style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+              ),
+            ]),
+            content: SizedBox(
+              width: 360,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('ขอดูรหัสผ่านของ ${user['fullName'] ?? '-'}',
+                      style: GoogleFonts.sarabun(
+                          fontSize: 13, color: Colors.blueGrey)),
+                  const SizedBox(height: 16),
+                  if (sending)
+                    Row(children: [
+                      const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2)),
+                      const SizedBox(width: 10),
+                      Text('กำลังส่งรหัสเข้ากลุ่มไลน์...',
+                          style: GoogleFonts.sarabun(fontSize: 13)),
+                    ])
+                  else ...[
+                    if (infoText != null)
+                      Text(infoText!,
+                          style: GoogleFonts.sarabun(
+                              fontSize: 12, color: Colors.green.shade700)),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: codeCtrl,
+                      enabled: !verifying,
+                      keyboardType: TextInputType.number,
+                      maxLength: 6,
+                      style: GoogleFonts.sarabun(
+                          fontSize: 20, letterSpacing: 6, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                      decoration: InputDecoration(
+                        counterText: '',
+                        hintText: '000000',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ],
+                  if (errorText != null) ...[
+                    const SizedBox(height: 8),
+                    Text(errorText!,
+                        style: GoogleFonts.sarabun(
+                            fontSize: 12, color: Colors.red.shade700)),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: verifying ? null : () => Navigator.pop(ctx),
+                child: Text('ยกเลิก',
+                    style: GoogleFonts.sarabun(color: Colors.grey.shade600)),
+              ),
+              if (!sending)
+                TextButton(
+                  onPressed: verifying ? null : requestCode,
+                  child: Text('ขอรหัสใหม่', style: GoogleFonts.sarabun()),
+                ),
+              ElevatedButton(
+                onPressed: (sending || verifying) ? null : verify,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                child: verifying
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : Text('ยืนยัน',
+                        style:
+                            GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
