@@ -5170,12 +5170,19 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     String? errorText;
     String? infoText;
 
+    // กันยิงซ้ำ 2 ชั้น — ตั้งค่าแบบ synchronous นอก setState ทั้งคู่
+    // (เคยพลาดจนกดครั้งเดียวแล้วยิงไลน์รัวเป็นสิบข้อความ)
+    bool codeRequested = false; // ขอรหัสอัตโนมัติครั้งแรกไปแล้วหรือยัง
+    bool inFlight = false; // มีคำขอค้างอยู่หรือไม่ กันกดปุ่มรัว
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) {
           Future<void> requestCode() async {
+            if (inFlight) return; // มีคำขอค้างอยู่ อย่าส่งซ้อน
+            inFlight = true;
             setLocal(() {
               sending = true;
               errorText = null;
@@ -5192,10 +5199,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 sending = false;
                 errorText = e.toString().replaceFirst('Exception: ', '');
               });
+            } finally {
+              inFlight = false;
             }
           }
 
-          if (sending && errorText == null && infoText == null) {
+          // ขอรหัสครั้งแรกครั้งเดียวตอนเปิดหน้าต่าง
+          // ต้องตั้ง codeRequested แบบ synchronous ตรงนี้ ไม่ใช่ใน requestCode
+          // ไม่งั้นการวาดหน้าจอรอบถัดไปจะสั่งขอซ้ำก่อนที่ค่าจะถูกตั้ง
+          if (!codeRequested) {
+            codeRequested = true;
             WidgetsBinding.instance
                 .addPostFrameCallback((_) => requestCode());
           }

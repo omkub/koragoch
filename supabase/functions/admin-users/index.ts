@@ -265,6 +265,27 @@ Deno.serve(async (req) => {
 
   // ── ขอรหัสยืนยันก่อนดูรหัสผ่านของครู (2FA ผ่านไลน์) ──────────
   if (action === 'request_view_code') {
+    // 🛡️ กันยิงรัว: ถ้าเพิ่งขอรหัสสำหรับครูคนนี้ไปไม่ถึง 60 วินาที ให้ใช้ของเดิม
+    // ไม่ส่งไลน์ซ้ำ ป้องกันบั๊กฝั่งหน้าจอเผาโควตาข้อความของโรงเรียน
+    const recentCutoff = new Date(Date.now() - 60 * 1000).toISOString();
+    const { data: recent } = await admin
+      .from('AdminViewCodes')
+      .select('id_code, created_at')
+      .eq('requested_by', callerUser.id)
+      .eq('target_id_user', target.id_user)
+      .is('used_at', null)
+      .gte('created_at', recentCutoff)
+      .limit(1)
+      .maybeSingle();
+
+    if (recent) {
+      return reply(200, {
+        ok: true,
+        sent: false,
+        note: 'เพิ่งส่งรหัสไปเมื่อสักครู่ กรุณาตรวจในกลุ่มไลน์',
+      });
+    }
+
     const settings = await loadSettings(admin);
     const code = generateCode();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 นาที
