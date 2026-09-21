@@ -164,7 +164,10 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('admin_teachers_list_cache', jsonEncode(users));
       }
-    }).catchError((e) => debugPrint("Load All Users Error: $e"));
+    }).catchError((Object e) {
+      // ต้องคืนค่าชนิดเดียวกับ Future ต้นทาง ไม่งั้น catchError ไม่ทำงานจริง
+      debugPrint("Load All Users Error: $e");
+    });
 
     // 📡 และยังคงเปิด Stream ไว้เผื่อมีการเปลี่ยนแปลงสดๆ ครับ
     _firebaseService.getUsersStream().listen((users) {
@@ -449,6 +452,7 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
           folderType: 'leave',
           folderId: FirebaseService.driveLeaveFolderId,
         );
+        if (!mounted) return;
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         finalMedicalUrl = resData['url'];
       }
@@ -478,9 +482,12 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
         data['createdAt'] = DateTime.now().toIso8601String();
 
         await _firebaseService.submitLeaveRequest(data);
-        _firebaseService
-            .sendLineNotification(data)
-            .catchError((e) => debugPrint("Submit notify error: $e"));
+        // ต้องคืนค่าชนิดเดียวกับ Future ต้นทาง (bool) ไม่งั้น catchError
+        // ไม่ทำงานจริง แล้ว error จะหลุดออกไปเป็น unhandled exception
+        _firebaseService.sendLineNotification(data).catchError((Object e) {
+          debugPrint("Submit notify error: $e");
+          return false;
+        });
       }
 
       if (mounted) {

@@ -1,4 +1,4 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+﻿import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
@@ -1293,10 +1293,10 @@ class FirebaseService {
 
       if (response.statusCode == 200) {
         final resData = jsonDecode(response.body);
-        print("Drive Delete Result: ${resData['status']}");
+        debugPrint("Drive Delete Result: ${resData['status']}");
       }
     } catch (e) {
-      print("Error deleting drive file: $e");
+      debugPrint("Error deleting drive file: $e");
     }
   }
 

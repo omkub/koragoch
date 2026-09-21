@@ -4242,7 +4242,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             }
                           }
                         }
-                        if (mounted) {
+                        // context ตรงนี้มาจาก builder ไม่ใช่ของ State
+                        // จึงต้องเช็ก context.mounted ของมันเอง
+                        if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                               content: Text(
                                   'บันทึกและล้างข้อมูลเก่าเรียบร้อยครับ! 🏗️🥇')));
@@ -6459,6 +6461,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: Colors.red),

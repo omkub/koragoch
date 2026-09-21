@@ -277,6 +277,7 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
           folderType: 'profile',
           folderId: FirebaseService.driveProfileFolderId,
         );
+        if (!mounted) return;
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         final String imageUrl = resData['url'];
         final String oldImageUrl = _teacherData?['profileImage'] ?? '';
@@ -307,8 +308,9 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
         }
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      if (mounted) {
+      {
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(

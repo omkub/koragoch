@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -478,7 +478,11 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
         if (val == 'reject') {
           await _updateStatus(leave['requestId'], 'ยังไม่ส่ง');
         }
-        if (val == 'delete') _showDeleteConfirmation(context, leave);
+        // เช็ก mounted เพราะสองเงื่อนไขข้างบนมี await คั่น ผู้ใช้อาจออกจาก
+        // หน้านี้ไปแล้วก่อนถึงบรรทัดนี้
+        if (val == 'delete' && context.mounted) {
+          _showDeleteConfirmation(context, leave);
+        }
         if (val == 'edit') {
           _editLeaveRequest(leave);
         }
@@ -602,13 +606,15 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
                 }
                 await _firebaseService.deleteLeaveFromSupabase(
                     leave['requestId']?.toString() ?? '');
-                if (mounted) {
+                // context ตัวนี้รับมาเป็นพารามิเตอร์ ไม่ใช่ของ State นี้
+                // จึงต้องเช็ก context.mounted ของมันเองหลัง await
+                if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                       content: Text('✅ ลบรายการเรียบร้อยแล้ว'),
                       backgroundColor: Colors.black));
                 }
               } catch (e) {
-                if (mounted) {
+                if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                       content: Text('❌ ล้มเหลว: $e'),
                       backgroundColor: Colors.red));

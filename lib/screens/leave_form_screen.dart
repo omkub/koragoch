@@ -452,9 +452,12 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
         data['createdAt'] = DateTime.now().toIso8601String();
 
         await _firebaseService.submitLeaveRequest(data);
-        _firebaseService
-            .sendLineNotification(data)
-            .catchError((e) => debugPrint("Submit notify error: $e"));
+        // ต้องคืนค่าชนิดเดียวกับ Future ต้นทาง (bool) ไม่งั้น catchError
+        // ไม่ทำงานจริง แล้ว error จะหลุดออกไปเป็น unhandled exception
+        _firebaseService.sendLineNotification(data).catchError((Object e) {
+          debugPrint("Submit notify error: $e");
+          return false;
+        });
       }
 
       if (mounted) {
@@ -482,8 +485,11 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
 
         // 🕵️‍♂️ ถ้ามี Navigator ให้ Pop (สำหรับ Mobile) แต่ถ้าไม่มีให้ปล่อยผ่าน (สำหรับ Desktop)
         if (Navigator.of(context).canPop()) {
-          Future.delayed(const Duration(milliseconds: 500),
-              () => Navigator.of(context).pop());
+          // เช็ก mounted ซ้ำในตัวจับเวลาด้วย เพราะอีก 500ms ผู้ใช้อาจออกจาก
+          // หน้านี้ไปแล้ว การเรียก Navigator ตอนนั้นจะทำให้แอปพัง
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted) Navigator.of(context).pop();
+          });
         }
 
         if (widget.onComplete != null) {

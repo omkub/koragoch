@@ -1307,8 +1307,10 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                       FirebaseService.toIsoTime(
                           selectedTime.hour, selectedTime.minute),
                     );
+                    // ctx เป็น context ของกล่องโต้ตอบ ไม่ใช่ของหน้านี้
+                    // จึงต้องเช็ก ctx.mounted แยกก่อนสั่งปิด
+                    if (ctx.mounted) Navigator.pop(ctx);
                     if (mounted) {
-                      Navigator.pop(ctx);
                       _reloadLeaves(); // ดึงรายการใหม่ให้เลขรับขึ้นทันที
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                         content: Text('✅ บันทึกรับที่ $receiveVal เรียบร้อย'),
