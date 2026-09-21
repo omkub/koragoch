@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:convert';
 import 'dart:typed_data';
-import 'dart:js_interop';
-import 'package:web/web.dart' as web;
+import '../utils/web_platform.dart' as platform;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
 import '../utils/teacher_sort.dart';
@@ -537,24 +536,12 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
     }
 
     final htmlContent = _buildReportHtml(currentViewRound);
-    final blob = web.Blob(
-      [htmlContent.toJS].toJS,
-      web.BlobPropertyBag(type: 'text/html;charset=utf-8'),
+    if (platform.openHtmlInNewTab(htmlContent)) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+          content: Text('เบราว์เซอร์บล็อกหน้าต่าง PDF กรุณาอนุญาต pop-up')),
     );
-    final url = web.URL.createObjectURL(blob);
-    final popup = web.window.open(url, '_blank');
-
-    if (popup == null) {
-      web.URL.revokeObjectURL(url);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('เบราว์เซอร์บล็อกหน้าต่าง PDF กรุณาอนุญาต pop-up')),
-      );
-      return;
-    }
-
-    Future.delayed(
-        const Duration(seconds: 20), () => web.URL.revokeObjectURL(url));
   }
 
   String _htmlEscape(dynamic value) =>
@@ -573,21 +560,16 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
     final year = (currentViewRound['year'] ?? '').toString();
     final round = (currentViewRound['round'] ?? '').toString();
     final fileName = 'สรุปการลา_งบประมาณ_${year}_รอบที่_$round.xlsx';
-    final blob = web.Blob(
-      [bytes.toJS].toJS,
-      web.BlobPropertyBag(
-          type:
-              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+    final ok = platform.downloadBytes(
+      bytes,
+      fileName,
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
-    final url = web.URL.createObjectURL(blob);
-    final anchor = web.document.createElement('a') as web.HTMLAnchorElement
-      ..href = url
-      ..download = fileName
-      ..style.display = 'none';
-    web.document.body?.append(anchor);
-    anchor.click();
-    anchor.remove();
-    web.URL.revokeObjectURL(url);
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ดาวน์โหลดไฟล์ได้เฉพาะบนเว็บครับ')),
+      );
+    }
   }
 
   List<_ReportSummaryRow> _buildSummaryRows(

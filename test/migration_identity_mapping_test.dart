@@ -116,7 +116,9 @@ void main() {
       'สิทธิ์การเข้าถึง': 'teacher',
       'License': 'staff',
     });
-    expect(role, {'Access rights': 'teacher', 'License': 'staff'});
+    // คอลัมน์จริงในตาราง roles ของ Supabase ชื่อ 'Accessrights' ติดกันไม่มีเว้นวรรค
+    // (ยืนยันจากฐานข้อมูลจริงแล้ว) เทสเดิมคาดหวัง 'Access rights' ซึ่งไม่เคยมีอยู่จริง
+    expect(role, {'Accessrights': 'teacher', 'License': 'staff'});
     final type = MigrationService.buildIdentityImportRecord('LeaveTypes', {
       'id_leaveType': 90,
       'ประเภทการลา': 'sick leave',

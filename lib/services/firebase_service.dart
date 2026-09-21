@@ -3,9 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'dart:js_interop';
-import 'dart:js_interop_unsafe';
-import 'package:web/web.dart' as web;
+import '../utils/web_platform.dart' as platform;
 
 class FirebaseService {
   static Map<String, String> _configCache = {};
@@ -1435,109 +1433,8 @@ class FirebaseService {
     }
   }
 
-  Future<bool> _sendWebNoCorsGet(String url) async {
-    try {
-      final String jsCode = """
-        fetch(${jsonEncode(url)}, {
-          method: 'GET',
-          mode: 'no-cors',
-          cache: 'no-store',
-          keepalive: true
-        }).then(function() {
-          return true;
-        }).catch(function(e) {
-          console.error('Notify Error:', e);
-          return false;
-        });
-      """;
-      final result = await (globalContext.callMethod<JSAny>(
-              'eval'.toJS, jsCode.toJS) as JSPromise)
-          .toDart
-          .timeout(const Duration(seconds: 12), onTimeout: () => false.toJS);
-      return result == true.toJS;
-    } catch (e) {
-      debugPrint("❌ Web LINE fetch exception: $e");
-      return false;
-    }
-  }
-
-  Future<Map<String, dynamic>> _getWebJsonp(String url) async {
-    final completer = Completer<String>();
-    final callbackName = 'lineCb_${DateTime.now().microsecondsSinceEpoch}';
-    final separator = url.contains('?') ? '&' : '?';
-    final callbackUrl = '$url${separator}callback=$callbackName';
-
-    globalContext[callbackName] = ((JSAny? data) {
-      if (!completer.isCompleted) {
-        completer.complete(
-            data != null ? jsonEncode((data as JSObject).dartify()) : '{}');
-      }
-    }).toJS;
-
-    final script = web.document.createElement('script') as web.HTMLScriptElement
-      ..src = callbackUrl
-      ..async = true;
-
-    script.onError.listen((_) {
-      if (!completer.isCompleted) {
-        completer.complete(jsonEncode({
-          'status': 'error',
-          'message': 'Cannot reach Apps Script',
-        }));
-      }
-    });
-
-    web.document.body?.append(script);
-
-    Future.delayed(const Duration(seconds: 45), () {
-      if (!completer.isCompleted) {
-        completer.complete(jsonEncode({
-          'status': 'error',
-          'message': 'Apps Script timeout',
-        }));
-      }
-    });
-
-    try {
-      final result = await completer.future;
-      final decoded = jsonDecode(result);
-      return decoded is Map
-          ? Map<String, dynamic>.from(decoded)
-          : <String, dynamic>{'status': 'error', 'message': 'Invalid response'};
-    } finally {
-      globalContext[callbackName] = null;
-      script.remove();
-    }
-  }
-
-  Future<bool> _sendWebImageBeacon(String url) async {
-    try {
-      final String jsCode = """
-        new Promise(function(resolve) {
-          var img = new Image();
-          var done = false;
-          var finish = function(value) {
-            if (!done) {
-              done = true;
-              resolve(value);
-            }
-          };
-          img.onload = function() { finish(true); };
-          img.onerror = function() { finish(true); };
-          setTimeout(function() { finish(false); }, 12000);
-          img.src = ${jsonEncode(url + '&_ts=${DateTime.now().millisecondsSinceEpoch}')};
-        });
-      """;
-      final result = await (globalContext.callMethod<JSAny>(
-              'eval'.toJS, jsCode.toJS) as JSPromise)
-          .toDart
-          .timeout(const Duration(seconds: 13), onTimeout: () => false.toJS);
-      return result == true.toJS;
-    } catch (e) {
-      debugPrint("❌ Web LINE image beacon exception: $e");
-      return false;
-    }
-  }
+  Future<Map<String, dynamic>> _getWebJsonp(String url) =>
+      platform.jsonpGet(url);
 
   // 📲 ส่งแจ้งเตือนการ "เปลี่ยนสถานะ" เช่น อนุญาต/ไม่อนุญาต ไปที่ LINE กลุ่มครับ 🥇🏆🏎️
   Future<void> sendLineStatusNotification(
@@ -1565,13 +1462,7 @@ class FirebaseService {
         'message': msg,
       });
 
-      if (kIsWeb) {
-        final String jsCode =
-            "fetch(${jsonEncode(url)}, {method:'GET', mode:'no-cors'}).catch(function(e){});";
-        globalContext.callMethod<JSAny>('eval'.toJS, jsCode.toJS);
-      } else {
-        await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
-      }
+      platform.fireAndForgetGet(url);
     } catch (e) {
       debugPrint("❌ Status Notification Error: $e");
     }
@@ -1758,7 +1649,7 @@ class FirebaseService {
         if (idUser != null) 'id_user': idUser,
         'timestamp': DateTime.now().toIso8601String(),
         'platform': kIsWeb ? 'Web' : 'Mobile',
-        'userAgent': kIsWeb ? web.window.navigator.userAgent : 'Mobile App',
+        'userAgent': platform.platformUserAgent,
       });
       debugPrint('✅ Login logged to Supabase (id_user=$idUser)');
     } catch (e) {
@@ -1936,13 +1827,7 @@ class FirebaseService {
         'message': msg,
       });
 
-      if (kIsWeb) {
-        final String jsCode =
-            "fetch(${jsonEncode(url)}, {method:'GET', mode:'no-cors'}).catch(function(e){});";
-        globalContext.callMethod<JSAny>('eval'.toJS, jsCode.toJS);
-      } else {
-        await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
-      }
+      platform.fireAndForgetGet(url);
     } catch (e) {
       debugPrint("❌ Password Reset Notify Error: $e");
     }

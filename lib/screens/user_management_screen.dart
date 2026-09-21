@@ -12,8 +12,7 @@ import '../services/mobile_permission_migration.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
-import 'dart:js_interop';
-import 'package:web/web.dart' as web;
+import '../utils/web_platform.dart' as platform;
 import 'line_settings_screen.dart';
 import 'calendar_settings_tab.dart';
 import '../widgets/thai_buddhist_calendar_widget.dart';
@@ -633,82 +632,41 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   // 🔥 ฟังก์ชันเลือกรูปโปรไฟล์และส่งขึ้น Google Drive ผ่าน Script โดยตรงครับ (Real Cloud Storage) 🏎️🚀🏆
-  void _pickProfileImage() {
-    final uploadInput =
-        web.document.createElement('input') as web.HTMLInputElement
-          ..type = 'file'
-          ..accept = 'image/*';
-    uploadInput.click();
+  //
+  // การเลือกไฟล์และย่อรูปย้ายไปอยู่ใน utils/web_platform.dart แล้ว
+  // เพราะต้องใช้ DOM ซึ่งมีเฉพาะบนเว็บ ทำให้ build แอปมือถือไม่ผ่าน
+  Future<void> _pickProfileImage() async {
+    final compressedData = await platform.pickAndCompressImage();
+    if (compressedData == null) return; // ผู้ใช้กดยกเลิก หรือไม่รองรับบนอุปกรณ์นี้
 
-    uploadInput.onChange.listen((e) {
-      final files = uploadInput.files;
-      if (files != null && files.length > 0) {
-        final file = files.item(0)!;
-        final reader = web.FileReader();
-        reader.readAsDataURL(file);
+    // 🔄 เริ่มกระบวนการส่งขึ้น Google Drive ครับ 🏎️💨
+    _updateUserForm(() => _isUploading = true);
 
-        reader.onLoadEnd.listen((e) async {
-          final result = reader.result as String;
+    try {
+      final resBody = await _firebaseService.uploadDriveFile(
+        fileData: compressedData,
+        fileName: "Profile_${DateTime.now().millisecondsSinceEpoch}.jpg",
+        mimeType: "image/jpeg",
+        folderType: 'profile',
+        folderId: _profileFolderId,
+      );
 
-          final img = web.document.createElement('img') as web.HTMLImageElement
-            ..src = result;
-          img.onLoad.listen((_) async {
-            final canvas =
-                web.document.createElement('canvas') as web.HTMLCanvasElement;
-            const int maxSize = 350;
-            int width = img.naturalWidth;
-            int height = img.naturalHeight;
-            if (width > height) {
-              if (width > maxSize) {
-                height = (height * maxSize / width).round();
-                width = maxSize;
-              }
-            } else {
-              if (height > maxSize) {
-                width = (width * maxSize / height).round();
-                height = maxSize;
-              }
-            }
-            canvas.width = width;
-            canvas.height = height;
-            final ctx =
-                canvas.getContext('2d')! as web.CanvasRenderingContext2D;
-            ctx.drawImage(img, 0, 0, width.toDouble(), height.toDouble());
-
-            final compressedData = canvas.toDataURL('image/jpeg', 0.85.toJS);
-
-            // 🔄 เริ่มกระบวนการส่งขึ้น Google Drive ครับ 🏎️💨
-            _updateUserForm(() => _isUploading = true);
-
-            try {
-              final resBody = await _firebaseService.uploadDriveFile(
-                fileData: compressedData,
-                fileName:
-                    "Profile_${DateTime.now().millisecondsSinceEpoch}.jpg",
-                mimeType: "image/jpeg",
-                folderType: 'profile',
-                folderId: _profileFolderId,
-              );
-
-              setState(() {
-                _photoController.text = resBody[
-                    'url']; // 🥇 บันทึกลิ้งค์ Drive จริงๆ ลงฐานข้อมูลครับ
-              });
-              if (mounted)
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text(
-                        'อัปโหลดรูปภาพขึ้น Google Drive สำเร็จครับ! ☁️🥇')));
-            } catch (err) {
-              if (mounted)
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text('เกิดข้อผิดพลาดในการอัปโหลด: $err')));
-            } finally {
-              if (mounted) _updateUserForm(() => _isUploading = false);
-            }
-          });
-        });
+      setState(() {
+        // 🥇 บันทึกลิ้งค์ Drive จริงๆ ลงฐานข้อมูลครับ
+        _photoController.text = resBody['url'];
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('อัปโหลดรูปภาพขึ้น Google Drive สำเร็จครับ! ☁️🥇')));
       }
-    });
+    } catch (err) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('เกิดข้อผิดพลาดในการอัปโหลด: $err')));
+      }
+    } finally {
+      if (mounted) _updateUserForm(() => _isUploading = false);
+    }
   }
 
   // 🚀 เมนูเลือกวิธีจัดการรูปโปรไฟล์ครับ 🥇🏆

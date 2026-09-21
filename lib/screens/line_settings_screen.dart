@@ -5,10 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
-import 'dart:js_interop';
-import 'dart:js_interop_unsafe';
-import 'package:web/web.dart' as web;
 import '../services/firebase_service.dart';
+import '../utils/web_platform.dart' as platform;
 
 class LineSettingsScreen extends StatefulWidget {
   const LineSettingsScreen({super.key});
@@ -517,64 +515,8 @@ class _LineSettingsScreenState extends State<LineSettingsScreen> {
     }
   }
 
-  // 🕵️‍♂️ ฟังก์ชันส่งแจ้งเตือนแบบ CORS-Safe ทำงานได้ทั้งเว็บและมือถือ 🥇🏆
-  Future<bool> _sendViaAppsScript(String url) async {
-    if (kIsWeb) {
-      // 🌐 บนเว็บ: ใช้ JS fetch แบบ no-cors เพื่อทะลุผ่าน CORS บล็อก
-      // สคริปต์จะทำงานและส่ง LINE ไปก่อน เราแค่รอ 2 วิแล้วถือว่าสำเร็จครับ 🥇🏆
-      final String jsCode =
-          "fetch(${jsonEncode(url)}, {method:'GET', mode:'no-cors'}).catch(function(){});";
-      globalContext.callMethod<JSAny>('eval'.toJS, jsCode.toJS);
-      await Future.delayed(const Duration(seconds: 2));
-      return true;
-    } else {
-      // 📱 บนมือถือ: ใช้ http.get ปกติ (ไม่มีปัญหา CORS)
-      final response = await http.get(Uri.parse(url));
-      return response.statusCode == 200;
-    }
-  }
-
   Future<Map<String, dynamic>> _getAppsScriptJson(String url) async {
-    if (kIsWeb) {
-      final completer = Completer<String>();
-      final callbackName = 'lineCb_${DateTime.now().microsecondsSinceEpoch}';
-      final separator = url.contains('?') ? '&' : '?';
-      final callbackUrl = '$url${separator}callback=$callbackName';
-
-      globalContext[callbackName] = ((JSAny? data) {
-        if (!completer.isCompleted) {
-          completer.complete(data != null ? jsonEncode((data as JSObject).dartify()) : '{}');
-        }
-        globalContext[callbackName] = null;
-      }).toJS;
-
-      final script = web.document.createElement('script') as web.HTMLScriptElement
-        ..src = callbackUrl
-        ..async = true;
-
-      script.onError.listen((_) {
-        if (!completer.isCompleted) completer.complete(jsonEncode({'status': 'error', 'message': 'Network error'}));
-        globalContext[callbackName] = null;
-        script.remove();
-      });
-
-      web.document.body?.append(script);
-
-      Future.delayed(const Duration(seconds: 45), () {
-        if (!completer.isCompleted) completer.complete(jsonEncode({'status': 'error', 'message': 'Apps Script timeout'}));
-        globalContext[callbackName] = null;
-        script.remove();
-      });
-
-      final result = await completer.future;
-      globalContext[callbackName] = null;
-      script.remove();
-      
-      final decoded = jsonDecode(result);
-      if (decoded is Map) return Map<String, dynamic>.from(decoded);
-      if (decoded is List) return {'status': 'error', 'isList': true, 'data': decoded};
-      throw Exception('Invalid Apps Script response type: ${decoded.runtimeType}');
-    }
+    if (kIsWeb) return platform.jsonpGet(url);
 
     final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 12));
     if (response.statusCode != 200 && response.statusCode != 302) {

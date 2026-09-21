@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import 'dart:convert';
-import 'dart:js_interop';
-import 'package:web/web.dart' as web;
+import '../utils/web_platform.dart' as platform;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -1883,23 +1882,12 @@ ${autoPrint ? '''
 
   void _openPrintWindow({required bool autoPrint}) {
     final content = _previewLikePrintableHtml(autoPrint: autoPrint);
-    final blob = web.Blob(
-      [content.toJS].toJS,
-      web.BlobPropertyBag(type: 'text/html;charset=utf-8'),
-    );
-    final url = web.URL.createObjectURL(blob);
-    final popup = web.window.open(url, '_blank');
-    if (popup == null) {
-      web.URL.revokeObjectURL(url);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('เบราว์เซอร์บล็อกหน้าต่างพิมพ์ กรุณาอนุญาต pop-up')),
-      );
-      return;
-    }
+    if (platform.openHtmlInNewTab(content)) return;
 
-    Future.delayed(
-        const Duration(seconds: 20), () => web.URL.revokeObjectURL(url));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+          content: Text('เบราว์เซอร์บล็อกหน้าต่างพิมพ์ กรุณาอนุญาต pop-up')),
+    );
   }
 
   DateTime? _getDateTime(dynamic dt) {
