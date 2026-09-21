@@ -1,7 +1,6 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/firebase_service.dart';
 
 class MobileCalendarScreen extends StatefulWidget {
@@ -17,23 +16,8 @@ class _MobileCalendarScreenState extends State<MobileCalendarScreen> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
-  String _currentUser = '';
-  String _userRole = '';
   Map<DateTime, List<dynamic>> _events = {};
 
-  @override
-  void initState() {
-    super.initState();
-    _loadUserInfo();
-  }
-
-  Future<void> _loadUserInfo() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _currentUser = prefs.getString('currentUser') ?? '';
-      _userRole = prefs.getString('userRole') ?? '';
-    });
-  }
 
   DateTime? _stringToDateTime(String s) {
     try {

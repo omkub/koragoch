@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -341,31 +341,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
   String _masterOrderKey(String collection, String value) {
     return '$collection::$value';
-  }
-
-  String _masterNameFromData(
-    Map<String, dynamic> data,
-    String collection,
-  ) {
-    final schemaName = data[_masterNameFieldForCollection(collection)];
-    if (schemaName is String && schemaName.trim().isNotEmpty) {
-      return schemaName.trim();
-    }
-
-    final legacyName = data['Value'];
-    if (legacyName is String && legacyName.trim().isNotEmpty) {
-      return legacyName.trim();
-    }
-
-    for (final entry in data.entries) {
-      if (entry.value is String &&
-          !entry.key.toUpperCase().contains('ID') &&
-          entry.value.toString().trim().isNotEmpty) {
-        return entry.value.toString().trim();
-      }
-    }
-
-    return '';
   }
 
   Future<Map<String, int>> _loadMasterOrderByKey() async {
@@ -3352,27 +3327,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     }
   }
 
-  String _masterDropdownFieldForCurrentTab() {
-    switch (_masterSubTab) {
-      case 0:
-        return 'positions';
-      case 1:
-        return 'ranks';
-      case 2:
-        return 'departments';
-      case 3:
-        return 'roles';
-      case 4:
-        return 'adminPositions';
-      case 5:
-        return 'leaveTypes';
-      case 6:
-        return 'leaveReasons';
-      default:
-        return '';
-    }
-  }
-
   List<String> _masterItemsForCurrentTab() {
     switch (_masterSubTab) {
       case 0:
@@ -3392,38 +3346,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       default:
         return const [];
     }
-  }
-
-  String _masterValueField(Map<String, dynamic> data, {String? matchValue}) {
-    if (matchValue != null && matchValue.trim().isNotEmpty) {
-      for (final entry in data.entries) {
-        if (entry.value is String &&
-            !entry.key.toUpperCase().contains('ID') &&
-            entry.value.toString().trim() == matchValue.trim()) {
-          return entry.key;
-        }
-      }
-    }
-
-    const candidates = ['Value', 'value', 'Name', 'name', 'Type Name'];
-    for (final key in candidates) {
-      if (data.containsKey(key)) return key;
-    }
-    return 'Value';
-  }
-
-  bool _masterDocMatchesValue(
-    QueryDocumentSnapshot<Map<String, dynamic>> doc,
-    String value,
-  ) {
-    if (doc.id == value) return true;
-    final data = doc.data();
-    for (final entry in data.entries) {
-      if (entry.value is String && entry.value.toString().trim() == value) {
-        return true;
-      }
-    }
-    return false;
   }
 
   int _toIntValue(dynamic value) {
@@ -4303,13 +4225,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           Map<String, dynamic> newData = {
                             'updatedAt': FieldValue.serverTimestamp()
                           };
-
-                          for (final entry in menuEntries) {
-                            final pageId = entry.key.toString();
-                            final pageName = entry.value;
-                            final val = _readPermissionValue(
-                                currentData, pageId, pageName);
-                          }
 
                           // 🚀 บันทึกสิทธิ์ลง Supabase เท่านั้น — ห้ามเขียน Firebase
                           final client = _firebaseService.supabaseClient;

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -1586,114 +1586,9 @@ class _LeaveFormPreviewState extends State<LeaveFormPreview> {
         : fromUser;
   }
 
-  String _printableHtml({bool autoPrint = false}) {
-    final leaf = widget.leaf;
-    final leaveType = _htmlEscape(leaf['leaveType']);
-    final fullName = _htmlEscape(leaf['fullName']);
-    final rawPosition = _leafPosition();
-    final rawRank = _leafAcademicStanding();
-    final position = _htmlEscape([
-      if (rawPosition.isNotEmpty) rawPosition,
-      if (rawRank.isNotEmpty) rawRank,
-    ].join(' '));
-    final startDate =
-        _htmlEscape(FirebaseService.formatThaiDate(leaf['startDate']));
-    final endDate =
-        _htmlEscape(FirebaseService.formatThaiDate(leaf['endDate']));
-    final days = _htmlEscape(leaf['totalDays']);
-    final reason = _htmlEscape(leaf['reason']);
-    final phone = _htmlEscape(leaf['phone']);
-    final latestLeave = _getLatestLeaveInFiscalYear();
-    final latestLeaveLabel = _latestLeaveLabel(latestLeave);
-    final latestStart = latestLeave == null
-        ? ''
-        : _htmlEscape(FirebaseService.formatThaiDate(latestLeave['startDate']));
-    final latestEnd = latestLeave == null
-        ? ''
-        : _htmlEscape(FirebaseService.formatThaiDate(latestLeave['endDate']));
-    final latestDays = latestLeave == null
-        ? ''
-        : _htmlEscape(
-            FirebaseService.formatLeaveDayCount(latestLeave['totalDays']));
-    final requestDate =
-        '${_htmlEscape(_getDay(leaf['timestamp']))} ${_htmlEscape(_getMonth(leaf['timestamp']))} ${_htmlEscape(_getYear(leaf['timestamp']))}';
-
-    return '''
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Leave-$fullName</title>
-  <style>
-    @page { size: A4; margin: 18mm; }
-    body { font-family: "Sarabun", "TH Sarabun New", Arial, sans-serif; color: #111; }
-    .page { max-width: 760px; margin: 0 auto; font-size: 16px; line-height: 1.75; }
-    h1 { text-align: center; font-size: 22px; margin: 0 0 6px; text-decoration: underline; }
-    h2 { text-align: center; font-size: 18px; margin: 0 0 28px; font-weight: 400; }
-    .right { text-align: right; }
-    .row { margin: 10px 0; }
-    .indent { text-indent: 48px; }
-    .line { border-bottom: 1px dotted #444; padding: 0 10px; min-width: 120px; display: inline-block; }
-    .reason-section { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 6px; align-items: start; margin: 0 0 4px 48px; min-width: 0; text-indent: 0; }
-    .reason-label { grid-column: 1; white-space: nowrap; }
-    .reason-text { grid-column: 2; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
-    .reason-underline { grid-column: 2; border-bottom: 1px dotted #444; margin-top: 4px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 18px; }
-    th, td { border: 1px solid #333; padding: 8px; text-align: center; }
-    .sign { margin-top: 34px; text-align: center; }
-    .toolbar { position: fixed; right: 16px; top: 16px; }
-    .toolbar button { padding: 8px 12px; border: 0; background: #0f172a; color: white; border-radius: 6px; cursor: pointer; }
-    @media print { .toolbar { display: none; } body { margin: 0; } }
-  </style>
-</head>
-<body>
-  <div class="toolbar"><button onclick="window.print()">พิมพ์ / บันทึก PDF</button></div>
-  <main class="page">
-    <h1>แบบใบลา</h1>
-    <h2>ลาป่วย / ลากิจส่วนตัว / ลาคลอดบุตร</h2>
-    <p class="right">วันที่ $requestDate</p>
-    <p>เรื่อง <span class="line">ขอ$leaveType</span></p>
-    <p>เรียน ผู้อำนวยการโรงเรียน</p>
-    <p class="indent">ข้าพเจ้า <span class="line">$fullName</span>
-      ตำแหน่ง <span class="line">$position</span></p>
-    <div class="reason-section">
-      <div class="reason-label">มีความประสงค์ขอ$leaveType เนื่องจาก</div>
-      <div class="reason-text">$reason</div>
-      <div class="reason-underline"></div>
-    </div>
-    <p class="indent">ตั้งแต่วันที่ <span class="line">$startDate</span>
-      ถึงวันที่ <span class="line">$endDate</span>
-      มีกำหนด <span class="line">$days</span> วัน</p>
-    <p>ระหว่างลาติดต่อได้ที่หมายเลขโทรศัพท์ <span class="line">$phone</span></p>
-    <table>
-      <thead><tr><th>ประเภทการลา</th><th>จำนวนวัน</th><th>หมายเหตุ</th></tr></thead>
-      <tbody><tr><td>$leaveType</td><td>$days</td><td></td></tr></tbody>
-    </table>
-    <div class="sign">
-      <p>ขอแสดงความนับถือ</p>
-      <br>
-      <p>( $fullName )</p>
-    </div>
-  </main>
-${autoPrint ? '''
-<script>
-  window.addEventListener('load', function() {
-    setTimeout(function() {
-      window.focus();
-      window.print();
-    }, 350);
-  });
-</script>
-''' : ''}
-</body>
-</html>
-''';
-  }
-
   String _previewLikePrintableHtml({bool autoPrint = false}) {
     final leaf = widget.leaf;
     final leaveTypeRaw = (leaf['leaveType'] ?? '').toString();
-    final statusRaw = (leaf['status'] ?? '').toString();
     final totalDays =
         double.tryParse(leaf['totalDays']?.toString() ?? '1') ?? 1;
     final totalDaysText = FirebaseService.formatLeaveDayCount(totalDays);
@@ -1914,7 +1809,10 @@ ${autoPrint ? '''
         final parts = dt.split('/');
         return DateTime(int.parse(parts[2]) - 543, int.parse(parts[1]),
             int.parse(parts[0]));
-      } catch (e) {}
+      } catch (e) {
+        // รูปแบบวันที่ไม่ตรง (เช่นไม่ใช่ วัน/เดือน/ปี) — คืน null ให้ผู้เรียกจัดการ
+        debugPrint('แปลงวันที่ "$dt" ไม่สำเร็จ: $e');
+      }
     }
     return null;
   }

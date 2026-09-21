@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:file_picker/file_picker.dart';
@@ -30,7 +30,6 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
 
   // State
   Map<String, dynamic>? _selectedUser;
-  String? _loggedInUser;
   String? _userRole;
   String? _selectedLeaveType;
   DateTime _startDate = DateTime.now();
@@ -90,7 +89,6 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
           final cachedData = Map<String, dynamic>.from(decoded);
           setState(() {
             _selectedUser = cachedData;
-            _loggedInUser = name;
             _userRole = role;
             _phoneController.text =
                 (cachedData['phone'] ?? cachedData['phoneNumber'] ?? '')
@@ -98,19 +96,16 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
           });
         } else {
           setState(() {
-            _loggedInUser = name;
             _userRole = role;
           });
         }
       } catch (_) {
         setState(() {
-          _loggedInUser = name;
           _userRole = role;
         });
       }
     } else {
       setState(() {
-        _loggedInUser = name;
         _userRole = role;
       });
     }

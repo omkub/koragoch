@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -26,7 +26,6 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
   Map<String, dynamic>? _teacherData;
   bool _isLoading = true;
   bool _isEditing = false;
-  bool _isSaving = false;
   bool _isUploadingImage = false;
   bool _showPasswordReset = false;
   String _userRole = ""; // 🔥 เพิ่มตัวแปรเก็บ Role ครับ 🕵️‍♂️🥇
@@ -43,7 +42,6 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
 
   // Controllers for editing
   final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _positionController = TextEditingController();
   final TextEditingController _fullNameController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
 
@@ -181,7 +179,6 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
 
   Future<void> _saveProfile() async {
     if (_teacherData == null) return;
-    setState(() => _isSaving = true);
 
     try {
       final docId = _teacherData!['docId'] ?? _teacherData!['id'];
@@ -230,7 +227,6 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
             backgroundColor: Colors.redAccent));
       }
     } finally {
-      setState(() => _isSaving = false);
     }
   }
 

@@ -24,7 +24,6 @@ class _LineSettingsScreenState extends State<LineSettingsScreen> {
   
   bool _isSavingLineToken = false;
   bool _isSendingLineTest = false;
-  final bool _showLineToken = false;
   String? _lineStatusMsg;
   bool _lineStatusIsError = false;
   String _lineNotifyTemplate = '📋 แจ้งเตือนการยื่นใบลา\n👤 ชื่อ: {name}\n📅 ประเภทลา: {type}\n🗓️ ตั้งแต่: {startDate} ถึง {endDate}\n📆 จำนวน: {days} วัน\n✍️ เหตุผล: {reason}';

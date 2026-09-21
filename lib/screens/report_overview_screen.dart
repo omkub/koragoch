@@ -816,7 +816,6 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
 
     final rows = _visibleTeachers.map((teacher) {
       final name = (teacher['fullName'] ?? '-').toString();
-      final position = (teacher['position'] ?? '-').toString();
       final approvedLeaves = _allLeaves.where((l) {
         final leaveName = (l['fullName'] ?? '').toString().trim();
         if (leaveName != name.trim()) return false;

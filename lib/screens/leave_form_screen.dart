@@ -186,25 +186,6 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
     return "${date.day}/${date.month}/${date.year + 543}";
   }
 
-  String _getDay(DateTime date) => date.day.toString();
-  String _getMonth(DateTime date) {
-    const months = [
-      "มกราคม",
-      "กุมภาพันธ์",
-      "มีนาคม",
-      "เมษายน",
-      "พฤษภาคม",
-      "มิถุนายน",
-      "กรกฎาคม",
-      "สิงหาคม",
-      "กันยายน",
-      "ตุลาคม",
-      "พฤศจิกายน",
-      "ธันวาคม"
-    ];
-    return months[date.month - 1];
-  }
-
   DateTime? _parseThaiDate(String? dateStr) {
     if (dateStr == null || dateStr.isEmpty) return null;
     try {
