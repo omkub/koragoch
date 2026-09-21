@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // 🚀 ล็อกอินผ่าน Supabase แล้วครับ
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -647,7 +647,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ? []
                   : [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: Colors.black.withValues(alpha: 0.1),
                         blurRadius: 20,
                         offset: const Offset(0, 10),
                       )
@@ -688,7 +688,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                        color: Colors.white.withOpacity(0.2), width: 1),
+                        color: Colors.white.withValues(alpha: 0.2), width: 1),
                   ),
                   child: ClipOval(
                     child: Image.asset('image/Logo.jpg', fit: BoxFit.contain),
@@ -909,7 +909,7 @@ class DotPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withOpacity(0.05)
+      ..color = Colors.white.withValues(alpha: 0.05)
       ..strokeWidth = 1.0;
 
     const spacing = 15.0;

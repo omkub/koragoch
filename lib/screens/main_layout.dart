@@ -214,8 +214,9 @@ class _MainLayoutState extends State<MainLayout> {
   bool _hasAccess(int index) {
     // 👑 แอดมินต้องเห็นเมนูจัดการระบบเสมอ (index 4) เพื่อแก้สิทธิ์คืนได้ครับ 🛡️
     if (index == 4 &&
-        (_userRole.contains('ผู้ดูแลระบบ') || _currentUser == 'ผู้ดูแลระบบ'))
+        (_userRole.contains('ผู้ดูแลระบบ') || _currentUser == 'ผู้ดูแลระบบ')) {
       return true;
+    }
 
     // 🛡️ สำหรับเมนูอื่นๆ ให้ดูตามรายการที่ได้รับอนุญาตจริงจากฐานข้อมูลครับ
     if (_allowedMenus == null) return false;
@@ -305,8 +306,9 @@ class _MainLayoutState extends State<MainLayout> {
       body: Builder(
           builder: (context) {
             int effectiveIndex = _selectedIndex;
-            if (_userRole.contains('ครู') && effectiveIndex == 0)
+            if (_userRole.contains('ครู') && effectiveIndex == 0) {
               effectiveIndex = 2;
+            }
             if (effectiveIndex >= _cachedScreens.length) effectiveIndex = 0;
 
             if (_permissionData == null) {

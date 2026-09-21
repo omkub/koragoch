@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:file_picker/file_picker.dart';
@@ -404,8 +404,9 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
           DateTime(_endDate.year, _endDate.month, _endDate.day);
 
       for (var leave in history) {
-        if (_editRequestId != null && leave['requestId'] == _editRequestId)
+        if (_editRequestId != null && leave['requestId'] == _editRequestId) {
           continue;
+        }
 
         final String status = (leave['status'] ?? '').toString();
         if (status.contains('รอ') ||

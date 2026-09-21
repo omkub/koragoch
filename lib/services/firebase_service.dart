@@ -92,9 +92,7 @@ class FirebaseService {
   Future<void> _supabaseSet(
     String collectionName,
     String docId,
-    Map<String, dynamic> data, {
-    bool merge = false,
-  }) async {
+    Map<String, dynamic> data) async {
     try {
       await _supabaseUpsert(collectionName, _toSupabaseRecord(data, docId));
     } catch (e) {
@@ -1275,7 +1273,9 @@ class FirebaseService {
   Future<void> deleteDriveFile(String? fileUrl) async {
     if (fileUrl == null ||
         fileUrl.isEmpty ||
-        !fileUrl.contains('drive.google.com')) return;
+        !fileUrl.contains('drive.google.com')) {
+      return;
+    }
 
     final fileId = _extractFileId(fileUrl);
     if (fileId == null) return;
@@ -1320,8 +1320,9 @@ class FirebaseService {
           int day = int.parse(parts[0]);
           int month = int.parse(parts[1]);
           int year = int.parse(parts[2]);
-          if (year < 2100)
+          if (year < 2100) {
             year += 543; // 🛡️ รองรับกรณีฐานข้อมูลดันเก็บเป็นปี ค.ศ. 🥇🏆
+          }
           date = DateTime(year - 543, month, day);
         }
       } catch (e) {
@@ -1756,7 +1757,7 @@ class FirebaseService {
           await Future.wait([futureLeaves, futureTeachers, futureLeaveTypes]);
       final rows = results[0] as List;
       final teachers = results[1] as List;
-      final leaveTypes = results[2] as List<Map<String, dynamic>>;
+      final leaveTypes = results[2];
 
       final userMap = <String, Map<String, dynamic>>{};
       for (final t in teachers) {
@@ -1771,8 +1772,9 @@ class FirebaseService {
         final tid = (t['id_leaveType'] ?? t['id'])?.toString();
         final name =
             (t['leaveName'] ?? t['name'] ?? t['Value'] ?? '').toString();
-        if (tid != null && tid.isNotEmpty && name.isNotEmpty)
+        if (tid != null && tid.isNotEmpty && name.isNotEmpty) {
           typeMap[tid] = name;
+        }
       }
 
       var mapped = rows.map((row) {
@@ -2103,7 +2105,7 @@ class FirebaseService {
       final rows = results[0] as List;
       final teachers = results[1] as List;
       final leaveTypes = results[2];
-      final fiscalRounds = results[3] as List<Map<String, dynamic>>;
+      final fiscalRounds = results[3];
 
       final userMap = <String, Map<String, dynamic>>{};
       for (final t in teachers) {

@@ -209,8 +209,9 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
     if (dept.contains('คณิตศาสตร์')) return const Color(0xFF3B82F6); // Blue
     if (dept.contains('วิทยาศาสตร์')) return const Color(0xFF10B981); // Emerald
     if (dept.contains('ภาษาไทย')) return const Color(0xFFF59E0B); // Amber
-    if (dept.contains('ภาษาต่างประเทศ'))
+    if (dept.contains('ภาษาต่างประเทศ')) {
       return const Color(0xFF8B5CF6); // Violet
+    }
     if (dept.contains('ศิลปะ')) return const Color(0xFFEC4899); // Pink
     if (dept.contains('การงานอาชีพ')) return const Color(0xFFF97316); // Orange
     if (dept.contains('สุขศึกษา')) return const Color(0xFFEF4444); // Red
@@ -242,7 +243,7 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
                       child: ConstrainedBox(
                         constraints: BoxConstraints(minWidth: constraints.maxWidth),
                         child: DataTable(
-                          headingRowColor: MaterialStateProperty.resolveWith((states) => baseColor.withValues(alpha: 0.15)),
+                          headingRowColor: WidgetStateProperty.resolveWith((states) => baseColor.withValues(alpha: 0.15)),
                     headingTextStyle: GoogleFonts.sarabun(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
                     dataRowMinHeight: 60,
                     dataRowMaxHeight: 60,
@@ -268,7 +269,7 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
                       final Color rowColor = index % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
                       
                       return DataRow(
-                        color: MaterialStateProperty.resolveWith((states) => rowColor),
+                        color: WidgetStateProperty.resolveWith((states) => rowColor),
                         cells: [
                           DataCell(Text('${index + 1}', style: GoogleFonts.sarabun(fontSize: 14, color: Colors.blueGrey))),
                           DataCell(_buildTableAvatar(u, baseColor)),

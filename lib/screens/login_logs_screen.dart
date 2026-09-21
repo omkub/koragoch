@@ -508,7 +508,7 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
                 color: const Color(0xFF717783))),
         const SizedBox(height: 6),
         DropdownButtonFormField<String>(
-          value: value,
+          initialValue: value,
           decoration: InputDecoration(
             filled: true,
             fillColor: const Color(0xFFF7F9FC),

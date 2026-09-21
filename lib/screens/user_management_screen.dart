@@ -15,7 +15,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../utils/web_platform.dart' as platform;
 import 'line_settings_screen.dart';
 import 'calendar_settings_tab.dart';
-import '../widgets/thai_buddhist_calendar_widget.dart';
 import '../utils/profile_image.dart';
 
 class UserManagementScreen extends StatefulWidget {
@@ -507,15 +506,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         updateData.remove('password');
         await _firebaseService.updateUser(_editingId!, updateData);
 
-        if (mounted)
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('แก้ไขข้อมูลเรียบร้อยแล้ว')));
+        }
       } else {
         await _firebaseService
             .addUser({...data, 'timestamp': DateTime.now().toIso8601String()});
-        if (mounted)
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('บันทึกผู้ใช้ใหม่เรียบร้อยแล้ว')));
+        }
       }
       if (!mounted) return;
       _updateUserForm(() => _isSavingUser = false);
@@ -620,13 +621,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         await _firebaseService.deleteUser(id);
         _refreshUsers();
 
-        if (mounted)
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('ลบข้อมูลเรียบร้อยแล้วครับ')));
+        }
       } catch (e) {
-        if (mounted)
+        if (mounted) {
           ScaffoldMessenger.of(context)
               .showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
+        }
       }
     }
   }
@@ -1443,8 +1446,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     child: InkWell(
                       onTap: () async {
                         final text =
-                            '=== ${entry.key} (${entry.value.length} รายการ) ===\n' +
-                                entry.value.join('\n');
+                            '=== ${entry.key} (${entry.value.length} รายการ) ===\n${entry.value.join('\n')}';
                         await Clipboard.setData(ClipboardData(text: text));
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -1721,8 +1723,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         ? await _selectMigrationCollections()
         : MigrationService.orderedCollectionsForImport(
             List<String>.of(collections));
-    if (targetCollections == null || targetCollections.isEmpty || !mounted)
+    if (targetCollections == null || targetCollections.isEmpty || !mounted) {
       return;
+    }
     setState(() {
       _migrationSelectionTouched = true;
       _selectedMigrationCollections
@@ -2602,11 +2605,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             .from('LoginLogs')
             .select('id_LoginLogs')
             .eq('id_user', idUser ?? -1);
-        if (timestamp != null)
+        if (timestamp != null) {
           existingQuery = existingQuery.eq('timestamp', timestamp);
+        }
         final platform = record['platform'];
-        if (platform != null)
+        if (platform != null) {
           existingQuery = existingQuery.eq('platform', platform);
+        }
         final existing = await existingQuery.limit(1).maybeSingle();
         if (existing == null) {
           await supabase.from('LoginLogs').insert(record);
@@ -2708,10 +2713,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             .select('id_leaves')
             .eq('id_user', idUser)
             .eq('id_leaveType', idLeaveType);
-        if (startDate != null)
+        if (startDate != null) {
           existingQuery = existingQuery.eq('startDate', startDate);
-        if (endDate != null)
+        }
+        if (endDate != null) {
           existingQuery = existingQuery.eq('endDate', endDate);
+        }
         final reason = record['reason'];
         if (reason != null) existingQuery = existingQuery.eq('reason', reason);
         final existing = await existingQuery.limit(1).maybeSingle();
@@ -2916,8 +2923,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     if (row == null) throw FormatException('ไม่พบ LeaveTypes.leaveName=$name');
     final value = row['id_leaveType'];
     final parsed = value is int ? value : int.tryParse(value?.toString() ?? '');
-    if (parsed == null)
+    if (parsed == null) {
       throw FormatException('LeaveTypes.id_leaveType ไม่ใช่ตัวเลข: $name');
+    }
     return parsed;
   }
 
@@ -3061,7 +3069,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     if (direct != null) return direct;
 
     final roleName = rawRole.toString().trim();
-    if (roleName.isEmpty) throw FormatException('ไม่พบ role/id_role');
+    if (roleName.isEmpty) throw const FormatException('ไม่พบ role/id_role');
 
     final role = await supabase
         .from('roles')
@@ -3124,11 +3132,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               // 1. ผู้อำนวยการ (เช็คทั้งสองฟิลด์)
               if ((pos.contains('ผู้อำนวยการ') ||
                       adminPos.contains('ผู้อำนวยการ')) &&
-                  !(pos.contains('รอง') || adminPos.contains('รอง'))) return 0;
+                  !(pos.contains('รอง') || adminPos.contains('รอง'))) {
+                return 0;
+              }
 
               // 2. รองผู้อำนวยการ
               if (pos.contains('รองผู้อำนวยการ') ||
-                  adminPos.contains('รองผู้อำนวยการ')) return 1;
+                  adminPos.contains('รองผู้อำนวยการ')) {
+                return 1;
+              }
 
               // 3. หัวหน้ากลุ่มงาน / ตำแหน่งบริหารงาน
               if (adminPos.isNotEmpty) return 2;
@@ -3737,8 +3749,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
     controller.dispose();
 
-    if (newValue == null || newValue.isEmpty || newValue == currentValue)
+    if (newValue == null || newValue.isEmpty || newValue == currentValue) {
       return;
+    }
     if (_masterItemsForCurrentTab().contains(newValue)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -4314,10 +4327,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             }
                           }
                         }
-                        if (mounted)
+                        if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                               content: Text(
                                   'บันทึกและล้างข้อมูลเก่าเรียบร้อยครับ! 🏗️🥇')));
+                        }
                       },
                       icon:
                           const Icon(Icons.cleaning_services_rounded, size: 18),
@@ -4368,7 +4382,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                         color: Colors.blueGrey.shade500)),
                               ),
                             ))
-                        .toList(),
+                        ,
                   ],
                 ),
               ),
@@ -4420,7 +4434,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 scale: 0.7,
                                 child: Switch(
                                   value: hasAccess,
-                                  activeColor: accentColor,
+                                  activeThumbColor: accentColor,
                                   onChanged: isLockAdmin
                                       ? null
                                       : (val) async {
@@ -4452,10 +4466,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                               'updatedAt': DateTime.now()
                                                   .toIso8601String(),
                                             }, onConflict: 'id_role,menu_id');
-                                            if (mounted)
+                                            if (mounted) {
                                               setState(() {
                                                 _permsFuture = null;
                                               });
+                                            }
                                           } catch (e) {
                                             debugPrint(
                                                 '❌ Supabase permission toggle error: $e');
@@ -4465,7 +4480,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               ),
                             ),
                           );
-                        }).toList(),
+                        }),
                       ],
                     ),
                   );
@@ -4950,7 +4965,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               Text('รายชื่อผู้ใช้งาน',
                   style: GoogleFonts.sarabun(
                       fontSize: 18, fontWeight: FontWeight.bold)),
-              Text('แสดง ' + users.length.toString() + ' คน',
+              Text('แสดง ${users.length} คน',
                   style: GoogleFonts.sarabun(
                       fontSize: 12, color: Colors.blueGrey)),
             ]),
@@ -5793,7 +5808,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Icon(Icons.cleaning_services_rounded, color: Colors.red, size: 24),
+            const Icon(Icons.cleaning_services_rounded, color: Colors.red, size: 24),
             const SizedBox(width: 12),
             Text('ล้างเลขรับใบลาทั้งหมด',
                 style: GoogleFonts.sarabun(
@@ -6242,7 +6257,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         String mapKey(String h) {
           String raw = h.toLowerCase().trim();
           if (raw.contains('ชื่อ') &&
-              (raw.contains('สกุล') || raw.contains('นาม'))) return 'fullName';
+              (raw.contains('สกุล') || raw.contains('นาม'))) {
+            return 'fullName';
+          }
           if (raw.contains('ชื่อ') && raw.length <= 5) return 'fullName';
           if (raw.contains('ประเภท') && raw.contains('ลา')) return 'leaveType';
           if (raw.contains('เริ่ม')) return 'startDate';
@@ -6252,14 +6269,18 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           if (raw.contains('id') || raw.contains('รหัส')) return 'requestId';
           if (raw.contains('ปีงบ')) return 'year';
           if (raw.contains('วัน') || raw.contains('total')) return 'days';
-          if (raw.contains('ผู้ยื่น') || raw.contains('ผู้ยืน'))
+          if (raw.contains('ผู้ยื่น') || raw.contains('ผู้ยืน')) {
             return 'submitter';
-          if (raw.contains('ข้อมูล') || raw.contains('ติดต่อ'))
+          }
+          if (raw.contains('ข้อมูล') || raw.contains('ติดต่อ')) {
             return 'contact';
-          if (raw.contains('ใบรับรอง') || raw.contains('แพทย์'))
+          }
+          if (raw.contains('ใบรับรอง') || raw.contains('แพทย์')) {
             return 'medicalCertificate';
-          if (raw.contains('ผู้ใช้') || raw.contains('username'))
+          }
+          if (raw.contains('ผู้ใช้') || raw.contains('username')) {
             return 'username';
+          }
           return '';
         }
 
@@ -6284,8 +6305,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               .split(rowExp)
               .map((e) => e.trim().replaceAll('"', ''))
               .toList();
-          if (rowItems.isEmpty || (rowItems.length == 1 && rowItems[0].isEmpty))
+          if (rowItems.isEmpty || (rowItems.length == 1 && rowItems[0].isEmpty)) {
             continue;
+          }
 
           // 🛠️ คัดแยกและจัดการปัญหาข้อมูลเลื่อน (Shifting Issue) แบบละเอียดครับ 🥇🏆
           var activeHeaders = List<String>.from(rawHeaders);

@@ -1172,9 +1172,10 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
         ));
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('❌ เกิดข้อผิดพลาด: $e')));
+      }
     }
   }
 
@@ -1240,8 +1241,9 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                       firstDate: DateTime(2020),
                       lastDate: DateTime(2030),
                     );
-                    if (picked != null)
+                    if (picked != null) {
                       setDialogState(() => selectedDate = picked);
+                    }
                   },
                   child: Container(
                     width: double.infinity,
@@ -1265,8 +1267,9 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                       context: ctx,
                       initialTime: selectedTime,
                     );
-                    if (picked != null)
+                    if (picked != null) {
                       setDialogState(() => selectedTime = picked);
+                    }
                   },
                   child: Container(
                     width: double.infinity,
@@ -1389,24 +1392,26 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
             onPressed: () async {
               Navigator.pop(ctx);
               try {
-                if (medicalUrl.isNotEmpty)
+                if (medicalUrl.isNotEmpty) {
                   await _firebaseService.deleteDriveFileStrict(medicalUrl);
+                }
                 // 🚀 ลบจาก Supabase — ห้ามลบ Firebase
                 await _firebaseService.deleteLeaveFromSupabase(requestId);
                 if (mounted) {
                   setState(() => _selectedIds.remove(requestId));
                   _reloadLeaves(); // ดึงรายการใหม่ ไม่งั้นแถวที่ลบไปยังค้างอยู่
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text('✅ ลบรายการเรียบร้อยแล้ว'),
+                      content: const Text('✅ ลบรายการเรียบร้อยแล้ว'),
                       backgroundColor: Colors.red.shade400,
                       behavior: SnackBarBehavior.floating,
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10))));
                 }
               } catch (e) {
-                if (mounted)
+                if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('❌ เกิดข้อผิดพลาด: $e')));
+                }
               }
             },
             style: ElevatedButton.styleFrom(
@@ -1487,8 +1492,9 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
             orElse: () => {});
         if (leaf.isNotEmpty) {
           final medicalUrl = leaf['medicalCertificate']?.toString() ?? '';
-          if (medicalUrl.isNotEmpty)
+          if (medicalUrl.isNotEmpty) {
             await _firebaseService.deleteDriveFileStrict(medicalUrl);
+          }
           await _firebaseService.deleteLeaveFromSupabase(id);
           count++;
         }
@@ -1617,7 +1623,7 @@ class _LeaveFormPreviewState extends State<LeaveFormPreview> {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Leave-${fullName}</title>
+  <title>Leave-$fullName</title>
   <style>
     @page { size: A4; margin: 18mm; }
     body { font-family: "Sarabun", "TH Sarabun New", Arial, sans-serif; color: #111; }
@@ -1645,28 +1651,28 @@ class _LeaveFormPreviewState extends State<LeaveFormPreview> {
   <main class="page">
     <h1>แบบใบลา</h1>
     <h2>ลาป่วย / ลากิจส่วนตัว / ลาคลอดบุตร</h2>
-    <p class="right">วันที่ ${requestDate}</p>
-    <p>เรื่อง <span class="line">ขอ${leaveType}</span></p>
+    <p class="right">วันที่ $requestDate</p>
+    <p>เรื่อง <span class="line">ขอ$leaveType</span></p>
     <p>เรียน ผู้อำนวยการโรงเรียน</p>
-    <p class="indent">ข้าพเจ้า <span class="line">${fullName}</span>
-      ตำแหน่ง <span class="line">${position}</span></p>
+    <p class="indent">ข้าพเจ้า <span class="line">$fullName</span>
+      ตำแหน่ง <span class="line">$position</span></p>
     <div class="reason-section">
-      <div class="reason-label">มีความประสงค์ขอ${leaveType} เนื่องจาก</div>
-      <div class="reason-text">${reason}</div>
+      <div class="reason-label">มีความประสงค์ขอ$leaveType เนื่องจาก</div>
+      <div class="reason-text">$reason</div>
       <div class="reason-underline"></div>
     </div>
-    <p class="indent">ตั้งแต่วันที่ <span class="line">${startDate}</span>
-      ถึงวันที่ <span class="line">${endDate}</span>
-      มีกำหนด <span class="line">${days}</span> วัน</p>
-    <p>ระหว่างลาติดต่อได้ที่หมายเลขโทรศัพท์ <span class="line">${phone}</span></p>
+    <p class="indent">ตั้งแต่วันที่ <span class="line">$startDate</span>
+      ถึงวันที่ <span class="line">$endDate</span>
+      มีกำหนด <span class="line">$days</span> วัน</p>
+    <p>ระหว่างลาติดต่อได้ที่หมายเลขโทรศัพท์ <span class="line">$phone</span></p>
     <table>
       <thead><tr><th>ประเภทการลา</th><th>จำนวนวัน</th><th>หมายเหตุ</th></tr></thead>
-      <tbody><tr><td>${leaveType}</td><td>${days}</td><td></td></tr></tbody>
+      <tbody><tr><td>$leaveType</td><td>$days</td><td></td></tr></tbody>
     </table>
     <div class="sign">
       <p>ขอแสดงความนับถือ</p>
       <br>
-      <p>( ${fullName} )</p>
+      <p>( $fullName )</p>
     </div>
   </main>
 ${autoPrint ? '''
@@ -1766,7 +1772,7 @@ ${autoPrint ? '''
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Leave-${fullName}</title>
+  <title>Leave-$fullName</title>
   <style>
     @page { size: A4; margin: 0; }
     * { box-sizing: border-box; }
@@ -1817,30 +1823,30 @@ ${autoPrint ? '''
     <section class="school">
       <strong>โรงเรียนรมย์บุรีพิทยาคม รัชมังคลาภิเษก</strong><br>
       อำเภอบ้านด่าน จังหวัดบุรีรัมย์ 31000<br><br>
-      วันที่ ${requestDate}
+      วันที่ $requestDate
     </section>
 
-    <div class="row"><strong>เรื่อง</strong><span class="line grow">ขอ${leaveType}</span></div>
+    <div class="row"><strong>เรื่อง</strong><span class="line grow">ขอ$leaveType</span></div>
     <div class="row">เรียน ผู้อำนวยการโรงเรียนรมย์บุรีพิทยาคม รัชมังคลาภิเษก</div>
-    <div class="row indent"><span>ข้าพเจ้า</span><span class="line grow">${fullName}</span><span>ตำแหน่ง</span><span class="line grow">${position}</span><span style="white-space: nowrap;">โรงเรียนรมย์บุรีพิทยาคม</span></div>
+    <div class="row indent"><span>ข้าพเจ้า</span><span class="line grow">$fullName</span><span>ตำแหน่ง</span><span class="line grow">$position</span><span style="white-space: nowrap;">โรงเรียนรมย์บุรีพิทยาคม</span></div>
     <div class="row">รัชมังคลาภิเษก สังกัดสำนักงานเขตพื้นที่การศึกษามัธยมศึกษาบุรีรัมย์ กระทรวงศึกษาธิการ</div>
 
     <section class="leave-block">
       <strong>ขอลา</strong>
       <div class="checks">
-        ${_printableLeaveTypes.map((t) => '<div class="checkline">' + checkbox(t, _isSameLeaveType(leaveTypeRaw, t)) + '</div>').join('')}
+        ${_printableLeaveTypes.map((t) => '<div class="checkline">${checkbox(t, _isSameLeaveType(leaveTypeRaw, t))}</div>').join('')}
       </div>
       <div class="brace">}</div>
       <div class="reason-section" style="padding-top: 34px;">
         <span class="reason-label">เนื่องจาก</span>
-        <div class="reason-text">${reason}</div>
+        <div class="reason-text">$reason</div>
         <div class="reason-underline"></div>
       </div>
     </section>
 
-    <div class="row"><span>ตั้งแต่วันที่</span><span class="line w150">${startDate}</span><span>ถึงวันที่</span><span class="line w150">${endDate}</span><span>มีกำหนด</span><span class="line w60">${totalDaysText}</span><span>วัน</span></div>
-    <div class="row"><span>ข้าพเจ้าได้ลา</span><span>${checkbox('ป่วย', latestLeaveLabel == 'ป่วย')}</span><span>${checkbox('ลากิจส่วนตัว', latestLeaveLabel == 'ลากิจส่วนตัว')}</span><span>${checkbox('ลาคลอดบุตร', latestLeaveLabel == 'ลาคลอดบุตร')}</span><span>ครั้งสุดท้ายตั้งแต่วันที่</span><span class="line w130">${latestStart}</span></div>
-    <div class="row"><span>ถึงวันที่</span><span class="line w130">${latestEnd}</span><span>มีกำหนด</span><span class="line w60">${latestDays}</span><span>วัน ในระหว่างที่ลาติดต่อข้าพเจ้าได้ที่</span><span class="line grow">${phone}</span></div>
+    <div class="row"><span>ตั้งแต่วันที่</span><span class="line w150">$startDate</span><span>ถึงวันที่</span><span class="line w150">$endDate</span><span>มีกำหนด</span><span class="line w60">$totalDaysText</span><span>วัน</span></div>
+    <div class="row"><span>ข้าพเจ้าได้ลา</span><span>${checkbox('ป่วย', latestLeaveLabel == 'ป่วย')}</span><span>${checkbox('ลากิจส่วนตัว', latestLeaveLabel == 'ลากิจส่วนตัว')}</span><span>${checkbox('ลาคลอดบุตร', latestLeaveLabel == 'ลาคลอดบุตร')}</span><span>ครั้งสุดท้ายตั้งแต่วันที่</span><span class="line w130">$latestStart</span></div>
+    <div class="row"><span>ถึงวันที่</span><span class="line w130">$latestEnd</span><span>มีกำหนด</span><span class="line w60">$latestDays</span><span>วัน ในระหว่างที่ลาติดต่อข้าพเจ้าได้ที่</span><span class="line grow">$phone</span></div>
 
     <p class="center" style="margin: 22px 0 0;">จึงเรียนมาเพื่อโปรดพิจารณา</p>
 
@@ -1854,14 +1860,14 @@ ${autoPrint ? '''
           </thead>
           <tbody>${statRow('ป่วย', 'ป่วย')}${statRow('ลากิจส่วนตัว', 'กิจ')}${statRow('ลาคลอดบุตร', 'คลอด')}</tbody>
         </table>
-        <div class="signature">ลงชื่อ ..................................................<br>${hrName}<br>หัวหน้ากลุ่มบริหารงานบุคคล<br>........../........../..........</div>
+        <div class="signature">ลงชื่อ ..................................................<br>$hrName<br>หัวหน้ากลุ่มบริหารงานบุคคล<br>........../........../..........</div>
       </div>
       <div>
-        <div class="signature" style="margin-top:0;">ขอแสดงความนับถือ<br><br>ลงชื่อ ..................................................<br>( ${fullName} )<br>ตำแหน่ง ${applicantPosition}</div>
+        <div class="signature" style="margin-top:0;">ขอแสดงความนับถือ<br><br>ลงชื่อ ..................................................<br>( $fullName )<br>ตำแหน่ง $applicantPosition</div>
         <div class="comment">ความคิดเห็น</div><div class="line grow" style="width:100%; margin-top:4px;"></div>
-        <div class="signature">ลงชื่อ ..................................................<br>${deputyName}<br>รองผู้อำนวยการกลุ่มบริหารงานบุคคล<br>........../........../..........</div>
+        <div class="signature">ลงชื่อ ..................................................<br>$deputyName<br>รองผู้อำนวยการกลุ่มบริหารงานบุคคล<br>........../........../..........</div>
         <div class="order"><strong>คำสั่ง</strong><span>${checkbox('อนุญาต', false)}</span><span>${checkbox('ไม่อนุญาต', false)}</span></div>
-        <div class="signature">ลงชื่อ ..................................................<br>${directorName}<br>ผู้อำนวยการโรงเรียนรมย์บุรีพิทยาคม รัชมังคลาภิเษก<br>........../........../..........</div>
+        <div class="signature">ลงชื่อ ..................................................<br>$directorName<br>ผู้อำนวยการโรงเรียนรมย์บุรีพิทยาคม รัชมังคลาภิเษก<br>........../........../..........</div>
       </div>
     </section>
   </main>
@@ -2327,7 +2333,7 @@ ${autoPrint ? '''
                                 3: FlexColumnWidth(1.0),
                               },
                               children: [
-                                TableRow(children: [
+                                const TableRow(children: [
                                   _PdfCell("ประเภท\nการลา",
                                       bold: true, size: 10, height: 60),
                                   _PdfCell("ลามาแล้ว\nครั้ง/วัน\n(วันทำการ)",
@@ -2570,7 +2576,7 @@ ${autoPrint ? '''
   }
 
   Widget _PdfSplitCell(String left, String right) {
-    return Container(
+    return SizedBox(
       height: 25,
       child: Row(
         children: [

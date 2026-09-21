@@ -72,10 +72,11 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading)
+    if (_isLoading) {
       return const Scaffold(
           body: Center(
               child: CircularProgressIndicator(color: Color(0xFF2563EB))));
+    }
 
     return Material(
       color: const Color(0xFFF4F7FC), // Premium background
@@ -429,12 +430,15 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
   }
 
   Color _getStatusColor(String status) {
-    if (status.contains('รอ') || status == 'ยังไม่ส่ง')
+    if (status.contains('รอ') || status == 'ยังไม่ส่ง') {
       return const Color(0xFFF59E0B); // Amber 500
+    }
     if (status.contains('อนุมัติ') ||
         status == 'ส่งใบลาแล้ว' ||
         status == 'ส่งใบแล้ว' ||
-        status == 'อนุญาต') return const Color(0xFF10B981); // Emerald 500
+        status == 'อนุญาต') {
+      return const Color(0xFF10B981); // Emerald 500
+    }
     if (status.contains('ไม่')) return const Color(0xFFEF4444); // Red 500
     return const Color(0xFF94A3B8); // Slate 400
   }
@@ -468,10 +472,12 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
         ),
       ),
       onSelected: (val) async {
-        if (val == 'approve')
+        if (val == 'approve') {
           await _updateStatus(leave['requestId'], 'ส่งใบแล้ว');
-        if (val == 'reject')
+        }
+        if (val == 'reject') {
           await _updateStatus(leave['requestId'], 'ยังไม่ส่ง');
+        }
         if (val == 'delete') _showDeleteConfirmation(context, leave);
         if (val == 'edit') {
           _editLeaveRequest(leave);
@@ -547,18 +553,20 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
 
       await _firebaseService.updateLeaveRequest(requestId, updateData);
 
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(_isApproveStatus(newStatus)
                 ? '✅ อนุมัติเรียบร้อย (รับที่ ${updateData['receiveNumber']})'
                 : '✅ ปรับปรุงสถานะเป็น: $newStatus เรียบร้อยแล้ว'),
             backgroundColor:
                 _isApproveStatus(newStatus) ? Colors.green : Colors.orange));
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text('❌ เกิดข้อผิดพลาด: $e'),
             backgroundColor: Colors.red));
+      }
     }
   }
 
@@ -589,19 +597,22 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
               try {
                 final medicalUrl =
                     leave['medicalCertificate']?.toString() ?? '';
-                if (medicalUrl.isNotEmpty)
+                if (medicalUrl.isNotEmpty) {
                   await _firebaseService.deleteDriveFileStrict(medicalUrl);
+                }
                 await _firebaseService.deleteLeaveFromSupabase(
                     leave['requestId']?.toString() ?? '');
-                if (mounted)
+                if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                       content: Text('✅ ลบรายการเรียบร้อยแล้ว'),
                       backgroundColor: Colors.black));
+                }
               } catch (e) {
-                if (mounted)
+                if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                       content: Text('❌ ล้มเหลว: $e'),
                       backgroundColor: Colors.red));
+                }
               }
             },
             child: Text("ยืนยันการลบ",

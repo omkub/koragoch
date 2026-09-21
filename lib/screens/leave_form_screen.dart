@@ -4,8 +4,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:thai_buddhist_date_pickers/thai_buddhist_date_pickers.dart';
-import 'package:thai_buddhist_date/thai_buddhist_date.dart' as tbd;
 import '../services/firebase_service.dart';
 import '../widgets/thai_buddhist_calendar_widget.dart';
 
@@ -387,8 +385,9 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
           DateTime(_endDate.year, _endDate.month, _endDate.day);
 
       for (var leave in history) {
-        if (_editRequestId != null && leave['requestId'] == _editRequestId)
+        if (_editRequestId != null && leave['requestId'] == _editRequestId) {
           continue; // ข้ามตัวเองถ้ากำลังแก้ไข
+        }
 
         final String status = (leave['status'] ?? '').toString();
         // เช็คเฉพาะที่รอพิจารณาหรืออนุมัติแล้วเท่านั้นครับ 🥇
@@ -977,7 +976,9 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                                   .trim();
                               if (rank == '---เลือก---' ||
                                   rank == '-' ||
-                                  rank == 'ไม่มีวิทยฐานะ') rank = '';
+                                  rank == 'ไม่มีวิทยฐานะ') {
+                                rank = '';
+                              }
 
                               String combined = pos;
                               if (rank.isNotEmpty) combined += " $rank";
@@ -1153,7 +1154,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                                           3: FlexColumnWidth(1.0),
                                         },
                                         children: [
-                                          TableRow(children: [
+                                          const TableRow(children: [
                                             _A4Cell("ประเภท\nการลา",
                                                 bold: true, height: 60),
                                             _A4Cell(
@@ -1553,7 +1554,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
   }
 
   Widget _A4SplitCell(String left, String right) {
-    return Container(
+    return SizedBox(
       height: 25,
       child: Row(
         children: [
@@ -1865,8 +1866,9 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                 String rank = _selectedUser?['academicStanding'] ?? '';
 
                 String combinedInfo = pos;
-                if (rank.isNotEmpty && rank != '-' && rank != '---เลือก---')
+                if (rank.isNotEmpty && rank != '-' && rank != '---เลือก---') {
                   combinedInfo += " | $rank";
+                }
                 combinedInfo += " | $dept";
 
                 return Text(combinedInfo,

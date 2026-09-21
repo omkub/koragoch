@@ -24,7 +24,7 @@ class _LineSettingsScreenState extends State<LineSettingsScreen> {
   
   bool _isSavingLineToken = false;
   bool _isSendingLineTest = false;
-  bool _showLineToken = false;
+  final bool _showLineToken = false;
   String? _lineStatusMsg;
   bool _lineStatusIsError = false;
   String _lineNotifyTemplate = '📋 แจ้งเตือนการยื่นใบลา\n👤 ชื่อ: {name}\n📅 ประเภทลา: {type}\n🗓️ ตั้งแต่: {startDate} ถึง {endDate}\n📆 จำนวน: {days} วัน\n✍️ เหตุผล: {reason}';
@@ -166,7 +166,7 @@ class _LineSettingsScreenState extends State<LineSettingsScreen> {
                 : "ปิดอยู่ — ระบบจะไม่ส่งแจ้งเตือน LINE (ช่วงทดสอบ)",
             style: GoogleFonts.sarabun(fontSize: 13, color: Colors.blueGrey)),
         value: FirebaseService.lineNotifyEnabled,
-        activeColor: const Color(0xFF06C755),
+        activeThumbColor: const Color(0xFF06C755),
         onChanged: (val) => setState(() => FirebaseService.lineNotifyEnabled = val),
       ),
     );
@@ -565,8 +565,10 @@ class _LineSettingsScreenState extends State<LineSettingsScreen> {
         ));
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('❌ ล้มเหลว: $e'), backgroundColor: Colors.red));
+      }
     } finally {
       setState(() => _isSendingLineTest = false);
     }

@@ -176,8 +176,9 @@ class _DashboardScreenState extends State<DashboardScreen>
             final leaveDate = FirebaseService.parseFast(startDateStr);
 
             if (leaveDate == null) continue;
-            if (leaveDate.isBefore(rangeStart) || leaveDate.isAfter(rangeEnd))
+            if (leaveDate.isBefore(rangeStart) || leaveDate.isAfter(rangeEnd)) {
               continue;
+            }
           }
 
           // ✅ ข้อมูลผ่านการกรองแล้ว เก็บลง List และคำนวณสถิติพร้อมกันเลยครับ
@@ -198,9 +199,9 @@ class _DashboardScreenState extends State<DashboardScreen>
             }
           }
 
-          if (status.contains('รอ') || status.contains('พิจารณา'))
+          if (status.contains('รอ') || status.contains('พิจารณา')) {
             pendingCount++;
-          else if (status.contains('อนุญาต') ||
+          } else if (status.contains('อนุญาต') ||
               status.contains('อนุมัติ') ||
               status.contains('ส่งใบลาแล้ว') ||
               status.contains('ส่งใบแล้ว')) approvedCount++;
@@ -346,7 +347,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             return _buildCounterCard(e.key, e.value.toString(), 'รายการ', icon,
                 color.withValues(alpha: 0.05), color,
                 isMobile: isMobile);
-          }).toList(),
+          }),
 
           _buildCounterCard(
               'รออนุมัติ',
@@ -552,9 +553,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                           sections: typeMap.entries.map((e) {
                             int index = typeMap.keys.toList().indexOf(e.key);
                             double value = 0;
-                            if (e.value is int)
+                            if (e.value is int) {
                               value = e.value.toDouble();
-                            else if (e.value is double) value = e.value;
+                            } else if (e.value is double) value = e.value;
 
                             return PieChartSectionData(
                               color: chartColors[index % chartColors.length],

@@ -1,9 +1,8 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/firebase_service.dart';
 import '../login_screen.dart';
@@ -82,8 +81,9 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
 
       setState(() {
         if (results[0].isNotEmpty) _academicsList = results[0];
-        if (!_academicsList.contains('ไม่มีวิทยฐานะ'))
+        if (!_academicsList.contains('ไม่มีวิทยฐานะ')) {
           _academicsList.insert(0, 'ไม่มีวิทยฐานะ');
+        }
         _departmentsList = results[1];
         _positionsList = results[2];
       });
@@ -276,7 +276,7 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
         final resData = await _firebaseService.uploadDriveFile(
           fileData: dataUrl,
           fileName:
-              '${DateTime.now().millisecondsSinceEpoch}_Profile_${_currentUserName}.$extension',
+              '${DateTime.now().millisecondsSinceEpoch}_Profile_$_currentUserName.$extension',
           mimeType: 'image/$extension',
           folderType: 'profile',
           folderId: FirebaseService.driveProfileFolderId,
@@ -377,10 +377,11 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading)
+    if (_isLoading) {
       return const Scaffold(
           body: Center(
               child: CircularProgressIndicator(color: Color(0xFF2563EB))));
+    }
 
     return Material(
       color: const Color(0xFFF4F7FC),

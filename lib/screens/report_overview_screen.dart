@@ -734,7 +734,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
         ..write('</row>');
     }
 
-    final mergeCount = 10;
+    const mergeCount = 10;
     buffer
       ..write('</sheetData>')
       ..write('<mergeCells count="$mergeCount">')

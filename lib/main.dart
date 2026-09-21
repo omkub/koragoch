@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';  // ← เพิ่มบรรทัดนี้
 import 'firebase_options.dart';
 import 'screens/login_screen.dart';
-import 'screens/main_layout.dart';
 import 'screens/responsive_layout.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:ui';
