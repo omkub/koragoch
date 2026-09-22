@@ -2090,7 +2090,9 @@ class FirebaseService {
   Future<List<Map<String, dynamic>>> getLeaveRequestsFromSupabase(
       {int? year, bool throwOnError = false}) async {
     final client = _supabaseIfReady;
-    if (client == null) return getLeaveRequests(year: year);
+    // Supabase ยังไม่พร้อม — คืนค่าว่างไปก่อน
+    // (ของเดิมเรียกฟังก์ชันที่เรียกตัวเองกลับมา กลายเป็นวนไม่รู้จบจนแอปค้าง)
+    if (client == null) return [];
     try {
       final futureTeachers =
           client.from('Teachers').select('id_user, fullName');
@@ -2171,7 +2173,9 @@ class FirebaseService {
   Future<List<Map<String, dynamic>>> getMyLeaveRequestsFromSupabase(
       String fullName) async {
     final client = _supabaseIfReady;
-    if (client == null) return getMyLeaveRequests(fullName);
+    // Supabase ยังไม่พร้อม — คืนค่าว่างไปก่อน
+    // (ของเดิมเรียกฟังก์ชันที่เรียกตัวเองกลับมา กลายเป็นวนไม่รู้จบจนแอปค้าง)
+    if (client == null) return [];
     try {
       final all = await getLeaveRequestsFromSupabase();
       final target = fullName.trim();
@@ -2189,13 +2193,26 @@ class FirebaseService {
   Future<Map<String, dynamic>?> getLastLeaveRequestFromSupabase(
       String fullName) async {
     final client = _supabaseIfReady;
-    if (client == null) return getLastLeaveRequest(fullName);
+    if (client == null) return null;
     try {
+      // ตาราง Leaves ไม่มีคอลัมน์ชื่อครู มีแต่ id_user (FK) และไม่มี createdat
+      // ของเดิมยิง .eq('fullname').order('createdat') จึงได้ HTTP 400 ทุกครั้ง
+      // แล้วถูก catch กลืนไว้ — ฟังก์ชันนี้คืน null มาตลอดโดยไม่มีใครรู้
+      final teacherRows = await client
+          .from('Teachers')
+          .select('id_user')
+          .eq('fullName', fullName.trim())
+          .limit(1);
+      if ((teacherRows as List).isEmpty) return null;
+
+      final idUser = teacherRows.first['id_user'];
+      if (idUser == null) return null;
+
       final rows = await client
           .from('Leaves')
           .select()
-          .eq('fullname', fullName)
-          .order('createdat', ascending: false)
+          .eq('id_user', idUser)
+          .order('timestamp', ascending: false)
           .limit(1);
       if ((rows as List).isEmpty) return null;
       return _fromSupabaseLeave(rows.first as Map);
@@ -2240,7 +2257,9 @@ class FirebaseService {
   Future<List<Map<String, dynamic>>> _fetchFiscalRoundsFromSupabase(
       {bool throwOnError = false}) async {
     final client = _supabaseIfReady;
-    if (client == null) return getFiscalRounds();
+    // Supabase ยังไม่พร้อม — คืนค่าว่างไปก่อน
+    // (ของเดิมเรียกฟังก์ชันที่เรียกตัวเองกลับมา กลายเป็นวนไม่รู้จบจนแอปค้าง)
+    if (client == null) return [];
     try {
       final rows = await client
           .from('FiscalRounds')
@@ -2340,7 +2359,9 @@ class FirebaseService {
 
   Future<List<String>> getLeaveTypesFromSupabase() async {
     final client = _supabaseIfReady;
-    if (client == null) return getLeaveTypes();
+    // Supabase ยังไม่พร้อม — คืนค่าว่างไปก่อน
+    // (ของเดิมเรียกฟังก์ชันที่เรียกตัวเองกลับมา กลายเป็นวนไม่รู้จบจนแอปค้าง)
+    if (client == null) return [];
     try {
       final rows = await client.from('LeaveTypes').select();
       final seen = <String>{};
@@ -2434,7 +2455,9 @@ class FirebaseService {
 
   Future<List<String>> getPermissionsFromSupabase() async {
     final client = _supabaseIfReady;
-    if (client == null) return getPermissions();
+    // Supabase ยังไม่พร้อม — คืนค่าว่างไปก่อน
+    // (ของเดิมเรียกฟังก์ชันที่เรียกตัวเองกลับมา กลายเป็นวนไม่รู้จบจนแอปค้าง)
+    if (client == null) return [];
     try {
       final rows =
           await client.from('roles').select('Accessrights').order('ID_Roles');

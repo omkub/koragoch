@@ -87,9 +87,11 @@ class _MyAppState extends State<MyApp> {
           // สักตาราง หน้าจอจะว่างเปล่าโดยไม่บอกสาเหตุ — เช็กตรงนี้แล้วเด้งกลับ
           // ไปหน้า Login ให้ล็อกอินใหม่จะชัดเจนกว่า
           try {
-            await _supabaseReady;
-          } catch (_) {
+            // ใส่ timeout กันแอปค้างที่หน้าเปล่าถ้า Supabase ไม่ตอบ
+            await _supabaseReady?.timeout(const Duration(seconds: 10));
+          } catch (e) {
             // ต่อ Supabase ไม่ได้ — ปล่อยให้ตกไปทางล้าง session ข้างล่าง
+            debugPrint('⚠️  รอ Supabase ไม่สำเร็จ: $e');
           }
           final hasSession =
               Supabase.instance.client.auth.currentSession != null;

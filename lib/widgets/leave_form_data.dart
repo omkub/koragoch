@@ -161,7 +161,16 @@ class LeaveFormData {
 
   // ── การลาครั้งล่าสุดก่อนหน้าใบนี้ ───────────────────────────────
 
+  /// เก็บผลไว้ใช้ซ้ำ เพราะการหา "ใบลาครั้งล่าสุด" ต้องไล่รายการลาทั้งหมด
+  /// แล้วเรียงใหม่ทุกครั้ง และถูกเรียกซ้ำหลายรอบต่อการวาดเอกสารหนึ่งครั้ง
+  /// (ป้ายชื่อประเภท + วันเริ่ม + วันสิ้นสุด + จำนวนวัน = 4 รอบ)
+  Map<String, dynamic>? _latestLeaveCache;
+  bool _latestLeaveComputed = false;
+
   Map<String, dynamic>? get latestLeave {
+    if (_latestLeaveComputed) return _latestLeaveCache;
+    _latestLeaveComputed = true;
+
     final name = fullName.trim();
     final fiscalYear = (leaf['year'] ?? '').toString().trim();
     if (name.isEmpty || fiscalYear.isEmpty) return null;
@@ -173,7 +182,8 @@ class LeaveFormData {
     }).toList()
       ..sort(FirebaseService.compareLeaveRecency);
 
-    return candidates.isEmpty ? null : candidates.first;
+    _latestLeaveCache = candidates.isEmpty ? null : candidates.first;
+    return _latestLeaveCache;
   }
 
   /// ชื่อประเภทการลาครั้งล่าสุด ใช้ติ๊กช่อง "ข้าพเจ้าได้ลา ..."
@@ -248,8 +258,10 @@ class LeaveFormData {
 
   // ── ตารางสถิติวันลา ────────────────────────────────────────────
 
-  /// สามแถวมาตรฐานของตารางสถิติ
-  List<LeaveStatRow> get statRows => [
+  List<LeaveStatRow>? _statRowsCache;
+
+  /// สามแถวมาตรฐานของตารางสถิติ (คำนวณครั้งเดียวแล้วเก็บไว้ใช้ซ้ำ)
+  List<LeaveStatRow> get statRows => _statRowsCache ??= [
         _statRow('ป่วย', 'ป่วย'),
         _statRow('ลากิจส่วนตัว', 'กิจ'),
         _statRow('ลาคลอดบุตร', 'คลอด'),

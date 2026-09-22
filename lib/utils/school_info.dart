@@ -101,11 +101,15 @@ class SchoolInfo {
       final client = Supabase.instance.client;
       // ตอนนี้มีโรงเรียนเดียว จึงหยิบแถวแรกมาใช้
       // เวลาทำหลายโรงเรียนค่อยเปลี่ยนมาเลือกตาม Teachers.id_school
+      // ต้องมี timeout เสมอ เพราะจุดที่เรียกฟังก์ชันนี้อยู่ในเส้นทางเข้าแอป
+      // ถ้าเน็ตค้างแล้วรอไม่มีกำหนด ผู้ใช้จะเจอหน้าจอค้างกดอะไรไม่ได้
+      // ค่าสำรองมีอยู่แล้ว รอไม่ได้ก็ใช้ค่าสำรองไปก่อน
       final rows = await client
           .from('Schools')
           .select()
           .order('id_school')
-          .limit(1);
+          .limit(1)
+          .timeout(const Duration(seconds: 8));
 
       if (rows.isNotEmpty) {
         _current = SchoolRecord.fromRow(Map<String, dynamic>.from(rows.first));
