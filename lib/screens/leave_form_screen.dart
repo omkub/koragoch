@@ -1,10 +1,11 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
+import '../utils/school_info.dart';
 import '../widgets/thai_buddhist_calendar_widget.dart';
 
 class LeaveFormScreen extends StatefulWidget {
@@ -917,10 +918,10 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                Text("โรงเรียนรมย์บุรีพิทยาคม รัชมังคลาภิเษก",
+                                Text(SchoolInfo.fullName,
                                     style: bodyStyle.copyWith(
                                         fontWeight: FontWeight.bold)),
-                                Text("อำเภอบ้านด่าน จังหวัดบุรีรัมย์ 31000",
+                                Text(SchoolInfo.address,
                                     style: bodyStyle),
                                 const SizedBox(height: 20),
                                 Text(
@@ -940,7 +941,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                                     : "ขอ$_selectedLeaveType")
                           ]),
                           Text(
-                              "เรียน ผู้อำนวยการโรงเรียนรมย์บุรีพิทยาคม รัชมังคลาภิเษก",
+                              "เรียน ${SchoolInfo.addressee}",
                               style: bodyStyle),
                           const SizedBox(height: 18),
                           _buildPerfectFullWidthRow([
@@ -973,10 +974,10 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                               return _buildPerfectDottedLine(
                                   value: combined, flex: 5);
                             }),
-                            Text("โรงเรียนรมย์บุรีพิทยาคม", style: bodyStyle),
+                            Text(SchoolInfo.namePart1, style: bodyStyle),
                           ]),
                           Text(
-                              "รัชมังคลาภิเษก สังกัดสำนักงานเขตพื้นที่การศึกษามัธยมศึกษาบุรีรัมย์ กระทรวงศึกษาธิการ",
+                              "${SchoolInfo.namePart2} ${SchoolInfo.affiliation}",
                               style: bodyStyle),
                           const SizedBox(height: 18),
 
@@ -1263,7 +1264,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                                           style: bodyStyle.copyWith(
                                               fontWeight: FontWeight.bold)),
                                       Text(
-                                          "ผู้อำนวยการโรงเรียนรมย์บุรีพิทยาคม รัชมังคลาภิเษก",
+                                          SchoolInfo.directorTitle,
                                           style: bodyStyle,
                                           textAlign: TextAlign.center),
                                       Text("........../........../..........",

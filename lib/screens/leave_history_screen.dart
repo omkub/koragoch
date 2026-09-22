@@ -8,6 +8,7 @@ import '../services/firebase_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'leave_form_screen.dart';
 import '../utils/profile_image.dart';
+import '../utils/school_info.dart';
 
 class LeaveHistoryScreen extends StatefulWidget {
   final Function(Map<String, dynamic>)? onEdit;
@@ -1718,15 +1719,15 @@ class _LeaveFormPreviewState extends State<LeaveFormPreview> {
     </section>
 
     <section class="school">
-      <strong>โรงเรียนรมย์บุรีพิทยาคม รัชมังคลาภิเษก</strong><br>
-      อำเภอบ้านด่าน จังหวัดบุรีรัมย์ 31000<br><br>
+      <strong>${SchoolInfo.fullName}</strong><br>
+      ${SchoolInfo.address}<br><br>
       วันที่ $requestDate
     </section>
 
     <div class="row"><strong>เรื่อง</strong><span class="line grow">ขอ$leaveType</span></div>
-    <div class="row">เรียน ผู้อำนวยการโรงเรียนรมย์บุรีพิทยาคม รัชมังคลาภิเษก</div>
-    <div class="row indent"><span>ข้าพเจ้า</span><span class="line grow">$fullName</span><span>ตำแหน่ง</span><span class="line grow">$position</span><span style="white-space: nowrap;">โรงเรียนรมย์บุรีพิทยาคม</span></div>
-    <div class="row">รัชมังคลาภิเษก สังกัดสำนักงานเขตพื้นที่การศึกษามัธยมศึกษาบุรีรัมย์ กระทรวงศึกษาธิการ</div>
+    <div class="row">เรียน ${SchoolInfo.addressee}</div>
+    <div class="row indent"><span>ข้าพเจ้า</span><span class="line grow">$fullName</span><span>ตำแหน่ง</span><span class="line grow">$position</span><span style="white-space: nowrap;">${SchoolInfo.namePart1}</span></div>
+    <div class="row">${SchoolInfo.namePart2} ${SchoolInfo.affiliation}</div>
 
     <section class="leave-block">
       <strong>ขอลา</strong>
@@ -1764,7 +1765,7 @@ class _LeaveFormPreviewState extends State<LeaveFormPreview> {
         <div class="comment">ความคิดเห็น</div><div class="line grow" style="width:100%; margin-top:4px;"></div>
         <div class="signature">ลงชื่อ ..................................................<br>$deputyName<br>รองผู้อำนวยการกลุ่มบริหารงานบุคคล<br>........../........../..........</div>
         <div class="order"><strong>คำสั่ง</strong><span>${checkbox('อนุญาต', false)}</span><span>${checkbox('ไม่อนุญาต', false)}</span></div>
-        <div class="signature">ลงชื่อ ..................................................<br>$directorName<br>ผู้อำนวยการโรงเรียนรมย์บุรีพิทยาคม รัชมังคลาภิเษก<br>........../........../..........</div>
+        <div class="signature">ลงชื่อ ..................................................<br>$directorName<br>${SchoolInfo.directorTitle}<br>........../........../..........</div>
       </div>
     </section>
   </main>
@@ -2066,10 +2067,10 @@ ${autoPrint ? '''
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Text("โรงเรียนรมย์บุรีพิทยาคม รัชมังคลาภิเษก",
+                      Text(SchoolInfo.fullName,
                           style: docBaseStyle.copyWith(
                               fontWeight: FontWeight.bold)),
-                      Text("อำเภอบ้านด่าน จังหวัดบุรีรัมย์ 31000",
+                      Text(SchoolInfo.address,
                           style: docBaseStyle),
                       const SizedBox(height: 20),
                       Text(
@@ -2088,7 +2089,7 @@ ${autoPrint ? '''
                           ? ''
                           : "ขอ${leaf['leaveType']}")
                 ]),
-                Text("เรียน ผู้อำนวยการโรงเรียนรมย์บุรีพิทยาคม รัชมังคลาภิเษก",
+                Text("เรียน ${SchoolInfo.addressee}",
                     style: docBaseStyle),
                 const SizedBox(height: 18),
                 _buildPerfectFullWidthRow([
@@ -2109,10 +2110,10 @@ ${autoPrint ? '''
 
                     return _buildPerfectDottedLine(value: combined, flex: 5);
                   }),
-                  Text("โรงเรียนรมย์บุรีพิทยาคม", style: docBaseStyle),
+                  Text(SchoolInfo.namePart1, style: docBaseStyle),
                 ]),
                 Text(
-                    "รัชมังคลาภิเษก สังกัดสำนักงานเขตพื้นที่การศึกษามัธยมศึกษาบุรีรัมย์ กระทรวงศึกษาธิการ",
+                    "${SchoolInfo.namePart2} ${SchoolInfo.affiliation}",
                     style: docBaseStyle),
                 const SizedBox(height: 18),
 
@@ -2337,7 +2338,7 @@ ${autoPrint ? '''
                                 style: docBaseStyle.copyWith(
                                     fontWeight: FontWeight.bold)),
                             Text(
-                                "ผู้อำนวยการโรงเรียนรมย์บุรีพิทยาคม รัชมังคลาภิเษก",
+                                SchoolInfo.directorTitle,
                                 style: docBaseStyle,
                                 textAlign: TextAlign.center),
                             Text("........../........../..........",

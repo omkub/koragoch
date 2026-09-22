@@ -42,18 +42,38 @@ class SchoolRecord {
         'สังกัดสำนักงานเขตพื้นที่การศึกษามัธยมศึกษาบุรีรัมย์ กระทรวงศึกษาธิการ',
   );
 
+  /// ต่อชื่อสองท่อนเป็นชื่อเต็ม ข้ามท่อนที่ว่าง
+  static String joinName(String part1, String part2) =>
+      [part1, part2].where((s) => s.trim().isNotEmpty).join(' ');
+
   /// อ่านจากแถวของตาราง Schools — ช่องไหนว่างให้ใช้ค่าสำรองแทนทีละช่อง
+  ///
+  /// ชื่อเต็มคำนวณจาก namePart1 + namePart2 เสมอ เพื่อให้แก้ชื่อโรงเรียน
+  /// อัปเดตแค่สองช่องนี้พอ ไม่ต้องกลัวลืมแก้ fullName ให้ตรงกัน
+  /// (ในฐานข้อมูล fullName ก็เป็นคอลัมน์ที่คำนวณให้อัตโนมัติเช่นกัน)
   factory SchoolRecord.fromRow(Map<String, dynamic> row) {
     String pick(String key, String fallbackValue) {
       final value = (row[key] ?? '').toString().trim();
       return value.isEmpty ? fallbackValue : value;
     }
 
+    // ใช้ค่าสำรองของชื่อต่อเมื่อไม่มีชื่อมาเลยทั้งสองท่อน
+    // ถ้ามีท่อนเดียว (โรงเรียนที่ชื่อไม่มีสร้อย) ต้องปล่อยอีกท่อนให้ว่างไว้
+    // ไม่ใช่ไปหยิบสร้อยของโรงเรียนอื่นมาเติมให้
+    final rawPart1 = (row['namePart1'] ?? '').toString().trim();
+    final rawPart2 = (row['namePart2'] ?? '').toString().trim();
+    final hasAnyPart = rawPart1.isNotEmpty || rawPart2.isNotEmpty;
+
+    final part1 = hasAnyPart ? rawPart1 : fallback.namePart1;
+    final part2 = hasAnyPart ? rawPart2 : fallback.namePart2;
+    final joined = joinName(part1, part2);
+
     return SchoolRecord(
       idSchool: int.tryParse(row['id_school']?.toString() ?? ''),
-      fullName: pick('fullName', fallback.fullName),
-      namePart1: pick('namePart1', fallback.namePart1),
-      namePart2: pick('namePart2', fallback.namePart2),
+      // ใช้คอลัมน์ fullName ต่อเมื่อไม่มีชื่อสองท่อนให้ประกอบเลย
+      fullName: joined.isNotEmpty ? joined : pick('fullName', fallback.fullName),
+      namePart1: part1,
+      namePart2: part2,
       address: pick('address', fallback.address),
       affiliation: pick('affiliation', fallback.affiliation),
     );
