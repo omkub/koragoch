@@ -86,6 +86,9 @@ class LeaveFormData {
   String get requestMonth => _monthOf(leaf['timestamp']);
   String get requestYear => _yearOf(leaf['timestamp']);
 
+  /// ใบลาที่ยังไม่ได้ยื่นจะยังไม่มีวันที่ ต้องแสดงเป็นเส้นให้เซ็นแทน
+  bool get hasRequestDate => parseDate(leaf['timestamp']) != null;
+
   // ── ตำแหน่งและวิทยฐานะ ─────────────────────────────────────────
 
   static bool _isBlankChoice(String value) {

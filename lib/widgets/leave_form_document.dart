@@ -114,8 +114,11 @@ class LeaveFormDocument extends StatelessWidget {
               style: _docBaseStyle.copyWith(fontWeight: FontWeight.bold)),
           Text(SchoolInfo.address, style: _docBaseStyle),
           const SizedBox(height: 20),
+          // ใบลาที่ยังไม่ได้ยื่น (หน้าส่งใบลา) ยังไม่มีวันที่ ให้เว้นเป็นเส้นไว้
           Text(
-              'วันที่  ${data.requestDay}  เดือน  ${data.requestMonth}  พ.ศ.  ${data.requestYear}',
+              data.hasRequestDate
+                  ? 'วันที่  ${data.requestDay}  เดือน  ${data.requestMonth}  พ.ศ.  ${data.requestYear}'
+                  : 'วันที่ ................ เดือน ................................ พ.ศ. ....................',
               style: _docBaseStyle),
         ],
       ),

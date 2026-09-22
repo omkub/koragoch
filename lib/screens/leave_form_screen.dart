@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
-import '../utils/school_info.dart';
+import '../widgets/leave_form_data.dart';
+import '../widgets/leave_form_document.dart';
 import '../widgets/thai_buddhist_calendar_widget.dart';
 
 class LeaveFormScreen extends StatefulWidget {
@@ -40,7 +41,6 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
   bool _isHalfDay = false;
   String _halfDayPeriod = 'morning';
 
-  Map<String, dynamic>? _lastLeaveRequest;
   List<Map<String, dynamic>> _userHistory = [];
   Set<String> _holidayKeys = {};
   Set<String> _specialWorkingKeys = {};
@@ -166,14 +166,11 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
           orElse: () => {});
       if (user.isNotEmpty) {
         // 🚀 อ่านจาก Supabase
-        final lastLeave =
-            await _firebaseService.getLastLeaveRequestFromSupabase(fullName);
         final history =
             await _firebaseService.getMyLeaveRequestsFromSupabase(fullName);
         if (!mounted) return;
         setState(() {
           _selectedUser = user;
-          _lastLeaveRequest = lastLeave;
           _userHistory = history;
           _phoneController.text = user['phone'] ?? '';
         });
@@ -528,8 +525,6 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
   @override
   Widget build(BuildContext context) {
     final num totalDays = _calculatedTotalDays();
-    final TextStyle bodyStyle =
-        GoogleFonts.sarabun(fontSize: 14, color: Colors.black, height: 1.5);
     // 📱 ปรับเกณฑ์เป็น 1100 ให้ตรงกับ MainLayout เพื่อความเสถียรครับ 🥇🏆
     final bool isMobile = MediaQuery.of(context).size.width < 1100;
 
@@ -848,442 +843,54 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
             ),
           ),
 
-          // Right Side - Masterpiece A4 Preview (ซ่อนในมือถือครับ)
+          // Right Side - แบบใบลาฉบับกลาง (ซ่อนในมือถือครับ)
+          //
+          // เดิมวาดเอกสารซ้ำไว้ที่นี่อีกชุดหนึ่ง ~430 บรรทัด ตอนนี้ใช้
+          // LeaveFormDocument ร่วมกับหน้าประวัติการลาและหน้าปฏิทินแล้ว
+          // แก้เอกสารที่เดียวมีผลทุกหน้า
           if (!isMobile)
             Expanded(
               flex: 7,
               child: Container(
-                color: const Color(0xFF475569), // Darker slate for focus
+                color: const Color(0xFF475569),
                 child: Center(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(
                         vertical: 40, horizontal: 20),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 500),
-                      width: 794, // A4 at 96 DPI
-                      constraints: const BoxConstraints(minHeight: 1123),
-                      padding: const EdgeInsets.all(60),
-                      decoration:
-                          BoxDecoration(color: Colors.white, boxShadow: [
-                        BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.5),
-                            blurRadius: 40,
-                            offset: const Offset(0, 20))
-                      ]),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Official Header Registration Area
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(width: 180),
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    Text("แบบใบลา",
-                                        style: GoogleFonts.sarabun(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            decoration:
-                                                TextDecoration.underline)),
-                                    Text("ลาป่วย/ลากิจ/ลาคลอดบุตร",
-                                        style:
-                                            GoogleFonts.sarabun(fontSize: 14)),
-                                  ],
-                                ),
-                              ),
-                              Container(
-                                width: 180,
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                    border: Border.all(width: 0.8)),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _buildPerfectDottedLabel("รับที่"),
-                                    const SizedBox(height: 6),
-                                    _buildPerfectDottedLabel("วันที่"),
-                                    const SizedBox(height: 6),
-                                    _buildPerfectDottedLabel("เวลา"),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Text(SchoolInfo.fullName,
-                                    style: bodyStyle.copyWith(
-                                        fontWeight: FontWeight.bold)),
-                                Text(SchoolInfo.address,
-                                    style: bodyStyle),
-                                const SizedBox(height: 20),
-                                Text(
-                                    "วันที่ ................ เดือน ................................ พ.ศ. ....................",
-                                    style: bodyStyle),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 35),
-                          _buildPerfectFullWidthRow([
-                            Text("เรื่อง ",
-                                style: bodyStyle.copyWith(
-                                    fontWeight: FontWeight.bold)),
-                            _buildPerfectDottedLine(
-                                value: _selectedLeaveType == '---เลือก---'
-                                    ? ''
-                                    : "ขอ$_selectedLeaveType")
-                          ]),
-                          Text(
-                              "เรียน ${SchoolInfo.addressee}",
-                              style: bodyStyle),
-                          const SizedBox(height: 18),
-                          _buildPerfectFullWidthRow([
-                            const SizedBox(width: 60),
-                            Text("ข้าพเจ้า", style: bodyStyle),
-                            _buildPerfectDottedLine(
-                                value: (_selectedUser?['fullName'] ?? '')
-                                    .toString(),
-                                flex: 8),
-                            Text("ตำแหน่ง", style: bodyStyle),
-                            Builder(builder: (context) {
-                              String pos =
-                                  (_selectedUser?['position']?.toString() ??
-                                      '');
-                              if (pos == '---เลือก---') pos = '';
-
-                              String rank = (_selectedUser?['academicStanding']
-                                          ?.toString() ??
-                                      '')
-                                  .trim();
-                              if (rank == '---เลือก---' ||
-                                  rank == '-' ||
-                                  rank == 'ไม่มีวิทยฐานะ') {
-                                rank = '';
-                              }
-
-                              String combined = pos;
-                              if (rank.isNotEmpty) combined += " $rank";
-
-                              return _buildPerfectDottedLine(
-                                  value: combined, flex: 5);
-                            }),
-                            Text(SchoolInfo.namePart1, style: bodyStyle),
-                          ]),
-                          Text(
-                              "${SchoolInfo.namePart2} ${SchoolInfo.affiliation}",
-                              style: bodyStyle),
-                          const SizedBox(height: 18),
-
-                          // Leave Type Section with Styled Curly Bracket
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              SizedBox(
-                                  width: 80,
-                                  child: Text("ขอลา",
-                                      style: bodyStyle.copyWith(
-                                          fontWeight: FontWeight.bold))),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                // รายการประเภทการลาดึงจากตาราง LeaveTypes
-                                // เพิ่ม/ลบในหน้าข้อมูลพื้นฐานระบบแล้วสะท้อนที่นี่ทันที
-                                children: _printableLeaveTypes.map((t) {
-                                  final isChecked =
-                                      _isSameLeaveType(_selectedLeaveType, t);
-                                  return _buildPerfectCheckBox(t, isChecked);
-                                }).toList(),
-                              ),
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 5),
-                                child: Transform.scale(
-                                  scaleX: 0.4,
-                                  child: Text("}",
-                                      style: GoogleFonts.sarabun(
-                                          fontSize: 130,
-                                          fontWeight: FontWeight.w100,
-                                          height: 0.8,
-                                          color:
-                                              Colors.black.withValues(alpha: 0.5))),
-                                ),
-                              ),
-                              Expanded(
-                                  child: Column(children: [
-                                const SizedBox(
-                                    height: 35), // Align with 'ลากิจส่วนตัว'
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text("เนื่องจาก", style: bodyStyle),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: ValueListenableBuilder<
-                                          TextEditingValue>(
-                                        valueListenable: _reasonController,
-                                        builder: (context, value, child) =>
-                                            Text(
-                                          value.text,
-                                          style: bodyStyle,
-                                          softWrap: true,
-                                          maxLines: null,
-                                          overflow: TextOverflow.visible,
-                                          textWidthBasis: TextWidthBasis.parent,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                _buildPerfectDottedLine(
-                                    width: double.infinity, flex: 0)
-                              ]))
-                            ],
-                          ),
-                          const SizedBox(height: 18),
-
-                          _buildPerfectFullWidthRow([
-                            Text("ตั้งแต่วันที่", style: bodyStyle),
-                            _buildPerfectDottedLine(
-                                value: FirebaseService.formatThaiDate(
-                                    _formatDate(_startDate))),
-                            Text("ถึงวันที่", style: bodyStyle),
-                            _buildPerfectDottedLine(
-                                value: FirebaseService.formatThaiDate(
-                                    _formatDate(_endDate))),
-                            Text("มีกำหนด", style: bodyStyle),
-                            _buildPerfectDottedLine(
-                                flex: 0,
-                                width: 60,
-                                value: _formatLeaveDays(totalDays)),
-                            Text("วัน", style: bodyStyle),
-                          ]),
-                          _buildPerfectFullWidthRow([
-                            Text("ข้าพเจ้าได้ลา", style: bodyStyle),
-                            _buildPerfectCheckBox(
-                                "ป่วย",
-                                _lastLeaveRequest?['leaveType']
-                                        ?.contains("ป่วย") ??
-                                    false),
-                            _buildPerfectCheckBox(
-                                "ลากิจส่วนตัว",
-                                _lastLeaveRequest?['leaveType']
-                                        ?.contains("กิจ") ??
-                                    false),
-                            _buildPerfectCheckBox(
-                                "ลาคลอดบุตร",
-                                _lastLeaveRequest?['leaveType']
-                                        ?.contains("คลอด") ??
-                                    false),
-                            Text("ครั้งสุดท้ายตั้งแต่วันที่", style: bodyStyle),
-                            _buildPerfectDottedLine(
-                                value: _lastLeaveRequest?['startDate'] != null
-                                    ? FirebaseService.formatThaiDate(
-                                        _lastLeaveRequest!['startDate'])
-                                    : "",
-                                flex: 1),
-                            Text("ถึงวันที่", style: bodyStyle),
-                            _buildPerfectDottedLine(
-                                value: _lastLeaveRequest?['endDate'] != null
-                                    ? FirebaseService.formatThaiDate(
-                                        _lastLeaveRequest!['endDate'])
-                                    : "",
-                                flex: 1),
-                          ]),
-                          _buildPerfectFullWidthRow([
-                            Text("มีกำหนด", style: bodyStyle),
-                            _buildPerfectDottedLine(
-                                flex: 0,
-                                width: 40,
-                                value: _lastLeaveRequest?['totalDays']
-                                        ?.toString() ??
-                                    ""),
-                            Text("วัน ในระหว่างที่ลาติดต่อข้าพเจ้าได้ที่",
-                                style: bodyStyle),
-                            _buildPerfectDottedLine(
-                                flex: 4,
-                                value: _phoneController.text.toString()),
-                          ]),
-                          const SizedBox(height: 25),
-                          Center(
-                              child: Text("จึงเรียนมาเพื่อโปรดพิจารณา",
-                                  style: bodyStyle)),
-
-                          const SizedBox(height: 40),
-
-                          IntrinsicHeight(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                // LEFT SIDE: Statistics & HR Approval
-                                Expanded(
-                                  flex: 1,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      const Spacer(),
-                                      Text("สถิติวันลาในปีงบประมาณนี้",
-                                          style: GoogleFonts.sarabun(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.bold)),
-                                      const SizedBox(height: 12),
-                                      Table(
-                                        border: TableBorder.all(width: 0.6),
-                                        columnWidths: const {
-                                          0: FlexColumnWidth(1.2),
-                                          1: FlexColumnWidth(1.0),
-                                          2: FlexColumnWidth(1.0),
-                                          3: FlexColumnWidth(1.0),
-                                        },
-                                        children: [
-                                          const TableRow(children: [
-                                            _A4Cell("ประเภท\nการลา",
-                                                bold: true, height: 60),
-                                            _A4Cell(
-                                                "ลามาแล้ว\nครั้ง/วัน\n(วันทำการ)",
-                                                bold: true,
-                                                height: 60),
-                                            _A4Cell(
-                                                "ลาครั้งนี้\nครั้ง/วัน\n(วันทำการ)",
-                                                bold: true,
-                                                height: 60),
-                                            _A4Cell(
-                                                "รวมเป็น\nครั้ง/วัน\n(วันทำการ)",
-                                                bold: true,
-                                                height: 60),
-                                          ]),
-                                          _buildPerfectTableRow(
-                                              "ป่วย", totalDays),
-                                          _buildPerfectTableRow(
-                                              "ลากิจ", totalDays),
-                                          _buildPerfectTableRow(
-                                              "ลาคลอดบุตร", totalDays),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 20),
-                                      Text(
-                                          "ลงชื่อ ..................................................",
-                                          style: bodyStyle),
-                                      Text(
-                                          _getManagerName(
-                                              "หัวหน้ากลุ่มบริหารงานบุคคล"),
-                                          style: bodyStyle.copyWith(
-                                              fontWeight: FontWeight.bold)),
-                                      Text("หัวหน้ากลุ่มบริหารงานบุคคล",
-                                          style: bodyStyle),
-                                      Text("........../........../..........",
-                                          style: bodyStyle),
-                                    ],
-                                  ),
-                                ),
-
-                                const SizedBox(width: 45),
-
-                                // RIGHT SIDE: Applicant Sign & Executive Approval
-                                Expanded(
-                                  flex: 1,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      Text("ขอแสดงความนับถือ",
-                                          style: bodyStyle),
-                                      const SizedBox(height: 15),
-                                      Text(
-                                          "ลงชื่อ ..................................................",
-                                          style: bodyStyle),
-                                      Text(
-                                          "(${_selectedUser?['fullName'] ?? '................................'})",
-                                          style: GoogleFonts.sarabun(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.bold)),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                          "ตำแหน่ง ${_selectedUser?['position'] ?? '................................'}",
-                                          style: bodyStyle),
-                                      const SizedBox(height: 35),
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text("ความคิดเห็น",
-                                              style: GoogleFonts.sarabun(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.bold)),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                              "................................................................................",
-                                              style: GoogleFonts.sarabun(
-                                                  color: Colors.black26,
-                                                  fontSize: 13,
-                                                  letterSpacing: 1)),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 20),
-                                      Text(
-                                          "ลงชื่อ ..................................................",
-                                          style: bodyStyle),
-                                      Text(
-                                          _getManagerName(
-                                              "รองผู้อำนวยการกลุ่มบริหารงานบุคคล"),
-                                          style: bodyStyle.copyWith(
-                                              fontWeight: FontWeight.bold)),
-                                      Text("รองผู้อำนวยการกลุ่มบริหารงานบุคคล",
-                                          style: bodyStyle),
-                                      Text("........../........../..........",
-                                          style: bodyStyle),
-                                      const SizedBox(height: 30),
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Text("คำสั่ง",
-                                              style: GoogleFonts.sarabun(
-                                                  fontSize: 13,
-                                                  fontWeight: FontWeight.bold)),
-                                          const SizedBox(width: 15),
-                                          _buildPerfectCheckBox(
-                                              "อนุญาต", false),
-                                          _buildPerfectCheckBox(
-                                              "ไม่อนุญาต", false),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 15),
-                                      Text(
-                                          "ลงชื่อ ..................................................",
-                                          style: bodyStyle),
-                                      Text(
-                                          _getManagerName(
-                                              "ผู้อำนวยการโรงเรียน"),
-                                          style: bodyStyle.copyWith(
-                                              fontWeight: FontWeight.bold)),
-                                      Text(
-                                          SchoolInfo.directorTitle,
-                                          style: bodyStyle,
-                                          textAlign: TextAlign.center),
-                                      Text("........../........../..........",
-                                          style: bodyStyle),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    child: LeaveFormDocument(data: _previewData(totalDays)),
                   ),
                 ),
               ),
             ),
         ],
       ),
+    );
+  }
+
+  /// แปลงสิ่งที่กรอกอยู่ในฟอร์มให้อยู่ในรูปเดียวกับใบลาที่บันทึกแล้ว
+  /// เพื่อให้เอกสารตัวอย่างใช้ตัววาดชุดเดียวกับหน้าประวัติและหน้าปฏิทิน
+  ///
+  /// ไม่ใส่ timestamp เพราะใบยังไม่ได้ยื่น เอกสารจะเว้นช่องวันที่ไว้ให้เอง
+  LeaveFormData _previewData(num totalDays) {
+    final user = _selectedUser ?? const <String, dynamic>{};
+    return LeaveFormData(
+      leaf: {
+        // ใส่รหัสใบที่กำลังแก้ไว้ด้วย เอกสารจะได้ไม่นับใบนี้ซ้ำในสถิติ
+        if (_editRequestId != null) 'requestId': _editRequestId,
+        'fullName': user['fullName'] ?? '',
+        'position': user['position'] ?? '',
+        'academicStanding': user['academicStanding'] ?? '',
+        'leaveType': _selectedLeaveType ?? '',
+        'reason': _reasonController.text,
+        'startDate': _formatDate(_startDate),
+        'endDate': _formatDate(_endDate),
+        'totalDays': totalDays,
+        'phone': _phoneController.text,
+        'year': _yearController.text,
+      },
+      allUsers: _allUsers,
+      allLeaveRequests: _userHistory,
+      leaveTypeNames: _leaveTypeNames,
     );
   }
 
@@ -1312,72 +919,6 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
               padding: EdgeInsets.symmetric(vertical: 16),
               child: Divider(height: 1)),
           child,
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPerfectDottedLabel(String label) {
-    return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Text("$label .............................",
-            style: GoogleFonts.sarabun(
-                fontSize: 12, color: Colors.blueGrey.shade800)));
-  }
-
-  Widget _buildPerfectFullWidthRow(List<Widget> children) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Row(children: children),
-      );
-
-  Widget _buildPerfectDottedLine({int flex = 1, double? width, String? value}) {
-    final widget = Container(
-      width: width,
-      height: 32, // เพิ่มจาก 28
-      margin: const EdgeInsets.symmetric(horizontal: 5),
-      child: Stack(
-        alignment: Alignment.bottomCenter,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 2), // ขยับจุดลงนิดหนึ่ง
-            child: Text(
-                "......................................................................................................................................",
-                maxLines: 1,
-                overflow: TextOverflow.clip,
-                style: GoogleFonts.sarabun(
-                    color: Colors.black26, fontSize: 18, letterSpacing: 2)),
-          ),
-          if (value != null && value.isNotEmpty)
-            Positioned(
-                bottom: 10, // ยกตัวหนังสือขึ้นจาก 6 เป็น 10
-                child: Text(value,
-                    style: GoogleFonts.sarabun(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF0F172A)))),
-        ],
-      ),
-    );
-    return flex > 0 ? Expanded(flex: flex, child: widget) : widget;
-  }
-
-  Widget _buildPerfectCheckBox(String label, bool isChecked) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 4, bottom: 4, right: 12),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-              width: 16,
-              height: 16,
-              decoration: BoxDecoration(
-                  border: Border.all(width: 1, color: Colors.black)),
-              child: isChecked
-                  ? const Icon(Icons.check,
-                      size: 14, color: Colors.black, weight: 800)
-                  : null),
-          const SizedBox(width: 8),
-          Text(label, style: GoogleFonts.sarabun(fontSize: 14)),
         ],
       ),
     );
@@ -1500,94 +1041,6 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
     );
   }
 
-  TableRow _buildPerfectTableRow(String label, num currentDays) {
-    final String currentYear = _yearController.text;
-    final relevantHistory = _userHistory.where((req) {
-      final String reqType = (req['leaveType'] ?? "").toString();
-      final String reqYear = (req['year'] ?? "").toString();
-      bool typeMatch = false;
-      if (label == "ป่วย") typeMatch = reqType.contains("ป่วย");
-      if (label == "ลากิจ") typeMatch = reqType.contains("กิจ");
-      if (label == "ลาคลอดบุตร") typeMatch = reqType.contains("คลอด");
-      return typeMatch && reqYear == currentYear;
-    }).toList();
-
-    int prevTimes = relevantHistory.length;
-    double prevDays = relevantHistory.fold<double>(
-        0,
-        (sum, req) =>
-            sum + (double.tryParse(req['totalDays']?.toString() ?? '0') ?? 0));
-    bool isCurrentMatch = _selectedLeaveType == label ||
-        (label == "ลากิจ" && _selectedLeaveType == "ลากิจส่วนตัว") ||
-        (label == "ลาคลอดบุตร" && _selectedLeaveType == "ลาคลอดบุตร");
-
-    String col2Count = prevTimes > 0 ? "$prevTimes" : "-";
-    String col2Days = prevDays > 0 ? _formatLeaveDays(prevDays) : "-";
-
-    String col3Count = isCurrentMatch ? "1" : "-";
-    String col3Days = isCurrentMatch ? _formatLeaveDays(currentDays) : "-";
-
-    int totalTimes = prevTimes + (isCurrentMatch ? 1 : 0);
-    double totalDays = prevDays + (isCurrentMatch ? currentDays.toDouble() : 0);
-
-    String col4Count = totalTimes > 0 ? "$totalTimes" : "-";
-    String col4Days = totalDays > 0 ? _formatLeaveDays(totalDays) : "-";
-
-    return TableRow(children: [
-      _A4Cell(label),
-      _A4SplitCell(col2Count, col2Days),
-      _A4SplitCell(col3Count, col3Days),
-      _A4SplitCell(col4Count, col4Days),
-    ]);
-  }
-
-  Widget _A4SplitCell(String left, String right) {
-    return SizedBox(
-      height: 25,
-      child: Row(
-        children: [
-          Expanded(
-              child: Center(
-                  child: Text(left, style: GoogleFonts.sarabun(fontSize: 10)))),
-          Container(width: 0.6, color: Colors.black),
-          Expanded(
-              child: Center(
-                  child:
-                      Text(right, style: GoogleFonts.sarabun(fontSize: 10)))),
-        ],
-      ),
-    );
-  }
-
-  String _getManagerName(String adminTitle) {
-    const blank = "(................................)";
-    if (_allUsers.isEmpty) return blank;
-
-    String norm(String v) => v.replaceAll(RegExp(r'\s+'), '').trim();
-    final target = norm(adminTitle);
-
-    // เทียบชื่อตำแหน่งแบบไม่สนช่องว่าง และยอมให้ชื่อในฐานยาวกว่า/สั้นกว่าได้
-    // เช่น 'ผู้อำนวยการโรงเรียน' กับ 'ผู้อำนวยการโรงเรียนรมย์บุรีพิทยาคม'
-    Map<String, dynamic> find(bool Function(String) match) {
-      return _allUsers.firstWhere(
-        (u) {
-          final value = u['ตำแหน่งงานบริหาร']?.toString() ?? '';
-          if (value.isEmpty) return false;
-          return match(norm(value));
-        },
-        orElse: () => <String, dynamic>{},
-      );
-    }
-
-    var manager = find((v) => v == target);
-    if (manager.isEmpty) {
-      manager = find((v) => v.contains(target) || target.contains(v));
-    }
-
-    final name = manager['fullName']?.toString().trim() ?? '';
-    return name.isNotEmpty ? "($name)" : blank;
-  }
-
   Widget _buildDatePickerField(String label, String value, VoidCallback onTap) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1623,30 +1076,8 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
     );
   }
 
-  /// รายการเหตุผลที่ตั้งไว้ในระบบ แสดงต่อจากช่องกรอกทันที
-  /// พิมพ์เองก็ได้ หรือแตะเลือกจากรายการก็ได้ (ไม่มีปุ่มกดเปิด)
-  /// เมื่อเริ่มพิมพ์ รายการจะกรองเฉพาะที่ตรงกับคำที่พิมพ์
-  /// เทียบประเภทการลาแบบตรงตัวตามที่เก็บในตาราง LeaveTypes
-  /// (ชื่อที่แสดงและชื่อที่เทียบมาจากฐานข้อมูลชุดเดียวกัน จึงตรงกันเสมอ)
-  static bool _isSameLeaveType(String? selected, String candidate) {
-    final a = (selected ?? '').trim();
-    final b = candidate.trim();
-    if (a.isEmpty || b.isEmpty) return false;
-    return a == b;
-  }
-
   /// ประเภทการลาที่แสดงเป็นช่องติ๊กในแบบฟอร์ม
   /// แสดงตามตาราง LeaveTypes ทั้งหมด (มีค่าสำรองเผื่อโหลดฐานไม่ทัน)
-  List<String> get _printableLeaveTypes {
-    final names = _leaveTypeNames
-        .where((t) => t.trim().isNotEmpty && !t.contains('เลือก'))
-        .toList();
-    if (names.isEmpty) {
-      return const ['ลาป่วย', 'ลากิจส่วนตัว', 'ลาคลอดบุตร'];
-    }
-    return names;
-  }
-
   Widget _buildReasonSuggestions() {
     if (_leaveReasons.isEmpty) return const SizedBox.shrink();
 
@@ -1848,50 +1279,30 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
             children: [
               const Icon(Icons.info_outline, size: 16, color: Colors.blue),
               const SizedBox(width: 8),
-              Builder(builder: (context) {
-                String pos = _selectedUser?['position'] ?? '-';
-                String dept = _selectedUser?['department'] ?? '-';
-                String rank = _selectedUser?['academicStanding'] ?? '';
+              // ต้องห่อด้วย Expanded เพราะชื่อกลุ่มสาระบางอันยาวมาก
+              // (เช่น "ครู | ชำนาญการพิเศษ | วิทยาศาสตร์และเทคโนโลยี")
+              // ของเดิมล้นการ์ดออกไป 25px แล้วขึ้นแถบลายเหลือง-ดำ
+              Expanded(
+                child: Builder(builder: (context) {
+                  String pos = _selectedUser?['position'] ?? '-';
+                  String dept = _selectedUser?['department'] ?? '-';
+                  String rank = _selectedUser?['academicStanding'] ?? '';
 
-                String combinedInfo = pos;
-                if (rank.isNotEmpty && rank != '-' && rank != '---เลือก---') {
-                  combinedInfo += " | $rank";
-                }
-                combinedInfo += " | $dept";
+                  String combinedInfo = pos;
+                  if (rank.isNotEmpty && rank != '-' && rank != '---เลือก---') {
+                    combinedInfo += " | $rank";
+                  }
+                  combinedInfo += " | $dept";
 
-                return Text(combinedInfo,
-                    style: GoogleFonts.sarabun(
-                        fontSize: 12, color: Colors.blue.shade800));
-              }),
+                  return Text(combinedInfo,
+                      style: GoogleFonts.sarabun(
+                          fontSize: 12, color: Colors.blue.shade800));
+                }),
+              ),
             ],
           ),
         ),
       ],
-    );
-  }
-}
-
-class _A4Cell extends StatelessWidget {
-  final String text;
-  final bool bold;
-  final double? height;
-  const _A4Cell(this.text, {this.bold = false, this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      alignment: Alignment.center,
-      padding: const EdgeInsets.all(5.0),
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: GoogleFonts.sarabun(
-          fontSize:
-              10, // ปรับฟอนต์ให้เล็กลงนิดหน่อยเพื่อให้ลงตัวกับ 7 คอลัมน์ครับ
-          fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-        ),
-      ),
     );
   }
 }
