@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dart:ui';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:thai_buddhist_date/thai_buddhist_date.dart' as tbd;
+import 'utils/school_info.dart';
 
 Future<void> clearSessionPrefs(SharedPreferences prefs) async {
   await prefs.remove('isLoggedIn');
@@ -93,6 +94,9 @@ class _MyAppState extends State<MyApp> {
           final hasSession =
               Supabase.instance.client.auth.currentSession != null;
           if (hasSession) {
+            // ชื่อโรงเรียนมาจากตาราง Schools ต้องโหลดก่อนวาดใบลา
+            // ถ้าโหลดไม่ได้จะใช้ค่าสำรอง ไม่บล็อกการเข้าแอป
+            await SchoolInfo.load();
             if (mounted) setState(() => _homeWidget = const ResponsiveLayout());
           } else {
             debugPrint('ℹ️  ไม่พบ session ของ Supabase Auth — กลับไปหน้า Login');

@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/firebase_service.dart';
+import '../utils/school_info.dart';
 import 'dashboard_screen.dart';
 import 'leave_form_screen.dart';
 import 'leave_history_screen.dart';
@@ -214,6 +216,15 @@ class _MainLayoutState extends State<MainLayout> {
   Future<void> _logout() async {
     final prefs = await SharedPreferences.getInstance();
     await _clearSessionPrefs(prefs);
+
+    // ต้องออกจาก Supabase Auth ด้วย ไม่ใช่ล้างแค่ข้อมูลในเครื่อง
+    // ไม่งั้น session ยังอยู่ และคนที่มาใช้เครื่องต่อยังอ่านฐานข้อมูลได้
+    try {
+      await Supabase.instance.client.auth.signOut();
+    } catch (e) {
+      debugPrint('⚠️  ออกจากระบบ Supabase ไม่สำเร็จ: $e');
+    }
+    SchoolInfo.reset();
     if (mounted) {
       Navigator.pushReplacement(
           context, MaterialPageRoute(builder: (ctx) => const LoginScreen()));

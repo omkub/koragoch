@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dart:convert';
 import 'responsive_layout.dart';
 import '../services/firebase_service.dart'; // 🛡️ นำเข้า FirebaseService ครับ 🥇🏆
+import '../utils/school_info.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -205,6 +206,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // ✅ ผ่านทุกด่าน = ล็อกอินสำเร็จ (ไม่ต้องพึ่ง FirebaseAuth อีกต่อไป)
       loginSuccess = true;
+
+      // ชื่อโรงเรียนมาจากตาราง Schools — อ่านได้ต่อเมื่อล็อกอินแล้ว (RLS)
+      // โหลดตรงนี้เพื่อให้ใบลาที่เปิดหลังจากนี้ได้ชื่อจริง ไม่ใช่ค่าสำรอง
+      await SchoolInfo.load();
       // เก็บชื่อสิทธิ์ + id ลงใน userData ให้หน้าจออื่นใช้งานต่อได้เหมือนเดิม
       userData['role'] = effectiveRole;
       userData['permission'] = effectiveRole;

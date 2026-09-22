@@ -10,6 +10,7 @@ import '../personnel_screen.dart';
 import 'mobile_password_reset_screen.dart'; // 🔐 เพิ่ม Import สำหรับหน้าอนุมัติรีเซ็ตรหัสครับ 🥇
 import '../user_management_screen.dart'; // 👤 เพิ่มหน้าจัดการผู้ใช้ครับ
 import '../../utils/profile_image.dart';
+import '../../utils/school_info.dart';
 
 class MobileProfileScreen extends StatefulWidget {
   const MobileProfileScreen({super.key});
@@ -361,6 +362,16 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
     if (confirm == true) {
       final prefs = await SharedPreferences.getInstance();
       await _clearSessionPrefs(prefs);
+
+      // ต้องออกจาก Supabase Auth ด้วย ไม่ใช่ล้างแค่ข้อมูลในเครื่อง
+      // ไม่งั้น session ยังอยู่ และคนที่มาใช้เครื่องต่อยังอ่านฐานข้อมูลได้
+      try {
+        await Supabase.instance.client.auth.signOut();
+      } catch (e) {
+        debugPrint('⚠️  ออกจากระบบ Supabase ไม่สำเร็จ: $e');
+      }
+      SchoolInfo.reset();
+
       if (!mounted) return;
       Navigator.pushAndRemoveUntil(
           context,
