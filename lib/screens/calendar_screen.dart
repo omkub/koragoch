@@ -4,7 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/firebase_service.dart';
-import 'leave_history_screen.dart' show LeaveFormPreview;
+import '../utils/school_info.dart';
+import '../widgets/leave_form_page.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -81,7 +82,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
           child: SizedBox(
             width: 900,
             height: size.height,
-            child: LeaveFormPreview(
+            // 📄 ใบลาฉบับกลาง (lib/widgets/leave_form_document.dart)
+            // หน้าประวัติการลายังใช้ LeaveFormPreview ตัวเดิมอยู่ เพื่อให้เปิด
+            // ใบเดียวกันจากสองหน้าแล้วเทียบกันได้ว่าแสดงผลตรงกันไหม
+            child: LeaveFormPage(
               leaf: leave,
               allUsers: _allUsers,
               allLeaveRequests: _allLeaveRequests,
@@ -180,7 +184,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'ปฏิทิน โรงเรียนรมบุรีพิทยาคม',
+                          SchoolInfo.calendarTitle,
                           style: GoogleFonts.sarabun(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
