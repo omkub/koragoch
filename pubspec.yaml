@@ -1,6 +1,6 @@
 ﻿name: school_leave_app
 description: A new Flutter project for School Leave System.
-version: 26.9.23+9
+version: 26.9.23+10
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

@@ -4220,34 +4220,77 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     ),
                     TextButton.icon(
                       onPressed: () async {
-                        for (var role in _permissionRoles) {
-                          final currentData = rolePerms[role] ?? {};
-                          Map<String, dynamic> newData = {
-                            'updatedAt': FieldValue.serverTimestamp()
-                          };
+                        // เขียนสิทธิ์ที่แสดงอยู่ตอนนี้ลงฐานข้อมูลใหม่ทั้งหมด
+                        //
+                        // ตาราง Permissions/MobilePermissions เก็บแบบ
+                        // "หนึ่งแถวต่อหนึ่งเมนูต่อหนึ่งสิทธิ์" (id_role, menu_id, status)
+                        // ของเดิมเขียนเป็นเอกสารเดียวต่อสิทธิ์แบบ Firebase
+                        // และใช้คอลัมน์ 'id' ที่ไม่มีจริง จึงล้มทุกครั้ง แต่ error
+                        // ถูกกลืนไว้แล้วขึ้นข้อความว่าสำเร็จ ทั้งที่ไม่ได้บันทึกอะไรเลย
+                        final client = _firebaseService.supabaseClient;
+                        if (client == null) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text(
+                                        'ยังเชื่อมต่อฐานข้อมูลไม่ได้ กรุณาลองใหม่')));
+                          }
+                          return;
+                        }
 
-                          // 🚀 บันทึกสิทธิ์ลง Supabase เท่านั้น — ห้ามเขียน Firebase
-                          final client = _firebaseService.supabaseClient;
-                          if (client != null) {
-                            try {
-                              await client
-                                  .from(_permissionCollectionName)
-                                  .upsert({
-                                'id': role,
-                                ...newData,
-                                'updatedat': DateTime.now().toIso8601String(),
+                        final records = <Map<String, dynamic>>[];
+                        final now = DateTime.now().toIso8601String();
+                        String? failed;
+
+                        try {
+                          for (final role in _permissionRoles) {
+                            final currentData = rolePerms[role] ?? {};
+
+                            // ชื่อสิทธิ์ที่แสดงบนหน้าจอ ต้องแปลงเป็น ID_Roles ก่อน
+                            final roleRow = await client
+                                .from('roles')
+                                .select('ID_Roles')
+                                .eq('Accessrights', role)
+                                .maybeSingle();
+                            if (roleRow == null) continue;
+
+                            for (final entry in menuEntries) {
+                              final pageId = entry.key.toString();
+                              final pageName = entry.value;
+                              final allowed = _readPermissionValue(
+                                  currentData, pageId, pageName);
+                              records.add({
+                                'id_role': roleRow['ID_Roles'],
+                                'menu_id': int.tryParse(pageId) ?? 0,
+                                'status': allowed ? '1' : '0',
+                                'updatedAt': now,
                               });
-                            } catch (e) {
-                              debugPrint('Supabase permission save error: $e');
                             }
                           }
+
+                          if (records.isNotEmpty) {
+                            await client
+                                .from(_permissionCollectionName)
+                                .upsert(records, onConflict: 'id_role,menu_id');
+                          }
+                        } catch (e) {
+                          // ห้ามกลืน error แล้วบอกว่าสำเร็จ ต้องบอกตามจริง
+                          debugPrint('❌ บันทึกสิทธิ์ไม่สำเร็จ: $e');
+                          failed = e.toString();
                         }
+
+                        if (mounted) setState(() => _permsFuture = null);
+
                         // context ตรงนี้มาจาก builder ไม่ใช่ของ State
                         // จึงต้องเช็ก context.mounted ของมันเอง
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                              content: Text(
-                                  'บันทึกและล้างข้อมูลเก่าเรียบร้อยครับ! 🏗️🥇')));
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            backgroundColor:
+                                failed == null ? null : Colors.red.shade700,
+                            content: Text(failed == null
+                                ? 'บันทึกสิทธิ์ ${records.length} รายการเรียบร้อยครับ! 🏗️🥇'
+                                : 'บันทึกสิทธิ์ไม่สำเร็จ: $failed'),
+                          ));
                         }
                       },
                       icon:

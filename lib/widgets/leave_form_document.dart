@@ -471,13 +471,23 @@ class LeaveFormDottedLine extends StatelessWidget {
                     color: Colors.black26, fontSize: 18, letterSpacing: 2)),
           ),
           if (value != null && value!.isNotEmpty)
+            // left/right = 0 บังคับให้กว้างเท่าเส้นประ แล้ว FittedBox ย่อข้อความ
+            // ให้พอดีถ้ายาวเกิน — ของเดิมปล่อยให้ล้นแล้วถูกตัดกลางคำ
+            // (วันที่ไทยเต็ม ๆ อย่าง "10 กันยายน 2569" ยาวเกินช่องแคบ ๆ)
             Positioned(
-                bottom: 10,
+              bottom: 10,
+              left: 0,
+              right: 0,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
                 child: Text(value!,
+                    maxLines: 1,
                     style: GoogleFonts.sarabun(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: const Color(0xFF0F172A)))),
+                        color: const Color(0xFF0F172A))),
+              ),
+            ),
         ],
       ),
     );
