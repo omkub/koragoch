@@ -15,6 +15,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../utils/web_platform.dart' as platform;
 import 'line_settings_screen.dart';
 import 'calendar_settings_tab.dart';
+import 'school_settings_tab.dart';
 import '../utils/profile_image.dart';
 
 class UserManagementScreen extends StatefulWidget {
@@ -3172,6 +3173,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 const CalendarSettingsTab(tabIndex: 1),
                               if (_currentTab == 7)
                                 const CalendarSettingsTab(tabIndex: 2),
+                              if (_currentTab == 8) const SchoolSettingsTab(),
                             ],
                           ),
                         ),
@@ -4497,6 +4499,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     6, Icons.event_available_rounded, "ตั้งค่าวันหยุด"),
                 _buildTabButton(
                     7, Icons.calendar_today_rounded, "ตั้งค่าวันทำงานพิเศษ"),
+                _buildTabButton(8, Icons.school_rounded, "ข้อมูลโรงเรียน"),
               ],
             ),
           ),
