@@ -1,16 +1,24 @@
-/**
+﻿/**
  * 🚀 SysSchool Secure Bridge (Phase 4.5 - FULL GET COMPATIBLE)
  * ระบบเป็นสะพานเชื่อม LINE และจัดการไฟล์รูปภาพ (แก้ปัญหา CORS แบบเบ็ดเสร็จ)
+ *
+ * ⚠️ ไฟล์นี้เป็น "สำเนาไว้อ่าน" เท่านั้น ของจริงที่รันอยู่คือโปรเจกต์ใน
+ *    Google Apps Script (https://script.google.com/home) — แก้ที่นั่น
+ *
+ * 🔐 ห้ามใส่ค่าลับจริงลงในไฟล์นี้เด็ดขาด
+ *    repo นี้เป็นสาธารณะ ใครก็เปิดดูได้
+ *    เคยมี SECRET_KEY กับ LINE token ของจริงหลุดมาแล้ว (เปลี่ยนค่าใหม่หมดแล้ว)
+ *    ค่าจริงให้กรอกในหน้า Apps Script เท่านั้น
  */
 
-var SECRET_KEY = "RBP_SECURE_2026"; 
-var LINE_CHANNEL_TOKEN = "Joa6HALno3QH0RUXzm0ufP562+gbf/Z+PVl2UEsdm+Vh0zaQV9Aykmm5VuExPOI/e/ETRsu8DHLpOiKYcoxmtfi9x+xEoeg40KMHJef5VxhPSp1Ly5CZ7rVFblhjEATm0eJrWiXvuV+SzuelJhQd5QdB04t89/1O/w1cDnyilFU="; 
+var SECRET_KEY = "<<ใส่ค่าจริงใน Apps Script เท่านั้น>>"; 
+var LINE_CHANNEL_TOKEN = "<<ใส่ค่าจริงใน Apps Script เท่านั้น>>"; 
 // Optional debug forwarder only. Leave empty for permanent production use.
 // The real LINE webhook URL should be this Apps Script Web App /exec URL.
 var DEBUG_WEBHOOK_URL = ""; 
 var FIRESTORE_PROJECT_ID = "rbp-chanikarnn";
 var FIRESTORE_DATABASE_ID = "school";
-var FIREBASE_WEB_API_KEY = "AIzaSyBfTTxNt5EXXPk0w15YlH-EH4c_0sFkLjo";
+var FIREBASE_WEB_API_KEY = "<<ใส่ค่าจริงใน Apps Script เท่านั้น>>";
 var DEFAULT_LINE_TARGET_ID = "";
 
 // 📁 ไอดีโฟลเดอร์ Google Drive
