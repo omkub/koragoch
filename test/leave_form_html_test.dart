@@ -95,6 +95,23 @@ void main() {
             '<tr><td>ป่วย</td><td>1</td><td>1</td><td>1</td><td>3</td><td>2</td><td>4</td></tr>'));
   });
 
+  test('ปีกนกสูงพอดีกับจำนวนประเภทการลา ไม่ใช่ขนาดตายตัว', () {
+    LeaveFormData withTypes(List<String> types) => LeaveFormData(
+          leaf: const {'leaveType': 'ลาป่วย'},
+          allUsers: const [],
+          allLeaveRequests: const [],
+          leaveTypeNames: types,
+        );
+
+    // สูตร: จำนวน × 22px + ช่องไฟ 2px  (3 อัน = 70, 4 อัน = 94)
+    expect(buildLeaveFormHtml(withTypes(['ลาป่วย', 'ลากิจส่วนตัว', 'ลาคลอดบุตร'])),
+        contains('height: 70px'));
+    expect(
+        buildLeaveFormHtml(
+            withTypes(['ลาป่วย', 'ลากิจส่วนตัว', 'ลาคลอดบุตร', 'ลาพักผ่อน'])),
+        contains('height: 94px'));
+  });
+
   test('autoPrint ใส่สคริปต์สั่งพิมพ์ให้เฉพาะตอนที่ขอ', () {
     expect(buildLeaveFormHtml(buildData(), autoPrint: true),
         contains('window.print()'));

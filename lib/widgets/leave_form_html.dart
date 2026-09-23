@@ -59,6 +59,12 @@ String buildLeaveFormHtml(LeaveFormData data, {bool autoPrint = false}) {
 
   final stats = data.statRows.map(_statRowHtml).join('');
 
+  // ความสูงของช่องติ๊ก = จำนวนบรรทัด × 22px + ช่องไฟระหว่างบรรทัด 2px
+  // (ตรงกับ .checkline height: 22px และ .checks gap: 2px ใน CSS ข้างล่าง)
+  // ปีกนกใช้ความสูงนี้ จึงครอบช่องติ๊กพอดีไม่ว่าจะมีประเภทการลากี่อัน
+  final leaveTypeCount = data.printableLeaveTypes.length;
+  final braceHeight = leaveTypeCount * 22 + (leaveTypeCount - 1) * 2;
+
   return '''
 <!doctype html>
 <html>
@@ -85,7 +91,11 @@ String buildLeaveFormHtml(LeaveFormData data, {bool autoPrint = false}) {
     .checks { display: grid; gap: 2px; }
     .checkline { display: flex; align-items: center; gap: 7px; height: 22px; }
     .check { width: 14px; height: 14px; border: 1px solid #111; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; line-height: 1; margin-right: 6px; }
-    .brace { font-family: "Sarabun", sans-serif; font-size: 140px; line-height: .65; font-weight: 100; color: rgba(0,0,0,0.4); transform: scaleX(0.25); display: inline-block; margin: 0 -35px; }
+    /* ปีกนกวาดเป็น SVG แล้วยืดเต็มกล่อง ความสูงของกล่องคำนวณจากจำนวน
+       ประเภทการลา (ดู braceHeight ในโค้ด) จึงพอดีเสมอไม่ว่าจะมีกี่ประเภท
+       ของเดิมใช้ตัวอักษร } ขนาดตายตัว 140px ซึ่งสูงเกินช่องติ๊กเกือบเท่าตัว */
+    .brace { display: block; width: 26px; margin: 0 auto; }
+    .brace svg { display: block; width: 100%; height: 100%; }
     .center { text-align: center; }
     .bottom { display: grid; grid-template-columns: 1fr 1.04fr; gap: 46px; margin-top: 28px; align-items: end; }
     .stats-title { text-align: center; font-weight: 700; font-size: 12px; margin-bottom: 8px; }
@@ -128,7 +138,13 @@ String buildLeaveFormHtml(LeaveFormData data, {bool autoPrint = false}) {
       <div class="checks">
         $leaveTypeChecks
       </div>
-      <div class="brace">}</div>
+      <div class="brace" style="height: ${braceHeight}px">
+        <svg viewBox="0 0 20 100" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M4 1 C13 1 11 9 11 22 C11 38 11 46 18 50 C11 54 11 62 11 78 C11 91 13 99 4 99"
+                fill="none" stroke="rgba(0,0,0,0.55)" stroke-width="1.4"
+                stroke-linecap="round" vector-effect="non-scaling-stroke" />
+        </svg>
+      </div>
       <div class="reason-section" style="padding-top: 34px;">
         <span class="reason-label">เนื่องจาก</span>
         <div class="reason-text">$reason</div>

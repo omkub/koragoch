@@ -160,21 +160,39 @@ class LeaveFormDocument extends StatelessWidget {
             width: 80,
             child: Text('ขอลา',
                 style: _docBaseStyle.copyWith(fontWeight: FontWeight.bold))),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: data.printableLeaveTypes
-              .map((t) =>
-                  LeaveFormCheckBox(t, checked: data.isSelectedLeaveType(t)))
-              .toList(),
+        // ปีกนกต้องสูงเท่าช่องติ๊กพอดี ไม่ว่าจะมีประเภทการลากี่อัน
+        // จึงจับคู่ไว้ใน IntrinsicHeight เดียวกัน แล้วให้ปีกนกยืดเต็มความสูง
+        // (ของเดิมตั้งขนาดตายตัว 100px พอเพิ่มประเภทการลาก็ไม่พอดีอีก)
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: data.printableLeaveTypes
+                    .map((t) => LeaveFormCheckBox(t,
+                        checked: data.isSelectedLeaveType(t)))
+                    .toList(),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 15),
+                child: SizedBox(
+                  width: 26,
+                  // BoxFit.fill ยืดตัวอักษรให้เต็มกล่องพอดีทั้งสูงและกว้าง
+                  child: FittedBox(
+                    fit: BoxFit.fill,
+                    child: Text('}',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w100,
+                            height: 1.0,
+                            fontFamily: 'serif')),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-        const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 15),
-            child: Text('}',
-                style: TextStyle(
-                    fontSize: 100,
-                    fontWeight: FontWeight.w100,
-                    height: 1.1,
-                    fontFamily: 'serif'))),
         Expanded(
           child: Column(children: [
             const SizedBox(height: 35),
