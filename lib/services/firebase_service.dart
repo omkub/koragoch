@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import '../utils/school_info.dart';
 import '../utils/web_platform.dart' as platform;
 
 class FirebaseService {
@@ -18,6 +19,49 @@ class FirebaseService {
   }
 
   SupabaseClient? get supabaseClient => _supabaseIfReady;
+
+  // ═══════════════════════════════════════════════════════════════
+  // หลายโรงเรียน (ดู supabase/multi_school_step1_id_school.sql)
+  //
+  // ตารางในชุดนี้มีคอลัมน์ id_school — อ่านต้องกรองด้วย [inSchool]
+  // เขียนต้องแนบด้วย [withSchool] ส่วนตารางอื่น (FiscalRounds, roles,
+  // positions, academics, LeaveTypes ฯลฯ) ใช้ร่วมกันทุกโรงเรียน
+  //
+  // ฐานข้อมูลมี trigger เติม id_school ให้อยู่แล้ว (ใบลาใช้โรงเรียนของ
+  // เจ้าของเสมอ) การแนบจากแอปเป็นแค่ความชัดเจน ไม่ได้เป็นตัวกันความปลอดภัย
+  // ตัวกันจริงคือ RLS ชั้นที่ 3
+  // ═══════════════════════════════════════════════════════════════
+  static const Set<String> schoolScopedTables = {
+    'Teachers',
+    'Leaves',
+    'LoginLogs',
+    'departments',
+    'adminroles',
+  };
+
+  /// กรอง query ให้เหลือเฉพาะโรงเรียนของผู้ใช้ที่ล็อกอินอยู่
+  ///
+  /// ยังไม่รู้โรงเรียน (โหลดไม่สำเร็จ) = ไม่กรอง ทำงานแบบเดิม
+  static PostgrestFilterBuilder<T> inSchool<T>(PostgrestFilterBuilder<T> query,
+      {int? schoolId}) {
+    final id = schoolId ?? SchoolInfo.currentSchoolId;
+    return id == null ? query : query.eq('id_school', id);
+  }
+
+  /// แนบ id_school ของผู้ใช้ปัจจุบันให้ record ที่จะเขียนลงตารางแยกโรงเรียน
+  ///
+  /// ไม่ทับค่าที่ผู้เรียกใส่มาเอง และไม่แตะตารางที่ใช้ร่วมกัน
+  static Map<String, dynamic> withSchool(
+      String table, Map<String, dynamic> record,
+      {int? schoolId}) {
+    final id = schoolId ?? SchoolInfo.currentSchoolId;
+    if (id == null ||
+        !schoolScopedTables.contains(table) ||
+        record['id_school'] != null) {
+      return record;
+    }
+    return {...record, 'id_school': id};
+  }
 
   // แปลงข้อมูล Firebase → รูปแบบที่ Supabase รับได้
   // (key เป็น lowercase, FieldValue/Timestamp → ISO string)
@@ -437,6 +481,7 @@ class FirebaseService {
     }
 
     // กันชื่อผู้ใช้ซ้ำตั้งแต่ต้นทาง จะได้ขึ้นข้อความที่อ่านรู้เรื่อง
+    // ทุกโรงเรียน: username ต้องไม่ซ้ำทั้งระบบ (ล็อกอินไม่ต้องเลือกโรงเรียน)
     final duplicated = await client
         .from('Teachers')
         .select('id_user')
@@ -447,7 +492,8 @@ class FirebaseService {
           'ชื่อผู้ใช้ "$username" ถูกใช้ไปแล้ว กรุณาตั้งชื่อใหม่ครับ');
     }
 
-    final rec = await _teacherRecordForSupabase(client, data);
+    final rec =
+        withSchool('Teachers', await _teacherRecordForSupabase(client, data));
     final now = DateTime.now().toIso8601String();
     rec['created_at'] = rec['created_at'] ?? now;
     rec['updated_at'] = now;
@@ -510,10 +556,10 @@ class FirebaseService {
     if (rec.containsKey('department')) {
       final deptName = rec['department']?.toString().trim();
       if (deptName != null && deptName.isNotEmpty) {
-        final deptRows = await client
-            .from('departments')
-            .select('ID_Departments')
-            .ilike('DepartmentsName', deptName)
+        final deptRows = await inSchool(client
+                .from('departments')
+                .select('ID_Departments')
+                .ilike('DepartmentsName', deptName))
             .limit(1);
         if ((deptRows as List).isNotEmpty) {
           rec['id_department'] = deptRows.first['ID_Departments'];
@@ -547,10 +593,10 @@ class FirebaseService {
           adminName == 'ไม่มีตำแหน่งบริหาร') {
         rec['id_adminrole'] = null;
       } else {
-        final adminRows = await client
-            .from('adminroles')
-            .select('ID_AdminRoles')
-            .ilike('AdminRolesName', adminName)
+        final adminRows = await inSchool(client
+                .from('adminroles')
+                .select('ID_AdminRoles')
+                .ilike('AdminRolesName', adminName))
             .limit(1);
         if ((adminRows as List).isNotEmpty) {
           rec['id_adminrole'] = adminRows.first['ID_AdminRoles'];
@@ -614,10 +660,10 @@ class FirebaseService {
       String fullName, Map<String, dynamic> newData) async {
     final client = _supabaseIfReady;
     if (client == null) return;
-    final rows = await client
-        .from('Teachers')
-        .select('id_user, firebase_uid')
-        .eq('fullName', fullName)
+    final rows = await inSchool(client
+            .from('Teachers')
+            .select('id_user, firebase_uid')
+            .eq('fullName', fullName))
         .limit(1);
     if ((rows as List).isNotEmpty) {
       final docId =
@@ -679,7 +725,7 @@ class FirebaseService {
     final client = _supabaseIfReady;
     if (client == null) return [];
     try {
-      final rows = await client.from('Leaves').select('reason');
+      final rows = await inSchool(client.from('Leaves').select('reason'));
       final seen = <String>{};
       final result = <String>[];
       for (final row in (rows as List)) {
@@ -980,11 +1026,12 @@ class FirebaseService {
   Future<void> clearAllReceiveNumbers() async {
     final client = _supabaseIfReady;
     if (client == null) throw Exception('Supabase not initialized');
-    await client.from('Leaves').update({
+    // ล้างเฉพาะโรงเรียนตัวเอง ห้ามไปล้างเลขรับของโรงเรียนอื่น
+    await inSchool(client.from('Leaves').update({
       'receiveNumber': null,
       'receiveDate': null,
       'receiveTime': null
-    }).not('receiveNumber', 'is', null);
+    }).not('receiveNumber', 'is', null));
   }
 
   /// แปลงข้อมูลใบลาจากหน้าจอ → คอลัมน์จริงของตาราง Leaves
@@ -1002,10 +1049,11 @@ class FirebaseService {
     // ชื่อครู → id_user
     final fullName = data['fullName']?.toString().trim() ?? '';
     if (fullName.isNotEmpty) {
-      final row = await client
-          .from('Teachers')
-          .select('id_user')
-          .eq('fullName', fullName)
+      // ชื่อครูซ้ำข้ามโรงเรียนได้ ต้องหาในโรงเรียนตัวเองเท่านั้น
+      final row = await inSchool(client
+              .from('Teachers')
+              .select('id_user')
+              .eq('fullName', fullName))
           .limit(1)
           .maybeSingle();
       final idUser = row?['id_user'];
@@ -1086,7 +1134,7 @@ class FirebaseService {
     record['timestamp'] = DateTime.now().toIso8601String();
     record.removeWhere((_, v) => v == null);
 
-    await client.from('Leaves').insert(record);
+    await client.from('Leaves').insert(withSchool('Leaves', record));
   }
 
   // แก้ไขใบลาครับ 🏎️🏁
@@ -1122,7 +1170,8 @@ class FirebaseService {
         .maybeSingle();
     final idYear = yearRow?['id_year'];
 
-    var query = client.from('Leaves').select('receiveNumber');
+    // เลขรับนับแยกแต่ละโรงเรียน
+    var query = inSchool(client.from('Leaves').select('receiveNumber'));
     if (idYear != null) query = query.eq('id_year', idYear);
     final rows = await query.not('receiveNumber', 'is', null);
     return (rows as List).length + 1;
@@ -1501,8 +1550,9 @@ class FirebaseService {
     Future<Map<String, dynamic>?> byColumn(String column, dynamic value) async {
       if (value == null || value.toString().trim().isEmpty) return null;
       try {
-        final rows =
-            await client.from('Teachers').select().eq(column, value).limit(1);
+        final rows = await inSchool(
+                client.from('Teachers').select().eq(column, value))
+            .limit(1);
         if ((rows as List).isEmpty) return null;
         final enriched =
             await enrichTeacher(Map<String, dynamic>.from(rows.first as Map));
@@ -1620,10 +1670,8 @@ class FirebaseService {
   Future<Map<String, dynamic>?> searchTeacherByName(String fullName) async {
     final client = _supabaseIfReady;
     if (client == null) return null;
-    final rows = await client
-        .from('Teachers')
-        .select()
-        .eq('fullName', fullName.trim())
+    final rows = await inSchool(
+            client.from('Teachers').select().eq('fullName', fullName.trim()))
         .limit(1);
     if ((rows as List).isNotEmpty) {
       return {
@@ -1646,12 +1694,12 @@ class FirebaseService {
       return;
     }
     try {
-      await client.from('LoginLogs').insert({
+      await client.from('LoginLogs').insert(withSchool('LoginLogs', {
         if (idUser != null) 'id_user': idUser,
         'timestamp': DateTime.now().toIso8601String(),
         'platform': kIsWeb ? 'Web' : 'Mobile',
         'userAgent': platform.platformUserAgent,
-      });
+      }));
       debugPrint('✅ Login logged to Supabase (id_user=$idUser)');
     } catch (e) {
       debugPrint('❌ Error logging login to Supabase: $e');
@@ -1673,7 +1721,7 @@ class FirebaseService {
     final client = _supabaseIfReady;
     if (client == null) return [];
     try {
-      var query = client.from('LoginLogs').select();
+      var query = inSchool(client.from('LoginLogs').select());
       if (startDate != null) {
         query = query.gte('timestamp', startDate.toIso8601String());
       }
@@ -1689,7 +1737,9 @@ class FirebaseService {
       final roleNameById = <String, String>{};
       try {
         final results = await Future.wait([
-          client.from('Teachers').select('id_user,fullName,username,id_role'),
+          inSchool(client
+              .from('Teachers')
+              .select('id_user,fullName,username,id_role')),
           client.from('roles').select('ID_Roles,Accessrights'),
         ]);
         for (final t in results[0] as List) {
@@ -1749,9 +1799,9 @@ class FirebaseService {
     final client = _supabaseIfReady;
     if (client == null) return [];
     try {
-      final futureLeaves = client.from('Leaves').select();
+      final futureLeaves = inSchool(client.from('Leaves').select());
       final futureTeachers =
-          client.from('Teachers').select('id_user, fullName');
+          inSchool(client.from('Teachers').select('id_user, fullName'));
       final futureLeaveTypes = getLeaveTypesRawFromSupabase();
       final results =
           await Future.wait([futureLeaves, futureTeachers, futureLeaveTypes]);
@@ -1958,12 +2008,12 @@ class FirebaseService {
       return getUsers();
     }
     try {
-      final futureTeachers = client.from('Teachers').select();
-      final futureDepts = client.from('departments').select();
+      final futureTeachers = inSchool(client.from('Teachers').select());
+      final futureDepts = inSchool(client.from('departments').select());
       final futurePos = client.from('positions').select();
       final futureRoles = client.from('roles').select();
       final futureAcademics = client.from('academics').select();
-      final futureAdminRoles = client.from('adminroles').select();
+      final futureAdminRoles = inSchool(client.from('adminroles').select());
 
       final results = await Future.wait([
         futureTeachers,
@@ -2095,13 +2145,13 @@ class FirebaseService {
     if (client == null) return [];
     try {
       final futureTeachers =
-          client.from('Teachers').select('id_user, fullName');
+          inSchool(client.from('Teachers').select('id_user, fullName'));
       final futureLeaveTypes =
           getLeaveTypesRawFromSupabase(throwOnError: throwOnError);
       final futureFiscalRounds = throwOnError
           ? _fetchFiscalRoundsFromSupabase(throwOnError: true)
           : getFiscalRoundsFromSupabase();
-      var query = client.from('Leaves').select();
+      final query = inSchool(client.from('Leaves').select());
       final results = await Future.wait(
           [query, futureTeachers, futureLeaveTypes, futureFiscalRounds]);
       final rows = results[0] as List;
@@ -2198,10 +2248,10 @@ class FirebaseService {
       // ตาราง Leaves ไม่มีคอลัมน์ชื่อครู มีแต่ id_user (FK) และไม่มี createdat
       // ของเดิมยิง .eq('fullname').order('createdat') จึงได้ HTTP 400 ทุกครั้ง
       // แล้วถูก catch กลืนไว้ — ฟังก์ชันนี้คืน null มาตลอดโดยไม่มีใครรู้
-      final teacherRows = await client
-          .from('Teachers')
-          .select('id_user')
-          .eq('fullName', fullName.trim())
+      final teacherRows = await inSchool(client
+              .from('Teachers')
+              .select('id_user')
+              .eq('fullName', fullName.trim()))
           .limit(1);
       if ((teacherRows as List).isEmpty) return null;
 
@@ -2335,7 +2385,9 @@ class FirebaseService {
     final client = _supabaseIfReady;
     if (client == null) return [];
     try {
-      final rows = await client.from(table).select();
+      var query = client.from(table).select();
+      if (schoolScopedTables.contains(table)) query = inSchool(query);
+      final rows = await query;
       final seen = <String>{};
       final result = <String>[];
       for (final row in (rows as List)) {
@@ -2484,7 +2536,7 @@ class FirebaseService {
       String supabaseTable, Map<String, dynamic> record) async {
     final client = _supabaseIfReady;
     if (client == null) throw Exception('Supabase not initialized');
-    await client.from(supabaseTable).insert(record);
+    await client.from(supabaseTable).insert(withSchool(supabaseTable, record));
   }
 
   Future<void> updateMasterItemInSupabase(
@@ -2587,10 +2639,10 @@ class FirebaseService {
     final client = _supabaseIfReady;
     if (client == null) return 0;
     try {
-      final rows = await client
+      final rows = await inSchool(client
           .from('Teachers')
           .select('id_user') // Teachers ไม่มีคอลัมน์ 'id' — PK คือ id_user
-          .eq('forgotPasswordStatus', 'waiting');
+          .eq('forgotPasswordStatus', 'waiting'));
       return (rows as List).length;
     } catch (e) {
       return 0;
@@ -2601,10 +2653,10 @@ class FirebaseService {
     final client = _supabaseIfReady;
     if (client == null) return [];
     try {
-      final rows = await client
+      final rows = await inSchool(client
           .from('Teachers')
           .select()
-          .eq('forgotPasswordStatus', 'waiting');
+          .eq('forgotPasswordStatus', 'waiting'));
       return (rows as List).map((r) => _fromSupabaseTeacher(r as Map)).toList();
     } catch (e) {
       debugPrint('❌ getPendingResetsFromSupabase error: $e');

@@ -209,7 +209,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // ชื่อโรงเรียนมาจากตาราง Schools — อ่านได้ต่อเมื่อล็อกอินแล้ว (RLS)
       // โหลดตรงนี้เพื่อให้ใบลาที่เปิดหลังจากนี้ได้ชื่อจริง ไม่ใช่ค่าสำรอง
-      await SchoolInfo.load();
+      // force: คนก่อนหน้าบนเครื่องนี้อาจอยู่คนละโรงเรียน ห้ามใช้ค่าเก่าค้าง
+      await SchoolInfo.load(force: true);
       // เก็บชื่อสิทธิ์ + id ลงใน userData ให้หน้าจออื่นใช้งานต่อได้เหมือนเดิม
       userData['role'] = effectiveRole;
       userData['permission'] = effectiveRole;
