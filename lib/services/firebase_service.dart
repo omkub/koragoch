@@ -2360,12 +2360,27 @@ class FirebaseService {
   }
 
   // ── Special dates ───────────────────────────────────────────────
+  //
+  // วันหยุด/วันทำงานพิเศษมี 2 แบบในตารางเดียวกัน
+  //   id_school ว่าง  = วันหยุดตามปฏิทิน ใช้ทุกโรงเรียน
+  //   id_school มีค่า = เฉพาะโรงเรียนนั้น
+  // แต่ละโรงเรียนจึงเห็น (แบบแรกทั้งหมด + แบบหลังของตัวเอง)
+
+  /// กรองวันหยุด: ของทุกโรงเรียน + ของโรงเรียนผู้ใช้
+  static PostgrestFilterBuilder<T> _specialDatesInSchool<T>(
+      PostgrestFilterBuilder<T> query) {
+    final id = SchoolInfo.currentSchoolId;
+    return id == null
+        ? query
+        : query.or('id_school.is.null,id_school.eq.$id');
+  }
 
   Future<List<Map<String, dynamic>>> getSpecialHolidaysFromSupabase() async {
     final client = _supabaseIfReady;
     if (client == null) return [];
     try {
-      final rows = await client.from('SpecialHolidays').select();
+      final rows =
+          await _specialDatesInSchool(client.from('SpecialHolidays').select());
       // เติมคีย์ 'id' ให้หน้าจอใช้ได้เหมือนสมัย Firebase (PK จริงคือ id_holiday)
       // ไม่งั้นปุ่มลบจะส่ง null ไปลบ แล้วไม่มีอะไรเกิดขึ้น
       return (rows as List).map((r) {
@@ -2383,7 +2398,8 @@ class FirebaseService {
     final client = _supabaseIfReady;
     if (client == null) return [];
     try {
-      final rows = await client.from('SpecialWorkingDays').select();
+      final rows = await _specialDatesInSchool(
+          client.from('SpecialWorkingDays').select());
       // เติมคีย์ 'id' ด้วยเหตุผลเดียวกับ SpecialHolidays
       return (rows as List).map((r) {
         final row = Map<String, dynamic>.from(r as Map);

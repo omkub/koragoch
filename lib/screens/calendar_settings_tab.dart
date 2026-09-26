@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/firebase_service.dart';
+import '../utils/school_info.dart';
 import '../widgets/thai_buddhist_calendar_widget.dart';
 
 class CalendarSettingsTab extends StatefulWidget {
@@ -30,6 +31,11 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
 
   bool _isInstallingHolidays = false;
   bool _isRecalculatingLeaves = false;
+
+  // วันหยุด/วันทำงานพิเศษที่เพิ่มใหม่ ใช้กับทุกโรงเรียนหรือไม่
+  // (เลือกได้เฉพาะผู้ดูแลส่วนกลาง แอดมินโรงเรียนเพิ่มได้แค่ของโรงเรียนตัวเอง)
+  bool _holidayForAllSchools = true;
+  bool _workingForAllSchools = true;
 
   final List<String> _thaiMonths = [
     'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน',
@@ -61,9 +67,6 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
 
   // ===== Shared Helpers =====
 
-  String _formatDateForStorage(DateTime date) {
-    return '${date.day}/${date.month}/${date.year + 543}';
-  }
 
   String _formatDateDisplay(DateTime date) {
     return '${date.day} ${_thaiMonths[date.month - 1]} ${date.year + 543}';
@@ -455,6 +458,62 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
     );
   }
 
+  // ===== วันหยุด 2 แบบ: ตามปฏิทิน (ทุกโรงเรียน) / เฉพาะโรงเรียน =====
+
+  /// id_school ที่จะบันทึก — null = วันหยุดตามปฏิทินของทุกโรงเรียน
+  int? _targetSchoolId(bool forAllSchools) =>
+      SchoolInfo.isSuperAdmin && forAllSchools ? null : SchoolInfo.currentSchoolId;
+
+  bool _isAllSchoolsRecord(Map<String, dynamic> record) =>
+      (record['id_school']?.toString() ?? '').isEmpty;
+
+  /// แก้/ลบรายการนี้ได้ไหม (ต้องตรงกับ RLS ใน multi_school_step3_rls.sql)
+  bool _canEditSpecialDate(Map<String, dynamic> record) {
+    if (SchoolInfo.isSuperAdmin) return true;
+    if (_isAllSchoolsRecord(record)) return false;
+    return record['id_school'].toString() == SchoolInfo.currentSchoolId.toString();
+  }
+
+  /// record สำหรับตาราง SpecialHolidays / SpecialWorkingDays
+  ///
+  /// ไม่ส่ง 'id' — ตารางไม่มีคอลัมน์นี้ (PK คือ id_holiday / id_SpecialWorkingDays
+  /// ซึ่งฐานข้อมูลออกเลขให้เอง) ของเดิมส่ง 'id' ไปจึงบันทึกไม่สำเร็จทุกครั้ง
+  /// ส่วน date เป็นคอลัมน์ชนิด date ต้องส่งแบบ yyyy-MM-dd
+  Map<String, dynamic> _specialDateRecord(DateTime date, String title,
+      {required int? schoolId, String? source}) {
+    final now = DateTime.now().toIso8601String();
+    return {
+      'date': FirebaseService.toIsoDate(date),
+      'dateValue': date.toIso8601String(),
+      'title': title,
+      'note': title,
+      if (source != null) 'source': source,
+      if (schoolId != null) 'id_school': schoolId,
+      'updatedAt': now,
+      'createdAt': now,
+    };
+  }
+
+  /// สวิตช์เลือก "ใช้กับทุกโรงเรียน" — แสดงเฉพาะผู้ดูแลส่วนกลาง
+  Widget _buildScopeSwitch(bool value, ValueChanged<bool> onChanged) {
+    if (!SchoolInfo.isSuperAdmin) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        value: value,
+        onChanged: onChanged,
+        title: Text(
+            value
+                ? 'ใช้กับทุกโรงเรียน (วันหยุดตามปฏิทิน)'
+                : 'เฉพาะ${SchoolInfo.fullName}',
+            style: GoogleFonts.sarabun(fontWeight: FontWeight.bold, color: primaryColor)),
+        subtitle: Text('ปิดสวิตช์เพื่อบันทึกเป็นของโรงเรียนนี้เท่านั้น',
+            style: GoogleFonts.sarabun(color: Colors.blueGrey, fontSize: 12)),
+      ),
+    );
+  }
+
   // ===== Holiday Tab =====
 
   Future<void> _saveHoliday() async {
@@ -464,20 +523,21 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
       return;
     }
 
-    final docId = 'holiday_${_dateKey(_holidayDate).replaceAll('-', '')}';
-    final now = DateTime.now().toIso8601String();
-    await _firebaseService.addMasterItemToSupabase('SpecialHolidays', {
-      'id': docId,
-      'date': _formatDateForStorage(_holidayDate),
-      'dateValue': _holidayDate.toIso8601String(),
-      'title': title,
-      'note': title,
-      'updatedAt': now,
-      'createdAt': now,
-    });
+    try {
+      await _firebaseService.addMasterItemToSupabase(
+          'SpecialHolidays',
+          _specialDateRecord(_holidayDate, title,
+              schoolId: _targetSchoolId(_holidayForAllSchools)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('บันทึกวันหยุดไม่สำเร็จ: $e'), backgroundColor: Colors.red));
+      return;
+    }
 
     _holidayTitleController.clear();
     if (!mounted) return;
+    setState(() {}); // โหลดรายการใหม่
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึกวันหยุดเรียบร้อยแล้วครับ')));
   }
 
@@ -549,9 +609,10 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
         final id = leave['requestId']?.toString() ?? leave['id']?.toString() ?? '';
         if (id.isEmpty) continue;
         // Leaves ใช้ PK ชื่อ id_leaves ไม่ใช่ id
+        // ชื่อคอลัมน์จริงเป็น camelCase (ของเดิมเขียน totaldays ตัวเล็ก จึงล้ม)
         await client.from('Leaves').update({
-          'totaldays': totalDays,
-          'lastupdatedat': DateTime.now().toIso8601String(),
+          'totalDays': totalDays,
+          'lastUpdatedAt': DateTime.now().toIso8601String(),
         }).eq('id_leaves', int.tryParse(id) ?? id);
         updated++;
       }
@@ -592,28 +653,31 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
         {'date': DateTime(year, 12, 31), 'title': 'วันสิ้นปี'},
       ];
 
+      // วันหยุดราชการ = วันหยุดตามปฏิทินของทุกโรงเรียน (id_school ว่าง)
+      // ข้ามวันที่มีอยู่แล้ว กดซ้ำได้ไม่เกิดรายการซ้ำ
+      // (ของเดิม upsert ด้วยคอลัมน์ 'id' ที่ไม่มีอยู่จริง จึงล้มทุกครั้ง)
+      final existing = (await _firebaseService.getSpecialHolidaysFromSupabase())
+          .where(_isAllSchoolsRecord)
+          .map(_recordDate)
+          .whereType<DateTime>()
+          .map(_dateKey)
+          .toSet();
+      final toAdd = holidays
+          .where((h) => !existing.contains(_dateKey(h['date'] as DateTime)))
+          .map((h) => _specialDateRecord(h['date'] as DateTime, h['title'] as String,
+              schoolId: null, source: 'default_${year + 543}'))
+          .toList();
+
       final client = _firebaseService.supabaseClient;
       if (client == null) throw Exception('Supabase not initialized');
-      final now = DateTime.now().toIso8601String();
-      for (final holiday in holidays) {
-        final date = holiday['date'] as DateTime;
-        final title = holiday['title'] as String;
-        final docId = 'holiday_${_dateKey(date).replaceAll('-', '')}';
-        await client.from('SpecialHolidays').upsert({
-          'id': docId,
-          'date': _formatDateForStorage(date),
-          'dateValue': date.toIso8601String(),
-          'title': title,
-          'note': title,
-          'source': 'default_${year + 543}',
-          'updatedAt': now,
-          'createdAt': now,
-        }, onConflict: 'id');
-      }
+      if (toAdd.isNotEmpty) await client.from('SpecialHolidays').insert(toAdd);
 
       if (!mounted) return;
+      setState(() {}); // โหลดรายการใหม่
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('ติดตั้งวันหยุดราชการหลักปี ${year + 543} แล้ว ${holidays.length} วัน')),
+        SnackBar(content: Text(toAdd.isEmpty
+            ? 'วันหยุดราชการหลักปี ${year + 543} มีครบอยู่แล้วครับ'
+            : 'ติดตั้งวันหยุดราชการหลักปี ${year + 543} เพิ่ม ${toAdd.length} วัน')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -626,8 +690,16 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
   }
 
   Future<void> _deleteSpecialDateRecord(String collection, String docId, String message) async {
-    await _firebaseService.deleteMasterItemFromSupabase(collection, docId);
+    try {
+      await _firebaseService.deleteMasterItemFromSupabase(collection, docId);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('ลบไม่สำเร็จ: $e'), backgroundColor: Colors.red));
+      return;
+    }
     if (!mounted) return;
+    setState(() {}); // โหลดรายการใหม่
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
@@ -672,6 +744,8 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                   );
                 },
               ),
+              _buildScopeSwitch(_holidayForAllSchools,
+                  (v) => setState(() => _holidayForAllSchools = v)),
               const SizedBox(height: 20),
               Wrap(
                 alignment: WrapAlignment.end,
@@ -692,7 +766,9 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
                   ),
-                  OutlinedButton.icon(
+                  // วันหยุดราชการใช้ร่วมกันทุกโรงเรียน ติดตั้งได้เฉพาะผู้ดูแลส่วนกลาง
+                  if (SchoolInfo.isSuperAdmin)
+                    OutlinedButton.icon(
                     onPressed: _isInstallingHolidays ? null : _installDefaultHolidaysForCurrentYear,
                     icon: _isInstallingHolidays
                         ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
@@ -745,20 +821,21 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
       return;
     }
 
-    final docId = 'working_${_dateKey(_specialWorkingDate).replaceAll('-', '')}';
-    final now = DateTime.now().toIso8601String();
-    await _firebaseService.addMasterItemToSupabase('SpecialWorkingDays', {
-      'id': docId,
-      'date': _formatDateForStorage(_specialWorkingDate),
-      'dateValue': _specialWorkingDate.toIso8601String(),
-      'title': title,
-      'note': title,
-      'updatedAt': now,
-      'createdAt': now,
-    });
+    try {
+      await _firebaseService.addMasterItemToSupabase(
+          'SpecialWorkingDays',
+          _specialDateRecord(_specialWorkingDate, title,
+              schoolId: _targetSchoolId(_workingForAllSchools)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('บันทึกวันทำงานพิเศษไม่สำเร็จ: $e'), backgroundColor: Colors.red));
+      return;
+    }
 
     _specialWorkingTitleController.clear();
     if (!mounted) return;
+    setState(() {}); // โหลดรายการใหม่
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึกวันทำงานพิเศษเรียบร้อยแล้วครับ')));
   }
 
@@ -829,6 +906,8 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                   );
                 },
               ),
+              _buildScopeSwitch(_workingForAllSchools,
+                  (v) => setState(() => _workingForAllSchools = v)),
             ],
           ),
         ),
@@ -935,11 +1014,18 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                         child: Icon(icon, size: 20, color: accent),
                       ),
                       title: Text(_recordTitle(record), style: GoogleFonts.sarabun(fontWeight: FontWeight.bold, color: primaryColor)),
-                      subtitle: Text(date == null ? '-' : _formatDateDisplay(date), style: GoogleFonts.sarabun(color: Colors.blueGrey)),
-                      trailing: IconButton(
-                        onPressed: () => _deleteSpecialDateRecord(collection, record['id'].toString(), deleteMessage),
-                        icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
-                      ),
+                      subtitle: Text(
+                          '${date == null ? '-' : _formatDateDisplay(date)}  •  '
+                          '${_isAllSchoolsRecord(record) ? 'ทุกโรงเรียน (ตามปฏิทิน)' : 'เฉพาะโรงเรียน'}',
+                          style: GoogleFonts.sarabun(color: Colors.blueGrey)),
+                      // วันหยุดตามปฏิทินแก้ได้เฉพาะผู้ดูแลส่วนกลาง ซ่อนปุ่มลบไว้
+                      // (กดไปก็ถูก RLS ปฏิเสธอยู่ดี)
+                      trailing: _canEditSpecialDate(record)
+                          ? IconButton(
+                              onPressed: () => _deleteSpecialDateRecord(collection, record['id'].toString(), deleteMessage),
+                              icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+                            )
+                          : null,
                     );
                   },
                 ),
