@@ -15,6 +15,10 @@
  * ความปลอดภัย: ตรวจ token ของผู้เรียกทุกครั้ง และอนุญาตเฉพาะผู้ที่มีสิทธิ์
  * "ผู้ดูแลระบบ" ในตาราง Teachers เท่านั้น service_role ไม่เคยออกจากเซิร์ฟเวอร์
  *
+ * หลายโรงเรียน: ฟังก์ชันนี้ใช้ service_role ซึ่งข้าม RLS จึงต้องตรวจเองว่า
+ * แอดมินกับครูเป้าหมายอยู่โรงเรียนเดียวกัน (ผู้ดูแลส่วนกลางทำได้ทุกโรงเรียน)
+ * และแอดมินโรงเรียนแตะบัญชีผู้ดูแลส่วนกลางไม่ได้
+ *
  * วิธี deploy: ดู supabase/functions/README.md
  */
 
@@ -231,7 +235,7 @@ Deno.serve(async (req) => {
   // ── 2. ผู้เรียกเป็นผู้ดูแลระบบหรือไม่ ──────────────────────────
   const { data: me } = await admin
     .from('Teachers')
-    .select('id_user, id_role, role, permission, fullName')
+    .select('id_user, id_role, role, permission, fullName, id_school, is_super_admin')
     .eq('auth_uid', callerUser.id)
     .maybeSingle();
 
@@ -259,11 +263,21 @@ Deno.serve(async (req) => {
 
   const { data: target } = await admin
     .from('Teachers')
-    .select('id_user, username, fullName, auth_uid')
+    .select('id_user, username, fullName, auth_uid, id_school, is_super_admin')
     .eq('id_user', targetIdUser)
     .maybeSingle();
 
   if (!target) return reply(404, { error: 'ไม่พบครูคนนี้ในระบบ' });
+
+  // ── หลายโรงเรียน: แอดมินจัดการได้เฉพาะครูในโรงเรียนตัวเอง ──
+  // ตอบ 404 เหมือนหาไม่เจอ ไม่บอกว่ามีครูคนนี้อยู่ในโรงเรียนอื่น
+  const callerIsSuper = me.is_super_admin === true;
+  if (!callerIsSuper && target.id_school !== me.id_school) {
+    return reply(404, { error: 'ไม่พบครูคนนี้ในระบบ' });
+  }
+  if (!callerIsSuper && target.is_super_admin === true) {
+    return reply(403, { error: 'ไม่มีสิทธิ์จัดการบัญชีผู้ดูแลระบบส่วนกลาง' });
+  }
 
   const username = String(target.username ?? '').trim();
   if (!username) {

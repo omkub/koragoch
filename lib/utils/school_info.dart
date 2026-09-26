@@ -85,6 +85,7 @@ class SchoolInfo {
 
   static SchoolRecord _current = SchoolRecord.fallback;
   static bool _loaded = false;
+  static bool _isSuperAdmin = false;
 
   /// โรงเรียนที่ระบบกำลังใช้งานอยู่
   static SchoolRecord get current => _current;
@@ -95,6 +96,11 @@ class SchoolInfo {
   /// จะไม่กรองตามโรงเรียน ทำงานแบบเดิมก่อนมีหลายโรงเรียน
   /// ส่วนการกันข้ามโรงเรียนจริง ๆ อยู่ที่ RLS ฝั่งฐานข้อมูล ไม่ได้พึ่งค่านี้
   static int? get currentSchoolId => _current.idSchool;
+
+  /// ผู้ใช้ที่ล็อกอินอยู่เป็นผู้ดูแลระบบส่วนกลาง (ดูแลทุกโรงเรียน) หรือไม่
+  ///
+  /// ใช้แค่เปิด/ปิดปุ่มบนหน้าจอ สิทธิ์จริงตรวจที่ RLS ฝั่งฐานข้อมูล
+  static bool get isSuperAdmin => _isSuperAdmin;
 
   /// โหลดข้อมูลโรงเรียนจากฐานข้อมูล (ทำครั้งเดียวต่อการเปิดแอป)
   ///
@@ -125,6 +131,14 @@ class SchoolInfo {
         debugPrint('ℹ️  หาโรงเรียนของผู้ใช้ไม่ได้ ใช้โรงเรียนแรกแทน: $e');
       }
 
+      try {
+        _isSuperAdmin =
+            await client.rpc('is_super_admin').timeout(timeout) == true;
+      } catch (e) {
+        // ยังไม่ได้รัน super_admin.sql
+        _isSuperAdmin = false;
+      }
+
       var query = client.from('Schools').select();
       if (schoolId != null) query = query.eq('id_school', schoolId);
       final rows =
@@ -152,6 +166,7 @@ class SchoolInfo {
   static void reset() {
     _current = SchoolRecord.fallback;
     _loaded = false;
+    _isSuperAdmin = false;
   }
 
   // ── ค่าที่หน้าจอต่าง ๆ เรียกใช้ ─────────────────────────────────
