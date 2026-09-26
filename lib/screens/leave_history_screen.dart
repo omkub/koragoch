@@ -1060,11 +1060,15 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                   }
                 },
                 itemBuilder: (BuildContext context) {
+                  // อนุมัติ/เปลี่ยนสถานะ/กำหนดเลขรับ ทำได้เฉพาะผู้ดูแลระบบ (id_role 22)
+                  // ผู้บริหารและครูเห็นแค่ดู/พิมพ์ และแก้/ลบใบของตัวเองที่ยังไม่อนุมัติ
+                  // (ฐานข้อมูลบังคับไว้ด้วย ดู supabase/admin_role_by_id.sql)
                   final isAdmin = _userRole?.contains('ผู้ดูแลระบบ') == true;
                   final canEdit =
                       isAdmin || status == 'รอพิจารณา' || status == 'ยังไม่ส่ง';
 
                   return [
+                    if (isAdmin)
                     PopupMenuItem<String>(
                         value: 'approve',
                         child: Row(children: [
@@ -1075,6 +1079,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                               style: GoogleFonts.sarabun(
                                   fontSize: 13, color: Colors.green))
                         ])),
+                    if (isAdmin)
                     PopupMenuItem<String>(
                         value: 'reject',
                         child: Row(children: [
@@ -1085,6 +1090,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                               style: GoogleFonts.sarabun(
                                   fontSize: 13, color: Colors.orange))
                         ])),
+                    if (isAdmin)
                     PopupMenuItem<String>(
                         value: 'set_receive',
                         child: Row(children: [
@@ -1095,7 +1101,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                               style: GoogleFonts.sarabun(
                                   fontSize: 13, color: Colors.indigo))
                         ])),
-                    const PopupMenuDivider(),
+                    if (isAdmin) const PopupMenuDivider(),
                     PopupMenuItem<String>(
                         value: 'view',
                         child: Row(children: [
@@ -1116,6 +1122,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                                 style: GoogleFonts.sarabun(
                                     fontSize: 13, color: Colors.amber.shade700))
                           ])),
+                    if (canEdit)
                     PopupMenuItem<String>(
                         value: 'delete',
                         child: Row(children: [
