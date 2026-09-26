@@ -36,7 +36,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
       _currentUser = prefs.getString('currentUser') ?? '';
 
       final results = await Future.wait([
-        _firebaseService.currentUserHasAdminRole(),
+        _firebaseService.canViewAllLeaves(),
         _firebaseService.getUsers(),
         _firebaseService.getLeaveRequests(),
         _firebaseService.getFiscalRounds(),
@@ -73,7 +73,11 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
         final String currentUserName = _currentUser.trim();
 
         final List<Map<String, dynamic>> allDisplayTeachers = canViewAll
-            ? teachers.where((u) => u['fullName'] != 'ผู้ดูแลระบบ').toList()
+            // ไม่แสดงบัญชีผู้ดูแลระบบ (ไม่ใช่บุคลากรที่ลาจริง) ในตารางสรุป
+            ? teachers
+                .where((u) =>
+                    u['fullName'] != 'ผู้ดูแลระบบ' && u['is_super_admin'] != true)
+                .toList()
             : teachers
                 .where((u) =>
                     (u['fullName'] ?? '').toString().trim() == currentUserName)
