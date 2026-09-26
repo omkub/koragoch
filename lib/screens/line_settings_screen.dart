@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_fonts/google_fonts.dart';
 
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'dart:async';
 import '../services/firebase_service.dart';
-import '../utils/web_platform.dart' as platform;
 
 class LineSettingsScreen extends StatefulWidget {
   const LineSettingsScreen({super.key});
@@ -395,12 +391,9 @@ class _LineSettingsScreenState extends State<LineSettingsScreen> {
     }
     setState(() => _lineStatusMsg = '⌛ กำลังเรียกดูไอดีล่าสุดจากระบบกลาง...');
     try {
-      // 📲 ปรับมาใช้ GET แทน POST เพื่อเลี่ยงปัญหา CORS บนเว็บบราวเซอร์ครับ 🥇🏆
-      final bridgeUrl = _normalizedWebhookUrl();
-      _validateWebhookUrl(bridgeUrl);
-      final String url = "$bridgeUrl?action=get_latest_id&secretKey=${FirebaseService.secretKey}";
-      
-      final dynamic data = await _getAppsScriptJson(url);
+      // ผ่าน Edge Function school-bridge — secretKey อยู่ฝั่งเซิร์ฟเวอร์
+      // (ใช้ URL ของ Apps Script ที่ "บันทึกแล้ว" ถ้าเพิ่งแก้ URL ให้กดบันทึกก่อน)
+      final dynamic data = await _firebaseService.lineLatestId();
       
       // 🛡️ ตรวจสอบโครงสร้างข้อมูลเพื่อป้องกัน Invalid argument (index) error ครับ 🥇🏆
       if (data is Map && data['status'] == 'success' && data['latestId'] != null && data['latestId'].toString().isNotEmpty) {
@@ -514,19 +507,6 @@ class _LineSettingsScreenState extends State<LineSettingsScreen> {
     }
   }
 
-  Future<Map<String, dynamic>> _getAppsScriptJson(String url) async {
-    if (kIsWeb) return platform.jsonpGet(url);
-
-    final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 12));
-    if (response.statusCode != 200 && response.statusCode != 302) {
-      throw Exception('Server error: ${response.statusCode}');
-    }
-    final decoded = jsonDecode(response.body);
-    if (decoded is Map) return Map<String, dynamic>.from(decoded);
-    if (decoded is List) return {'status': 'error', 'isList': true, 'data': decoded};
-    throw Exception('Invalid Apps Script response type: ${decoded.runtimeType}');
-  }
-
   Future<void> _sendLineTest() async {
     setState(() => _isSendingLineTest = true);
     try {
@@ -547,12 +527,8 @@ class _LineSettingsScreenState extends State<LineSettingsScreen> {
           .replaceAll('{days}', '2')
           .replaceAll('{reason}', 'ทดสอบระบบแจ้งเตือนแบบปลอดภัย');
 
-      final String url = "$bridgeUrl?action=line_notification"
-          "&secretKey=${FirebaseService.secretKey}"
-          "&to=$groupId"
-          "&message=${Uri.encodeComponent(msg)}";
-
-      final result = await _getAppsScriptJson(url);
+      // ผ่าน Edge Function school-bridge — secretKey อยู่ฝั่งเซิร์ฟเวอร์
+      final result = await _firebaseService.lineTest(groupId, msg);
       if (result['status'] != 'success') {
         final lineStatus = result['lineStatus'] == null ? '' : ' (LINE ${result['lineStatus']})';
         throw Exception('${result['message'] ?? 'LINE send failed'}$lineStatus');
