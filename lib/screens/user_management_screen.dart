@@ -3408,17 +3408,20 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       final client = _firebaseService.supabaseClient;
       if (client == null) return;
 
+      // กลุ่มสาระ/ตำแหน่งบริหาร แยกตามโรงเรียน — แนบโรงเรียนของผู้ใช้ไปด้วย
       if (idField.isEmpty) {
-        await client.from(table).insert({nameField: value});
+        await client
+            .from(table)
+            .insert(FirebaseService.withSchool(table, {nameField: value}));
         return;
       }
 
       try {
         final nextId = await _nextMasterNumericId(collection, idField);
-        await client.from(table).insert({
+        await client.from(table).insert(FirebaseService.withSchool(table, {
           idField: nextId,
           nameField: value,
-        });
+        }));
       } on PostgrestException catch (e) {
         // บางตาราง (เช่น LeaveTypes) ตั้ง PK เป็น identity แบบ GENERATED ALWAYS
         // ฐานข้อมูลออกเลขให้เอง ห้ามส่งค่าไปเอง -> insert ใหม่โดยไม่ใส่ id
@@ -3426,7 +3429,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             e.message.contains('GENERATED ALWAYS') ||
             e.message.contains('identity column');
         if (!isIdentityColumn) rethrow;
-        await client.from(table).insert({nameField: value});
+        await client
+            .from(table)
+            .insert(FirebaseService.withSchool(table, {nameField: value}));
       }
     } catch (e) {
       debugPrint('Supabase _createMasterItem error: $e');
@@ -3605,9 +3610,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     try {
       final client = _firebaseService.supabaseClient;
       if (client != null) {
-        await client
-            .from(table)
-            .update({nameField: newValue}).eq(nameField, oldValue);
+        // ค้นด้วยชื่อ — ต้องจำกัดโรงเรียน ไม่งั้นไปเปลี่ยนชื่อของโรงเรียนอื่นด้วย
+        var query =
+            client.from(table).update({nameField: newValue}).eq(nameField, oldValue);
+        if (FirebaseService.schoolScopedTables.contains(table)) {
+          query = FirebaseService.inSchool(query);
+        }
+        await query;
       }
     } catch (e) {
       debugPrint('Supabase _renameMasterItem error: $e');
@@ -3630,7 +3639,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     try {
       final client = _firebaseService.supabaseClient;
       if (client != null) {
-        await client.from(table).delete().eq(nameField, value);
+        // ลบด้วยชื่อ — ต้องจำกัดโรงเรียน ไม่งั้นไปลบของโรงเรียนอื่นด้วย
+        var query = client.from(table).delete().eq(nameField, value);
+        if (FirebaseService.schoolScopedTables.contains(table)) {
+          query = FirebaseService.inSchool(query);
+        }
+        await query;
       }
     } catch (e) {
       debugPrint('Supabase _deleteMasterItem error: $e');

@@ -89,7 +89,18 @@ class SchoolInfo {
   /// โรงเรียนที่ระบบกำลังใช้งานอยู่
   static SchoolRecord get current => _current;
 
+  /// โรงเรียนของครูที่ล็อกอินอยู่ (Teachers.id_school)
+  ///
+  /// null = ยังไม่รู้ (ยังไม่ล็อกอิน หรืออ่านฐานข้อมูลไม่ได้) — ตอนนั้นแอป
+  /// จะไม่กรองตามโรงเรียน ทำงานแบบเดิมก่อนมีหลายโรงเรียน
+  /// ส่วนการกันข้ามโรงเรียนจริง ๆ อยู่ที่ RLS ฝั่งฐานข้อมูล ไม่ได้พึ่งค่านี้
+  static int? get currentSchoolId => _current.idSchool;
+
   /// โหลดข้อมูลโรงเรียนจากฐานข้อมูล (ทำครั้งเดียวต่อการเปิดแอป)
+  ///
+  /// เลือกโรงเรียนตาม Teachers.id_school ของคนที่ล็อกอิน (ถามฐานข้อมูลผ่าน
+  /// ฟังก์ชัน current_school_id() ซึ่งผูกกับ session ปลอมไม่ได้)
+  /// ถ้าหาไม่เจอ ใช้โรงเรียนแถวแรกแบบเดิม
   ///
   /// [force] true จะโหลดใหม่แม้เคยโหลดแล้ว ใช้ตอนแอดมินเพิ่งแก้ข้อมูล
   ///
@@ -99,22 +110,31 @@ class SchoolInfo {
 
     try {
       final client = Supabase.instance.client;
-      // ตอนนี้มีโรงเรียนเดียว จึงหยิบแถวแรกมาใช้
-      // เวลาทำหลายโรงเรียนค่อยเปลี่ยนมาเลือกตาม Teachers.id_school
       // ต้องมี timeout เสมอ เพราะจุดที่เรียกฟังก์ชันนี้อยู่ในเส้นทางเข้าแอป
       // ถ้าเน็ตค้างแล้วรอไม่มีกำหนด ผู้ใช้จะเจอหน้าจอค้างกดอะไรไม่ได้
       // ค่าสำรองมีอยู่แล้ว รอไม่ได้ก็ใช้ค่าสำรองไปก่อน
-      final rows = await client
-          .from('Schools')
-          .select()
-          .order('id_school')
-          .limit(1)
-          .timeout(const Duration(seconds: 8));
+      const timeout = Duration(seconds: 8);
+
+      int? schoolId;
+      try {
+        final result =
+            await client.rpc('current_school_id').timeout(timeout);
+        schoolId = int.tryParse(result?.toString() ?? '');
+      } catch (e) {
+        // ยังไม่ได้รัน multi_school_step1_id_school.sql — ใช้แถวแรกแบบเดิม
+        debugPrint('ℹ️  หาโรงเรียนของผู้ใช้ไม่ได้ ใช้โรงเรียนแรกแทน: $e');
+      }
+
+      var query = client.from('Schools').select();
+      if (schoolId != null) query = query.eq('id_school', schoolId);
+      final rows =
+          await query.order('id_school').limit(1).timeout(timeout);
 
       if (rows.isNotEmpty) {
         _current = SchoolRecord.fromRow(Map<String, dynamic>.from(rows.first));
         _loaded = true;
-        debugPrint('✅ โหลดข้อมูลโรงเรียนแล้ว: ${_current.fullName}');
+        debugPrint('✅ โหลดข้อมูลโรงเรียนแล้ว: ${_current.fullName} '
+            '(id_school=${_current.idSchool})');
         return;
       }
 
@@ -126,6 +146,9 @@ class SchoolInfo {
   }
 
   /// ล้างค่าที่โหลดไว้ ใช้ตอนออกจากระบบ
+  ///
+  /// สำคัญมากเมื่อมีหลายโรงเรียน: ถ้าไม่ล้าง คนถัดไปที่ล็อกอินบนเครื่องเดียวกัน
+  /// จะได้ชื่อโรงเรียนและตัวกรองของคนก่อนหน้า
   static void reset() {
     _current = SchoolRecord.fallback;
     _loaded = false;

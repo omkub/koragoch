@@ -56,9 +56,11 @@ class _SchoolSettingsTabState extends State<SchoolSettingsTab> {
       _error = null;
     });
     try {
-      final rows = await Supabase.instance.client
-          .from('Schools')
-          .select()
+      // แก้ได้เฉพาะโรงเรียนของตัวเอง (ยังไม่รู้โรงเรียน = แถวแรกแบบเดิม)
+      var query = Supabase.instance.client.from('Schools').select();
+      final schoolId = SchoolInfo.currentSchoolId;
+      if (schoolId != null) query = query.eq('id_school', schoolId);
+      final rows = await query
           .order('id_school')
           .limit(1)
           .timeout(const Duration(seconds: 10));
