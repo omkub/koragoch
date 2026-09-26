@@ -32,6 +32,9 @@ const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 const EMAIL_DOMAIN = 'leave.local';
 const DEFAULT_PASSWORD = '123456';
 
+// roles.ID_Roles ของ "ผู้ดูแลระบบ" — ต้องตรงกับ is_admin() ใน admin_role_by_id.sql
+const ADMIN_ROLE_ID = 22;
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
@@ -235,23 +238,15 @@ Deno.serve(async (req) => {
   // ── 2. ผู้เรียกเป็นผู้ดูแลระบบหรือไม่ ──────────────────────────
   const { data: me } = await admin
     .from('Teachers')
-    .select('id_user, id_role, role, permission, fullName, id_school, is_super_admin')
+    .select('id_user, id_role, fullName, id_school, is_super_admin')
     .eq('auth_uid', callerUser.id)
     .maybeSingle();
 
   if (!me) return reply(403, { error: 'ไม่พบข้อมูลผู้ใช้ของคุณในระบบ' });
 
-  let roleName = String(me.role ?? me.permission ?? '').trim();
-  if (!roleName && me.id_role) {
-    const { data: roleRow } = await admin
-      .from('roles')
-      .select('Accessrights')
-      .eq('ID_Roles', me.id_role)
-      .maybeSingle();
-    roleName = String(roleRow?.Accessrights ?? '').trim();
-  }
-
-  if (!roleName.includes('ผู้ดูแลระบบ')) {
+  // ผู้ดูแลระบบ = id_role 22 เท่านั้น (ตรงกับ is_admin() ในฐานข้อมูล)
+  // ไม่ดูชื่อสิทธิ์หรือคอลัมน์ข้อความ role/permission ที่อาจค้างค่าเก่า
+  if (Number(me.id_role) !== ADMIN_ROLE_ID) {
     return reply(403, { error: 'เฉพาะผู้ดูแลระบบเท่านั้นที่ทำรายการนี้ได้' });
   }
 
