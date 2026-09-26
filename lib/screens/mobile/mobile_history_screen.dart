@@ -60,7 +60,7 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
 
   Future<void> _loadUser() async {
     final prefs = await SharedPreferences.getInstance();
-    final canViewAll = await _firebaseService.currentUserHasAdminRole();
+    final canViewAll = await _firebaseService.canViewAllLeaves();
     if (!mounted) return;
     setState(() {
       _currentUserName = prefs.getString('currentUser') ?? '';

@@ -60,7 +60,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
       final prefs = await SharedPreferences.getInstance();
       final role = prefs.getString('userRole');
       final user = prefs.getString('currentUser');
-      final canViewAll = await _firebaseService.currentUserHasAdminRole();
+      final canViewAll = await _firebaseService.canViewAllLeaves();
 
       // โหลดทุกอย่างพร้อมกัน
       final futureLeaves = canViewAll

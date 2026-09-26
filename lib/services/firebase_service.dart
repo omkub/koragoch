@@ -1573,6 +1573,24 @@ class FirebaseService {
         await byColumn('fullName', fullName?.trim());
   }
 
+  /// ผู้ใช้ปัจจุบันดูใบลา/รายงานของทุกคนในโรงเรียนได้หรือไม่
+  ///
+  /// ได้ = มีตำแหน่งงานบริหาร (ผอ./รองผอ. ฯลฯ) หรือมีสิทธิ์ผู้ดูแลระบบ
+  /// (รวมผู้ดูแลส่วนกลาง ซึ่งมี role ผู้ดูแลระบบเหมือนกัน)
+  /// เดิมดูแค่ตำแหน่งงานบริหาร แอดมินที่ไม่มีตำแหน่งบริหารจึงเห็นหน้าว่าง
+  /// สิทธิ์ผู้ดูแลระบบถามจากฟังก์ชัน is_admin() ในฐานข้อมูล (ชุดเดียวกับ RLS)
+  Future<bool> canViewAllLeaves() async {
+    if (await currentUserHasAdminRole()) return true;
+    final client = _supabaseIfReady;
+    if (client == null) return false;
+    try {
+      return await client.rpc('is_admin') == true;
+    } catch (e) {
+      debugPrint('canViewAllLeaves: is_admin() error: $e');
+      return false;
+    }
+  }
+
   /// ผู้ใช้ปัจจุบันมีตำแหน่งบริหารที่ยังอยู่ในตาราง adminroles หรือไม่
   Future<bool> currentUserHasAdminRole() async {
     final client = _supabaseIfReady;
