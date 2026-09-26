@@ -1,7 +1,5 @@
 ﻿import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:http/http.dart' as http;
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../utils/school_info.dart';
 import '../utils/web_platform.dart' as platform;
@@ -276,6 +274,43 @@ class FirebaseService {
     return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
   }
 
+  /// Edge Function ตัวกลางไป Apps Script (LINE / Google Drive)
+  ///
+  /// secretKey ของ Apps Script อยู่ฝั่งเซิร์ฟเวอร์เท่านั้น (ความปลอดภัยข้อ 2)
+  /// แอปส่งแค่ token ของคนที่ล็อกอินอยู่ ฟังก์ชันตรวจสิทธิ์เอง
+  /// ดู supabase/functions/school-bridge/index.ts
+  static const String bridgeFunction = 'school-bridge';
+
+  Future<Map<String, dynamic>> _callBridge(Map<String, dynamic> body) async {
+    final client = _supabaseIfReady;
+    if (client == null) throw Exception('Supabase not initialized');
+
+    final FunctionResponse response;
+    try {
+      response = await client.functions.invoke(bridgeFunction, body: body);
+    } on FunctionException catch (e) {
+      final details = e.details;
+      throw Exception(details is Map && details['error'] != null
+          ? details['error'].toString()
+          : 'เรียก $bridgeFunction ไม่สำเร็จ (รหัส ${e.status})');
+    }
+    final data = response.data;
+    if (response.status >= 400) {
+      throw Exception(data is Map && data['error'] != null
+          ? data['error'].toString()
+          : 'เรียก $bridgeFunction ไม่สำเร็จ (รหัส ${response.status})');
+    }
+    return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+  }
+
+  /// ดึงไอดีกลุ่ม LINE ล่าสุดที่บอทเห็น (ผู้ดูแลระบบ)
+  Future<Map<String, dynamic>> lineLatestId() =>
+      _callBridge({'action': 'line_latest_id'});
+
+  /// ส่งข้อความทดสอบไปห้อง LINE (ผู้ดูแลระบบ)
+  Future<Map<String, dynamic>> lineTest(String to, String message) =>
+      _callBridge({'action': 'line_test', 'to': to, 'message': message});
+
   /// ครูแจ้งแอดมินว่าลืมรหัสผ่าน — ตั้งสถานะรอการอนุมัติ
   Future<void> requestPasswordReset(String username) async {
     await _callResetFunction({
@@ -409,7 +444,6 @@ class FirebaseService {
 
   static String config(String key) => _configCache[key] ?? '';
 
-  static String get secretKey => config('secretKey');
   static String get appsScriptUrl => config('appsScriptUrl');
   static String get driveProfileFolderId => config('driveProfileFolderId');
   static String get driveLeaveFolderId => config('driveLeaveFolderId');
@@ -433,17 +467,6 @@ class FirebaseService {
   Future<String> getAppsScriptUrl() async {
     await ensureConfigLoaded();
     return _appsScriptUrlFromSettings(await getLineMessagingSettings());
-  }
-
-  String _buildAppsScriptGetUrl(
-    String baseUrl,
-    Map<String, String> queryParameters,
-  ) {
-    final uri = Uri.parse(baseUrl);
-    return uri.replace(queryParameters: {
-      ...uri.queryParameters,
-      ...queryParameters,
-    }).toString();
   }
 
   static String generateResetCode() {
@@ -1134,7 +1157,13 @@ class FirebaseService {
     record['timestamp'] = DateTime.now().toIso8601String();
     record.removeWhere((_, v) => v == null);
 
-    await client.from('Leaves').insert(withSchool('Leaves', record));
+    final inserted = await client
+        .from('Leaves')
+        .insert(withSchool('Leaves', record))
+        .select('id_leaves')
+        .single();
+    // ใช้ต่อตอนแจ้ง LINE (sendLineNotification ต้องรู้ว่าใบไหน)
+    data['id_leaves'] = inserted['id_leaves'];
   }
 
   // แก้ไขใบลาครับ 🏎️🏁
@@ -1177,7 +1206,10 @@ class FirebaseService {
     return (rows as List).length + 1;
   }
 
-  // 🔥 ลบไฟล์ใน Google Drive ผ่าน Apps Script ครับ 🥇🏆🏎️
+  /// อัปโหลดไฟล์ขึ้น Google Drive ผ่าน Edge Function school-bridge
+  ///
+  /// [folderId] ไม่ใช้แล้ว — เซิร์ฟเวอร์เลือกโฟลเดอร์จาก [folderType] เอง
+  /// (คงพารามิเตอร์ไว้ให้โค้ดเดิมที่ส่งมาไม่ต้องแก้)
   Future<Map<String, dynamic>> uploadDriveFile({
     required String fileData,
     required String fileName,
@@ -1185,36 +1217,18 @@ class FirebaseService {
     required String folderType,
     String? folderId,
   }) async {
-    final bridgeUrl = await getAppsScriptUrl();
-    final response = await http
-        .post(
-          Uri.parse(bridgeUrl),
-          body: jsonEncode({
-            'action': 'upload',
-            'folderType': folderType,
-            'folderId': folderId ??
-                (folderType == 'profile'
-                    ? driveProfileFolderId
-                    : driveLeaveFolderId),
-            'fileName': fileName,
-            'name': fileName,
-            'mimeType': mimeType,
-            'file64': _stripDataUrlPrefix(fileData),
-            'secretKey': secretKey,
-          }),
-        )
-        .timeout(const Duration(minutes: 2));
+    final resData = await _callBridge({
+      'action': 'drive_upload',
+      'folderType': folderType,
+      'fileName': fileName,
+      'mimeType': mimeType,
+      'file64': _stripDataUrlPrefix(fileData),
+    }).timeout(const Duration(minutes: 2));
 
-    if (response.statusCode != 200 && response.statusCode != 302) {
-      throw Exception('Drive upload failed with status ${response.statusCode}');
-    }
-
-    final resData = jsonDecode(response.body) as Map<String, dynamic>;
     if (resData['status'] != 'success' ||
         (resData['url']?.toString().isEmpty ?? true)) {
-      throw Exception(resData['message'] ?? 'Drive upload failed');
+      throw Exception(resData['error'] ?? resData['message'] ?? 'Drive upload failed');
     }
-
     return resData;
   }
 
@@ -1246,28 +1260,10 @@ class FirebaseService {
       return false;
     }
 
-    final bridgeUrl = await getAppsScriptUrl();
-    final response = await http
-        .post(
-          Uri.parse(bridgeUrl),
-          body: jsonEncode({
-            'action': 'delete',
-            'fileId': fileId,
-            'secretKey': secretKey,
-          }),
-        )
-        .timeout(const Duration(seconds: 30));
-
-    if (response.statusCode != 200 && response.statusCode != 302) {
-      throw Exception('Drive delete failed with status ${response.statusCode}');
-    }
-
-    final decoded = jsonDecode(response.body);
-    if (decoded is! Map) {
-      throw Exception('Drive delete returned an invalid response');
-    }
-
-    final resData = Map<String, dynamic>.from(decoded);
+    final resData = await _callBridge({
+      'action': 'drive_delete',
+      'fileId': fileId,
+    }).timeout(const Duration(seconds: 30));
     if (resData['status'] != 'success') {
       throw Exception(resData['message'] ?? 'Drive delete failed');
     }
@@ -1319,41 +1315,13 @@ class FirebaseService {
     return null;
   }
 
+  /// ลบไฟล์แบบไม่สนผลลัพธ์ (ล้มก็ไม่เป็นไร)
   Future<void> deleteDriveFile(String? fileUrl) async {
-    if (fileUrl == null ||
-        fileUrl.isEmpty ||
-        !fileUrl.contains('drive.google.com')) {
-      return;
-    }
-
-    final fileId = _extractFileId(fileUrl);
-    if (fileId == null) return;
-
     try {
-      final bridgeUrl = await getAppsScriptUrl();
-      final response = await http.post(
-        Uri.parse(bridgeUrl),
-        body: jsonEncode({
-          'action': 'delete',
-          'fileId': fileId,
-          'secretKey': secretKey, // 🛡️ แนบรหัสลับไปด้วยครับ (Phase 4) 🥇🏆
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final resData = jsonDecode(response.body);
-        debugPrint("Drive Delete Result: ${resData['status']}");
-      }
+      await deleteDriveFileStrict(fileUrl);
     } catch (e) {
       debugPrint("Error deleting drive file: $e");
     }
-  }
-
-  // Helper สำหรับแคะ ID ออกจากลิ้งครับ 🕵️‍♂️
-  String? _extractFileId(String url) {
-    RegExp regExp = RegExp(r'(?:id=|\/d\/)([a-zA-Z0-9-_]+)');
-    Match? match = regExp.firstMatch(url);
-    return match?.group(1);
   }
 
   static String formatThaiDate(dynamic dateValue) {
@@ -1401,120 +1369,32 @@ class FirebaseService {
   // 📲 ส่งแจ้งเตือนผ่าน LINE Messaging API แบบปลอดภัยสูง (Phase 4.8 Update) 🥇🏆🏎️
   static bool lineNotifyEnabled = false;
 
+  /// แจ้ง LINE ว่ามีใบลาใหม่
+  ///
+  /// เซิร์ฟเวอร์ (school-bridge) ประกอบข้อความจากข้อมูลใบลาในฐานข้อมูลเอง
+  /// ไม่รับข้อความจากแอป และส่งได้ครั้งเดียวต่อใบ จึงต้องมี id_leaves
+  /// ([submitLeaveRequest] ใส่ให้ใน [leaveData] หลังบันทึกสำเร็จ)
   Future<bool> sendLineNotification(Map<String, dynamic> leaveData) async {
     if (!lineNotifyEnabled) {
       debugPrint("🔕 LINE Notification disabled (session toggle off)");
       return false;
     }
-    try {
-      debugPrint("🔔 Starting LINE Notification process...");
-
-      final settings = await getLineMessagingSettingsFromSupabase();
-      final bridgeUrl = _appsScriptUrlFromSettings(settings);
-
-      String to = (settings['groupId'] ?? '').toString().trim();
-      String template = (settings['template'] ?? '').toString();
-      debugPrint(
-          "📍 Settings found: GroupID length=${to.length}, Template length=${template.length}");
-
-      // 🛡️ Fallback: ถ้าในใบลาแนบ To มาให้ (เผื่ออนาคต) ให้ใช้ตัวนั้นครับ
-      if (to.isEmpty && leaveData['to'] != null) to = leaveData['to'];
-
-      if (to.isEmpty) {
-        debugPrint(
-            "❌ LINE Notification Aborted: No Group ID found. Please check Line Settings.");
-        return false;
-      }
-
-      // 🕵️‍♂️ 2. สร้างข้อความ: ใช้ Template จากระบบ หรือใช้แบบ Standard ถ้าไม่ได้ตั้งค่าไว้ครับ 🥇🏆
-      String msg = "";
-      if (template.isNotEmpty) {
-        msg = template
-            .replaceAll('{name}',
-                (leaveData['fullName'] ?? leaveData['name'] ?? '-').toString())
-            .replaceAll('{type}', leaveData['leaveType'] ?? '-')
-            .replaceAll('{startDate}', leaveData['startDate'] ?? '-')
-            .replaceAll('{endDate}', leaveData['endDate'] ?? '-')
-            .replaceAll('{days}', (leaveData['totalDays'] ?? '-').toString())
-            .replaceAll('{reason}', leaveData['reason'] ?? '-');
-        debugPrint("📝 Message generated from Template");
-      } else {
-        msg = "📋 แจ้งเตือนผลการพิจารณาใบลา\n"
-            "👤 ชื่อ: ${leaveData['fullName'] ?? leaveData['name'] ?? '-'}\n"
-            "📅 ประเภทลา: ${leaveData['leaveType'] ?? '-'}\n"
-            "🗓️ ตั้งแต่: ${leaveData['startDate'] ?? '-'}\n"
-            "🗓️ ถึง: ${leaveData['endDate'] ?? '-'}\n"
-            "📆 จำนวน: ${leaveData['totalDays'] ?? '-'} วัน\n"
-            "✍️ เหตุผล: ${leaveData['reason'] ?? '-'}";
-        debugPrint("📝 Message generated from Standard layout");
-      }
-
-      // 📲 3. เตรียมส่งผ่าน Secure Bridge (Apps Script)
-      final String url = _buildAppsScriptGetUrl(bridgeUrl, {
-        'action': 'line_notification',
-        'secretKey': FirebaseService.secretKey,
-        'to': to,
-        'message': msg,
-      });
-
-      if (kIsWeb) {
-        // Mobile web/LINE browser can cancel fire-and-forget fetches. Await the
-        // browser promise and fall back to an image beacon so the GET is flushed.
-        final result = await _getWebJsonp(url);
-        if (result['status'] != 'success') {
-          debugPrint(
-              "⚠️ Web fetch failed, retrying LINE notify via image beacon.");
-          debugPrint(
-              "LINE Notification failed: ${result['message'] ?? result}");
-          return false;
-        }
-        debugPrint("🚀 LINE Notification triggered via Web Fetch (no-cors)");
-        return true;
-      } else {
-        // 📱 บนมือถือ: ใช้ http.get ปกติ (ขยายเป็น 30 วินาที)
-        final response =
-            await http.get(Uri.parse(url)).timeout(const Duration(seconds: 30));
-        debugPrint("📱 LINE Notification status code: ${response.statusCode}");
-        return response.statusCode >= 200 && response.statusCode < 400;
-      }
-    } catch (e) {
-      debugPrint("❌ LINE Notification Critical Exception: $e");
+    final idLeaves = leaveData['id_leaves'];
+    if (idLeaves == null) {
+      debugPrint("❌ LINE Notification Aborted: ไม่มี id_leaves");
       return false;
     }
-  }
-
-  Future<Map<String, dynamic>> _getWebJsonp(String url) =>
-      platform.jsonpGet(url);
-
-  // 📲 ส่งแจ้งเตือนการ "เปลี่ยนสถานะ" เช่น อนุญาต/ไม่อนุญาต ไปที่ LINE กลุ่มครับ 🥇🏆🏎️
-  Future<void> sendLineStatusNotification(
-      Map<String, dynamic> leaveData, String newStatus) async {
     try {
-      await ensureConfigLoaded();
-      final settings = await getLineMessagingSettingsFromSupabase();
-      final bridgeUrl = _appsScriptUrlFromSettings(settings);
-      final to = (settings['groupId'] ?? '').toString().trim();
-      if (to.isEmpty) return;
-
-      // 📝 สร้างข้อความแจ้งการเปลี่ยนสถานะแบบพรีเมียมครับ 🥇🏆
-      String msg = "🔔 อัพเดทสถานะใบลาครับ\n"
-          "👤 ชื่อ: ${leaveData['fullName'] ?? '-'}\n"
-          "📅 ประเภท: ${leaveData['leaveType'] ?? '-'}\n"
-          "📍 สถานะใหม่: $newStatus\n"
-          "📆 วันลา: ${leaveData['startDate']} - ${leaveData['endDate']}\n"
-          "------------------\n"
-          "ตรวจสอบรายละเอียดได้ในระบบครับ";
-
-      final String url = _buildAppsScriptGetUrl(bridgeUrl, {
-        'action': 'line_notification',
-        'secretKey': FirebaseService.secretKey,
-        'to': to,
-        'message': msg,
-      });
-
-      platform.fireAndForgetGet(url);
+      final result = await _callBridge(
+          {'action': 'notify_new_leave', 'id_leaves': idLeaves});
+      if (result['ok'] != true) {
+        debugPrint("ℹ️  LINE Notification skipped: ${result['skipped']}");
+        return false;
+      }
+      return true;
     } catch (e) {
-      debugPrint("❌ Status Notification Error: $e");
+      debugPrint("❌ LINE Notification error: $e");
+      return false;
     }
   }
 
@@ -1871,35 +1751,6 @@ class FirebaseService {
     } catch (e) {
       debugPrint('❌ getCalendarActivitiesFromSupabase error: $e');
       return [];
-    }
-  }
-
-  // 📲 ส่งแจ้งเตือนการ "ขอรีเซ็ตรหัสผ่าน" ไปยังแอดมินทาง LINE ครับ 🥇🏆🏎️
-  Future<void> sendLinePasswordResetNotification(
-      String username, String fullName) async {
-    try {
-      final settings = await getLineMessagingSettingsFromSupabase();
-      final bridgeUrl = _appsScriptUrlFromSettings(settings);
-      final to = (settings['groupId'] ?? '').toString().trim();
-      if (to.isEmpty) return;
-
-      // 📝 สร้างข้อความแจ้งขอรีเซ็ตรหัสผ่านครับ 🥇🏆
-      String msg = "⚠️ แจ้งเตือน: มีการขอรีเซ็ตรหัสผ่าน\n"
-          "👤 ชื่อผู้ใช้: $username\n"
-          "👤 ชื่อ-นามสกุล: $fullName\n"
-          "------------------\n"
-          "โปรดดำเนินการตรวจสอบและรีเซ็ตในเมนูจัดการผู้ใช้ครับ";
-
-      final String url = _buildAppsScriptGetUrl(bridgeUrl, {
-        'action': 'line_notification',
-        'secretKey': FirebaseService.secretKey,
-        'to': to,
-        'message': msg,
-      });
-
-      platform.fireAndForgetGet(url);
-    } catch (e) {
-      debugPrint("❌ Password Reset Notify Error: $e");
     }
   }
 

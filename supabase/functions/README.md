@@ -1,5 +1,24 @@
 # Edge Functions
 
+## school-bridge
+
+ตัวกลางไป Google Apps Script (แจ้งเตือน LINE / อัปโหลด-ลบไฟล์ Google Drive)
+`secretKey` ของ Apps Script อยู่ในตาราง `AppSecrets` ซึ่งอ่านได้เฉพาะฟังก์ชันนี้
+แอปไม่เคยเห็นค่าลับ (ดู `supabase/settings_secrets.sql`)
+
+| คำสั่ง | ใครเรียกได้ |
+|---|---|
+| `notify_new_leave` | เจ้าของใบลา / ผู้ดูแลระบบ — ข้อความประกอบจากฐานข้อมูล ส่งได้ครั้งเดียวต่อใบ |
+| `drive_upload` | ทุกคนที่ล็อกอิน (โฟลเดอร์กำหนดฝั่งเซิร์ฟเวอร์) |
+| `drive_delete` | ผู้ดูแลระบบ หรือคนที่อัปโหลดไฟล์นั้นเอง |
+| `line_test`, `line_latest_id` | ผู้ดูแลระบบ |
+
+```bash
+npx supabase functions deploy school-bridge --project-ref uziajblqlbrvqmxvizsi
+```
+
+---
+
 ## admin-users
 
 งานที่ต้องใช้สิทธิ์ระดับแอดมินของ Supabase Auth ซึ่งเรียกจากเว็บตรง ๆ ไม่ได้
