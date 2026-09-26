@@ -284,6 +284,74 @@ Deno.serve(async (req) => {
     return reply(403, { error: 'เฉพาะผู้ดูแลระบบเท่านั้นที่ทำรายการนี้ได้' });
   }
 
+  // ── สร้างผู้ดูแลระบบให้โรงเรียน (เฉพาะผู้ดูแลส่วนกลาง) ────────────
+  // เรียกจากเว็บผู้ดูแลส่วนกลาง (central/src/pages/SchoolAdminsPage.tsx)
+  // สร้างแถว Teachers (id_role 22) + บัญชี Auth แล้วผูกกัน ถ้าสร้างบัญชี
+  // ไม่สำเร็จจะลบแถว Teachers ทิ้ง ไม่ให้เหลือแถวครึ่ง ๆ กลาง ๆ
+  if (action === 'create_school_admin') {
+    if (me.is_super_admin !== true) {
+      return reply(403, { error: 'เฉพาะผู้ดูแลระบบส่วนกลางเท่านั้น' });
+    }
+    const idSchool = Number(payload.id_school);
+    const newUsername = String(payload.username ?? '').trim();
+    const newFullName = String(payload.fullName ?? '').trim();
+    const newPassword = String(payload.password ?? '');
+    if (!Number.isFinite(idSchool)) return reply(400, { error: 'กรุณาเลือกโรงเรียน' });
+    if (!/^[A-Za-z0-9._-]+$/.test(newUsername)) {
+      return reply(400, { error: 'ชื่อผู้ใช้ใช้ได้เฉพาะ a-z 0-9 . _ -' });
+    }
+    if (!newFullName) return reply(400, { error: 'กรุณากรอกชื่อ-นามสกุล' });
+    if (newPassword.length < 6) {
+      return reply(400, { error: 'รหัสผ่านต้องยาวอย่างน้อย 6 ตัว' });
+    }
+
+    const { data: school } = await admin
+      .from('Schools').select('id_school').eq('id_school', idSchool).maybeSingle();
+    if (!school) return reply(404, { error: 'ไม่พบโรงเรียนนี้' });
+
+    // username ห้ามซ้ำทั้งระบบ (ไม่สนตัวพิมพ์) — มี unique index กันอีกชั้น
+    const { data: dup } = await admin
+      .from('Teachers').select('id_user').ilike('username', newUsername).limit(1);
+    if (dup && dup.length > 0) {
+      return reply(409, { error: `ชื่อผู้ใช้ "${newUsername}" ถูกใช้แล้ว` });
+    }
+
+    const { data: inserted, error: insertError } = await admin
+      .from('Teachers')
+      .insert({
+        username: newUsername,
+        fullName: newFullName,
+        id_role: ADMIN_ROLE_ID,
+        id_school: idSchool,
+        password: newPassword, // trigger ย้ายไป TeacherPasswords ให้เอง
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select('id_user')
+      .single();
+    if (insertError || !inserted) {
+      return reply(400, { error: `เพิ่มข้อมูลไม่สำเร็จ: ${insertError?.message}` });
+    }
+
+    const { data: created, error: createError } = await admin.auth.admin.createUser({
+      email: emailFor(newUsername),
+      password: newPassword,
+      email_confirm: true,
+      user_metadata: { id_user: inserted.id_user, username: newUsername, fullName: newFullName },
+    });
+    if (createError || !created?.user) {
+      await admin.from('Teachers').delete().eq('id_user', inserted.id_user);
+      return reply(400, { error: `สร้างบัญชีเข้าระบบไม่สำเร็จ: ${createError?.message}` });
+    }
+
+    await admin
+      .from('Teachers')
+      .update({ auth_uid: created.user.id })
+      .eq('id_user', inserted.id_user);
+
+    return reply(200, { ok: true, id_user: inserted.id_user });
+  }
+
   // ── 3. ลงมือทำตาม action ──────────────────────────────────────
   const targetIdUser = Number(payload.id_user);
   if (!Number.isFinite(targetIdUser)) {
