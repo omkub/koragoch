@@ -462,6 +462,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       'profileImage': _photoController.text,
       'updatedAt': DateTime.now().toIso8601String(),
     };
+    // ตอนแก้ไข ช่องรหัสผ่านว่าง = ไม่เปลี่ยน (รหัสเก็บแยกในตาราง
+    // TeacherPasswords แล้ว ฟอร์มจึงไม่มีรหัสเดิมให้ส่งกลับ)
+    if (_isEditing && _passController.text.isEmpty) data.remove('password');
 
     _updateUserForm(() {
       _isSavingUser = true;
@@ -515,7 +518,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       _nameController.text =
           user['fullName']?.toString() ?? user['name']?.toString() ?? '';
       _userController.text = user['username']?.toString() ?? '';
-      _passController.text = (user['password']?.toString() ?? '');
+      // รหัสผ่านไม่อยู่ในแถว Teachers แล้ว (ความปลอดภัยข้อ 3) — ดูได้จากปุ่ม
+      // "ดูรหัสผ่าน" ที่ยืนยันตัวตนผ่าน Edge Function แทน
+      _passController.clear();
       _selectedPos = user['position'] ?? '---เลือก---';
       _selectedDept = user['department'] ?? '---เลือก---';
       _selectedRank =
@@ -4699,7 +4704,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                     _buildFieldLabel('รหัสผ่าน'),
-                    _buildTextField(_passController, '********', obscure: true)
+                    _buildTextField(_passController,
+                        _isEditing ? 'เว้นว่าง = ไม่เปลี่ยน' : '********',
+                        obscure: true)
                   ])),
             ],
           ),

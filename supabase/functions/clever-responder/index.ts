@@ -72,6 +72,38 @@ async function verifyOwnPassword(
   return !error && !!data.user;
 }
 
+/**
+ * อ่านรหัสของครูจากตาราง TeacherPasswords (ดู supabase/teacher_passwords.sql)
+ *
+ * ถ้ายังไม่ได้รัน SQL ย้ายรหัส (ไม่มีตาราง/ไม่มีแถว) ใช้ค่าในคอลัมน์เดิม
+ * ของ Teachers แทน — deploy ฟังก์ชันนี้ก่อนรัน SQL ได้โดยไม่พัง
+ */
+// deno-lint-ignore no-explicit-any
+async function readSecrets(admin: any, idUser: number) {
+  const { data: secret, error } = await admin
+    .from('TeacherPasswords')
+    .select('password, tempResetCode, tempPassword')
+    .eq('id_user', idUser)
+    .maybeSingle();
+  if (!error && secret) return secret;
+
+  const { data: legacy } = await admin
+    .from('Teachers')
+    .select('password, tempResetCode, tempPassword')
+    .eq('id_user', idUser)
+    .maybeSingle();
+  return legacy ?? {};
+}
+
+/** ล้างรหัสชั่วคราวหลังใช้แล้ว (เขียน null ลง Teachers ไม่พอ เพราะ trigger ย้ายค่าไปแล้ว) */
+// deno-lint-ignore no-explicit-any
+async function clearTempSecrets(admin: any, idUser: number) {
+  await admin
+    .from('TeacherPasswords')
+    .update({ tempResetCode: null, tempPassword: null, updatedAt: new Date().toISOString() })
+    .eq('id_user', idUser);
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS_HEADERS });
@@ -137,7 +169,7 @@ Deno.serve(async (req) => {
     const { data: row } = await admin
       .from('Teachers')
       .select(
-        'id_user, username, fullName, auth_uid, tempResetCode, resetAllowedUntil, forgotPasswordStatus',
+        'id_user, username, fullName, auth_uid, resetAllowedUntil, forgotPasswordStatus',
       )
       .eq('username', username)
       .maybeSingle();
@@ -157,7 +189,8 @@ Deno.serve(async (req) => {
         error: 'สิทธิ์การกู้รหัสหมดอายุแล้วครับ กรุณาให้แอดมินเปิดสิทธิ์ใหม่',
       });
     }
-    if (String(row.tempResetCode ?? '') !== code) {
+    const secrets = await readSecrets(admin, row.id_user);
+    if (!secrets.tempResetCode || String(secrets.tempResetCode) !== code) {
       return reply(401, { error: 'รหัสจากแอดมินไม่ถูกต้องครับ' });
     }
 
@@ -217,6 +250,7 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
       })
       .eq('id_user', row.id_user);
+    await clearTempSecrets(admin, row.id_user);
 
     return reply(200, { ok: true });
   }
@@ -398,11 +432,7 @@ Deno.serve(async (req) => {
       return reply(401, { error: 'รหัสผ่านของคุณไม่ถูกต้องครับ' });
     }
 
-    const { data: secret } = await admin
-      .from('Teachers')
-      .select('password')
-      .eq('id_user', target.id_user)
-      .maybeSingle();
+    const secret = await readSecrets(admin, target.id_user);
 
     return reply(200, {
       ok: true,
