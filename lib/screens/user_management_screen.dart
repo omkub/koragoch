@@ -17,6 +17,7 @@ import 'line_settings_screen.dart';
 import 'calendar_settings_tab.dart';
 import 'school_settings_tab.dart';
 import '../utils/profile_image.dart';
+import '../utils/school_info.dart';
 
 class UserManagementScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -2170,6 +2171,31 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     return success;
   }
 
+  /// รหัสผ่านเริ่มต้นของครูที่นำเข้าใหม่จาก Firebase (เจ้าของกำหนด)
+  static const String _defaultImportPassword = '123456';
+
+  /// คอลัมน์ Teachers ที่ระบบใหม่เป็นเจ้าของ — นำเข้าซ้ำจาก Firebase ห้ามทับ
+  static const Set<String> _teacherColumnsOwnedBySupabase = {
+    'username',
+    'password',
+    'id_role',
+    'id_permission',
+    'role',
+    'permission',
+    'id_school',
+    'auth_uid',
+    'is_super_admin',
+    'forgotPasswordStatus',
+    'tempResetCode',
+    'tempPassword',
+    'resetAllowedUntil',
+  };
+
+  static String _escapeLikeForMigration(String text) => text
+      .replaceAll('\\', '\\\\')
+      .replaceAll('%', '\\%')
+      .replaceAll('_', '\\_');
+
   Future<int> _importTeachersFromPage(
     FirebaseFirestore db,
     SupabaseClient supabase,
@@ -2192,6 +2218,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
     final snap = await db.collection('Teachers').get();
     var success = 0;
+    var insertedCount = 0;
+    var updated = 0;
     final missingFk = <String>{};
     onLog(
         'Teachers -> Teachers: แปลง text จาก Firebase เป็น FK id_* ก่อนนำเข้า');
@@ -2207,7 +2235,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         }
 
         put('username', data['username']);
-        put('password', data['password']);
+        // ไม่ยกรหัสผ่านจาก Firebase มา — ครูใหม่ได้รหัสเริ่มต้น 123456 (ดูข้างล่าง)
+        // ครูที่มีอยู่แล้วคงรหัสเดิมในระบบใหม่ไว้
         put('fullName', data['fullName'] ?? data['name']);
         put('name', data['name'] ?? data['fullName']);
         put('email', data['email']);
@@ -2297,7 +2326,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         }
 
         final uid = (data['firebase_uid'] ?? doc.id)?.toString();
-        final uname = data['username']?.toString();
+        final uname = data['username']?.toString().trim();
         var existing = (uid != null && uid.isNotEmpty)
             ? await supabase
                 .from('Teachers')
@@ -2305,27 +2334,57 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 .eq('firebase_uid', uid)
                 .maybeSingle()
             : null;
+        // username ไม่ซ้ำทั้งระบบแบบไม่สนตัวพิมพ์ (unique index) — เทียบแบบเดียวกัน
         existing ??= (uname != null && uname.isNotEmpty)
             ? await supabase
                 .from('Teachers')
                 .select('id_user')
-                .eq('username', uname)
+                .ilike('username', _escapeLikeForMigration(uname))
+                .limit(1)
                 .maybeSingle()
             : null;
 
         if (existing != null) {
-          await supabase
-              .from('Teachers')
-              .update(record)
-              .eq('id_user', existing['id_user']);
+          // ครูที่มีในระบบใหม่แล้ว: อัปเดตเฉพาะข้อมูลส่วนตัวจาก Firebase
+          // ค่าที่ระบบใหม่เป็นเจ้าของห้ามทับ — สิทธิ์ (ตัดสินด้วย id_role ในระบบ
+          // ใหม่), โรงเรียน, บัญชีเข้าระบบ, รหัสผ่าน, username (ผูกกับอีเมล Auth)
+          for (final key in _teacherColumnsOwnedBySupabase) {
+            record.remove(key);
+          }
+          if (record.isNotEmpty) {
+            await supabase
+                .from('Teachers')
+                .update(record)
+                .eq('id_user', existing['id_user']);
+          }
+          updated++;
         } else {
-          await supabase.from('Teachers').insert(record);
+          // ครูใหม่ (มีใน Firebase แต่ยังไม่มีในระบบใหม่): รหัสเริ่มต้น 123456
+          // + สร้างบัญชีเข้าระบบให้เลย ไม่งั้นล็อกอินไม่ได้
+          record['password'] = _defaultImportPassword;
+          final schoolId = SchoolInfo.currentSchoolId;
+          if (schoolId != null) record['id_school'] = schoolId;
+          final inserted = await supabase
+              .from('Teachers')
+              .insert(record)
+              .select('id_user')
+              .single();
+          insertedCount++;
+          try {
+            await _firebaseService.adminCreateAuthAccount(
+                inserted['id_user'], _defaultImportPassword);
+          } catch (e) {
+            onLog('Teachers/${doc.id}: เพิ่มครูแล้ว แต่สร้างบัญชีเข้าระบบไม่สำเร็จ '
+                '(กดรีเซ็ตรหัสผ่านให้ครูคนนี้ภายหลัง): $e');
+          }
         }
         success++;
       } catch (e) {
         onLog('Teachers/${doc.id} Error: $e');
       }
     }
+    onLog('Teachers: ครูใหม่ $insertedCount คน (รหัสเริ่มต้น $_defaultImportPassword), '
+        'อัปเดตข้อมูลส่วนตัว $updated คน');
 
     if (missingFk.isNotEmpty) {
       onLog(
@@ -2612,6 +2671,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     return success;
   }
 
+  /// สถานะที่ยังไม่ดำเนินการ (ต้องตรงกับ guard_leave_approval ใน admin_role_by_id.sql)
+  static const Set<String> _pendingLeaveStatuses = {'รอพิจารณา', 'ยังไม่ส่ง'};
+
   Future<int> _importLeavesFromPage(
     FirebaseFirestore db,
     SupabaseClient supabase,
@@ -2621,15 +2683,19 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       await supabase
           .from('Leaves')
           .select(
-              'id_leaves,id_user,timestamp,status,lastUpdatedAt,leaveDate,id_leaveType,reason,startDate,endDate,totalDays,id_year,receiveNumber,receiveDate,receiveTime,medicalCertificate')
+              'id_leaves,id_user,timestamp,status,lastUpdatedAt,leaveDate,id_leaveType,reason,startDate,endDate,totalDays,id_year,receiveNumber,receiveDate,receiveTime,medicalCertificate,firebase_id')
           .limit(0);
     } catch (e) {
-      onLog('Leaves: ตรวจ schema ไม่สำเร็จ: $e');
+      onLog('Leaves: ตรวจ schema ไม่สำเร็จ: $e '
+          '(ถ้าไม่พบ firebase_id ให้รัน supabase/leaves_firebase_id.sql ก่อน)');
       return 0;
     }
 
     final snap = await db.collection('Leaves').get();
     var success = 0;
+    var insertedCount = 0;
+    var updated = 0;
+    var keptApproval = 0;
     onLog(
         'Leaves -> Leaves: uid/fullName -> Teachers.id_user, leaveType -> LeaveTypes.id_leaveType, date -> FiscalRounds.id_year');
 
@@ -2689,27 +2755,57 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           'medicalCertificate': data['medicalCertificate']?.toString(),
         }..removeWhere((_, value) => value == null);
 
-        var existingQuery = supabase
+        record['firebase_id'] = doc.id;
+
+        // จับคู่กับใบลาในระบบใหม่: 1) firebase_id ตรงตัว (นำเข้ารอบก่อน)
+        // 2) ใบที่นำเข้าไว้ก่อนมีคอลัมน์นี้ — คน + ประเภท + วันที่ (ไม่ใช้เหตุผล
+        //    เพราะถ้าแก้เหตุผลในระบบใหม่จะจับคู่ไม่เจอแล้วเกิดใบซ้ำ)
+        // ใบที่สร้างในระบบใหม่เอง (firebase_id ว่าง แต่คนละวัน) ไม่ถูกแตะ
+        var existing = await supabase
             .from('Leaves')
-            .select('id_leaves')
-            .eq('id_user', idUser)
-            .eq('id_leaveType', idLeaveType);
-        if (startDate != null) {
-          existingQuery = existingQuery.eq('startDate', startDate);
+            .select('id_leaves,status')
+            .eq('firebase_id', doc.id)
+            .maybeSingle();
+        if (existing == null) {
+          var legacyQuery = supabase
+              .from('Leaves')
+              .select('id_leaves,status')
+              .isFilter('firebase_id', null)
+              .eq('id_user', idUser)
+              .eq('id_leaveType', idLeaveType);
+          if (startDate != null) {
+            legacyQuery = legacyQuery.eq('startDate', startDate);
+          }
+          if (endDate != null) legacyQuery = legacyQuery.eq('endDate', endDate);
+          existing = await legacyQuery.limit(1).maybeSingle();
         }
-        if (endDate != null) {
-          existingQuery = existingQuery.eq('endDate', endDate);
-        }
-        final reason = record['reason'];
-        if (reason != null) existingQuery = existingQuery.eq('reason', reason);
-        final existing = await existingQuery.limit(1).maybeSingle();
+
         if (existing == null) {
           await supabase.from('Leaves').insert(record);
+          insertedCount++;
         } else {
+          // ใบที่ผู้ดูแลระบบดำเนินการในระบบใหม่แล้ว แต่ในเว็บเก่ายังรอพิจารณา
+          // → คงผลการอนุมัติ/เลขรับของระบบใหม่ไว้ ไม่ย้อนกลับเป็นรอพิจารณา
+          final currentStatus = (existing['status'] ?? '').toString();
+          final incomingStatus = (record['status'] ?? '').toString();
+          if (!_pendingLeaveStatuses.contains(currentStatus) &&
+              (incomingStatus.isEmpty ||
+                  _pendingLeaveStatuses.contains(incomingStatus))) {
+            for (final key in const [
+              'status',
+              'receiveNumber',
+              'receiveDate',
+              'receiveTime',
+            ]) {
+              record.remove(key);
+            }
+            keptApproval++;
+          }
           await supabase
               .from('Leaves')
               .update(record)
               .eq('id_leaves', existing['id_leaves']);
+          updated++;
         }
         success++;
       } catch (e) {
@@ -2717,7 +2813,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       }
     }
 
-    onLog('Leaves: ${snap.docs.length} -> $success imported');
+    onLog('Leaves: ${snap.docs.length} -> $success imported '
+        '(ใหม่ $insertedCount, อัปเดต $updated, '
+        'คงผลอนุมัติของระบบใหม่ $keptApproval)');
     return success;
   }
 
@@ -2790,9 +2888,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
     final normalized = _normalizeFkTextForMigration(rawText);
     try {
-      final rows = await supabase
+      // กลุ่มสาระ/ตำแหน่งบริหาร แยกตามโรงเรียน — หาเฉพาะของโรงเรียนผู้นำเข้า
+      // (ผู้ดูแลส่วนกลางเห็นทุกโรงเรียน ชื่อซ้ำกันจะจับผิดโรงเรียนได้)
+      var query = supabase
           .from(tableName)
           .select(_selectColumnsForMigration([idColumn, nameColumn]));
+      if (FirebaseService.schoolScopedTables.contains(tableName)) {
+        query = FirebaseService.inSchool(query);
+      }
+      final rows = await query;
       for (final row in rows) {
         final name = (row[nameColumn] ?? '').toString().trim();
         if (_normalizeFkTextForMigration(name) == normalized) {
@@ -2831,10 +2935,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       final text = value?.trim();
       if (text == null || text.isEmpty) return null;
       // 1) exact match ก่อน (เร็วและตรงที่สุด)
-      var teacher = await supabase
-          .from('Teachers')
-          .select('id_user')
-          .eq(column, text)
+      // จำกัดเฉพาะครูในโรงเรียนผู้นำเข้า — ชื่อครูซ้ำข้ามโรงเรียนได้
+      var teacher = await FirebaseService.inSchool(
+              supabase.from('Teachers').select('id_user').eq(column, text))
+          .limit(1)
           .maybeSingle();
       // 2) fallback: เทียบแบบไม่สนตัวพิมพ์เล็ก-ใหญ่ (escape ตัว wildcard ของ ilike)
       if (teacher == null) {
@@ -2842,10 +2946,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             .replaceAll('\\', '\\\\')
             .replaceAll('%', '\\%')
             .replaceAll('_', '\\_');
-        teacher = await supabase
-            .from('Teachers')
-            .select('id_user')
-            .ilike(column, escaped)
+        teacher = await FirebaseService.inSchool(
+                supabase.from('Teachers').select('id_user').ilike(column, escaped))
             .limit(1)
             .maybeSingle();
       }

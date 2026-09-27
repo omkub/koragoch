@@ -6,6 +6,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'firebase_service.dart';
+
 class MigrationService {
   // แผนทั้ง 17 ตาราง; ตารางที่ยังขาด schema/FK จะหยุดก่อนเขียนข้อมูล
   static const _identityTables = <String, String>{
@@ -202,6 +204,17 @@ class MigrationService {
     'Academics': ['ID_Academics'],
   };
 
+  /// ตารางที่ห้ามล้าง — นำเข้าแบบ "อัปเดตรายการเดิม / เพิ่มที่ขาด" แทนแล้ว
+  /// ล้าง Teachers = ลบบัญชีเข้าระบบ รหัสผ่าน ผู้ดูแลส่วนกลาง และใบลาทั้งหมดตาม
+  /// ล้าง Settings = ลบ URL / ค่าตั้งค่าที่ย้ายไปเว็บส่วนกลางแล้ว
+  static const Set<String> _neverClear = {
+    'Teachers',
+    'Leaves',
+    'LoginLogs',
+    'Settings',
+    'UserRoles',
+  };
+
   static Future<List<String>> clearImportTables({
     Iterable<String>? collections,
     void Function(String message)? onLog,
@@ -214,6 +227,11 @@ class MigrationService {
     final supabase = Supabase.instance.client;
 
     for (final collectionName in targets) {
+      if (_neverClear.contains(collectionName)) {
+        onLog?.call('ข้าม $collectionName: ห้ามล้าง — การนำเข้าอัปเดตรายการเดิม'
+            'และเพิ่มที่ขาดให้เองอยู่แล้ว');
+        continue;
+      }
       final tableName =
           resolveTableNameForCollection(collectionName, tableColumns);
       if (tableName == null) {
@@ -490,6 +508,14 @@ class MigrationService {
       onStep?.call(idx, targets.length, collectionName);
 
       try {
+        // Settings ในระบบใหม่: LINE ตั้งแยกโรงเรียนที่เว็บส่วนกลาง, ค่าลับอยู่
+        // AppSecrets — นำค่าเก่าจาก Firebase มาเพิ่มจะทับค่าที่ตั้งไว้แล้ว
+        if (collectionName == 'Settings') {
+          skippedCollections.add(collectionName);
+          report('⏸️ Settings: ไม่นำเข้า — ตั้งค่าที่เว็บผู้ดูแลส่วนกลางแทน');
+          onStep?.call(idx + 1, targets.length, 'ข้าม Settings');
+          continue;
+        }
         final blocker = importBlockerForCollection(collectionName);
         if (blocker != null) {
           skippedCollections.add(collectionName);
@@ -517,11 +543,12 @@ class MigrationService {
           continue;
         }
 
-        report(
-            'ℹ️ $collectionName → $tableName: INSERT โดยไม่ส่ง PK; นำเข้าซ้ำจะสร้างรายการใหม่');
+        report('ℹ️ $collectionName → $tableName: เพิ่มเฉพาะรายการที่ยังไม่มี '
+            '(รายการที่มีอยู่แล้วในระบบใหม่คงค่าเดิม)');
 
         // Import directly from Firebase docs (ไม่ผ่าน CSV)
         int successCount = 0;
+        int existingCount = 0;
         final missingColumns = <String>{};
 
         for (var doc in snap.docs) {
@@ -542,7 +569,12 @@ class MigrationService {
               throw FormatException(
                   'ไม่มีฟิลด์ตรงกับ schema จริงของ $tableName');
             }
-            await supabase!.from(tableName).insert(record);
+            if (await _alreadyInSupabase(
+                supabase!, tableName, collectionName, record)) {
+              existingCount++;
+              continue;
+            }
+            await supabase.from(tableName).insert(record);
 
             successCount++;
           } on PostgrestException catch (e) {
@@ -557,8 +589,8 @@ class MigrationService {
           report(
               'ℹ️ $collectionName: รายการที่ใช้คอลัมน์เหล่านี้ยังไม่นำเข้า เพราะ schema ไม่ตรง: ${missingColumns.join(", ")}');
         }
-        report(
-            '✅ $collectionName: ${snap.docs.length} → $successCount imported');
+        report('✅ $collectionName: ${snap.docs.length} → เพิ่มใหม่ $successCount, '
+            'มีอยู่แล้ว $existingCount');
         totalImported += successCount;
       } catch (e) {
         report('❌ $collectionName Error: $e');
@@ -571,6 +603,52 @@ class MigrationService {
       report('ตารางที่ยังไม่นำเข้า: ${skippedCollections.join(', ')}');
     }
     return totalImported;
+  }
+
+  /// ชื่อคอลัมน์ที่ใช้ตัดสินว่า "รายการเดียวกัน" ของตารางข้อมูลหลัก
+  static const _masterNameColumns = <String, String>{
+    'Academics': 'AcademicsName',
+    'AdminRoles': 'AdminRolesName',
+    'Departments': 'DepartmentsName',
+    'Positions': 'positionName',
+    'Roles': 'Accessrights',
+    'LeaveTypes': 'leaveName',
+  };
+
+  /// มีรายการนี้ในระบบใหม่แล้วหรือยัง — นำเข้าซ้ำกี่รอบก็ไม่เกิดรายการซ้ำ
+  ///
+  /// ข้อมูลหลักเทียบด้วยชื่อ (กลุ่มสาระ/ตำแหน่งบริหาร เทียบในโรงเรียนผู้นำเข้า),
+  /// วันหยุดเทียบด้วยวันที่ (เฉพาะวันหยุดตามปฏิทิน id_school ว่าง),
+  /// ปีงบประมาณเทียบด้วยปี + รอบ ตารางอื่นถือว่ายังไม่มี
+  static Future<bool> _alreadyInSupabase(
+    SupabaseClient supabase,
+    String table,
+    String collection,
+    Map<String, dynamic> record,
+  ) async {
+    PostgrestFilterBuilder<PostgrestList>? query;
+    final nameColumn = _masterNameColumns[collection];
+    final name = nameColumn == null ? null : record[nameColumn];
+    if (name is String && name.trim().isNotEmpty) {
+      query = supabase.from(table).select().eq(nameColumn!, name.trim());
+      if (FirebaseService.schoolScopedTables.contains(table)) {
+        query = FirebaseService.inSchool(query);
+      }
+    } else if ((collection == 'SpecialHolidays' ||
+            collection == 'SpecialWorkingDays') &&
+        record['date'] != null) {
+      query = supabase
+          .from(table)
+          .select()
+          .eq('date', record['date'])
+          .isFilter('id_school', null);
+    } else if (collection == 'FiscalRounds' && record['year'] != null) {
+      query = supabase.from(table).select().eq('year', record['year']);
+      if (record['round'] != null) query = query.eq('round', record['round']);
+    }
+    if (query == null) return false;
+    final rows = await query.limit(1);
+    return rows.isNotEmpty;
   }
 
   // Convert Firebase types to Supabase-compatible types
