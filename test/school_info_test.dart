@@ -66,18 +66,45 @@ void main() {
       expect(record.fullName, 'โรงเรียนท่อนเดียว');
     });
 
-    test('ช่องไหนว่างให้ใช้ค่าสำรองเฉพาะช่องนั้น ไม่ทิ้งทั้งแถว', () {
+    test('ที่อยู่ว่าง → ประกอบจากอำเภอ/จังหวัดของโรงเรียนเอง ไม่ยืมของโรงเรียนอื่น', () {
+      // บั๊กจริง: โรงเรียนที่ 2 ตั้งอำเภอเมืองไว้ แต่หัวใบลาขึ้น "อำเภอบ้านด่าน"
+      // ซึ่งเป็นที่อยู่ค่าสำรองของโรงเรียนแรก
       final record = SchoolRecord.fromRow(const {
-        'id_school': 1,
-        'namePart1': 'โรงเรียนทดสอบ',
-        'namePart2': 'วิทยา',
+        'id_school': 3,
+        'namePart1': 'โรงเรียนบุรีรัมย์พิทยาคม',
+        'namePart2': '',
         'address': '   ',
         'affiliation': null,
+        'province': 'บุรีรัมย์',
+        'district': 'เมือง',
       });
 
-      expect(record.fullName, 'โรงเรียนทดสอบ วิทยา');
-      expect(record.address, SchoolRecord.fallback.address);
-      expect(record.affiliation, SchoolRecord.fallback.affiliation);
+      expect(record.fullName, 'โรงเรียนบุรีรัมย์พิทยาคม');
+      expect(record.address, 'อำเภอเมืองบุรีรัมย์ จังหวัดบุรีรัมย์');
+      expect(record.address, isNot(contains('บ้านด่าน')));
+      expect(record.affiliation, isEmpty);
+    });
+
+    test('กรอกที่อยู่ไว้เอง ใช้ตามที่กรอก', () {
+      final record = SchoolRecord.fromRow(const {
+        'namePart1': 'โรงเรียนทดสอบ',
+        'address': 'เลขที่ 1 ถนนจิระ อำเภอเมืองบุรีรัมย์ จังหวัดบุรีรัมย์ 31000',
+        'district': 'เมือง',
+        'province': 'บุรีรัมย์',
+      });
+
+      expect(record.address,
+          'เลขที่ 1 ถนนจิระ อำเภอเมืองบุรีรัมย์ จังหวัดบุรีรัมย์ 31000');
+    });
+
+    test('composeAddress ไม่ใส่คำนำหน้าซ้ำ', () {
+      expect(
+          SchoolRecord.composeAddress(
+              subdistrict: 'ตำบลในเมือง',
+              district: 'อำเภอบ้านด่าน',
+              province: 'จังหวัดบุรีรัมย์'),
+          'ตำบลในเมือง อำเภอบ้านด่าน จังหวัดบุรีรัมย์');
+      expect(SchoolRecord.composeAddress(), isEmpty);
     });
 
     test('แถวว่างเปล่าก็ยังได้ค่าสำรองครบ ไม่มีคำว่า null', () {

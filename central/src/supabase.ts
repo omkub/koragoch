@@ -35,6 +35,39 @@ export interface School {
   subdistrict: string | null;
 }
 
+/**
+ * ชื่อเต็มของโรงเรียน = namePart1 + namePart2 (เหมือน SchoolRecord ในแอป Flutter)
+ * ไม่พึ่งคอลัมน์ fullName เพราะถ้าฐานข้อมูลยังไม่ได้ทำให้เป็นคอลัมน์คำนวณ
+ * (schools_fullname_generated.sql) ค่าในนั้นอาจไม่ตรงกับสองท่อน
+ */
+export const schoolName = (s: Pick<School, 'namePart1' | 'namePart2' | 'fullName'>) =>
+  [s.namePart1, s.namePart2].filter((x) => x?.trim()).join(' ') || s.fullName || '-';
+
+/**
+ * ประกอบที่อยู่จาก ตำบล / อำเภอ / จังหวัด — ต้องตรงกับ
+ * SchoolRecord.composeAddress ในแอป Flutter (lib/utils/school_info.dart)
+ */
+export function composeAddress(subdistrict = '', district = '', province = ''): string {
+  const strip = (value: string, prefix: string) => {
+    const v = value.trim();
+    return v.startsWith(prefix) ? v.slice(prefix.length).trim() : v;
+  };
+  const sub = strip(subdistrict, 'ตำบล');
+  const prov = strip(province, 'จังหวัด');
+  let dist = strip(district, 'อำเภอ');
+  if (dist === 'เมือง' && prov) dist = `เมือง${prov}`;
+  return [sub && `ตำบล${sub}`, dist && `อำเภอ${dist}`, prov && `จังหวัด${prov}`]
+    .filter(Boolean)
+    .join(' ');
+}
+
+/** ที่อยู่ที่ขึ้นหัวใบลาจริง: ช่อง address ถ้ากรอก ไม่งั้นประกอบจาก ตำบล/อำเภอ/จังหวัด */
+export const schoolAddress = (
+  s: Pick<School, 'address' | 'subdistrict' | 'district' | 'province'>,
+) =>
+  s.address?.trim() ||
+  composeAddress(s.subdistrict ?? '', s.district ?? '', s.province ?? '');
+
 /** ข้อความ error ที่อ่านรู้เรื่องจาก Edge Function */
 export async function functionError(error: unknown): Promise<string> {
   const context = (error as { context?: Response })?.context;

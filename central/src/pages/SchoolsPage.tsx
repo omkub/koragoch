@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { supabase, type School } from '../supabase';
+import { schoolName, supabase, type School } from '../supabase';
+import LeaveHeaderPreview from './LeaveHeaderPreview';
 
 type SchoolForm = Omit<School, 'id_school' | 'fullName'>;
 
@@ -17,7 +18,7 @@ const EMPTY: SchoolForm = {
 const FIELDS: { key: keyof SchoolForm; label: string; hint?: string }[] = [
   { key: 'namePart1', label: 'ชื่อโรงเรียน (ส่วนแรก)', hint: 'เช่น โรงเรียนรมย์บุรีพิทยาคม' },
   { key: 'namePart2', label: 'ชื่อโรงเรียน (ส่วนหลัง)', hint: 'เช่น รัชมังคลาภิเษก — ไม่มีเว้นว่าง' },
-  { key: 'address', label: 'ที่อยู่ (หัวใบลา)' },
+  { key: 'address', label: 'ที่อยู่ (หัวใบลา)', hint: 'เว้นว่าง = ใช้ ตำบล/อำเภอ/จังหวัด ด้านล่าง' },
   { key: 'affiliation', label: 'สังกัด' },
   { key: 'province', label: 'จังหวัด' },
   { key: 'district', label: 'อำเภอ' },
@@ -96,21 +97,22 @@ export default function SchoolsPage() {
       {editing !== null && (
         <form className="card form" onSubmit={save}>
           <h3>{editing === 'new' ? 'เพิ่มโรงเรียนใหม่' : 'แก้ไขข้อมูลโรงเรียน'}</h3>
-          <div className="grid">
-            {FIELDS.map((f) => (
-              <label key={f.key}>
-                {f.label}
-                <input
-                  value={form[f.key] ?? ''}
-                  placeholder={f.hint}
-                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-                />
-              </label>
-            ))}
+          <div className="form-preview">
+            <div className="grid">
+              {FIELDS.map((f) => (
+                <label key={f.key}>
+                  {f.label}
+                  <input
+                    value={form[f.key] ?? ''}
+                    placeholder={f.hint}
+                    onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                  />
+                </label>
+              ))}
+            </div>
+            {/* อัปเดตทันทีที่พิมพ์ — เห็นก่อนบันทึกว่าหัวใบลาจะออกมาหน้าตาแบบไหน */}
+            <LeaveHeaderPreview school={{ ...form, fullName: null }} />
           </div>
-          <p className="muted">
-            ชื่อเต็มในใบลา: <b>{[form.namePart1, form.namePart2].filter((s) => s?.trim()).join(' ') || '-'}</b>
-          </p>
           <div className="row end">
             <button type="button" className="secondary" onClick={() => setEditing(null)}>
               ยกเลิก
@@ -135,7 +137,7 @@ export default function SchoolsPage() {
             {schools.map((s) => (
               <tr key={s.id_school}>
                 <td>{s.id_school}</td>
-                <td>{s.fullName || s.namePart1}</td>
+                <td>{schoolName(s)}</td>
                 <td>{s.affiliation || '-'}</td>
                 <td>{[s.province, s.district, s.subdistrict].filter(Boolean).join(' / ') || '-'}</td>
                 <td className="num">
