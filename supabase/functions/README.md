@@ -8,10 +8,10 @@
 
 | คำสั่ง | ใครเรียกได้ |
 |---|---|
-| `notify_new_leave` | เจ้าของใบลา / ผู้ดูแลระบบ — ข้อความประกอบจากฐานข้อมูล ส่งได้ครั้งเดียวต่อใบ |
+| `notify_new_leave` | เจ้าของใบลา / ผู้ดูแลระบบ — ส่งเข้ากลุ่มของโรงเรียนนั้น (SchoolLineSettings) ส่งได้ครั้งเดียวต่อใบ |
 | `drive_upload` | ทุกคนที่ล็อกอิน (โฟลเดอร์กำหนดฝั่งเซิร์ฟเวอร์) |
 | `drive_delete` | ผู้ดูแลระบบ หรือคนที่อัปโหลดไฟล์นั้นเอง |
-| `line_test`, `line_latest_id` | ผู้ดูแลระบบ |
+| `line_test`, `line_latest_id` | ผู้ดูแลระบบส่วนกลาง |
 
 ```bash
 npx supabase functions deploy school-bridge --project-ref uziajblqlbrvqmxvizsi

@@ -10,10 +10,11 @@
  *   ตอนนี้ secretKey อยู่ฝั่งเซิร์ฟเวอร์เท่านั้น (ตาราง AppSecrets) และฟังก์ชันนี้
  *   ตรวจสิทธิ์ก่อนทุกครั้ง
  *
- *   notify_new_leave  แจ้ง LINE ว่ามีใบลาใหม่ — ข้อความประกอบจากข้อมูลในฐานข้อมูล
- *                     (ไม่รับข้อความจากแอป) และส่งได้ครั้งเดียวต่อใบ
- *   line_test         ส่งข้อความทดสอบ (ผู้ดูแลระบบ)
- *   line_latest_id    ดึงไอดีกลุ่ม LINE ล่าสุด (ผู้ดูแลระบบ)
+ *   notify_new_leave  แจ้ง LINE ว่ามีใบลาใหม่ — ส่งเข้ากลุ่มของโรงเรียนเจ้าของใบลา
+ *                     (SchoolLineSettings ตั้งที่เว็บส่วนกลาง) ข้อความประกอบจาก
+ *                     ข้อมูลในฐานข้อมูล (ไม่รับข้อความจากแอป) ส่งได้ครั้งเดียวต่อใบ
+ *   line_test         ส่งข้อความทดสอบ (ผู้ดูแลระบบส่วนกลาง)
+ *   line_latest_id    ดึงไอดีกลุ่ม LINE ล่าสุด (ผู้ดูแลระบบส่วนกลาง)
  *   drive_upload      อัปโหลดไฟล์ (โฟลเดอร์กำหนดฝั่งเซิร์ฟเวอร์)
  *   drive_delete      ลบไฟล์ — ผู้ดูแลระบบ หรือคนที่อัปโหลดไฟล์นั้นเอง
  *
@@ -196,6 +197,18 @@ Deno.serve(async (req) => {
         return reply(403, { error: 'ไม่มีสิทธิ์แจ้งเตือนใบลานี้' });
       }
 
+      // กลุ่ม LINE ของโรงเรียนนี้ — ไม่มีแถว / ปิดอยู่ / ไม่มี groupId = ไม่ส่ง
+      // (ห้ามถอยไปใช้กลุ่มกลาง ไม่งั้นใบลาโรงเรียนอื่นจะไปโผล่กลุ่มผิด)
+      const { data: line } = await admin
+        .from('SchoolLineSettings')
+        .select('groupId, template, enabled')
+        .eq('id_school', leave.id_school)
+        .maybeSingle();
+      const to = String(line?.groupId ?? '').trim();
+      if (!line?.enabled || !to) {
+        return reply(200, { ok: false, skipped: 'โรงเรียนนี้ยังไม่ได้เปิดแจ้งเตือน LINE' });
+      }
+
       // ส่งได้ครั้งเดียวต่อใบ — เคยมีบั๊กยิงซ้ำ 60 ข้อความจนโควตาหมดเดือน
       const { error: dupError } = await admin
         .from('LineNotifyLog')
@@ -206,9 +219,6 @@ Deno.serve(async (req) => {
         }
         throw new Error(`บันทึกประวัติแจ้งเตือนไม่สำเร็จ: ${dupError.message}`);
       }
-
-      const to = (config.groupId ?? '').trim();
-      if (!to) return reply(200, { ok: false, skipped: 'ยังไม่ได้ตั้งค่า Group ID' });
 
       const [{ data: teacher }, { data: leaveType }] = await Promise.all([
         admin.from('Teachers').select('fullName').eq('id_user', leave.id_user).maybeSingle(),
@@ -223,7 +233,7 @@ Deno.serve(async (req) => {
         '{days}': String(leave.totalDays ?? '-'),
         '{reason}': String(leave.reason ?? '-'),
       };
-      let message = (config.template ?? '').trim() ||
+      let message = String(line.template ?? '').trim() || (config.template ?? '').trim() ||
         '📋 มีการยื่นใบลาใหม่\n👤 ชื่อ: {name}\n📅 ประเภทลา: {type}\n' +
           '🗓️ ตั้งแต่: {startDate}\n🗓️ ถึง: {endDate}\n📆 จำนวน: {days} วัน\n✍️ เหตุผล: {reason}';
       for (const [k, v] of Object.entries(fields)) message = message.split(k).join(v);
@@ -295,7 +305,8 @@ Deno.serve(async (req) => {
 
     // ── เครื่องมือหน้าตั้งค่า LINE (ผู้ดูแลระบบ) ──────────────────────
     if (action === 'line_test' || action === 'line_latest_id') {
-      if (!isAdmin) return reply(403, { error: 'เฉพาะผู้ดูแลระบบเท่านั้น' });
+      // ตั้งค่า LINE อยู่ที่เว็บส่วนกลาง (SchoolLineSettings) — เฉพาะส่วนกลาง
+      if (!isSuper) return reply(403, { error: 'เฉพาะผู้ดูแลระบบส่วนกลางเท่านั้น' });
 
       if (action === 'line_latest_id') {
         return reply(200, await bridgeGet(config, { action: 'get_latest_id' }));

@@ -303,14 +303,6 @@ class FirebaseService {
     return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
   }
 
-  /// ดึงไอดีกลุ่ม LINE ล่าสุดที่บอทเห็น (ผู้ดูแลระบบ)
-  Future<Map<String, dynamic>> lineLatestId() =>
-      _callBridge({'action': 'line_latest_id'});
-
-  /// ส่งข้อความทดสอบไปห้อง LINE (ผู้ดูแลระบบ)
-  Future<Map<String, dynamic>> lineTest(String to, String message) =>
-      _callBridge({'action': 'line_test', 'to': to, 'message': message});
-
   /// ครูแจ้งแอดมินว่าลืมรหัสผ่าน — ตั้งสถานะรอการอนุมัติ
   Future<void> requestPasswordReset(String username) async {
     await _callResetFunction({
@@ -1367,18 +1359,16 @@ class FirebaseService {
   }
 
   // 📲 ส่งแจ้งเตือนผ่าน LINE Messaging API แบบปลอดภัยสูง (Phase 4.8 Update) 🥇🏆🏎️
-  static bool lineNotifyEnabled = false;
 
   /// แจ้ง LINE ว่ามีใบลาใหม่
   ///
   /// เซิร์ฟเวอร์ (school-bridge) ประกอบข้อความจากข้อมูลใบลาในฐานข้อมูลเอง
   /// ไม่รับข้อความจากแอป และส่งได้ครั้งเดียวต่อใบ จึงต้องมี id_leaves
   /// ([submitLeaveRequest] ใส่ให้ใน [leaveData] หลังบันทึกสำเร็จ)
+  ///
+  /// จะส่งหรือไม่ เซิร์ฟเวอร์ตัดสินจากการตั้งค่าของโรงเรียน (SchoolLineSettings
+  /// ตั้งที่เว็บส่วนกลาง) — เดิมมีสวิตช์เปิด/ปิดเฉพาะเครื่อง ซึ่งครูไม่เคยเปิด
   Future<bool> sendLineNotification(Map<String, dynamic> leaveData) async {
-    if (!lineNotifyEnabled) {
-      debugPrint("🔕 LINE Notification disabled (session toggle off)");
-      return false;
-    }
     final idLeaves = leaveData['id_leaves'];
     if (idLeaves == null) {
       debugPrint("❌ LINE Notification Aborted: ไม่มี id_leaves");
