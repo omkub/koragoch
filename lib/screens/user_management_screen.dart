@@ -2022,6 +2022,24 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
     // เริ่ม import พร้อมรายงานความคืบหน้าเข้า dialog
     try {
+      // ข้อมูลใน Firebase เป็นของโรงเรียนแรก (โรงเรียนต้นทาง) ทั้งหมด
+      // นำเข้าได้เฉพาะผู้ดูแลของโรงเรียนนั้นหรือผู้ดูแลส่วนกลาง และปลายทาง
+      // ตายตัวเป็นโรงเรียนนั้นเสมอ — กันข้อมูลไปลงผิดโรงเรียน
+      currentStep.value = 'กำลังตรวจโรงเรียนปลายทาง...';
+      _importSchoolId = await _firebaseSourceSchoolId();
+      if (_importSchoolId == null) {
+        throw Exception('ไม่พบโรงเรียนในตาราง Schools');
+      }
+      if (!SchoolInfo.isSuperAdmin &&
+          SchoolInfo.currentSchoolId != _importSchoolId) {
+        throw Exception('ข้อมูลจาก Firebase เป็นของโรงเรียนต้นทาง '
+            'นำเข้าได้เฉพาะผู้ดูแลระบบของโรงเรียนนั้นหรือผู้ดูแลส่วนกลาง');
+      }
+      logs.value = [
+        ...logs.value,
+        'ปลายทาง: โรงเรียน id_school $_importSchoolId (โรงเรียนต้นทางของ Firebase)',
+      ];
+
       currentStep.value = 'กำลังยืนยันสิทธิ์ Firebase Auth...';
       await _ensureFirebaseAuthAdmin(
         onLog: (msg) => logs.value = [...logs.value, msg],
@@ -2053,6 +2071,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         } else {
           total += await MigrationService.exportAndImportToSupabase(
             collections: [table],
+            targetSchoolId: _importSchoolId,
             onLog: (msg) => logs.value = [...logs.value, msg],
             onStep: (_, __, current) {
               if (current.startsWith('ข้าม ')) {
@@ -2169,6 +2188,22 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     onLog(
         'AppConfig: ${snap.docs.length} documents -> $success key/value rows imported');
     return success;
+  }
+
+  /// โรงเรียนปลายทางของการนำเข้ารอบนี้ (ตั้งตอนเริ่มนำเข้า)
+  int? _importSchoolId;
+
+  /// โรงเรียนต้นทางของข้อมูล Firebase = โรงเรียนแรกในตาราง Schools
+  /// (ระบบเดิมบน Firebase มีโรงเรียนเดียว ข้อมูลทั้งหมดเป็นของโรงเรียนนี้)
+  Future<int?> _firebaseSourceSchoolId() async {
+    final row = await Supabase.instance.client
+        .from('Schools')
+        .select('id_school')
+        .order('id_school')
+        .limit(1)
+        .maybeSingle();
+    final raw = row?['id_school'];
+    return raw is int ? raw : int.tryParse(raw?.toString() ?? '');
   }
 
   /// รหัสผ่านเริ่มต้นของครูที่นำเข้าใหม่จาก Firebase (เจ้าของกำหนด)
@@ -2362,8 +2397,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           // ครูใหม่ (มีใน Firebase แต่ยังไม่มีในระบบใหม่): รหัสเริ่มต้น 123456
           // + สร้างบัญชีเข้าระบบให้เลย ไม่งั้นล็อกอินไม่ได้
           record['password'] = _defaultImportPassword;
-          final schoolId = SchoolInfo.currentSchoolId;
-          if (schoolId != null) record['id_school'] = schoolId;
+          if (_importSchoolId != null) record['id_school'] = _importSchoolId;
           final inserted = await supabase
               .from('Teachers')
               .insert(record)
@@ -2888,13 +2922,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
     final normalized = _normalizeFkTextForMigration(rawText);
     try {
-      // กลุ่มสาระ/ตำแหน่งบริหาร แยกตามโรงเรียน — หาเฉพาะของโรงเรียนผู้นำเข้า
+      // กลุ่มสาระ/ตำแหน่งบริหาร แยกตามโรงเรียน — หาเฉพาะของโรงเรียนปลายทาง
       // (ผู้ดูแลส่วนกลางเห็นทุกโรงเรียน ชื่อซ้ำกันจะจับผิดโรงเรียนได้)
       var query = supabase
           .from(tableName)
           .select(_selectColumnsForMigration([idColumn, nameColumn]));
       if (FirebaseService.schoolScopedTables.contains(tableName)) {
-        query = FirebaseService.inSchool(query);
+        query = FirebaseService.inSchool(query, schoolId: _importSchoolId);
       }
       final rows = await query;
       for (final row in rows) {
@@ -2935,9 +2969,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       final text = value?.trim();
       if (text == null || text.isEmpty) return null;
       // 1) exact match ก่อน (เร็วและตรงที่สุด)
-      // จำกัดเฉพาะครูในโรงเรียนผู้นำเข้า — ชื่อครูซ้ำข้ามโรงเรียนได้
+      // จำกัดเฉพาะครูในโรงเรียนปลายทาง — ชื่อครูซ้ำข้ามโรงเรียนได้
       var teacher = await FirebaseService.inSchool(
-              supabase.from('Teachers').select('id_user').eq(column, text))
+              supabase.from('Teachers').select('id_user').eq(column, text),
+              schoolId: _importSchoolId)
           .limit(1)
           .maybeSingle();
       // 2) fallback: เทียบแบบไม่สนตัวพิมพ์เล็ก-ใหญ่ (escape ตัว wildcard ของ ilike)
@@ -2947,7 +2982,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             .replaceAll('%', '\\%')
             .replaceAll('_', '\\_');
         teacher = await FirebaseService.inSchool(
-                supabase.from('Teachers').select('id_user').ilike(column, escaped))
+                supabase.from('Teachers').select('id_user').ilike(column, escaped),
+                schoolId: _importSchoolId)
             .limit(1)
             .maybeSingle();
       }

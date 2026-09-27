@@ -465,7 +465,10 @@ class MigrationService {
         .join(' → ');
   }
 
+  /// [targetSchoolId] โรงเรียนปลายทางของตารางที่แยกตามโรงเรียน
+  /// (กลุ่มสาระ / ตำแหน่งบริหาร) — ข้อมูล Firebase เป็นของโรงเรียนแรก
   static Future<int> exportAndImportToSupabase({
+    int? targetSchoolId,
     List<String>? collections,
     void Function(String message)? onLog,
     void Function(int done, int total, String current)? onStep,
@@ -569,6 +572,10 @@ class MigrationService {
               throw FormatException(
                   'ไม่มีฟิลด์ตรงกับ schema จริงของ $tableName');
             }
+            if (targetSchoolId != null &&
+                FirebaseService.schoolScopedTables.contains(tableName)) {
+              record['id_school'] = targetSchoolId;
+            }
             if (await _alreadyInSupabase(
                 supabase!, tableName, collectionName, record)) {
               existingCount++;
@@ -617,7 +624,7 @@ class MigrationService {
 
   /// มีรายการนี้ในระบบใหม่แล้วหรือยัง — นำเข้าซ้ำกี่รอบก็ไม่เกิดรายการซ้ำ
   ///
-  /// ข้อมูลหลักเทียบด้วยชื่อ (กลุ่มสาระ/ตำแหน่งบริหาร เทียบในโรงเรียนผู้นำเข้า),
+  /// ข้อมูลหลักเทียบด้วยชื่อ (กลุ่มสาระ/ตำแหน่งบริหาร เทียบในโรงเรียนปลายทาง),
   /// วันหยุดเทียบด้วยวันที่ (เฉพาะวันหยุดตามปฏิทิน id_school ว่าง),
   /// ปีงบประมาณเทียบด้วยปี + รอบ ตารางอื่นถือว่ายังไม่มี
   static Future<bool> _alreadyInSupabase(
@@ -632,7 +639,9 @@ class MigrationService {
     if (name is String && name.trim().isNotEmpty) {
       query = supabase.from(table).select().eq(nameColumn!, name.trim());
       if (FirebaseService.schoolScopedTables.contains(table)) {
-        query = FirebaseService.inSchool(query);
+        final target = record['id_school'];
+        query = FirebaseService.inSchool(query,
+            schoolId: target is int ? target : int.tryParse('${target ?? ''}'));
       }
     } else if ((collection == 'SpecialHolidays' ||
             collection == 'SpecialWorkingDays') &&
