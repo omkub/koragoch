@@ -2170,13 +2170,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               .eq('"Key AppTitle"', key)
               .limit(1)
               .maybeSingle();
+          // มีอยู่แล้วในระบบใหม่ = คงค่าเดิม (ระบบใหม่เป็นเจ้าของค่าตั้งค่า)
           if (existing == null) {
             await supabase.from('appconfig').insert(record);
-          } else {
-            await supabase
-                .from('appconfig')
-                .update(record)
-                .eq('ID_AppConfig', existing['ID_AppConfig']);
           }
           success++;
         } catch (e) {
@@ -2514,13 +2510,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             .eq('id_user', idUser)
             .eq('id_role', idRole)
             .maybeSingle();
+        // มีอยู่แล้วในระบบใหม่ = คงค่าเดิม
         if (existing == null) {
           await supabase.from('UserRoles').insert(record);
-        } else {
-          await supabase
-              .from('UserRoles')
-              .update(record)
-              .eq('id_UserRole', existing['id_UserRole']);
         }
         success++;
       } catch (e) {
@@ -2570,9 +2562,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         for (final record in records) {
           if (updatedAt != null) record['updatedAt'] = updatedAt;
         }
-        await supabase
-            .from('Permissions')
-            .upsert(records, onConflict: 'id_role,menu_id');
+        // เพิ่มเฉพาะสิทธิ์เมนูที่ยังไม่มี — สิทธิ์ที่ปรับในระบบใหม่แล้วห้ามทับ
+        await supabase.from('Permissions').upsert(records,
+            onConflict: 'id_role,menu_id', ignoreDuplicates: true);
         success += records.length;
       } catch (e) {
         onLog('Permissions/${doc.id} Error: $e');
@@ -2618,9 +2610,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         for (final record in records) {
           if (updatedAt != null) record['updatedAt'] = updatedAt;
         }
-        await supabase
-            .from('MobilePermissions')
-            .upsert(records, onConflict: 'id_role,menu_id');
+        // เพิ่มเฉพาะสิทธิ์เมนูที่ยังไม่มี — สิทธิ์ที่ปรับในระบบใหม่แล้วห้ามทับ
+        await supabase.from('MobilePermissions').upsert(records,
+            onConflict: 'id_role,menu_id', ignoreDuplicates: true);
         success += records.length;
       } catch (e) {
         onLog('MobilePermissions/${doc.id} Error: $e');
