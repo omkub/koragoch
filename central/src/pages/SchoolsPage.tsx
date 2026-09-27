@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { schoolName, supabase, type School } from '../supabase';
+import LeaveHeaderPreview from './LeaveHeaderPreview';
 
 type SchoolForm = Omit<School, 'id_school' | 'fullName'>;
 
@@ -96,21 +97,22 @@ export default function SchoolsPage() {
       {editing !== null && (
         <form className="card form" onSubmit={save}>
           <h3>{editing === 'new' ? 'เพิ่มโรงเรียนใหม่' : 'แก้ไขข้อมูลโรงเรียน'}</h3>
-          <div className="grid">
-            {FIELDS.map((f) => (
-              <label key={f.key}>
-                {f.label}
-                <input
-                  value={form[f.key] ?? ''}
-                  placeholder={f.hint}
-                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-                />
-              </label>
-            ))}
+          <div className="form-preview">
+            <div className="grid">
+              {FIELDS.map((f) => (
+                <label key={f.key}>
+                  {f.label}
+                  <input
+                    value={form[f.key] ?? ''}
+                    placeholder={f.hint}
+                    onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                  />
+                </label>
+              ))}
+            </div>
+            {/* อัปเดตทันทีที่พิมพ์ — เห็นก่อนบันทึกว่าหัวใบลาจะออกมาหน้าตาแบบไหน */}
+            <LeaveHeaderPreview school={{ ...form, fullName: null }} />
           </div>
-          <p className="muted">
-            ชื่อเต็มในใบลา: <b>{[form.namePart1, form.namePart2].filter((s) => s?.trim()).join(' ') || '-'}</b>
-          </p>
           <div className="row end">
             <button type="button" className="secondary" onClick={() => setEditing(null)}>
               ยกเลิก
