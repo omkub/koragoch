@@ -1,551 +1,61 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-import 'dart:async';
-import '../services/firebase_service.dart';
-
-class LineSettingsScreen extends StatefulWidget {
+/// แท็บ "ตั้งค่า LINE" ในหน้าจัดการระบบ
+///
+/// การตั้งค่า LINE ย้ายไปอยู่ที่เว็บผู้ดูแลระบบส่วนกลางแล้ว (central/ หน้า
+/// "LINE แจ้งเตือน") เพราะแต่ละโรงเรียนส่งเข้ากลุ่มของตัวเอง และเจ้าของกำหนดให้
+/// เฉพาะผู้ดูแลส่วนกลางเป็นคนเลือกว่าโรงเรียนไหนใช้กลุ่มไหน
+/// (ตาราง SchoolLineSettings — แอดมินโรงเรียนอ่าน/แก้ไม่ได้ตาม RLS)
+class LineSettingsScreen extends StatelessWidget {
   const LineSettingsScreen({super.key});
 
-  @override
-  State<LineSettingsScreen> createState() => _LineSettingsScreenState();
-}
-
-class _LineSettingsScreenState extends State<LineSettingsScreen> {
-  final FirebaseService _firebaseService = FirebaseService();
-  final _lineTokenController = TextEditingController();
-  final _lineGroupIdController = TextEditingController();
-  final _webhookUrlController = TextEditingController();
-  static const String _knownLineGroupId = '';
-  
-  bool _isSavingLineToken = false;
-  bool _isSendingLineTest = false;
-  String? _lineStatusMsg;
-  bool _lineStatusIsError = false;
-  String _lineNotifyTemplate = '📋 แจ้งเตือนการยื่นใบลา\n👤 ชื่อ: {name}\n📅 ประเภทลา: {type}\n🗓️ ตั้งแต่: {startDate} ถึง {endDate}\n📆 จำนวน: {days} วัน\n✍️ เหตุผล: {reason}';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadLineSettings();
-  }
-
-  Future<void> _loadLineSettings() async {
-    try {
-      final data = await _firebaseService.getLineMessagingSettingsFromSupabase();
-      if (data.isNotEmpty) {
-        setState(() {
-          _lineGroupIdController.text = data['groupId'] ?? '';
-          _webhookUrlController.text =
-              (data['webhookUrl'] ?? FirebaseService.appsScriptUrl ?? '').toString();
-          if (data['template'] != null && data['template'].toString().isNotEmpty) {
-            _lineNotifyTemplate = data['template'];
-          }
-        });
-      }
-    } catch (e) {
-      debugPrint("Error loading LINE settings: $e");
-    }
-  }
-
-  @override
-  void dispose() {
-    _lineTokenController.dispose();
-    _lineGroupIdController.dispose();
-    _webhookUrlController.dispose();
-    super.dispose();
-  }
+  static final Uri centralUrl =
+      Uri.parse('https://omkub.github.io/koragoch/central/#/line');
 
   @override
   Widget build(BuildContext context) {
-    bool isMobile = MediaQuery.of(context).size.width < 1100;
-    
     return Container(
-      padding: EdgeInsets.all(isMobile ? 16 : 32),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ===== HEADER =====
-            _buildHeader(isMobile),
-            const SizedBox(height: 32),
-
-            // ===== NOTICE: LINE Notify ปิดตัวแล้ว =====
-            _buildNoticeCard(),
-            const SizedBox(height: 24),
-
-            // ===== TOGGLE: เปิด/ปิดการส่ง LINE =====
-            _buildToggleCard(),
-            const SizedBox(height: 24),
-
-            // ===== SECTION 1: Channel Access Token =====
-            _buildSettingsCard(isMobile),
-            const SizedBox(height: 24),
-
-            // ===== SECTION 2: ทดสอบการส่ง =====
-            _buildTestCard(),
-            const SizedBox(height: 24),
-
-            // ===== SECTION 3: Template =====
-            _buildTemplateCard(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(bool isMobile) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF06C755).withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Icon(Icons.notifications_active_rounded, color: const Color(0xFF06C755), size: isMobile ? 24 : 32),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("ตั้งค่าการแจ้งเตือน LINE",
-                  style: GoogleFonts.sarabun(fontSize: isMobile ? 20 : 28, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A))),
-              Text("ระบบแจ้งเตือนใบลาผ่าน Messaging API",
-                  style: GoogleFonts.sarabun(fontSize: 12, color: Colors.blueGrey)),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNoticeCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.amber.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.amber.shade300),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.warning_amber_rounded, color: Colors.amber.shade700, size: 24),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("LINE Notify ปิดให้บริการแล้ว",
-                    style: GoogleFonts.sarabun(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.amber.shade800)),
-                Text("ระบบนี้ใช้เทคโนโลยีใหม่ LINE Messaging API แทน ซึ่งมีความเสถียรกว่าครับ",
-                    style: GoogleFonts.sarabun(fontSize: 13, color: Colors.amber.shade700)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildToggleCard() {
-    return _buildCard(
-      child: SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: Text("เปิดใช้งานการแจ้งเตือน LINE",
-            style: GoogleFonts.sarabun(fontSize: 16, fontWeight: FontWeight.w600)),
-        subtitle: Text(
-            FirebaseService.lineNotifyEnabled
-                ? "ระบบจะส่งแจ้งเตือนเมื่อมีการยื่นใบลา"
-                : "ปิดอยู่ — ระบบจะไม่ส่งแจ้งเตือน LINE (ช่วงทดสอบ)",
-            style: GoogleFonts.sarabun(fontSize: 13, color: Colors.blueGrey)),
-        value: FirebaseService.lineNotifyEnabled,
-        activeThumbColor: const Color(0xFF06C755),
-        onChanged: (val) => setState(() => FirebaseService.lineNotifyEnabled = val),
-      ),
-    );
-  }
-
-  Widget _buildSettingsCard(bool isMobile) {
-    return _buildCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.shield_rounded, color: Colors.green.shade600, size: 24),
-              const SizedBox(width: 8),
-              Text("กำหนดค่าการเชื่อมต่อ", style: GoogleFonts.sarabun(fontWeight: FontWeight.bold, fontSize: 18)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          
-          // 🛡️ ข้อมูลแจ้งเตือนความปลอดภัย (Phase 4) 🥇🏆
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.green.shade50,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.green.shade200),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.verified_user_rounded, color: Colors.green, size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    "ระบบเปิดใช้งาน 'Secure Backend' แล้ว: กุญแจสำคัญถูกจัดเก็บไว้ที่หลังบ้านอย่างปลอดภัย (ไม่ต้องกรอก Token ที่นี่ครับ)",
-                    style: GoogleFonts.sarabun(fontSize: 13, color: Colors.green.shade800),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          _buildFieldLabel("Group ID / User ID (ID ห้องแชท)"),
-          // 📱 ปรับแต่งการแสดงผลปุ่มค้นหาให้รองรับมือถือครับ 🥇🏆
-          if (isMobile) 
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildTextField(_lineGroupIdController, "C... หรือ G..."),
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  onPressed: _showGroupIdPicker,
-                  icon: const Icon(Icons.manage_search_rounded, size: 18),
-                  label: const Text("ตรวจสอบ Group ID ล่าสุด"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade50,
-                    foregroundColor: Colors.blue.shade700,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ],
-            )
-          else
-            Row(
-              children: [
-                Expanded(child: _buildTextField(_lineGroupIdController, "เช่น C... หรือ G...")),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: _showGroupIdPicker,
-                  icon: const Icon(Icons.manage_search_rounded, size: 18),
-                  label: const Text("ตรวจสอบ Group ID"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade50,
-                    foregroundColor: Colors.blue.shade700,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ],
-            ),
-          const SizedBox(height: 16),
-          _buildFieldLabel("Webhook URL (Google Apps Script Web App)"),
-          _buildTextField(
-            _webhookUrlController,
-            "https://script.google.com/macros/s/.../exec",
-          ),
-          const SizedBox(height: 24),
-          if (_lineStatusMsg != null)
-             Padding(
-               padding: const EdgeInsets.only(bottom: 16),
-               child: Text(_lineStatusMsg!, style: TextStyle(color: _lineStatusIsError ? Colors.red : Colors.green, fontSize: 13, fontWeight: FontWeight.bold)),
-             ),
-          ElevatedButton.icon(
-            onPressed: _isSavingLineToken ? null : _saveSettings,
-            icon: _isSavingLineToken ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save_rounded),
-            label: const Text("บันทึกการตั้งค่า"),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF06C755),
-              foregroundColor: Colors.white,
-              minimumSize: const Size(200, 50),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTestCard() {
-    return _buildCard(
-      child: Row(
-        children: [
-          const Icon(Icons.send_rounded, color: Colors.orange, size: 32),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text("ทดสอบระบบ", style: GoogleFonts.sarabun(fontWeight: FontWeight.bold, fontSize: 16)),
-              Text("ลองส่งข้อความจำลองเข้ากลุ่มไลน์เพื่อดูผลลัพธ์ครับ", style: GoogleFonts.sarabun(fontSize: 12, color: Colors.grey)),
-            ]),
-          ),
-          ElevatedButton.icon(
-            onPressed: _isSendingLineTest ? null : _sendLineTest,
-            icon: _isSendingLineTest ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.flash_on_rounded),
-            label: const Text("ส่งทดสอบตอนนี้"),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTemplateCard() {
-    return _buildCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text("รูปแบบข้อความ (Template)", style: GoogleFonts.sarabun(fontWeight: FontWeight.bold, fontSize: 18)),
-          const SizedBox(height: 16),
-          TextField(
-            controller: TextEditingController(text: _lineNotifyTemplate),
-            maxLines: 6,
-            onChanged: (v) => _lineNotifyTemplate = v,
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: const Color(0xFFF8FAFC),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-            ),
-            style: GoogleFonts.sarabun(fontSize: 14, height: 1.5),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            children: ['{name}', '{type}', '{startDate}', '{endDate}', '{days}', '{reason}'].map((v) => 
-               Chip(label: Text(v, style: const TextStyle(fontSize: 10)), backgroundColor: Colors.blue.shade50, side: BorderSide.none)
-            ).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCard({required Widget child}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 20)],
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: child,
-    );
-  }
-
-  Widget _buildFieldLabel(String t) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(t, style: GoogleFonts.sarabun(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blueGrey)));
-
-  bool _isLikelyLineTargetId(String value) {
-    return RegExp(r'^[CUR][0-9a-fA-F]{32,}$').hasMatch(value.trim());
-  }
-
-  String _normalizedWebhookUrl() {
-    final value = _webhookUrlController.text.trim();
-    return value.isEmpty ? FirebaseService.appsScriptUrl : value;
-  }
-
-  void _validateWebhookUrl(String value) {
-    if (!FirebaseService.isLikelyAppsScriptWebAppUrl(value)) {
-      throw Exception('Webhook URL ต้องเป็น Google Apps Script Web App URL ที่ลงท้ายด้วย /exec');
-    }
-  }
-
-  bool _fillKnownLineGroupId() {
-    if (!_isLikelyLineTargetId(_knownLineGroupId)) return false;
-    if (mounted) {
-      setState(() => _lineGroupIdController.text = _knownLineGroupId);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('เติม Group ID ล่าสุดให้แล้วครับ กดบันทึกการตั้งค่าแล้วส่งทดสอบได้เลย'),
-        backgroundColor: Colors.green,
-      ));
-    }
-    return true;
-  }
-
-  Widget _buildTextField(TextEditingController ctrl, String hint, {bool isPassword = false, Widget? suffix}) {
-    return TextField(
-      controller: ctrl,
-      obscureText: isPassword,
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(fontSize: 13, color: Colors.black26),
-        filled: true,
-        fillColor: const Color(0xFFF8FAFC),
-        suffixIcon: suffix,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Icon(Icons.notifications_active_outlined,
+                color: Color(0xFF06C755), size: 28),
+            const SizedBox(width: 12),
+            Text('การแจ้งเตือน LINE',
+                style: GoogleFonts.sarabun(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF0F172A))),
+          ]),
+          const SizedBox(height: 16),
+          Text(
+            'การตั้งค่า LINE ย้ายไปอยู่ที่เว็บผู้ดูแลระบบส่วนกลางแล้วครับ\n'
+            'แต่ละโรงเรียนแจ้งเตือนเข้ากลุ่ม LINE ของตัวเอง '
+            'โดยผู้ดูแลระบบส่วนกลางเป็นผู้กำหนดกลุ่มและเปิด/ปิดการแจ้งเตือน\n\n'
+            'ถ้าต้องการเปลี่ยนกลุ่ม LINE หรือเปิด/ปิดการแจ้งเตือนของโรงเรียน '
+            'กรุณาติดต่อผู้ดูแลระบบส่วนกลาง',
+            style: GoogleFonts.sarabun(
+                fontSize: 15, height: 1.6, color: Colors.blueGrey.shade700),
+          ),
+          const SizedBox(height: 20),
+          OutlinedButton.icon(
+            onPressed: () =>
+                launchUrl(centralUrl, mode: LaunchMode.externalApplication),
+            icon: const Icon(Icons.open_in_new, size: 18),
+            label: Text('เปิดเว็บผู้ดูแลระบบส่วนกลาง',
+                style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
+          ),
+        ],
       ),
-      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
     );
-  }
-
-  // 🕵️‍♂️ ฟังก์ชันดึงไอดีล่าสุดจาก 'สะพานเชื่อม' (Apps Script Middleman) 🥇🏆
-  Future<void> _showGroupIdPicker() async {
-    if (_lineGroupIdController.text.trim().isEmpty && _fillKnownLineGroupId()) {
-      return;
-    }
-    setState(() => _lineStatusMsg = '⌛ กำลังเรียกดูไอดีล่าสุดจากระบบกลาง...');
-    try {
-      // ผ่าน Edge Function school-bridge — secretKey อยู่ฝั่งเซิร์ฟเวอร์
-      // (ใช้ URL ของ Apps Script ที่ "บันทึกแล้ว" ถ้าเพิ่งแก้ URL ให้กดบันทึกก่อน)
-      final dynamic data = await _firebaseService.lineLatestId();
-      
-      // 🛡️ ตรวจสอบโครงสร้างข้อมูลเพื่อป้องกัน Invalid argument (index) error ครับ 🥇🏆
-      if (data is Map && data['status'] == 'success' && data['latestId'] != null && data['latestId'].toString().isNotEmpty) {
-          final String id = data['latestId'].toString();
-          final String time = data['timestamp']?.toString() ?? '-';
-          
-          if (mounted) {
-            showDialog(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: Text("พบไอดีล่าสุด!", style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("ระบบตรวจพบการเคลื่อนไหวล่าสุดจาก:", style: GoogleFonts.sarabun(fontSize: 14)),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
-                      child: SelectableText(id, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)),
-                    ),
-                    const SizedBox(height: 8),
-                    Text("เวลา: $time", style: GoogleFonts.sarabun(fontSize: 12, color: Colors.grey)),
-                  ],
-                ),
-                actions: [
-                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("ยกเลิก")),
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() => _lineGroupIdController.text = id);
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ดึงไอดีมาใส่ให้เรียบร้อยแล้วครับ! อย่าลืมกดบันทึกนะ')));
-                    },
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
-                    child: const Text("ใช้ไอดีนี้"),
-                  ),
-                ],
-              ),
-            );
-          }
-        } else if (data is List) {
-          if (_fillKnownLineGroupId()) return;
-          throw Exception('ระบบหลังบ้านส่งข้อมูลมาเป็น List (${data.length} รายการ) แทนที่จะเป็นสถานะครับ (โปรดตรวจสอบ Apps Script)');
-        } else {
-          final existingId = _lineGroupIdController.text.trim();
-          if (_isLikelyLineTargetId(existingId)) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text('พบ Group ID ที่กรอกไว้แล้ว ใช้ค่านี้ได้เลยครับ กดบันทึกการตั้งค่าแล้วส่งทดสอบได้ทันที'),
-                backgroundColor: Colors.green,
-              ));
-            }
-            return;
-          }
-          throw Exception('ยังไม่มีการส่งข้อความเข้ากลุ่ม LINE ล่าสุด หรือระบบหลังบ้านขัดข้องครับ');
-        }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ ไม่พบข้อมูล: $e'), backgroundColor: Colors.orange));
-      }
-    } finally {
-      setState(() => _lineStatusMsg = null);
-    }
-  }
-
-  Future<void> _saveSettings() async {
-    setState(() { _isSavingLineToken = true; _lineStatusMsg = null; });
-    try {
-      // 💾 บันทึกเฉพาะข้อมูลที่ไม่เป็นความลับระดับสูง (Phase 4)
-      final webhookUrl = _normalizedWebhookUrl();
-      _validateWebhookUrl(webhookUrl);
-      final groupId = _lineGroupIdController.text.trim();
-      if (groupId.isNotEmpty && !_isLikelyLineTargetId(groupId)) {
-        throw Exception('LINE ID ไม่ถูกต้อง: Group ID ต้องขึ้นต้นด้วย C, User ID ขึ้นต้นด้วย U หรือ Room ID ขึ้นต้นด้วย R');
-      }
-      final client = _firebaseService.supabaseClient;
-      if (client == null) throw Exception('Supabase not initialized');
-
-      final payload = {
-        'groupId': groupId,
-        'webhookUrl': webhookUrl,
-        'template': _lineNotifyTemplate,
-        'updatedAt': DateTime.now().toIso8601String(),
-      };
-
-      // ตาราง Settings ไม่มีคอลัมน์ 'id' (PK จริงคือ id_Settings แบบ identity)
-      // ของเดิม upsert ด้วยคีย์ 'id' ซึ่งเป็นแนวคิดสมัย Firebase จึงล้มด้วย
-      // PGRST204 ทุกครั้ง — ตอนนี้หาแถวที่เก็บค่า LINE อยู่แล้วอัปเดตแถวนั้นแทน
-      final existing = await client
-          .from('Settings')
-          .select('id_Settings')
-          .not('groupId', 'is', null)
-          .limit(1)
-          .maybeSingle();
-
-      if (existing != null) {
-        await client
-            .from('Settings')
-            .update(payload)
-            .eq('id_Settings', existing['id_Settings']);
-      } else {
-        // ยังไม่เคยตั้งค่า LINE มาก่อน สร้างแถวใหม่ (id_Settings ฐานข้อมูลออกให้เอง)
-        await client.from('Settings').insert(payload);
-      }
-      setState(() { _lineStatusMsg = '✅ บันทึกข้อมูลเรียบร้อย (ระบบ Secure Bridge)!'; _lineStatusIsError = false; });
-    } catch (e) {
-      setState(() { _lineStatusMsg = '❌ ข้อผิดพลาด: $e'; _lineStatusIsError = true; });
-    } finally {
-      setState(() => _isSavingLineToken = false);
-    }
-  }
-
-  Future<void> _sendLineTest() async {
-    setState(() => _isSendingLineTest = true);
-    try {
-      final groupId = _lineGroupIdController.text.trim();
-      final bridgeUrl = _normalizedWebhookUrl();
-      _validateWebhookUrl(bridgeUrl);
-      if (!_isLikelyLineTargetId(groupId) && groupId.isNotEmpty) {
-        throw Exception('LINE ID ไม่ถูกต้อง: Group ID ต้องขึ้นต้นด้วย C, User ID ขึ้นต้นด้วย U หรือ Room ID ขึ้นต้นด้วย R');
-      }
-      if (groupId.isEmpty) throw Exception('กรุณากรอกไอดีห้องแชทก่อนทดสอบครับ');
-
-      // 📲 สร้างข้อความทดสอบจาก Template 🥇🏆
-      final String msg = _lineNotifyTemplate
-          .replaceAll('{name}', 'ครูทดสอบ ระบบใบลา')
-          .replaceAll('{type}', 'ลากิจส่วนตัว')
-          .replaceAll('{startDate}', '10/06/2026')
-          .replaceAll('{endDate}', '11/06/2026')
-          .replaceAll('{days}', '2')
-          .replaceAll('{reason}', 'ทดสอบระบบแจ้งเตือนแบบปลอดภัย');
-
-      // ผ่าน Edge Function school-bridge — secretKey อยู่ฝั่งเซิร์ฟเวอร์
-      final result = await _firebaseService.lineTest(groupId, msg);
-      if (result['status'] != 'success') {
-        final lineStatus = result['lineStatus'] == null ? '' : ' (LINE ${result['lineStatus']})';
-        throw Exception('${result['message'] ?? 'LINE send failed'}$lineStatus');
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('🎉 ส่งทดสอบแล้ว! ตรวจสอบห้อง LINE เลยครับ'),
-          backgroundColor: Colors.green,
-        ));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ ล้มเหลว: $e'), backgroundColor: Colors.red));
-      }
-    } finally {
-      setState(() => _isSendingLineTest = false);
-    }
   }
 }

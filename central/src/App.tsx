@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import SchoolsPage from './pages/SchoolsPage';
 import SchoolAdminsPage from './pages/SchoolAdminsPage';
+import LinePage from './pages/LinePage';
 
 /**
  * เว็บผู้ดูแลระบบส่วนกลาง — เข้าได้เฉพาะบัญชีที่ is_super_admin() เป็นจริง
@@ -55,6 +56,7 @@ export default function App() {
         <NavLink to="/" end>ภาพรวม</NavLink>
         <NavLink to="/schools">โรงเรียน</NavLink>
         <NavLink to="/admins">ผู้ดูแลโรงเรียน</NavLink>
+        <NavLink to="/line">LINE แจ้งเตือน</NavLink>
         <div className="spacer" />
         <a href="../">เปิดแอปครู ↗</a>
         <button className="link" onClick={() => supabase.auth.signOut()}>
@@ -66,6 +68,7 @@ export default function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/schools" element={<SchoolsPage />} />
           <Route path="/admins" element={<SchoolAdminsPage />} />
+          <Route path="/line" element={<LinePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

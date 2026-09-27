@@ -150,3 +150,10 @@ tbody tr:hover { background: #f8fafc; }
 @media (max-width: 1100px) {
   .form-preview { grid-template-columns: 1fr; }
 }
+
+/* ── หน้า LINE ───────────────────────────────────────────── */
+textarea { font: inherit; font-weight: 400; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: #f8fafc; resize: vertical; }
+label.check { flex-direction: row; align-items: center; gap: 8px; align-self: end; padding-bottom: 10px; }
+label.check input { width: 18px; height: 18px; }
+.badge.on { background: var(--ok-bg); color: var(--ok); }
+code { background: #f1f5f9; padding: 1px 6px; border-radius: 6px; font-size: 13px; }
