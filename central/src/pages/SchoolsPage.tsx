@@ -17,7 +17,7 @@ const EMPTY: SchoolForm = {
 const FIELDS: { key: keyof SchoolForm; label: string; hint?: string }[] = [
   { key: 'namePart1', label: 'ชื่อโรงเรียน (ส่วนแรก)', hint: 'เช่น โรงเรียนรมย์บุรีพิทยาคม' },
   { key: 'namePart2', label: 'ชื่อโรงเรียน (ส่วนหลัง)', hint: 'เช่น รัชมังคลาภิเษก — ไม่มีเว้นว่าง' },
-  { key: 'address', label: 'ที่อยู่ (หัวใบลา)' },
+  { key: 'address', label: 'ที่อยู่ (หัวใบลา)', hint: 'เว้นว่าง = ใช้ ตำบล/อำเภอ/จังหวัด ด้านล่าง' },
   { key: 'affiliation', label: 'สังกัด' },
   { key: 'province', label: 'จังหวัด' },
   { key: 'district', label: 'อำเภอ' },

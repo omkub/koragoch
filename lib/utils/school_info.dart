@@ -46,7 +46,38 @@ class SchoolRecord {
   static String joinName(String part1, String part2) =>
       [part1, part2].where((s) => s.trim().isNotEmpty).join(' ');
 
-  /// อ่านจากแถวของตาราง Schools — ช่องไหนว่างให้ใช้ค่าสำรองแทนทีละช่อง
+  /// ประกอบที่อยู่จาก ตำบล / อำเภอ / จังหวัด ใช้ตอนช่อง address ว่าง
+  ///
+  /// อำเภอเมืองต้องต่อท้ายด้วยชื่อจังหวัด ("เมือง" + "บุรีรัมย์" →
+  /// "อำเภอเมืองบุรีรัมย์") ตามแบบที่ใช้ในหนังสือราชการ
+  static String composeAddress({
+    String subdistrict = '',
+    String district = '',
+    String province = '',
+  }) {
+    String strip(String value, String prefix) {
+      final v = value.trim();
+      return v.startsWith(prefix) ? v.substring(prefix.length).trim() : v;
+    }
+
+    final sub = strip(subdistrict, 'ตำบล');
+    final prov = strip(province, 'จังหวัด');
+    var dist = strip(district, 'อำเภอ');
+    if (dist == 'เมือง' && prov.isNotEmpty) dist = 'เมือง$prov';
+
+    return [
+      if (sub.isNotEmpty) 'ตำบล$sub',
+      if (dist.isNotEmpty) 'อำเภอ$dist',
+      if (prov.isNotEmpty) 'จังหวัด$prov',
+    ].join(' ');
+  }
+
+  /// อ่านจากแถวของตาราง Schools
+  ///
+  /// ถ้าแถวมีชื่อโรงเรียน = ข้อมูลของโรงเรียนนั้นจริง ห้ามหยิบค่าสำรอง (ซึ่งเป็น
+  /// ของโรงเรียนรมย์บุรีฯ) มาเติม — เคยเกิดบั๊กโรงเรียนอื่นได้ที่อยู่ "อำเภอบ้านด่าน"
+  /// ไปขึ้นหัวใบลา ช่อง address ว่างจึงประกอบจาก ตำบล/อำเภอ/จังหวัดของโรงเรียน
+  /// นั้นเองแทน ส่วนค่าสำรองใช้เฉพาะตอนแถวว่างเปล่าทั้งแถว (โหลดไม่สำเร็จ)
   ///
   /// ชื่อเต็มคำนวณจาก namePart1 + namePart2 เสมอ เพื่อให้แก้ชื่อโรงเรียน
   /// อัปเดตแค่สองช่องนี้พอ ไม่ต้องกลัวลืมแก้ fullName ให้ตรงกัน
@@ -74,8 +105,16 @@ class SchoolRecord {
       fullName: joined.isNotEmpty ? joined : pick('fullName', fallback.fullName),
       namePart1: part1,
       namePart2: part2,
-      address: pick('address', fallback.address),
-      affiliation: pick('affiliation', fallback.affiliation),
+      address: hasAnyPart
+          ? pick(
+              'address',
+              composeAddress(
+                subdistrict: (row['subdistrict'] ?? '').toString(),
+                district: (row['district'] ?? '').toString(),
+                province: (row['province'] ?? '').toString(),
+              ))
+          : pick('address', fallback.address),
+      affiliation: pick('affiliation', hasAnyPart ? '' : fallback.affiliation),
     );
   }
 }
