@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { supabase, type School } from '../supabase';
+import { schoolName, supabase, type School } from '../supabase';
 
 type SchoolForm = Omit<School, 'id_school' | 'fullName'>;
 
@@ -135,7 +135,7 @@ export default function SchoolsPage() {
             {schools.map((s) => (
               <tr key={s.id_school}>
                 <td>{s.id_school}</td>
-                <td>{s.fullName || s.namePart1}</td>
+                <td>{schoolName(s)}</td>
                 <td>{s.affiliation || '-'}</td>
                 <td>{[s.province, s.district, s.subdistrict].filter(Boolean).join(' / ') || '-'}</td>
                 <td className="num">

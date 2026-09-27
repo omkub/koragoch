@@ -35,6 +35,14 @@ export interface School {
   subdistrict: string | null;
 }
 
+/**
+ * ชื่อเต็มของโรงเรียน = namePart1 + namePart2 (เหมือน SchoolRecord ในแอป Flutter)
+ * ไม่พึ่งคอลัมน์ fullName เพราะถ้าฐานข้อมูลยังไม่ได้ทำให้เป็นคอลัมน์คำนวณ
+ * (schools_fullname_generated.sql) ค่าในนั้นอาจไม่ตรงกับสองท่อน
+ */
+export const schoolName = (s: Pick<School, 'namePart1' | 'namePart2' | 'fullName'>) =>
+  [s.namePart1, s.namePart2].filter((x) => x?.trim()).join(' ') || s.fullName || '-';
+
 /** ข้อความ error ที่อ่านรู้เรื่องจาก Edge Function */
 export async function functionError(error: unknown): Promise<string> {
   const context = (error as { context?: Response })?.context;

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { ADMIN_FUNCTION, ADMIN_ROLE_ID, functionError, supabase, type School } from '../supabase';
+import { ADMIN_FUNCTION, ADMIN_ROLE_ID, functionError, schoolName, supabase, type School } from '../supabase';
 
 interface AdminRow {
   id_user: number;
@@ -71,9 +71,9 @@ export default function SchoolAdminsPage() {
     load();
   }
 
-  const schoolName = (id: number) => {
+  const schoolNameOf = (id: number) => {
     const s = schools.find((x) => x.id_school === id);
-    return s ? s.fullName || s.namePart1 : `#${id}`;
+    return s ? schoolName(s) : `#${id}`;
   };
 
   return (
@@ -94,7 +94,7 @@ export default function SchoolAdminsPage() {
               <option value="">— เลือกโรงเรียน —</option>
               {schools.map((s) => (
                 <option key={s.id_school} value={s.id_school}>
-                  {s.fullName || s.namePart1}
+                  {schoolName(s)}
                 </option>
               ))}
             </select>
@@ -141,7 +141,7 @@ export default function SchoolAdminsPage() {
           <tbody>
             {admins.map((a) => (
               <tr key={a.id_user}>
-                <td>{schoolName(a.id_school)}</td>
+                <td>{schoolNameOf(a.id_school)}</td>
                 <td>{a.username}</td>
                 <td>{a.fullName}</td>
                 <td>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ADMIN_ROLE_ID, supabase, type School } from '../supabase';
+import { ADMIN_ROLE_ID, schoolName, supabase, type School } from '../supabase';
 
 interface SchoolStats {
   school: School;
@@ -77,7 +77,7 @@ export default function DashboardPage() {
           <tbody>
             {rows.map((r) => (
               <tr key={r.school.id_school}>
-                <td>{r.school.fullName || r.school.namePart1}</td>
+                <td>{schoolName(r.school)}</td>
                 <td>{[r.school.province, r.school.district].filter(Boolean).join(' / ') || '-'}</td>
                 <td className="num">{r.teachers}</td>
                 <td className="num">
