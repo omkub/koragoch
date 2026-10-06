@@ -1,3 +1,16 @@
+# SchoolLeaveApp
+
+A staff leave management system used in production at [Romburipittayakhom Ratchamungklapisek School], Thailand.
+
+- **Staff** submit leave requests online and view their leave history.
+- **Administrators** approve requests, manage personnel and user roles, and track leave per fiscal year on a live dashboard.
+- **Stack:** Flutter (web), Firebase Firestore, Supabase (migration in progress via dual-write), and a React + TypeScript admin console in `/central`.
+- **Live:** https://omkub.github.io/koragoch/ (deployed automatically with GitHub Actions)
+
+Documentation below is in Thai.
+
+---
+
 # SchoolLeaveApp (โปรแกรมระบบลาโรงเรียน)
 
 แอป Flutter (web) สำหรับจัดการการลาของบุคลากร ใช้ **Firebase Firestore** (database `school`) เป็นฐานข้อมูลหลักในการแสดงผล และมีระบบ **นำเข้าข้อมูลไป Supabase** (dual-write + migration)
