@@ -22,6 +22,35 @@ export const ADMIN_FUNCTION = 'clever-responder';
 
 export const ADMIN_ROLE_ID = 22;
 
+/** ระดับผู้ใช้เว็บนี้ — super = ผู้ดูแลส่วนกลาง, school = แอดมินโรงเรียน */
+export interface Access {
+  level: 'super' | 'school' | 'none';
+  schoolId: number | null;
+}
+
+/** รายการสิทธิ์ (ตาราง PermissionItems) */
+export interface PermissionItem {
+  key: string;
+  group: string;
+  label: string;
+  sort: number;
+}
+
+export interface Role {
+  ID_Roles: number;
+  Accessrights: string;
+}
+
+/** จัดกลุ่มรายการสิทธิ์ตามหมวด เรียงตาม sort */
+export function groupItems(items: PermissionItem[]): [string, PermissionItem[]][] {
+  const groups = new Map<string, PermissionItem[]>();
+  for (const item of [...items].sort((a, b) => a.sort - b.sort)) {
+    if (!groups.has(item.group)) groups.set(item.group, []);
+    groups.get(item.group)!.push(item);
+  }
+  return [...groups.entries()];
+}
+
 export interface School {
   id_school: number;
   namePart1: string | null;

@@ -2141,6 +2141,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           .from('appconfig')
           .select('ID_AppConfig,Description,"Key AppTitle",Value')
           .limit(0);
+    } on PostgrestException catch (e) {
+      // ตาราง appconfig ถูกลบไปแล้วในระบบใหม่ (ค่าที่เคยเก็บย้ายไป Settings /
+      // AppSecrets) — ข้ามเงียบ ๆ ไม่ใช่ข้อผิดพลาด
+      if (e.code == 'PGRST205') {
+        onLog('AppConfig: ข้าม — ระบบใหม่ไม่ใช้ตาราง appconfig แล้ว');
+      } else {
+        onLog('AppConfig: ตรวจ schema ไม่สำเร็จ: $e');
+      }
+      return 0;
     } catch (e) {
       onLog('AppConfig: ตรวจ schema ไม่สำเร็จ: $e');
       return 0;
@@ -2906,7 +2915,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     if (rawValue == null) return null;
     if (rawValue is int) return rawValue;
     final rawText = rawValue.toString().trim();
-    if (rawText.isEmpty || rawText == '---เลือก---' || rawText == '-') {
+    // ค่าว่างในรูปแบบต่าง ๆ ของระบบเดิม ("ไม่มีตำแหน่งบริหาร" = ไม่มี ไม่ใช่ชื่อที่หาไม่เจอ)
+    if (rawText.isEmpty ||
+        rawText == '---เลือก---' ||
+        rawText == '-' ||
+        rawText == 'ไม่มีตำแหน่งบริหาร') {
       return null;
     }
     final direct = int.tryParse(rawText);

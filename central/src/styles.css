@@ -157,3 +157,20 @@ label.check { flex-direction: row; align-items: center; gap: 8px; align-self: en
 label.check input { width: 18px; height: 18px; }
 .badge.on { background: var(--ok-bg); color: var(--ok); }
 code { background: #f1f5f9; padding: 1px 6px; border-radius: 6px; font-size: 13px; }
+
+/* ── สิทธิ์ ─────────────────────────────────────────────── */
+.perm-table td, .perm-table th { white-space: normal; }
+.perm-table .center-cell { text-align: center; width: 120px; }
+.perm-table input[type='checkbox'] { width: 18px; height: 18px; cursor: pointer; }
+.perm-table .group-row td { background: #f8fafc; font-weight: 700; color: var(--muted); font-size: 13px; }
+.perm-table .dirty { background: #fef9c3; }
+.perm-table .disabled-row td { color: #94a3b8; }
+.small { font-size: 12px; font-weight: 400; }
+.perm-layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; align-items: start; }
+.perm-list { max-height: 75vh; overflow-y: auto; padding: 12px; }
+.perm-person { display: flex; flex-direction: column; align-items: flex-start; width: 100%; text-align: left; background: none; color: var(--text); padding: 8px 10px; border-radius: 8px; font-weight: 600; }
+.perm-person small { color: var(--muted); font-weight: 400; }
+.perm-person:hover:not(:disabled) { background: #f1f5f9; }
+.perm-person.active { background: #dbeafe; }
+select { font: inherit; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+@media (max-width: 900px) { .perm-layout { grid-template-columns: 1fr; } .perm-list { max-height: 260px; } }

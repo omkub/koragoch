@@ -22,11 +22,11 @@ export default function LoginPage() {
       return;
     }
 
-    // ล็อกอินผ่าน แต่ไม่ใช่ผู้ดูแลส่วนกลาง → ออกทันที ไม่ค้าง session ไว้
-    const { data: isSuper } = await supabase.rpc('is_super_admin');
-    if (isSuper !== true) {
+    // ล็อกอินผ่าน แต่ไม่ใช่ผู้ดูแลระบบ (ส่วนกลางหรือโรงเรียน) → ออกทันที
+    const { data: isAdmin } = await supabase.rpc('is_admin');
+    if (isAdmin !== true) {
       await supabase.auth.signOut();
-      setError('บัญชีนี้ไม่ใช่ผู้ดูแลระบบส่วนกลาง');
+      setError('บัญชีนี้ไม่ใช่ผู้ดูแลระบบ');
     }
     setBusy(false);
   }
@@ -34,8 +34,8 @@ export default function LoginPage() {
   return (
     <div className="center">
       <form className="card narrow" onSubmit={submit}>
-        <h2>ผู้ดูแลระบบส่วนกลาง</h2>
-        <p className="muted">ระบบลาออนไลน์ — ดูแลทุกโรงเรียน</p>
+        <h2>ผู้ดูแลระบบ</h2>
+        <p className="muted">ระบบลาออนไลน์ — ผู้ดูแลส่วนกลาง / ผู้ดูแลโรงเรียน</p>
         <label>
           ชื่อผู้ใช้
           <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus required />
