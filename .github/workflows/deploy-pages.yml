@@ -44,8 +44,18 @@ jobs:
         working-directory: central
         run: npm run form-defaults
 
+      # ชุดทดสอบตัววาดเอกสาร: HTML ที่ web วาดจริงจากโค้ดล่าสุด
+      - name: สร้างชุดทดสอบตัววาดเอกสารจาก web
+        working-directory: central
+        run: npm run form-fixtures
+
       - name: ติดตั้ง dependencies
         run: flutter pub get
+
+      # ตัววาดของ app ต้องได้เอกสารเดียวกับ web ทุกตัวอักษร
+      # ไม่ผ่าน = ไม่ deploy (เว็บเดิมยังใช้งานได้) ใบที่ครูพิมพ์จะได้ไม่ต่างจากที่ออกแบบไว้
+      - name: เทียบตัววาดเอกสาร app กับ web
+        run: flutter test test/form_template_test.dart test/form_render_parity_test.dart
 
       - name: ตรวจสอบโค้ด (ไม่บล็อกการ deploy)
         run: flutter analyze --no-fatal-infos --no-fatal-warnings || true
