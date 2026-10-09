@@ -6,7 +6,8 @@
  * เพิ่มตัวเลือกใหม่ในแม่แบบแล้ว ให้เพิ่มกรณีที่นี่ด้วย แล้วรัน npm run form-fixtures
  */
 import { renderDocument, type RenderContext, type RenderOptions } from '../src/forms/render';
-import { defaultLeaveTemplate } from '../src/forms/leaveTemplate';
+import { defaultLeaveTemplate, leaveContext as buildLeaveContext } from '../src/forms/leaveTemplate';
+import { LeaveFormData, schoolRecordFromRow, type Row } from '../src/leaveForm/leaveFormData';
 import { defaultTripTemplate } from '../src/forms/tripTemplate';
 import { commonDefaults, type Block, type FormTemplate } from '../src/forms/template';
 
@@ -315,6 +316,85 @@ export function renderCases(): RenderCase[] {
     },
   ];
   return cases;
+}
+
+// ── ข้อมูลใบลา → ตัวแทนข้อมูล (leaveContext) ─────────────────────
+
+export interface LeaveContextCase {
+  name: string;
+  leaf: Row;
+  allUsers: Row[];
+  allLeaveRequests: Row[];
+  leaveTypeNames: string[];
+  schoolRow: Row;
+}
+
+const users: Row[] = [
+  { fullName: 'นายทดสอบ ระบบ', position: 'ครู', academicStanding: 'ชำนาญการ' },
+  { fullName: 'นางสาวไม่มี วิทยฐานะ', position: '', academicStanding: 'ไม่มีวิทยฐานะ' },
+  { fullName: 'นางหัวหน้า บุคคล', ตำแหน่งงานบริหาร: 'หัวหน้ากลุ่มบริหารงานบุคคล' },
+  { fullName: 'นายรอง ผอ.', ตำแหน่งงานบริหาร: 'รองผู้อำนวยการ กลุ่มบริหารงานบุคคล' },
+  { fullName: 'นายผู้อำนวยการ ใจดี', ตำแหน่งงานบริหาร: 'ผู้อำนวยการโรงเรียนรมย์บุรีพิทยาคม' },
+];
+
+const history: Row[] = [
+  { requestId: 'h1', fullName: 'นายทดสอบ ระบบ', leaveType: 'ลาป่วย', year: '2570', startDate: '01/09/2569', endDate: '01/09/2569', totalDays: 1, timestamp: '2026-09-01T08:00:00' },
+  { requestId: 'h2', fullName: 'นายทดสอบ ระบบ', leaveType: 'ลากิจส่วนตัว', year: '2570', startDate: '15/09/2569', endDate: '16/09/2569', totalDays: 1.5, timestamp: '2026-09-14T08:00:00' },
+  { requestId: 'h3', fullName: 'นายทดสอบ ระบบ', leaveType: 'ลาป่วย', year: '2569', startDate: '01/03/2569', endDate: '02/03/2569', totalDays: 2, timestamp: '2026-03-01T08:00:00' },
+  { requestId: 'h4', fullName: 'นางสาวไม่มี วิทยฐานะ', leaveType: 'ลาป่วย', year: '2570', startDate: '01/10/2569', endDate: '01/10/2569', totalDays: 1, timestamp: '2026-10-01T08:00:00' },
+];
+
+export function leaveContextCases(): LeaveContextCase[] {
+  const school = { namePart1: 'โรงเรียนทดสอบ', namePart2: 'วิทยา', province: 'บุรีรัมย์', district: 'เมือง', affiliation: 'สังกัด สพม.' };
+  return [
+    {
+      name: 'ใบลาที่ยื่นแล้ว + ประวัติ + ผู้บริหาร',
+      leaf: {
+        requestId: 'r1', fullName: 'นายทดสอบ ระบบ', leaveType: 'ลาป่วย', reason: 'ไข้หวัด', year: '2570',
+        startDate: '09/10/2569', endDate: '10/10/2569', totalDays: 2, phone: '0812345678',
+        timestamp: '2026-10-09T09:30:00', receiveNumber: '12', receiveDate: '9 ต.ค. 69',
+      },
+      allUsers: users,
+      allLeaveRequests: history,
+      leaveTypeNames: ['---เลือก---', 'ลาป่วย', 'ลากิจส่วนตัว', 'ลาคลอดบุตร', ' '],
+      schoolRow: school,
+    },
+    {
+      name: 'ใบลาครึ่งวัน ไม่มีตำแหน่ง/วิทยฐานะ',
+      leaf: {
+        requestId: 'r2', fullName: 'นางสาวไม่มี วิทยฐานะ', leaveType: 'ลากิจส่วนตัว', reason: '', year: '2570',
+        startDate: '12/10/2569', endDate: '12/10/2569', totalDays: 0.5, timestamp: '2026-10-11T23:59:00',
+      },
+      allUsers: users,
+      allLeaveRequests: history,
+      leaveTypeNames: [],
+      schoolRow: {},
+    },
+    {
+      name: 'พรีวิวหน้าส่งใบลา (ยังไม่ยื่น ยังไม่เลือกประเภท)',
+      leaf: { fullName: '', leaveType: '---เลือก---', reason: '', startDate: '09/10/2569', endDate: '09/10/2569', totalDays: 1, year: '2570' },
+      allUsers: [],
+      allLeaveRequests: [],
+      leaveTypeNames: ['ลาป่วย'],
+      schoolRow: school,
+    },
+  ];
+}
+
+/** ชุดทดสอบ leaveContext พร้อมผลที่ web คำนวณ */
+export function computedLeaveContexts() {
+  return leaveContextCases().map((lc) => ({
+    ...lc,
+    context: buildLeaveContext(
+      new LeaveFormData({
+        leaf: lc.leaf,
+        allUsers: lc.allUsers,
+        allLeaveRequests: lc.allLeaveRequests,
+        leaveTypeNames: lc.leaveTypeNames,
+        school: schoolRecordFromRow(lc.schoolRow),
+      }),
+    ),
+  }));
 }
 
 /** ชุดทดสอบพร้อม HTML ที่ตัววาดของ web สร้าง */

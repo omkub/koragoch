@@ -119,6 +119,15 @@ class FormTemplateService {
     }
   }
 
+  /// แม่แบบที่เคยโหลดไว้แล้ว (หมดอายุแล้วก็คืนให้) — null = ยังไม่เคยโหลด
+  ///
+  /// ใช้ตอนต้องได้ผลทันทีโดยไม่รอ เช่น ปุ่มพิมพ์ เบราว์เซอร์จะบล็อก
+  /// หน้าต่างพิมพ์ที่เปิดหลังรอโหลดข้อมูล (ไม่นับว่าผู้ใช้เป็นคนกดเปิด)
+  ResolvedTemplate? cached(FormType type, {int? schoolId}) {
+    final school = schoolId ?? SchoolInfo.currentSchoolId;
+    return _cache['${type.key}:${school ?? '-'}']?.value;
+  }
+
   /// ล้างที่เก็บไว้ทั้งหมด (เช่น ตอนออกจากระบบ)
   void clearCache() => _cache.clear();
 }

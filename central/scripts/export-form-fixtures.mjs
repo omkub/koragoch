@@ -29,10 +29,13 @@ await build({
   logLevel: 'warning',
 });
 
-const { renderedCases } = await import(pathToFileURL(bundle).href);
+const { renderedCases, computedLeaveContexts } = await import(pathToFileURL(bundle).href);
 const cases = renderedCases();
+const contexts = computedLeaveContexts();
 
 mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, JSON.stringify(cases, null, 1) + '\n');
-console.log(`เขียน ${cases.length} กรณีลง ${out} แล้ว`);
+const outContexts = resolve(dirname(out), 'leave_context_cases.json');
+writeFileSync(outContexts, JSON.stringify(contexts, null, 1) + '\n');
+console.log(`เขียน ${cases.length} กรณีลง ${out} และ ${contexts.length} กรณีลง ${outContexts} แล้ว`);
 process.exit(0);
