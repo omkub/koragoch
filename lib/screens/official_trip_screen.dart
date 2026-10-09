@@ -8,14 +8,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
 import '../services/official_trip_service.dart';
 import '../utils/teacher_sort.dart';
+import '../widgets/leave_form_data.dart';
 import '../widgets/thai_buddhist_calendar_widget.dart';
+import '../widgets/trip_form_document.dart';
 
 // ═══════════════════════════════════════════════════════════════
-// หน้า "ไปราชการ / ประชุม" (เมนู 9)
+// หน้า "ประวัติไปราชการ / ประชุม" (เมนู 9) + หน้า "บันทึกไปราชการ / ประชุม"
 //
 // ครู: บันทึกการไปราชการของตัวเอง + ผู้ร่วมเดินทาง, แก้/ลบได้ระหว่าง
 //      รอพิจารณา, หลังอนุมัติเขียนรายงานผลได้
 // ผู้ดูแลระบบ: บันทึกแทนครู, อนุมัติ/ไม่อนุมัติ, แก้/ลบได้ทุกรายการ
+//
+// จอกว้าง: บันทึก/แก้ไขในแท็บ "บันทึกไปราชการ" (ฟอร์มซ้าย + พรีวิวเอกสารขวา)
+// มือถือ: บันทึก/แก้ไขในหน้าต่างเต็มจอเหมือนเดิม
 //
 // ปุ่มที่ซ่อน/แสดงตรงกับกติกาในฐานข้อมูล (supabase/official_trips.sql)
 // ซึ่งเป็นตัวกันจริง — ถ้าฐานข้อมูลปฏิเสธ จะแสดงข้อความจาก trigger
@@ -39,8 +44,67 @@ Color _statusColor(String status) {
 
 int? _asInt(dynamic v) => v is int ? v : int.tryParse(v?.toString() ?? '');
 
+/// ข้อมูลประกอบที่หน้าประวัติและหน้าบันทึกใช้ร่วมกัน
+class _TripSetup {
+  final int? myId;
+  final bool isAdmin;
+  final List<Map<String, dynamic>> teachers;
+  final Set<String> holidays;
+  final Set<String> workingDays;
+
+  const _TripSetup({
+    required this.myId,
+    required this.isAdmin,
+    this.teachers = const [],
+    this.holidays = const {},
+    this.workingDays = const {},
+  });
+}
+
+/// ผู้ใช้ที่ล็อกอิน + รายชื่อบุคลากร + วันหยุด (รายชื่อโหลดไม่สำเร็จ = รายการว่าง)
+Future<_TripSetup> _loadSetup(OfficialTripService service) async {
+  final prefs = await SharedPreferences.getInstance();
+  final role = prefs.getString('userRole') ?? '';
+  final currentUser = prefs.getString('currentUser') ?? '';
+  int? myId;
+  try {
+    final cached = prefs.getString('userFullDataJson');
+    if (cached != null && cached.isNotEmpty) {
+      myId = _asInt((jsonDecode(cached) as Map)['id_user']);
+    }
+  } catch (e) {
+    debugPrint('⚠️  อ่านข้อมูลผู้ใช้จากเครื่องไม่สำเร็จ: $e');
+  }
+  final isAdmin = role.contains('ผู้ดูแลระบบ') || currentUser == 'ผู้ดูแลระบบ';
+
+  try {
+    final results = await Future.wait([
+      FirebaseService().getUsersFromSupabase(),
+      service.getSpecialDates(),
+    ]);
+    final teachers = sortedTeachers((results[0] as List<Map<String, dynamic>>)
+        .where((t) => _asInt(t['id_user']) != null));
+    final special =
+        results[1] as ({Set<String> holidays, Set<String> workingDays});
+    return _TripSetup(
+      myId: myId,
+      isAdmin: isAdmin,
+      teachers: teachers,
+      holidays: special.holidays,
+      workingDays: special.workingDays,
+    );
+  } catch (e) {
+    debugPrint('⚠️  โหลดรายชื่อบุคลากรไม่สำเร็จ: $e');
+    return _TripSetup(myId: myId, isAdmin: isAdmin);
+  }
+}
+
 class OfficialTripScreen extends StatefulWidget {
-  const OfficialTripScreen({super.key});
+  /// จอกว้าง: ไปแท็บบันทึกไปราชการแทนการเปิดหน้าต่าง (null = เปิดหน้าต่าง)
+  final VoidCallback? onCreate;
+  final ValueChanged<Map<String, dynamic>>? onEdit;
+
+  const OfficialTripScreen({super.key, this.onCreate, this.onEdit});
 
   @override
   State<OfficialTripScreen> createState() => _OfficialTripScreenState();
@@ -48,7 +112,6 @@ class OfficialTripScreen extends StatefulWidget {
 
 class _OfficialTripScreenState extends State<OfficialTripScreen> {
   final _service = OfficialTripService();
-  final _firebaseService = FirebaseService();
 
   bool _loading = true;
   String? _error;
@@ -73,40 +136,16 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
   }
 
   Future<void> _init() async {
-    final prefs = await SharedPreferences.getInstance();
-    final role = prefs.getString('userRole') ?? '';
-    final currentUser = prefs.getString('currentUser') ?? '';
-    int? myId;
-    try {
-      final cached = prefs.getString('userFullDataJson');
-      if (cached != null && cached.isNotEmpty) {
-        myId = _asInt((jsonDecode(cached) as Map)['id_user']);
-      }
-    } catch (e) {
-      debugPrint('⚠️  อ่านข้อมูลผู้ใช้จากเครื่องไม่สำเร็จ: $e');
-    }
-    _myId = myId;
-    _isAdmin = role.contains('ผู้ดูแลระบบ') || currentUser == 'ผู้ดูแลระบบ';
-
-    try {
-      final results = await Future.wait([
-        _firebaseService.getUsersFromSupabase(),
-        _service.getSpecialDates(),
-      ]);
-      final teachers = sortedTeachers((results[0] as List<Map<String, dynamic>>)
-          .where((t) => _asInt(t['id_user']) != null));
-      final special =
-          results[1] as ({Set<String> holidays, Set<String> workingDays});
-      if (!mounted) return;
-      setState(() {
-        _teachers = teachers;
-        _teacherById = {for (final t in teachers) _asInt(t['id_user'])!: t};
-        _holidays = special.holidays;
-        _workingDays = special.workingDays;
-      });
-    } catch (e) {
-      debugPrint('⚠️  โหลดรายชื่อบุคลากรไม่สำเร็จ: $e');
-    }
+    final setup = await _loadSetup(_service);
+    if (!mounted) return;
+    setState(() {
+      _myId = setup.myId;
+      _isAdmin = setup.isAdmin;
+      _teachers = setup.teachers;
+      _teacherById = {for (final t in setup.teachers) _asInt(t['id_user'])!: t};
+      _holidays = setup.holidays;
+      _workingDays = setup.workingDays;
+    });
     await _loadTrips();
   }
 
@@ -208,10 +247,18 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
           backgroundColor: Colors.red));
       return;
     }
+    if (trip == null && widget.onCreate != null) {
+      widget.onCreate!();
+      return;
+    }
+    if (trip != null && widget.onEdit != null) {
+      widget.onEdit!(trip);
+      return;
+    }
     final saved = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => _TripFormDialog(
+      builder: (_) => TripFormPanel(
         service: _service,
         teachers: _teachers,
         myId: _myId!,
@@ -482,7 +529,7 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('ไปราชการ / ประชุม',
+              Text('ประวัติไปราชการ / ประชุม',
                   style: GoogleFonts.sarabun(
                       fontSize: isMobile ? 22 : 28,
                       fontWeight: FontWeight.bold,
@@ -838,10 +885,77 @@ InputDecoration _inputDecoration(String label, {IconData? icon}) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// แท็บ "บันทึกไปราชการ / ประชุม" (จอกว้าง)
+// ═══════════════════════════════════════════════════════════════
+
+class OfficialTripFormScreen extends StatefulWidget {
+  /// รายการที่จะแก้ (null = บันทึกใหม่)
+  final Map<String, dynamic>? trip;
+
+  /// บันทึกเสร็จ / ยกเลิกการแก้ไข — ไปหน้าประวัติ
+  final VoidCallback onComplete;
+
+  const OfficialTripFormScreen(
+      {super.key, this.trip, required this.onComplete});
+
+  @override
+  State<OfficialTripFormScreen> createState() => _OfficialTripFormScreenState();
+}
+
+class _OfficialTripFormScreenState extends State<OfficialTripFormScreen> {
+  final _service = OfficialTripService();
+  _TripSetup? _setup;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSetup(_service).then((s) {
+      if (mounted) setState(() => _setup = s);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final setup = _setup;
+    if (setup == null) {
+      return const ColoredBox(
+          color: _pageBg, child: Center(child: CircularProgressIndicator()));
+    }
+    if (setup.myId == null) {
+      return ColoredBox(
+        color: _pageBg,
+        child: Center(
+          child: Text('ไม่พบข้อมูลผู้ใช้ กรุณาออกจากระบบแล้วเข้าใหม่',
+              style: GoogleFonts.sarabun(color: Colors.red, fontSize: 15)),
+        ),
+      );
+    }
+    return Material(
+      color: _pageBg,
+      child: TripFormPanel(
+        service: _service,
+        teachers: setup.teachers,
+        myId: setup.myId!,
+        isAdmin: setup.isAdmin,
+        holidays: setup.holidays,
+        workingDays: setup.workingDays,
+        trip: widget.trip,
+        asPage: true,
+        onDone: (_) => widget.onComplete(),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // ฟอร์มบันทึก / แก้ไข
 // ═══════════════════════════════════════════════════════════════
 
-class _TripFormDialog extends StatefulWidget {
+/// ฟอร์มบันทึก / แก้ไขการไปราชการ
+///
+/// [asPage] = แสดงเต็มหน้า (ฟอร์มซ้าย + พรีวิวเอกสารขวา) แบบหน้าส่งใบลา
+/// ไม่งั้นเป็นหน้าต่าง (มือถือเปิดเต็มจอ)
+class TripFormPanel extends StatefulWidget {
   final OfficialTripService service;
   final List<Map<String, dynamic>> teachers;
   final int myId;
@@ -849,8 +963,13 @@ class _TripFormDialog extends StatefulWidget {
   final Set<String> holidays;
   final Set<String> workingDays;
   final Map<String, dynamic>? trip;
+  final bool asPage;
 
-  const _TripFormDialog({
+  /// เรียกเมื่อบันทึก (true) / ยกเลิก (false) — null = ปิดหน้าต่าง
+  final ValueChanged<bool>? onDone;
+
+  const TripFormPanel({
+    super.key,
     required this.service,
     required this.teachers,
     required this.myId,
@@ -858,13 +977,15 @@ class _TripFormDialog extends StatefulWidget {
     required this.holidays,
     required this.workingDays,
     this.trip,
+    this.asPage = false,
+    this.onDone,
   });
 
   @override
-  State<_TripFormDialog> createState() => _TripFormDialogState();
+  State<TripFormPanel> createState() => _TripFormPanelState();
 }
 
-class _TripFormDialogState extends State<_TripFormDialog> {
+class _TripFormPanelState extends State<TripFormPanel> {
   final _formKey = GlobalKey<FormState>();
   final _title = TextEditingController();
   final _organizer = TextEditingController();
@@ -899,9 +1020,32 @@ class _TripFormDialogState extends State<_TripFormDialog> {
         workingDays: widget.workingDays,
       );
 
+  List<TextEditingController> get _controllers =>
+      [_title, _organizer, _location, _province, _docNumber, _cost, _note];
+
+  void _refreshPreview() => setState(() {});
+
+  void _finish(bool saved) {
+    if (widget.onDone != null) {
+      widget.onDone!(saved);
+    } else {
+      Navigator.pop(context, saved);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    _fillFromTrip();
+    // พรีวิวเอกสารอัปเดตตามที่พิมพ์
+    if (widget.asPage) {
+      for (final c in _controllers) {
+        c.addListener(_refreshPreview);
+      }
+    }
+  }
+
+  void _fillFromTrip() {
     final t = widget.trip;
     final today = DateTime.now();
     _ownerId = _asInt(t?['id_user']) ?? widget.myId;
@@ -938,15 +1082,7 @@ class _TripFormDialogState extends State<_TripFormDialog> {
 
   @override
   void dispose() {
-    for (final c in [
-      _title,
-      _organizer,
-      _location,
-      _province,
-      _docNumber,
-      _cost,
-      _note
-    ]) {
+    for (final c in _controllers) {
       c.dispose();
     }
     super.dispose();
@@ -1036,7 +1172,7 @@ class _TripFormDialogState extends State<_TripFormDialog> {
           content:
               Text(_isEdit ? 'บันทึกการแก้ไขแล้ว' : 'บันทึกการไปราชการแล้ว'),
           backgroundColor: Colors.green));
-      Navigator.pop(context, true);
+      _finish(true);
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -1053,32 +1189,7 @@ class _TripFormDialogState extends State<_TripFormDialog> {
       ..._members.where((id) => id != _ownerId),
     ];
 
-    final form = Form(
-      key: _formKey,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 20, 12, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                      _isEdit ? 'แก้ไขการไปราชการ' : 'บันทึกการไปราชการ',
-                      style: GoogleFonts.sarabun(
-                          fontSize: 20, fontWeight: FontWeight.bold)),
-                ),
-                IconButton(
-                    onPressed:
-                        _saving ? null : () => Navigator.pop(context, false),
-                    icon: const Icon(Icons.close_rounded)),
-              ],
-            ),
-          ),
-          Flexible(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-              child: Column(
+    final fields = Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (widget.isAdmin) ...[
@@ -1119,6 +1230,7 @@ class _TripFormDialogState extends State<_TripFormDialog> {
                   _row([
                     DropdownButtonFormField<String>(
                       initialValue: _tripType,
+                      isExpanded: true,
                       decoration: _inputDecoration('ประเภท'),
                       items: [
                         for (final v in OfficialTripService.tripTypes)
@@ -1240,6 +1352,7 @@ class _TripFormDialogState extends State<_TripFormDialog> {
                   _row([
                     DropdownButtonFormField<String>(
                       initialValue: _travelMode,
+                      isExpanded: true,
                       decoration: _inputDecoration('เดินทางโดย'),
                       items: [
                         for (final v in OfficialTripService.travelModes)
@@ -1249,6 +1362,7 @@ class _TripFormDialogState extends State<_TripFormDialog> {
                     ),
                     DropdownButtonFormField<String>(
                       initialValue: _budgetSource,
+                      isExpanded: true,
                       decoration: _inputDecoration('ค่าใช้จ่าย'),
                       items: [
                         for (final v in OfficialTripService.budgetSources)
@@ -1273,7 +1387,56 @@ class _TripFormDialogState extends State<_TripFormDialog> {
                     decoration: _inputDecoration('หมายเหตุ'),
                   ),
                 ],
-              ),
+              );
+
+    final saveButton = FilledButton.icon(
+      style: FilledButton.styleFrom(
+        backgroundColor: _ink,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        shape: widget.asPage
+            ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
+            : null,
+      ),
+      onPressed: _saving ? null : _save,
+      icon: _saving
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: Colors.white))
+          : const Icon(Icons.save_rounded, size: 18),
+      label: Text(_isEdit ? 'บันทึกการแก้ไข' : 'บันทึก',
+          style: GoogleFonts.sarabun(
+              fontWeight: FontWeight.bold, fontSize: widget.asPage ? 18 : null)),
+    );
+
+    if (widget.asPage) return _buildPage(fields, saveButton);
+
+    final form = Form(
+      key: _formKey,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 12, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                      _isEdit ? 'แก้ไขการไปราชการ' : 'บันทึกการไปราชการ',
+                      style: GoogleFonts.sarabun(
+                          fontSize: 20, fontWeight: FontWeight.bold)),
+                ),
+                IconButton(
+                    onPressed: _saving ? null : () => _finish(false),
+                    icon: const Icon(Icons.close_rounded)),
+              ],
+            ),
+          ),
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+              child: fields,
             ),
           ),
           Padding(
@@ -1282,28 +1445,11 @@ class _TripFormDialogState extends State<_TripFormDialog> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
-                  onPressed:
-                      _saving ? null : () => Navigator.pop(context, false),
+                  onPressed: _saving ? null : () => _finish(false),
                   child: const Text('ยกเลิก'),
                 ),
                 const SizedBox(width: 12),
-                FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _ink,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 16),
-                  ),
-                  onPressed: _saving ? null : _save,
-                  icon: _saving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.save_rounded, size: 18),
-                  label: Text(_isEdit ? 'บันทึกการแก้ไข' : 'บันทึก',
-                      style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
-                ),
+                saveButton,
               ],
             ),
           ),
@@ -1325,6 +1471,135 @@ class _TripFormDialogState extends State<_TripFormDialog> {
         constraints: const BoxConstraints(maxWidth: 760, maxHeight: 820),
         child: form,
       ),
+    );
+  }
+
+  /// แบบหน้าส่งใบลา: ฟอร์มซ้าย + พรีวิวเอกสารขวา
+  Widget _buildPage(Widget fields, Widget saveButton) {
+    return Row(
+      children: [
+        Expanded(
+          flex: 4,
+          child: Container(
+            decoration: BoxDecoration(color: Colors.white, boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(4, 0))
+            ]),
+            child: Form(
+              key: _formKey,
+              child: SingleChildScrollView(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                              _isEdit
+                                  ? 'แก้ไขการไปราชการ / ประชุม'
+                                  : 'บันทึกไปราชการ / ประชุม',
+                              style: GoogleFonts.sarabun(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF1E293B))),
+                        ),
+                        if (_isEdit)
+                          TextButton.icon(
+                            onPressed: _saving ? null : () => _finish(false),
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                            label: const Text('ยกเลิกการแก้ไข'),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: _line),
+                      ),
+                      child: fields,
+                    ),
+                    const SizedBox(height: 32),
+                    SizedBox(height: 56, child: saveButton),
+                    const SizedBox(height: 40),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 7,
+          child: Container(
+            color: const Color(0xFF475569),
+            child: Center(
+              child: SingleChildScrollView(
+                padding:
+                    const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+                // เอกสารกว้าง 794 — จอแคบย่อทั้งหน้าให้พอดีแทนการล้น
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: TripFormDocument(data: _previewData()),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// ชื่อ + ตำแหน่ง/วิทยฐานะของบุคลากรตามทะเบียน
+  ({String name, String position}) _person(int id) {
+    final name = _nameOf(id);
+    final position = LeaveFormData(
+      leaf: {'fullName': name},
+      allUsers: widget.teachers,
+      allLeaveRequests: const [],
+    ).positionWithStanding;
+    return (name: name, position: position);
+  }
+
+  late final String _directorName = LeaveFormData(
+    leaf: const {},
+    allUsers: widget.teachers,
+    allLeaveRequests: const [],
+  ).directorName;
+
+  TripFormData _previewData() {
+    final owner = _person(_ownerId);
+    final halfDay = _isHalfDay && _sameDay;
+    return TripFormData(
+      ownerName: owner.name,
+      ownerPosition: owner.position,
+      title: _title.text,
+      tripType: _tripType,
+      organizer: _organizer.text,
+      location: _location.text,
+      province: _province.text,
+      docNumber: _docNumber.text,
+      docDate: _docDate,
+      startDate: _startDate,
+      endDate: _endDate,
+      isHalfDay: halfDay,
+      halfDayPeriod: _halfDayPeriod,
+      totalDays: _totalDays,
+      travelMode: _travelMode ?? '',
+      budgetSource: _budgetSource ?? '',
+      estimatedCost: num.tryParse(_cost.text.replaceAll(',', '').trim()),
+      members: [
+        owner,
+        for (final id in _members.where((id) => id != _ownerId)) _person(id),
+      ],
+      directorName: _directorName,
+      createdAt:
+          OfficialTripService.parseDate(widget.trip?['createdAt'])?.toLocal(),
     );
   }
 
