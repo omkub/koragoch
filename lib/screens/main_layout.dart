@@ -36,6 +36,8 @@ class _MainLayoutState extends State<MainLayout> {
   List<int>? _allowedMenus;
   int _pendingResetCount = 0;
   Map<String, dynamic>? _editData;
+  // ไปราชการที่กำลังแก้ในแท็บบันทึกไปราชการ (null = บันทึกใหม่)
+  Map<String, dynamic>? _editTrip;
   Map<String, dynamic>? _permissionData;
   // เมนูลงเวลาแสดงเมื่อโรงเรียนเปิดใช้ระบบที่ web แล้วเท่านั้น
   bool _attendanceEnabled = false;
@@ -274,12 +276,35 @@ class _MainLayoutState extends State<MainLayout> {
       const SizedBox.shrink(), // Reserved menu ID 6; removed from this app.
       const LoginLogsScreen(),
       const CalendarScreen(),
-      const OfficialTripScreen(),
+      OfficialTripScreen(
+        onCreate: () => setState(() {
+          _editTrip = null;
+          _selectedIndex = _tripFormIndex;
+        }),
+        onEdit: (trip) => setState(() {
+          _editTrip = trip;
+          _selectedIndex = _tripFormIndex;
+        }),
+      ),
       const AttendanceScreen(),
+      const SizedBox.shrink(), // placeholder — OfficialTripFormScreen สร้างแยกเพราะมี editTrip
     ];
   }
 
+  /// แท็บบันทึกไปราชการ — ไม่มีสิทธิ์แยก ใช้สิทธิ์เมนู 9 (ไปราชการ / ประชุม)
+  static const int _tripFormIndex = 11;
+
   Widget _getScreen(int index) {
+    if (index == _tripFormIndex) {
+      return OfficialTripFormScreen(
+        key: ValueKey('trip_${_editTrip?['id_trip'] ?? 'new'}'),
+        trip: _editTrip,
+        onComplete: () => setState(() {
+          _editTrip = null;
+          _selectedIndex = 9;
+        }),
+      );
+    }
     if (index == 2) {
       return LeaveFormScreen(
         key: ValueKey('edit_${_editData?['requestId'] ?? 'new'}'),
@@ -335,6 +360,7 @@ class _MainLayoutState extends State<MainLayout> {
                   ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
                   : [0, 2, 3, 9, 10];
               if (!_attendanceEnabled) defaultAllowed.remove(10);
+              if (defaultAllowed.contains(9)) defaultAllowed.add(_tripFormIndex);
               return Row(
                 children: [
                   if (!isMobile) _buildSidebar(true, defaultAllowed),
@@ -393,6 +419,7 @@ class _MainLayoutState extends State<MainLayout> {
             }
             if (_userRole.contains('ครู')) allowed.remove(0);
             if (!_attendanceEnabled) allowed.remove(10);
+            if (allowed.contains(9)) allowed.add(_tripFormIndex);
             allowed.sort();
 
             return Row(
@@ -625,9 +652,13 @@ class _MainLayoutState extends State<MainLayout> {
                 if (allowedMenus.contains(8))
                   _buildMenuItem(
                       8, Icons.calendar_month_rounded, 'ปฏิทินกิจกรรมส่วนกลาง'),
+                if (allowedMenus.contains(_tripFormIndex))
+                  _buildMenuItem(_tripFormIndex, Icons.post_add_rounded,
+                      'บันทึกไปราชการ / ประชุม',
+                      onTap: () => _editTrip = null),
                 if (allowedMenus.contains(9))
-                  _buildMenuItem(
-                      9, Icons.business_center_outlined, 'ไปราชการ / ประชุม'),
+                  _buildMenuItem(9, Icons.business_center_outlined,
+                      'ประวัติไปราชการ / ประชุม'),
                 if (allowedMenus.contains(10))
                   _buildMenuItem(10, Icons.fingerprint_rounded, 'ลงเวลา'),
               ],
@@ -701,7 +732,7 @@ class _MainLayoutState extends State<MainLayout> {
   }
 
   Widget _buildMenuItem(int index, IconData icon, String label,
-      {int badge = 0}) {
+      {int badge = 0, VoidCallback? onTap}) {
     bool isSelected = _selectedIndex == index;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -709,7 +740,10 @@ class _MainLayoutState extends State<MainLayout> {
         onTap: () {
           // กลับออกจากหน้าโปรไฟล์ = อาจเพิ่งเปลี่ยนรูป จึงโหลดข้อมูลใหม่
           final wasOnProfile = _selectedIndex == -1;
-          setState(() => _selectedIndex = index);
+          setState(() {
+            onTap?.call();
+            _selectedIndex = index;
+          });
           if (wasOnProfile) _loadUser();
           if (Navigator.canPop(context)) Navigator.pop(context);
         },
