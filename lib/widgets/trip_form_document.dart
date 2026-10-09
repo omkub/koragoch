@@ -9,7 +9,6 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../services/firebase_service.dart';
 import '../utils/school_info.dart';
-import 'leave_form_document.dart' show LeaveFormCheckBox;
 
 const _blank = '..............................';
 
@@ -255,8 +254,8 @@ class TripFormDocument extends StatelessWidget {
           Row(children: [
             Text('คำสั่ง', style: _bold),
             const SizedBox(width: 16),
-            const LeaveFormCheckBox('อนุญาต', checked: false),
-            const LeaveFormCheckBox('ไม่อนุญาต', checked: false),
+            _checkBox('อนุญาต'),
+            _checkBox('ไม่อนุญาต'),
           ]),
           const SizedBox(height: 22),
           _signature([
@@ -272,6 +271,23 @@ class TripFormDocument extends StatelessWidget {
       ),
     );
   }
+
+  /// ช่องติ๊กว่าง (ผู้บังคับบัญชาติ๊กด้วยมือ)
+  Widget _checkBox(String label) => Padding(
+        padding: const EdgeInsets.only(top: 4, bottom: 4, right: 12),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+                width: 16,
+                height: 16,
+                decoration: BoxDecoration(
+                    border: Border.all(width: 1, color: Colors.black))),
+            const SizedBox(width: 8),
+            Text(label, style: GoogleFonts.sarabun(fontSize: 14)),
+          ],
+        ),
+      );
 
   Widget _signature(List<Widget> lines) => Align(
         alignment: Alignment.centerRight,

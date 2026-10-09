@@ -1,15 +1,16 @@
 /**
  * ตัววาดเอกสารจากแม่แบบ → HTML (หน่วยมิลลิเมตร พิมพ์ได้ขนาดกระดาษจริง)
  *
- * CSS พื้นฐานยกมาจากใบลาเดิมของ app (lib/widgets/leave_form_html.dart)
- * แม่แบบเริ่มต้นของใบลาจึงวาดออกมาหน้าตาเหมือนใบลาเดิม
- * ต่างกันที่ระยะเว้น / ย่อหน้า / ความกว้างช่อง ย้ายมาเป็นค่าตั้งของแต่ละบรรทัด
+ * CSS พื้นฐานยกมาจากใบลาแบบเดิมของ app แม่แบบเริ่มต้นของใบลาจึงวาดออกมาหน้าตา
+ * เหมือนใบลาเดิม ต่างกันที่ระยะเว้น / ย่อหน้า / ความกว้างช่อง ย้ายมาเป็นค่าตั้งของแต่ละบรรทัด
+ *
+ * app ใช้ตัววาดฉบับ Dart (lib/forms/form_render.dart) ซึ่งต้องได้ HTML เดียวกันทุกตัวอักษร
+ * แก้ไฟล์นี้แล้วต้องแก้ไฟล์นั้นให้ตรงกัน (CI เทียบให้ก่อน deploy: npm run form-fixtures)
  *
  * ขนาดตัวอักษรในเอกสารเป็น em เทียบกับขนาดพื้นฐานของกระดาษ
  * (ค่าเดิม 14px = 10.5pt) เปลี่ยนขนาดพื้นฐานแล้วทุกส่วนขยายตาม
  */
 import type { LeaveStatRow } from '../leaveForm/leaveFormData';
-import { htmlEscape } from '../leaveForm/leaveFormHtml';
 import {
   ALWAYS_UNCHECKED,
   mmToPx,
@@ -46,6 +47,14 @@ export interface RenderOptions {
 }
 
 // ── ข้อความ + ตัวแทนข้อมูล ─────────────────────────────────────
+
+/** escape & < > " ' / (แบบ HtmlEscape ของ Dart — app ใช้ตัวเดียวกันใน form_render.dart) */
+export function htmlEscape(value: unknown): string {
+  const text = value === null || value === undefined ? '-' : String(value);
+  return text.replace(/[&<>"'/]/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '/': '&#47;' })[c]!,
+  );
+}
 
 /**
  * แทน {ชื่อ} ด้วยค่า, **ตัวหนา** และ [[ข้อความ]] = ช่องเส้นประในบรรทัด

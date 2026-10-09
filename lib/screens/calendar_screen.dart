@@ -82,9 +82,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
           child: SizedBox(
             width: 900,
             height: size.height,
-            // 📄 ใบลาฉบับกลาง (lib/widgets/leave_form_document.dart)
-            // หน้าประวัติการลายังใช้ LeaveFormPreview ตัวเดิมอยู่ เพื่อให้เปิด
-            // ใบเดียวกันจากสองหน้าแล้วเทียบกันได้ว่าแสดงผลตรงกันไหม
+            // 📄 ใบลาวาดจากแม่แบบที่ออกแบบใน web (LeaveFormPage)
+            // ชุดเดียวกับหน้าประวัติการลาและตอนพิมพ์
             child: LeaveFormPage(
               leaf: leave,
               allUsers: _allUsers,

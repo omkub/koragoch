@@ -2,7 +2,7 @@
 ///
 /// - โหลดแม่แบบของโรงเรียน (FormTemplateService) แล้ววาดเป็น HTML ชุดเดียวกับตอนพิมพ์
 /// - ระหว่างโหลดแสดงกระดาษว่างพร้อมตัวหมุน
-/// - นอกเว็บ (เทส / แอปมือถือในอนาคต) ใช้ LeaveFormDocument แบบเดิม
+/// - นอกเว็บ (เทส / แอปมือถือในอนาคต) แสดง HTML ไม่ได้ แสดงกระดาษพร้อมข้อความแจ้งแทน
 library;
 
 import 'package:flutter/material.dart';
@@ -12,7 +12,6 @@ import '../forms/form_template.dart';
 import '../forms/leave_render_context.dart';
 import '../services/form_template_service.dart';
 import 'leave_form_data.dart';
-import 'leave_form_document.dart';
 import 'template_document_view.dart';
 
 /// ความกว้างกระดาษเป็น px (96 dpi)
@@ -66,7 +65,13 @@ class _LeaveTemplateDocumentState extends State<LeaveTemplateDocument> {
     return TemplateDocumentView(
       html: leaveDocumentHtml(resolved.template, widget.data),
       widthPx: paperWidthPx(resolved.template),
-      fallback: LeaveFormDocument(data: widget.data),
+      fallback: Container(
+        width: 794,
+        height: 1123,
+        color: Colors.white,
+        alignment: Alignment.center,
+        child: const Text('ตัวอย่างใบลาแสดงได้เมื่อเปิดผ่านเว็บเบราว์เซอร์'),
+      ),
     );
   }
 }
