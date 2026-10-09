@@ -8,6 +8,12 @@ interface Settings {
   late_after: string;
   work_end: string;
   require_checkout: boolean;
+  // attendance_daily.sql
+  start_date?: string | null;
+  line_summary_enabled?: boolean;
+  line_summary_time?: string;
+  line_list_missing?: boolean;
+  line_summary_sent_on?: string | null;
 }
 
 interface Device {
@@ -27,6 +33,7 @@ interface TeacherRow {
   fullName: string | null;
   username: string | null;
   device_code: string | null;
+  attendance_exempt?: boolean;
 }
 
 type Message = { text: string; error?: boolean } | null;
@@ -85,6 +92,7 @@ export default function AttendancePage() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
   const [codes, setCodes] = useState<Record<number, string>>({}); // id_user → รหัสที่กำลังแก้
+  const [exempt, setExempt] = useState<Record<number, boolean>>({}); // id_user → ไม่ต้องสแกน
   const [unmatched, setUnmatched] = useState<Record<string, number>>({}); // รหัส → จำนวนสแกน
   const [editingDevice, setEditingDevice] = useState<Partial<Device> | null>(null);
   const [newKey, setNewKey] = useState<{ device: string; key: string } | null>(null);
@@ -110,7 +118,7 @@ export default function AttendancePage() {
       supabase.from('AttendanceDevices').select('*').eq('id_school', id).order('id_device'),
       supabase
         .from('Teachers')
-        .select('id_user, fullName, username, device_code')
+        .select('*')
         .eq('id_school', id)
         .order('fullName'),
       supabase
@@ -139,6 +147,7 @@ export default function AttendancePage() {
     const rows = t.data as TeacherRow[];
     setTeachers(rows);
     setCodes(Object.fromEntries(rows.map((r) => [r.id_user, r.device_code ?? ''])));
+    setExempt(Object.fromEntries(rows.map((r) => [r.id_user, !!r.attendance_exempt])));
     const counts: Record<string, number> = {};
     for (const row of (u.data ?? []) as { device_code: string | null }[]) {
       if (row.device_code) counts[row.device_code] = (counts[row.device_code] ?? 0) + 1;
@@ -164,12 +173,32 @@ export default function AttendancePage() {
       return;
     }
     setBusy(true);
+    // line_summary_sent_on ระบบเขียนเอง — ไม่ส่งทับ
+    const values: Partial<Settings> = { ...settings };
+    delete values.line_summary_sent_on;
     const { error } = await supabase.from('AttendanceSettings').upsert({
-      ...settings,
+      ...values,
+      start_date: values.start_date || null,
       updatedAt: new Date().toISOString(),
     });
     setBusy(false);
-    setMessage(error ? { text: `บันทึกไม่สำเร็จ: ${error.message}`, error: true } : { text: 'บันทึกการตั้งค่าเวลาแล้ว' });
+    setMessage(error ? { text: `บันทึกไม่สำเร็จ: ${error.message}`, error: true } : { text: 'บันทึกการตั้งค่าแล้ว' });
+  }
+
+  /** ส่งสรุปของวันนี้เข้ากลุ่ม LINE ทันที (ไม่สนเวลาที่ตั้งไว้ / ไม่นับเป็นการส่งประจำวัน) */
+  async function sendLineTest() {
+    if (schoolId === null) return;
+    setBusy(true);
+    const { data, error } = await supabase.functions.invoke('attendance-daily-line', {
+      body: { school: schoolId, test: true },
+    });
+    setBusy(false);
+    const result = (data ?? {}) as { ok?: boolean; error?: string; message?: string };
+    if (error || !result.ok) {
+      setMessage({ text: `ส่งไม่สำเร็จ: ${result.error ?? error?.message ?? 'ไม่ทราบสาเหตุ'}`, error: true });
+    } else {
+      setMessage({ text: `ส่งเข้ากลุ่ม LINE แล้ว: ${result.message ?? ''}` });
+    }
   }
 
   // ─── 2) เครื่องสแกน ─────────────────────────────────────────
@@ -251,6 +280,10 @@ export default function AttendancePage() {
     () => teachers.filter((t) => (codes[t.id_user] ?? '').trim() !== (t.device_code ?? '')),
     [teachers, codes],
   );
+  const exemptChanged = useMemo(
+    () => teachers.filter((t) => !!exempt[t.id_user] !== !!t.attendance_exempt),
+    [teachers, exempt],
+  );
 
   const duplicateCodes = useMemo(() => {
     const seen = new Map<string, number>();
@@ -282,6 +315,17 @@ export default function AttendancePage() {
         return;
       }
     }
+    for (const t of exemptChanged) {
+      const { error } = await supabase
+        .from('Teachers')
+        .update({ attendance_exempt: !!exempt[t.id_user] })
+        .eq('id_user', t.id_user);
+      if (error) {
+        setBusy(false);
+        setMessage({ text: `บันทึก ${t.fullName} ไม่สำเร็จ: ${error.message} (รัน attendance_daily.sql แล้วหรือยัง?)`, error: true });
+        return;
+      }
+    }
     for (const t of changed) {
       const code = (codes[t.id_user] ?? '').trim();
       if (!code) continue;
@@ -294,7 +338,8 @@ export default function AttendancePage() {
       }
     }
     setBusy(false);
-    setMessage({ text: `บันทึกรหัส ${changed.length} คนแล้ว (สแกนที่ค้างอยู่ถูกผูกให้อัตโนมัติ)` });
+    const dirtyCount = new Set([...changed, ...exemptChanged].map((t) => t.id_user)).size;
+    setMessage({ text: `บันทึก ${dirtyCount} คนแล้ว (สแกนที่ค้างอยู่ถูกผูกให้อัตโนมัติ)` });
     if (schoolId !== null) load(schoolId);
   }
 
@@ -392,12 +437,57 @@ export default function AttendancePage() {
               />
               ต้องสแกนออกด้วย
             </label>
+            <label>
+              วันเริ่มใช้ระบบจริง
+              <input
+                type="date"
+                value={settings.start_date ?? ''}
+                onChange={(e) => setSettings({ ...settings, start_date: e.target.value || null })}
+              />
+            </label>
           </div>
           <p className="muted">
             ปิดไว้ = ครูยังไม่เห็นเมนูลงเวลาใน app แต่เครื่องยังส่งข้อมูลเข้ามาเก็บได้ (ใช้ทดลองก่อนเปิดจริง)
+            <br />
+            วันเริ่มใช้: ก่อนวันนี้ไม่นับว่า "ขาด" — เว้นว่าง = นับจากวันที่มีการสแกนครั้งแรก
+          </p>
+
+          <h3 style={{ marginTop: 20 }}>สรุปประจำวันทาง LINE</h3>
+          <div className="grid">
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={!!settings.line_summary_enabled}
+                onChange={(e) => setSettings({ ...settings, line_summary_enabled: e.target.checked })}
+              />
+              ส่งสรุปเข้ากลุ่ม LINE ของโรงเรียนทุกวันทำการ
+            </label>
+            <label>
+              เวลาที่ส่ง
+              <input
+                type="time"
+                value={hhmm(settings.line_summary_time ?? '09:00')}
+                onChange={(e) => setSettings({ ...settings, line_summary_time: e.target.value })}
+              />
+            </label>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={settings.line_list_missing ?? true}
+                onChange={(e) => setSettings({ ...settings, line_list_missing: e.target.checked })}
+              />
+              แนบรายชื่อคนที่ยังไม่สแกน
+            </label>
+          </div>
+          <p className="muted">
+            ส่งเข้ากลุ่มที่ตั้งไว้ในหน้า "ตั้งค่า LINE" เช่น "มา 45 · สาย 3 · ลา 2 · ไปราชการ 1 · ยังไม่สแกน 4"
+            <br />
+            การส่งอัตโนมัติต้องรัน <code>attendance_line_cron.sql</code> ครั้งเดียว
+            {settings.line_summary_sent_on ? ` · ส่งล่าสุด ${settings.line_summary_sent_on}` : ''}
           </p>
           <div className="row end">
-            <button disabled={busy} onClick={saveSettings}>บันทึกการตั้งค่าเวลา</button>
+            <button className="secondary" disabled={busy} onClick={sendLineTest}>ทดลองส่งสรุปวันนี้</button>
+            <button disabled={busy} onClick={saveSettings}>บันทึกการตั้งค่า</button>
           </div>
         </div>
       )}
@@ -510,13 +600,14 @@ export default function AttendancePage() {
           </h3>
           <div className="row" style={{ margin: 0 }}>
             <input placeholder="ค้นหาชื่อ / รหัส" value={search} onChange={(e) => setSearch(e.target.value)} />
-            <button disabled={busy || changed.length === 0} onClick={saveCodes}>
-              บันทึก{changed.length ? ` (${changed.length})` : ''}
+            <button disabled={busy || changed.length + exemptChanged.length === 0} onClick={saveCodes}>
+              บันทึก{changed.length + exemptChanged.length ? ` (${changed.length + exemptChanged.length})` : ''}
             </button>
           </div>
         </div>
         <p className="muted" style={{ marginBottom: 12 }}>
           ใส่ "รหัสพนักงาน / User ID" ที่ตั้งไว้ในเครื่องสแกนให้ตรงกับครูแต่ละคน
+          · ติ๊ก "ไม่ต้องสแกน" ให้บัญชีที่ไม่ใช่บุคลากรจริง (เช่น บัญชีกลาง) จะไม่ถูกนับในรายงาน
         </p>
 
         {pendingCodes.length > 0 && (
@@ -533,12 +624,14 @@ export default function AttendancePage() {
               <th>ชื่อ - สกุล</th>
               <th>ชื่อผู้ใช้</th>
               <th style={{ width: 200 }}>รหัสในเครื่อง</th>
+              <th style={{ width: 110 }}>ไม่ต้องสแกน</th>
             </tr>
           </thead>
           <tbody>
             {visibleTeachers.map((t) => {
               const code = codes[t.id_user] ?? '';
-              const dirty = code.trim() !== (t.device_code ?? '');
+              const dirty =
+                code.trim() !== (t.device_code ?? '') || !!exempt[t.id_user] !== !!t.attendance_exempt;
               const dup = duplicateCodes.has(code.trim());
               return (
                 <tr key={t.id_user} className={dirty ? 'dirty' : undefined}>
@@ -550,6 +643,13 @@ export default function AttendancePage() {
                       value={code}
                       placeholder="-"
                       onChange={(e) => setCodes({ ...codes, [t.id_user]: e.target.value })}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={!!exempt[t.id_user]}
+                      onChange={(e) => setExempt({ ...exempt, [t.id_user]: e.target.checked })}
                     />
                   </td>
                 </tr>
