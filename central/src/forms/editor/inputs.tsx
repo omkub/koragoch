@@ -154,7 +154,7 @@ export function LinesEditor({ lines, onChange }: { lines: string[]; onChange: (v
         </div>
       ))}
       <button type="button" className="secondary small" onClick={() => onChange([...lines, ''])}>+ เพิ่มบรรทัด</button>
-      <small className="muted">ใช้ **ข้อความ** เพื่อทำตัวหนา</small>
+      <small className="muted">ใช้ **ข้อความ** เพื่อทำตัวหนา · [[ข้อความ]] เพื่อทำช่องเส้นประ</small>
     </div>
   );
 }
