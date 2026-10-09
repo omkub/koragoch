@@ -291,7 +291,7 @@ function SegmentsEditor({ segments, onChange, flags }: { segments: Segment[]; on
           </div>
           {s.kind === 'text' && (
             <>
-              <TextInput value={s.text} onChange={(text) => set(i, { ...s, text })} />
+              <TextInput value={s.text} onChange={(text) => set(i, { ...s, text })} autoGrow />
               <div className="seg-opts">
                 <Toggle checked={!!s.bold} onChange={(bold) => set(i, { ...s, bold })} label="ตัวหนา" />
                 <Toggle checked={!!s.nowrap} onChange={(nowrap) => set(i, { ...s, nowrap })} label="ห้ามตัดบรรทัด" />
@@ -300,7 +300,7 @@ function SegmentsEditor({ segments, onChange, flags }: { segments: Segment[]; on
           )}
           {s.kind === 'field' && (
             <>
-              <TextInput value={s.text} onChange={(text) => set(i, { ...s, text })} placeholder="(ช่องว่างให้เขียนเอง)" />
+              <TextInput value={s.text} onChange={(text) => set(i, { ...s, text })} placeholder="(ช่องว่างให้เขียนเอง)" autoGrow />
               <div className="seg-opts">
                 <Toggle checked={!s.noLine} onChange={(line) => set(i, { ...s, noLine: !line })} label="เส้นประ" />
                 <Toggle checked={s.widthMm === null} onChange={(grow) => set(i, { ...s, widthMm: grow ? null : 40 })} label="ยืดเต็มที่ว่าง" />
