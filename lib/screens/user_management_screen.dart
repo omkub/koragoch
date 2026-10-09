@@ -180,6 +180,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     5: 'บุคลากร',
     7: 'เข้าใช้งาน',
     8: 'ปฏิทิน',
+    9: 'ราชการ',
     -1: 'บัญชี',
   };
 
