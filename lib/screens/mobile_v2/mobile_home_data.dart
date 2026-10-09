@@ -64,7 +64,9 @@ class MobileHomeData {
         final rank = (u['academicStanding'] ?? '').toString().trim();
         final parts = [
           if (pos.isNotEmpty && !pos.contains('เลือก')) pos,
-          if (rank.isNotEmpty && rank != 'ไม่มีวิทยฐานะ' && !rank.contains('เลือก'))
+          if (rank.isNotEmpty &&
+              rank != 'ไม่มีวิทยฐานะ' &&
+              !rank.contains('เลือก'))
             rank,
         ];
         if (parts.isNotEmpty) subtitle = parts.join(' ');
@@ -165,7 +167,11 @@ class MobileHomeData {
       fullName: fullName,
       subtitle: subtitle,
       fiscalYear: fiscalYear,
-      myDays: (sick: days('ป่วย'), personal: days('กิจ'), maternity: days('คลอด')),
+      myDays: (
+        sick: days('ป่วย'),
+        personal: days('กิจ'),
+        maternity: days('คลอด')
+      ),
       latestLeave: mine.isEmpty ? null : mine.first,
       today: overview ? (onLeave: onLeave, onTrip: onTrip) : null,
       pending: access.isAdmin

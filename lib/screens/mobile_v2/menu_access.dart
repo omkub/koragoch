@@ -59,9 +59,8 @@ class MenuAccess {
 
     final isAdmin =
         userRole.contains('ผู้ดูแลระบบ') || currentUser == 'ผู้ดูแลระบบ';
-    var allowed = data == null
-        ? _defaults(isAdmin)
-        : _fromData(data, isAdmin: isAdmin);
+    var allowed =
+        data == null ? _defaults(isAdmin) : _fromData(data, isAdmin: isAdmin);
     if (userRole.contains('ครู')) allowed.remove(0);
     if (!attendanceEnabled) allowed.remove(10);
     if (allowed.isEmpty) allowed = _defaults(isAdmin);
@@ -70,9 +69,8 @@ class MenuAccess {
         currentUser: currentUser, userRole: userRole, allowed: allowed);
   }
 
-  static List<int> _defaults(bool isAdmin) => isAdmin
-      ? [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, -1]
-      : [0, 2, 3, 9, 10, -1];
+  static List<int> _defaults(bool isAdmin) =>
+      isAdmin ? [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, -1] : [0, 2, 3, 9, 10, -1];
 
   static List<int> _fromData(Map<String, dynamic> data,
       {required bool isAdmin}) {
@@ -95,8 +93,7 @@ class MenuAccess {
     oldMapping.forEach((key, index) {
       if (!allowed.contains(index) && _isTruthy(data[key])) allowed.add(index);
     });
-    final hasAccountField =
-        data.containsKey('-1') || data.containsKey('บัญชี');
+    final hasAccountField = data.containsKey('-1') || data.containsKey('บัญชี');
     if (!hasAccountField || _isTruthy(data['-1'] ?? data['บัญชี'])) {
       allowed.add(-1);
     }
