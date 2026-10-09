@@ -11,6 +11,7 @@ import 'mobile_password_reset_screen.dart'; // 🔐 เพิ่ม Import ส�
 import '../user_management_screen.dart'; // 👤 เพิ่มหน้าจัดการผู้ใช้ครับ
 import '../../utils/profile_image.dart';
 import '../../utils/school_info.dart';
+import '../../widgets/mobile_ui_switch_tile.dart';
 
 class MobileProfileScreen extends StatefulWidget {
   const MobileProfileScreen({super.key});
@@ -419,6 +420,10 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
                             // 🔥 ส่วนเมนูสำหรับแอดมิน (Admin Tools) 🕵️‍♂️🥇
                             if (_userRole.contains('ผู้ดูแลระบบ'))
                               _buildAdminSection(),
+
+                            // สลับหน้าตาใหม่ / เดิม ระหว่างทยอยปรับหน้าจอมือถือ
+                            const SizedBox(height: 24),
+                            const MobileUiSwitchTile(),
 
                             const SizedBox(height: 40),
                           ],
