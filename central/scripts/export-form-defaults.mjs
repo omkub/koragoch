@@ -8,36 +8,26 @@
  * → เขียนทับ lib/forms/default_templates.g.dart
  * แก้ leaveTemplate.ts / tripTemplate.ts แล้วต้องรันใหม่ (CI รันให้ก่อน build ทุกครั้ง)
  */
-import { build } from 'esbuild';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { bundleAndImport } from './bundle-forms.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const central = resolve(here, '..');
 const outDart = resolve(central, '../lib/forms/default_templates.g.dart');
 const bundle = resolve(central, 'node_modules/.cache/form-defaults/bundle.mjs');
 
-mkdirSync(dirname(bundle), { recursive: true });
-await build({
-  stdin: {
+const { defaultLeaveTemplate, defaultTripTemplate } = await bundleAndImport(
+  {
     contents: `
       export { defaultLeaveTemplate } from './src/forms/leaveTemplate';
       export { defaultTripTemplate } from './src/forms/tripTemplate';
     `,
     resolveDir: central,
-    loader: 'ts',
   },
-  bundle: true,
-  platform: 'node',
-  format: 'esm',
-  outfile: bundle,
-  // โหลดจาก node_modules ตอนรัน ไม่ต้องรวมเข้า bundle
-  external: ['@supabase/supabase-js'],
-  logLevel: 'warning',
-});
-
-const { defaultLeaveTemplate, defaultTripTemplate } = await import(pathToFileURL(bundle).href);
+  bundle,
+);
 
 /** id บรรทัดสุ่มจากเวลา — แทนด้วยเลขลำดับให้ไฟล์ที่สร้างไม่เปลี่ยนทุกครั้งที่รัน */
 function stable(template) {
