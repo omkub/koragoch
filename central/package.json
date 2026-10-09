@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "form-defaults": "node scripts/export-form-defaults.mjs"
+    "form-defaults": "node scripts/export-form-defaults.mjs",
+    "form-fixtures": "node scripts/export-form-fixtures.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
