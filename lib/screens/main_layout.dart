@@ -17,6 +17,8 @@ import 'mobile/mobile_profile_screen.dart';
 import 'login_logs_screen.dart'; // 🛡️ นำเข้าหน้าประวัติการเข้าใช้งาน 🥇🏆
 import 'calendar_screen.dart'; // 📅 นำเข้าหน้าปฏิทินกิจกรรม 🥇🏆
 import 'official_trip_screen.dart';
+import 'attendance_screen.dart';
+import '../services/attendance_service.dart';
 import '../utils/profile_image.dart';
 import '../widgets/notification_bell.dart';
 
@@ -35,6 +37,8 @@ class _MainLayoutState extends State<MainLayout> {
   int _pendingResetCount = 0;
   Map<String, dynamic>? _editData;
   Map<String, dynamic>? _permissionData;
+  // เมนูลงเวลาแสดงเมื่อโรงเรียนเปิดใช้ระบบที่ web แล้วเท่านั้น
+  bool _attendanceEnabled = false;
   final _firebaseService = FirebaseService();
   late final List<Widget> _cachedScreens = _buildScreens();
 
@@ -113,6 +117,14 @@ class _MainLayoutState extends State<MainLayout> {
     super.initState();
     _loadUser();
     _loadPendingResets();
+    _loadAttendanceEnabled();
+  }
+
+  Future<void> _loadAttendanceEnabled() async {
+    final enabled = await AttendanceService().isEnabled();
+    if (mounted && enabled != _attendanceEnabled) {
+      setState(() => _attendanceEnabled = enabled);
+    }
   }
 
   Future<void> _loadPendingResets() async {
@@ -263,6 +275,7 @@ class _MainLayoutState extends State<MainLayout> {
       const LoginLogsScreen(),
       const CalendarScreen(),
       const OfficialTripScreen(),
+      const AttendanceScreen(),
     ];
   }
 
@@ -319,8 +332,9 @@ class _MainLayoutState extends State<MainLayout> {
             if (_permissionData == null) {
               final defaultAllowed = (_userRole.contains('ผู้ดูแลระบบ') ||
                       _currentUser == 'ผู้ดูแลระบบ')
-                  ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-                  : [0, 2, 3, 9];
+                  ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+                  : [0, 2, 3, 9, 10];
+              if (!_attendanceEnabled) defaultAllowed.remove(10);
               return Row(
                 children: [
                   if (!isMobile) _buildSidebar(true, defaultAllowed),
@@ -350,7 +364,7 @@ class _MainLayoutState extends State<MainLayout> {
               return s == 'TRUE' || s == '1';
             }
 
-            for (int i = 0; i <= 9; i++) {
+            for (int i = 0; i <= 10; i++) {
               if (i == 6) continue;
               final val = data[i.toString()];
               if (isTruthy(val)) allowed.add(i);
@@ -378,6 +392,7 @@ class _MainLayoutState extends State<MainLayout> {
               if (!allowed.contains(4)) allowed.add(4);
             }
             if (_userRole.contains('ครู')) allowed.remove(0);
+            if (!_attendanceEnabled) allowed.remove(10);
             allowed.sort();
 
             return Row(
@@ -613,6 +628,8 @@ class _MainLayoutState extends State<MainLayout> {
                 if (allowedMenus.contains(9))
                   _buildMenuItem(
                       9, Icons.business_center_outlined, 'ไปราชการ / ประชุม'),
+                if (allowedMenus.contains(10))
+                  _buildMenuItem(10, Icons.fingerprint_rounded, 'ลงเวลา'),
               ],
             ),
           ),

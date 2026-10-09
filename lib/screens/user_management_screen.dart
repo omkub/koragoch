@@ -169,6 +169,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     7: 'ประวัติการเข้าใช้งาน',
     8: 'ปฏิทินกิจกรรมส่วนกลาง',
     9: 'ไปราชการ / ประชุม',
+    10: 'ลงเวลา',
   };
 
   final Map<int, String> _mobileMenuIdMapping = {
@@ -181,6 +182,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     7: 'เข้าใช้งาน',
     8: 'ปฏิทิน',
     9: 'ราชการ',
+    10: 'ลงเวลา',
     -1: 'บัญชี',
   };
 

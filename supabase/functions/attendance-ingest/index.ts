@@ -47,7 +47,7 @@ const CORS_HEADERS = {
 function reply(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8' },
   });
 }
 

@@ -67,6 +67,26 @@ curl -X POST -H "x-device-key: <รหัสลับเครื่อง>" -H 
 
 ---
 
+## attendance-daily-line
+
+ส่งสรุปลงเวลาประจำวันเข้ากลุ่ม LINE ของแต่ละโรงเรียน เช่น "มา 45 · สาย 3 · ลา 2 · ไปราชการ 1 · ยังไม่สแกน 4"
+พร้อมรายชื่อคนสายและคนที่ยังไม่สแกน ตั้งค่าต่อโรงเรียนที่ web > ลงเวลา > สรุปประจำวันทาง LINE
+
+> ⚠️ ต้องปิด **Enforce JWT verification** เพราะ pg_cron ไม่มี token ผู้ใช้ ฟังก์ชันตรวจสิทธิ์เองในโค้ด
+
+```bash
+npx supabase functions deploy attendance-daily-line --no-verify-jwt --project-ref uziajblqlbrvqmxvizsi
+```
+
+| เรียกจาก | ยืนยันตัวด้วย | ทำอะไร |
+|---|---|---|
+| pg_cron ทุก 10 นาที (`supabase/attendance_line_cron.sql`) | header `x-cron-secret` = `AppSecrets.attendance_cron_secret` | ส่งให้โรงเรียนที่ถึงเวลา วันละครั้ง เฉพาะวันทำการ |
+| ปุ่ม "ทดลองส่งสรุปวันนี้" ที่ web | token ของผู้ดูแลส่วนกลาง | ส่งทันที ไม่นับเป็นการส่งประจำวัน |
+
+ใช้ Apps Script / กลุ่ม LINE ตัวเดียวกับ `school-bridge` (`SchoolLineSettings`)
+
+---
+
 ## วิธี deploy (ไม่ต้องติดตั้งอะไรเพิ่ม)
 
 ทำผ่านหน้าเว็บของ Supabase ได้เลย
