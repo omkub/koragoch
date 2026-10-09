@@ -47,15 +47,26 @@ export interface RenderOptions {
 
 // ── ข้อความ + ตัวแทนข้อมูล ─────────────────────────────────────
 
-/** แทน {ชื่อ} ด้วยค่า และ **ตัวหนา** — ตัวแทนที่ไม่รู้จักแสดงตามเดิมให้เห็นว่าพิมพ์ผิด */
+/**
+ * แทน {ชื่อ} ด้วยค่า, **ตัวหนา** และ [[ข้อความ]] = ช่องเส้นประในบรรทัด
+ * — ตัวแทนที่ไม่รู้จักแสดงตามเดิมให้เห็นว่าพิมพ์ผิด
+ */
 export function renderText(template: string, ctx: RenderContext): string {
-  const sub = (part: string) =>
+  const values = (part: string) =>
     part
       .split(/(\{[^{}]+\})/g)
       .map((piece) => {
         const m = piece.match(/^\{([^{}]+)\}$/);
         if (m && m[1] in ctx.values) return htmlEscape(ctx.values[m[1]]);
         return piece ? htmlEscape(piece) : '';
+      })
+      .join('');
+  const sub = (part: string) =>
+    part
+      .split(/(\[\[[^[\]]*\]\])/g)
+      .map((piece) => {
+        const m = piece.match(/^\[\[([^[\]]*)\]\]$/);
+        return m ? `<span class="line inline">${values(m[1])}</span>` : values(piece);
       })
       .join('');
   const parts = template.split('**');
@@ -306,6 +317,7 @@ export function renderDocument(template: FormTemplate, ctx: RenderContext, opts:
     .row { display: flex; align-items: baseline; gap: 6px; }
     .line { border-bottom: 1px dotted #aaa; min-height: 20px; padding: 0 8px 1px; text-align: center; font-weight: 600; display: inline-block; white-space: nowrap; }
     .line.no-line { border-bottom-color: transparent; }
+    .line.inline { min-height: 0; padding: 0 12px 1px; text-indent: 0; }
     .grow { flex: 1; }
     .leave-block { display: grid; grid-template-columns: 78px 115px 62px 1fr; align-items: start; }
     .checks { display: grid; gap: 2px; }
