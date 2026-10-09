@@ -13,6 +13,7 @@ import 'package:school_leave_app/forms/default_templates.dart';
 import 'package:school_leave_app/forms/form_render.dart';
 import 'package:school_leave_app/forms/form_template.dart';
 import 'package:school_leave_app/forms/leave_render_context.dart';
+import 'package:school_leave_app/forms/trip_render_context.dart';
 import 'package:school_leave_app/utils/school_info.dart';
 import 'package:school_leave_app/widgets/leave_form_data.dart';
 
@@ -134,6 +135,33 @@ void main() {
                   'totalDays': r.totalDays,
                 }),
             web['stats']);
+      });
+    }
+  });
+
+  group('รายการไปราชการ → ตัวแทนข้อมูล ตรงกับ web', () {
+    final trips = jsonDecode(
+            File('test/fixtures/trip_context_cases.json').readAsStringSync())
+        as List;
+
+    for (final raw in trips.cast<Map<String, dynamic>>()) {
+      test(raw['name'], () {
+        final ctx = tripRenderContext(
+          Map<String, dynamic>.from(raw['trip'] as Map),
+          [
+            for (final u in raw['users'] as List)
+              Map<String, dynamic>.from(u as Map)
+          ],
+          school: SchoolRecord.fromRow(
+              Map<String, dynamic>.from(raw['schoolRow'] as Map)),
+        );
+        final web = raw['context'] as Map<String, dynamic>;
+
+        expect(ctx.title, web['title']);
+        expect(ctx.values, Map<String, String>.from(web['values'] as Map));
+        expect(ctx.flags, Map<String, bool>.from(web['flags'] as Map));
+        expect(ctx.members!.map((m) => {'name': m.name, 'position': m.position}),
+            web['members']);
       });
     }
   });

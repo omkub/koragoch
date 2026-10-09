@@ -218,10 +218,7 @@ export default function FormDesignerPage() {
       setNote('');
       await loadTemplate();
       setMessage({
-        text:
-          formType === 'leave'
-            ? `บันทึกเป็นเวอร์ชัน ${v.version} แล้ว — ใบลาใน app ใช้แม่แบบนี้ภายใน 5 นาที (หรือทันทีเมื่อเข้าระบบใหม่)`
-            : `บันทึกเป็นเวอร์ชัน ${v.version} แล้ว — app จะใช้แม่แบบนี้เมื่อเชื่อมต่อเสร็จ`,
+        text: `บันทึกเป็นเวอร์ชัน ${v.version} แล้ว — ${FORM_TYPE_LABEL[formType]}ใน app ใช้แม่แบบนี้ภายใน 5 นาที (หรือทันทีเมื่อเข้าระบบใหม่)`,
       });
     } catch (e) {
       setMessage({ text: `บันทึกไม่สำเร็จ: ${e instanceof Error ? e.message : e}`, error: true });

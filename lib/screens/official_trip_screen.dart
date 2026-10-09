@@ -8,9 +8,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
 import '../services/official_trip_service.dart';
 import '../utils/teacher_sort.dart';
-import '../widgets/leave_form_data.dart';
+import '../forms/form_template.dart';
+import '../forms/trip_render_context.dart';
+import '../services/form_template_service.dart';
+import '../widgets/leave_template_document.dart';
 import '../widgets/thai_buddhist_calendar_widget.dart';
-import '../widgets/trip_form_document.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // หน้า "ประวัติไปราชการ / ประชุม" (เมนู 9) + หน้า "บันทึกไปราชการ / ประชุม"
@@ -136,6 +138,8 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
   }
 
   Future<void> _init() async {
+    // โหลดแม่แบบใบขออนุญาตไปราชการไว้ก่อน กดพิมพ์จะได้เปิดหน้าพิมพ์ได้ทันที
+    FormTemplateService.instance.resolve(FormType.trip);
     final setup = await _loadSetup(_service);
     if (!mounted) return;
     setState(() {
@@ -384,6 +388,10 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
     }
   }
 
+  /// ใบขออนุญาตไปราชการจากแม่แบบที่ออกแบบใน web
+  void _print(Map<String, dynamic> trip) => printFormDocument(
+      context, FormType.trip, () => tripRenderContext(trip, _teachers));
+
   void _openDetail(Map<String, dynamic> trip) {
     final rows = <(String, String?)>[
       ('ประเภท', trip['tripType']?.toString()),
@@ -461,6 +469,10 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
           ),
         ),
         actions: [
+          TextButton.icon(
+              onPressed: () => _print(trip),
+              icon: const Icon(Icons.print_rounded, size: 18),
+              label: const Text('พิมพ์ / PDF')),
           TextButton(
               onPressed: () => Navigator.pop(ctx), child: const Text('ปิด')),
         ],
@@ -801,6 +813,7 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
 
   Widget _buildActions(Map<String, dynamic> trip) {
     final items = <PopupMenuEntry<String>>[
+      _menuItem('print', Icons.print_rounded, 'พิมพ์ / PDF'),
       if (_canApprove(trip))
         _menuItem('approve', Icons.fact_check_rounded, 'พิจารณาอนุมัติ'),
       if (_canReport(trip))
@@ -810,12 +823,13 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
         _menuItem('delete', Icons.delete_outline_rounded, 'ลบ',
             color: Colors.red),
     ];
-    if (items.isEmpty) return const SizedBox(width: 40);
     return PopupMenuButton<String>(
       icon: const Icon(Icons.more_vert_rounded, color: _muted),
       itemBuilder: (_) => items,
       onSelected: (action) {
         switch (action) {
+          case 'print':
+            _print(trip);
           case 'approve':
             _openApproval(trip);
           case 'report':
@@ -1130,10 +1144,10 @@ class _TripFormPanelState extends State<TripFormPanel> {
     return v.isEmpty ? null : v;
   }
 
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
+  /// แถวที่จะบันทึกลง OfficialTrips จากสิ่งที่กรอกอยู่
+  Map<String, dynamic> _record() {
     final halfDay = _isHalfDay && _sameDay;
-    final record = <String, dynamic>{
+    return <String, dynamic>{
       'id_user': _ownerId,
       'title': _title.text.trim(),
       'tripType': _tripType,
@@ -1153,6 +1167,11 @@ class _TripFormPanelState extends State<TripFormPanel> {
       'estimatedCost': num.tryParse(_cost.text.replaceAll(',', '').trim()),
       'note': _clean(_note),
     };
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    final record = _record();
 
     setState(() => _saving = true);
     try {
@@ -1543,9 +1562,15 @@ class _TripFormPanelState extends State<TripFormPanel> {
                 padding:
                     const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
                 // เอกสารกว้าง 794 — จอแคบย่อทั้งหน้าให้พอดีแทนการล้น
+                // แม่แบบใบขออนุญาตไปราชการที่ออกแบบในหน้าแบบฟอร์มของ web
+                // ชุดเดียวกับตอนพิมพ์จากหน้าประวัติ
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
-                  child: TripFormDocument(data: _previewData()),
+                  child: FormTemplateDocument(
+                    formType: FormType.trip,
+                    renderContext:
+                        tripRenderContext(_previewTrip(), widget.teachers),
+                  ),
                 ),
               ),
             ),
@@ -1555,53 +1580,15 @@ class _TripFormPanelState extends State<TripFormPanel> {
     );
   }
 
-  /// ชื่อ + ตำแหน่ง/วิทยฐานะของบุคลากรตามทะเบียน
-  ({String name, String position}) _person(int id) {
-    final name = _nameOf(id);
-    final position = LeaveFormData(
-      leaf: {'fullName': name},
-      allUsers: widget.teachers,
-      allLeaveRequests: const [],
-    ).positionWithStanding;
-    return (name: name, position: position);
-  }
-
-  late final String _directorName = LeaveFormData(
-    leaf: const {},
-    allUsers: widget.teachers,
-    allLeaveRequests: const [],
-  ).directorName;
-
-  TripFormData _previewData() {
-    final owner = _person(_ownerId);
-    final halfDay = _isHalfDay && _sameDay;
-    return TripFormData(
-      ownerName: owner.name,
-      ownerPosition: owner.position,
-      title: _title.text,
-      tripType: _tripType,
-      organizer: _organizer.text,
-      location: _location.text,
-      province: _province.text,
-      docNumber: _docNumber.text,
-      docDate: _docDate,
-      startDate: _startDate,
-      endDate: _endDate,
-      isHalfDay: halfDay,
-      halfDayPeriod: _halfDayPeriod,
-      totalDays: _totalDays,
-      travelMode: _travelMode ?? '',
-      budgetSource: _budgetSource ?? '',
-      estimatedCost: num.tryParse(_cost.text.replaceAll(',', '').trim()),
-      members: [
-        owner,
-        for (final id in _members.where((id) => id != _ownerId)) _person(id),
-      ],
-      directorName: _directorName,
-      createdAt:
-          OfficialTripService.parseDate(widget.trip?['createdAt'])?.toLocal(),
-    );
-  }
+  /// สิ่งที่กรอกอยู่ ในรูปเดียวกับรายการที่บันทึกแล้ว — วาดพรีวิวด้วยตัววาดชุดเดียว
+  /// กับตอนพิมพ์จากหน้าประวัติ (สถานะ / วันที่บันทึก มีเฉพาะตอนแก้รายการเดิม)
+  Map<String, dynamic> _previewTrip() => {
+        ..._record(),
+        'members': [_ownerId, ..._members.where((id) => id != _ownerId)],
+        'status': widget.trip?['status'],
+        'createdAt': widget.trip?['createdAt'],
+        'reportSummary': widget.trip?['reportSummary'],
+      };
 
   Widget _section(String text) => Padding(
         padding: const EdgeInsets.only(bottom: 10),

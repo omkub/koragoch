@@ -223,17 +223,30 @@ void main() {
       expect(results[0], same(results[1]));
     });
 
-    test('โหลดไม่ได้ = แม่แบบเริ่มต้น ไม่ล้ม และครั้งหน้าลองใหม่', () async {
+    test('โหลดไม่ได้ = แม่แบบเริ่มต้น ไม่ล้ม และลองใหม่หลัง 30 วินาที', () async {
       var fail = true;
+      var calls = 0;
       final s = FormTemplateService.withFetcher((_, __) async {
+        calls++;
         if (fail) throw Exception('เน็ตหลุด');
         return [row()];
       });
       final r1 = await s.resolve(FormType.leave, schoolId: 1, now: t0);
       expect(r1.source, TemplateSource.builtIn);
+      // ปุ่มพิมพ์ต้องกดได้แม้โหลดไม่สำเร็จ (ใช้แม่แบบเริ่มต้นไปก่อน)
+      expect(s.cached(FormType.leave, schoolId: 1)?.source,
+          TemplateSource.builtIn);
+
       fail = false;
-      final r2 = await s.resolve(FormType.leave, schoolId: 1, now: t0);
-      expect(r2.source, TemplateSource.global);
+      final r2 = await s.resolve(FormType.leave, schoolId: 1,
+          now: t0.add(const Duration(seconds: 10)));
+      expect(r2.source, TemplateSource.builtIn, reason: 'ยังไม่ถึงเวลาลองใหม่');
+      expect(calls, 1);
+
+      final r3 = await s.resolve(FormType.leave, schoolId: 1,
+          now: t0.add(const Duration(seconds: 31)));
+      expect(r3.source, TemplateSource.global);
+      expect(calls, 2);
     });
 
     test('เคยโหลดได้แล้ว รอบถัดไปโหลดไม่ได้ = ใช้ของเดิม', () async {
