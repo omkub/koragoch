@@ -11,6 +11,7 @@ import 'mobile_calendar_screen.dart';
 import 'mobile_history_screen.dart';
 import 'mobile_leave_form_screen.dart';
 import 'mobile_profile_screen.dart';
+import '../../widgets/notification_bell.dart';
 
 class MobileMainLayout extends StatefulWidget {
   const MobileMainLayout({super.key});
@@ -247,12 +248,32 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FC),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        child: KeyedSubtree(
-          key: ValueKey('mobile_menu_$effectiveMenuIndex'),
-          child: _buildPage(effectiveMenuIndex),
-        ),
+      body: Stack(
+        children: [
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: KeyedSubtree(
+              key: ValueKey('mobile_menu_$effectiveMenuIndex'),
+              child: _buildPage(effectiveMenuIndex),
+            ),
+          ),
+          // 🔔 แจ้งเตือนใบลาใหม่ — เฉพาะผู้ดูแลระบบ ลอยมุมขวาบน
+          if (_isAdmin)
+            Positioned(
+              top: 0,
+              right: 4,
+              child: SafeArea(
+                child: Material(
+                  color: Colors.white,
+                  shape: const CircleBorder(),
+                  elevation: 2,
+                  child: NotificationBell(
+                    onOpenLeaves: () => setState(() => _selectedMenuIndex = 3),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(

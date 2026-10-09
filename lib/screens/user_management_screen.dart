@@ -16,6 +16,7 @@ import '../utils/web_platform.dart' as platform;
 import 'line_settings_screen.dart';
 import 'calendar_settings_tab.dart';
 import 'school_settings_tab.dart';
+import 'attendance_import_tab.dart';
 import '../utils/profile_image.dart';
 import '../utils/school_info.dart';
 
@@ -167,6 +168,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     5: 'บุคลากร (กลุ่มสาระ)',
     7: 'ประวัติการเข้าใช้งาน',
     8: 'ปฏิทินกิจกรรมส่วนกลาง',
+    9: 'ไปราชการ / ประชุม',
   };
 
   final Map<int, String> _mobileMenuIdMapping = {
@@ -3322,6 +3324,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               if (_currentTab == 7)
                                 const CalendarSettingsTab(tabIndex: 2),
                               if (_currentTab == 8) const SchoolSettingsTab(),
+                              if (_currentTab == 9)
+                                const AttendanceImportTab(),
                             ],
                           ),
                         ),
@@ -4662,6 +4666,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 _buildTabButton(
                     7, Icons.calendar_today_rounded, "ตั้งค่าวันทำงานพิเศษ"),
                 _buildTabButton(8, Icons.school_rounded, "ข้อมูลโรงเรียน"),
+                _buildTabButton(
+                    9, Icons.fingerprint_rounded, "นำเข้าเวลาสแกน"),
               ],
             ),
           ),

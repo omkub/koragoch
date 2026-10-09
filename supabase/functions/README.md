@@ -34,6 +34,39 @@ npx supabase functions deploy school-bridge --project-ref uziajblqlbrvqmxvizsi
 
 ---
 
+## attendance-ingest
+
+จุดรับเวลาสแกนจากเครื่องสแกนหน้า เข้าตาราง `AttendanceLogs` (ดู `supabase/attendance.sql`)
+เครื่องยืนยันตัวด้วย **รหัสลับเครื่อง** ที่ออกจาก web (หน้า ลงเวลา > เครื่องสแกน)
+
+> ⚠️ ต้องปิด **Enforce JWT verification** (เครื่องสแกนไม่มี token ของ Supabase)
+> ถ้าเปิดไว้ทุกคำขอจะได้ `401` ก่อนถึงโค้ด
+
+```bash
+npx supabase functions deploy attendance-ingest --no-verify-jwt --project-ref uziajblqlbrvqmxvizsi
+```
+
+ทดสอบหลัง deploy (ใช้รหัสจริงที่ออกจาก web):
+
+```bash
+curl -H "x-device-key: <รหัสลับเครื่อง>" https://uziajblqlbrvqmxvizsi.supabase.co/functions/v1/attendance-ingest
+```
+
+ส่งข้อมูล:
+
+```bash
+curl -X POST -H "x-device-key: <รหัสลับเครื่อง>" -H "content-type: application/json" -d "{\"logs\":[{\"code\":\"1001\",\"time\":\"2026-10-09 07:45:12\"}]}" https://uziajblqlbrvqmxvizsi.supabase.co/functions/v1/attendance-ingest
+```
+
+| เรื่อง | รายละเอียด |
+|---|---|
+| รูปแบบข้อมูล | `{ logs: [{ code, time }] }` — เวลาไม่มีโซน = เวลาไทย, ครั้งละไม่เกิน 2,000 แถว |
+| ส่งซ้ำ | ได้ ไม่บันทึกเบิ้ล |
+| รหัสที่ยังไม่จับคู่กับครู | เก็บไว้ก่อน ผูกให้อัตโนมัติเมื่อใส่รหัสให้ครูที่ web |
+| เครื่องที่ปิดใช้งานที่ web | ตอบ `403` ไม่รับข้อมูล |
+
+---
+
 ## วิธี deploy (ไม่ต้องติดตั้งอะไรเพิ่ม)
 
 ทำผ่านหน้าเว็บของ Supabase ได้เลย

@@ -6,6 +6,12 @@
       "runtimeExecutable": "flutter",
       "runtimeArgs": ["run", "-d", "web-server", "--web-port=5173", "--web-hostname=localhost"],
       "port": 5173
+    },
+    {
+      "name": "central_web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "central", "run", "dev", "--", "--port", "5174", "--strictPort"],
+      "port": 5174
     }
   ]
 }
