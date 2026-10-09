@@ -16,6 +16,7 @@ import 'login_screen.dart';
 import 'mobile/mobile_profile_screen.dart';
 import 'login_logs_screen.dart'; // 🛡️ นำเข้าหน้าประวัติการเข้าใช้งาน 🥇🏆
 import 'calendar_screen.dart'; // 📅 นำเข้าหน้าปฏิทินกิจกรรม 🥇🏆
+import 'official_trip_screen.dart';
 import '../utils/profile_image.dart';
 
 class MainLayout extends StatefulWidget {
@@ -257,6 +258,7 @@ class _MainLayoutState extends State<MainLayout> {
       const SizedBox.shrink(), // Reserved menu ID 6; removed from this app.
       const LoginLogsScreen(),
       const CalendarScreen(),
+      const OfficialTripScreen(),
     ];
   }
 
@@ -313,8 +315,8 @@ class _MainLayoutState extends State<MainLayout> {
             if (_permissionData == null) {
               final defaultAllowed = (_userRole.contains('ผู้ดูแลระบบ') ||
                       _currentUser == 'ผู้ดูแลระบบ')
-                  ? [0, 1, 2, 3, 4, 5, 6, 7, 8]
-                  : [0, 2, 3];
+                  ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+                  : [0, 2, 3, 9];
               return Row(
                 children: [
                   if (!isMobile) _buildSidebar(true, defaultAllowed),
@@ -344,7 +346,7 @@ class _MainLayoutState extends State<MainLayout> {
               return s == 'TRUE' || s == '1';
             }
 
-            for (int i = 0; i <= 8; i++) {
+            for (int i = 0; i <= 9; i++) {
               if (i == 6) continue;
               final val = data[i.toString()];
               if (isTruthy(val)) allowed.add(i);
@@ -598,6 +600,9 @@ class _MainLayoutState extends State<MainLayout> {
                 if (allowedMenus.contains(8))
                   _buildMenuItem(
                       8, Icons.calendar_month_rounded, 'ปฏิทินกิจกรรมส่วนกลาง'),
+                if (allowedMenus.contains(9))
+                  _buildMenuItem(
+                      9, Icons.business_center_outlined, 'ไปราชการ / ประชุม'),
               ],
             ),
           ),

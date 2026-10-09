@@ -250,7 +250,7 @@ begin
              select 1 from "Permissions" pm
              where pm.id_role = r."ID_Roles" and pm.menu_id = i.menu_id
                and pm.status::text = '1')
-           when i.key = 'view.all_leaves' then true
+           when i.key like 'view.all\_%' then true  -- ตรงกับ official_trips_permissions.sql
            else false
          end
   from roles r cross join "PermissionItems" i
