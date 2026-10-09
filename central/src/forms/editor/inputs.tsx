@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { Placeholder } from '../template';
 
 // ── แทรกตัวแทนข้อมูลลงช่องข้อความที่กำลังแก้ ───────────────────
@@ -61,17 +61,37 @@ export function Field({ label, children, hint }: { label: string; children: Reac
   );
 }
 
+/** ปรับความสูงช่องให้พอดีข้อความ */
+function fitHeight(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
+}
+
 export function TextInput({
   value,
   onChange,
   placeholder,
   multiline,
+  autoGrow,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   multiline?: boolean;
+  /** ข้อความบรรทัดเดียวที่อาจยาว — ตัดขึ้นบรรทัดใหม่ในช่องและขยายความสูงตามข้อความ */
+  autoGrow?: boolean;
 }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    if (!autoGrow) return;
+    fitHeight(ref.current);
+    // ความกว้างช่องเปลี่ยน (ย่อ/ขยายหน้าต่าง) = จำนวนบรรทัดที่ตัดเปลี่ยน
+    const ro = new ResizeObserver(() => fitHeight(ref.current));
+    if (ref.current) ro.observe(ref.current);
+    return () => ro.disconnect();
+  }, [autoGrow, value]);
+
   const common = {
     value,
     placeholder,
@@ -79,6 +99,19 @@ export function TextInput({
       lastTextField = e.currentTarget;
     },
   };
+  if (autoGrow) {
+    return (
+      <textarea
+        ref={ref}
+        rows={1}
+        className="auto-grow"
+        {...common}
+        // เป็นข้อความบรรทัดเดียว — Enter ไม่ขึ้นบรรทัดใหม่ และวางข้อความหลายบรรทัดจะรวมเป็นบรรทัดเดียว
+        onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
+        onChange={(e) => onChange(e.target.value.replace(/\r?\n/g, ' '))}
+      />
+    );
+  }
   return multiline ? (
     <textarea rows={3} {...common} onChange={(e) => onChange(e.target.value)} />
   ) : (
@@ -147,7 +180,7 @@ export function LinesEditor({ lines, onChange }: { lines: string[]; onChange: (v
       {lines.map((l, i) => (
         <div key={i} className="line-row">
           <span className="muted small">{i + 1}</span>
-          <TextInput value={l} onChange={(v) => set(i, v)} placeholder="(บรรทัดว่าง)" />
+          <TextInput value={l} onChange={(v) => set(i, v)} placeholder="(บรรทัดว่าง)" autoGrow />
           <button type="button" className="icon-btn" title="เลื่อนขึ้น" onClick={() => move(i, -1)}>↑</button>
           <button type="button" className="icon-btn" title="เลื่อนลง" onClick={() => move(i, 1)}>↓</button>
           <button type="button" className="icon-btn danger" title="ลบบรรทัด" onClick={() => onChange(lines.filter((_, j) => j !== i))}>✕</button>

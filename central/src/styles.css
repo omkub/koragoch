@@ -225,7 +225,8 @@ tr.dirty td { background: #fef9c3; }
 .block-editor input, .block-editor select, .block-editor textarea { width: 100%; }
 .lines-editor { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
 .line-row { display: flex; align-items: center; gap: 4px; }
-.line-row input { flex: 1; }
+.line-row input, .line-row textarea { flex: 1; min-width: 0; }
+textarea.auto-grow { resize: none; overflow: hidden; line-height: 1.45; }
 .segments { display: flex; flex-direction: column; gap: 8px; }
 .segment { border: 1px dashed var(--line); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
 .segment-head { display: flex; align-items: center; gap: 4px; }
