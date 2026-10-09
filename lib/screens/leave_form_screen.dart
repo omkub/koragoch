@@ -874,13 +874,16 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
   /// แปลงสิ่งที่กรอกอยู่ในฟอร์มให้อยู่ในรูปเดียวกับใบลาที่บันทึกแล้ว
   /// เพื่อให้เอกสารตัวอย่างใช้ตัววาดชุดเดียวกับหน้าประวัติและหน้าปฏิทิน
   ///
-  /// ไม่ใส่ timestamp เพราะใบยังไม่ได้ยื่น เอกสารจะเว้นช่องวันที่ไว้ให้เอง
+  /// วันที่เขียนใบลา = วันนี้ (ใบที่ส่งจะได้วันที่ยื่นเป็นวันที่กดส่ง)
+  /// แก้ใบเดิม = วันที่ยื่นเดิม — ถ้าเว้นว่าง แม่แบบจะเติมจุดไข่ปลายาวจนล้นบรรทัด
   LeaveFormData _previewData(num totalDays) {
     final user = _selectedUser ?? const <String, dynamic>{};
     return LeaveFormData(
       leaf: {
         // ใส่รหัสใบที่กำลังแก้ไว้ด้วย เอกสารจะได้ไม่นับใบนี้ซ้ำในสถิติ
         if (_editRequestId != null) 'requestId': _editRequestId,
+        'timestamp':
+            widget.initialData?['timestamp'] ?? DateTime.now().toIso8601String(),
         'fullName': user['fullName'] ?? '',
         'position': user['position'] ?? '',
         'academicStanding': user['academicStanding'] ?? '',
