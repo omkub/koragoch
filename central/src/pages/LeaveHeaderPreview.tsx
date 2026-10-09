@@ -6,7 +6,7 @@ type PreviewSchool = Pick<
 >;
 
 /**
- * ตัวอย่างหัวใบลา — จัดวางตาม lib/widgets/leave_form_document.dart ในแอป Flutter
+ * ตัวอย่างหัวใบลา — จัดวางตามแม่แบบเริ่มต้นของใบลา (forms/leaveTemplate.ts)
  * (ส่วนหัว, เรียน, ย่อหน้าแรก, ช่องเซ็นผู้อำนวยการ) ใช้กฎประกอบชื่อ/ที่อยู่ชุดเดียวกัน
  */
 export default function LeaveHeaderPreview({ school }: { school: PreviewSchool }) {

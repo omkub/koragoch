@@ -1,15 +1,23 @@
-// เทสของใบลาฉบับ HTML ที่ใช้ตอนพิมพ์/บันทึก PDF
+// เทสของใบลาที่วาดจากแม่แบบ (หน้าพิมพ์ / บันทึก PDF / พรีวิว)
 //
 // หน้าพิมพ์เป็นเอกสารราชการที่ส่งให้ผู้บริหารเซ็นจริง ถ้าข้อมูลตกหล่นไปช่องใด
 // ช่องหนึ่งจะไม่มีอะไรเตือนเลยจนกว่าจะมีคนพิมพ์ออกมาแล้วเห็นเอง
+// (ย้ายมาจากเทสของตัววาดใบลาแบบเดิม — ตรวจกับแม่แบบเริ่มต้นแทน)
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:school_leave_app/forms/default_templates.dart';
+import 'package:school_leave_app/forms/form_template.dart';
 import 'package:school_leave_app/utils/school_info.dart';
 import 'package:school_leave_app/widgets/leave_form_data.dart';
-import 'package:school_leave_app/widgets/leave_form_html.dart';
+import 'package:school_leave_app/widgets/leave_template_document.dart';
 
 void main() {
+  final template = builtInTemplate(FormType.leave);
+
+  String html(LeaveFormData data, {bool forPrint = false}) =>
+      leaveDocumentHtml(template, data, forPrint: forPrint);
+
   LeaveFormData buildData() => LeaveFormData(
         leaf: {
           'requestId': 'R-2',
@@ -47,50 +55,52 @@ void main() {
       );
 
   test('ใส่ข้อมูลของผู้ลาครบทุกช่องที่ต้องใช้', () {
-    final html = buildLeaveFormHtml(buildData());
+    final h = html(buildData());
 
-    expect(html, contains('นางสมหญิง รักเรียน'));
-    expect(html, contains('ครู ชำนาญการพิเศษ'));
-    expect(html, contains('ขอลาป่วย'));
-    expect(html, contains('มีไข้สูง'));
-    expect(html, contains('081-234-5678'));
-    expect(html, contains('10 กันยายน 2569'));
-    expect(html, contains('12 กันยายน 2569'));
-    expect(html, contains('รับที่ 45'));
-    expect(html, contains('9 กันยายน 2569')); // วันที่เขียนใบลา
+    expect(h, contains('นางสมหญิง รักเรียน'));
+    expect(h, contains('ครู ชำนาญการพิเศษ'));
+    expect(h, contains('ขอลาป่วย'));
+    expect(h, contains('มีไข้สูง'));
+    expect(h, contains('081-234-5678'));
+    expect(h, contains('10 กันยายน 2569'));
+    expect(h, contains('12 กันยายน 2569'));
+    expect(h, contains('รับที่ 45'));
+    // วันที่เขียนใบลา: วัน / เดือน / ปี แยกกันบนเส้นประ
+    expect(
+        h,
+        contains('<span class="line inline">9</span> '
+            '<span class="line inline">กันยายน</span> '
+            '<span class="line inline">2569</span>'));
   });
 
   test('ใช้ชื่อโรงเรียนจากไฟล์กลาง ไม่ได้พิมพ์ฝังไว้', () {
-    final html = buildLeaveFormHtml(buildData());
+    final h = html(buildData());
 
-    expect(html, contains(SchoolInfo.fullName));
-    expect(html, contains(SchoolInfo.address));
-    expect(html, contains('เรียน ${SchoolInfo.addressee}'));
+    expect(h, contains(SchoolInfo.fullName));
+    expect(h, contains(SchoolInfo.address));
+    expect(h, contains('เรียน ${SchoolInfo.addressee}'));
   });
 
   test('ติ๊กเฉพาะประเภทการลาที่เลือก', () {
-    final html = buildLeaveFormHtml(buildData());
+    final h = html(buildData());
 
     // ช่องที่ติ๊กจะมีเครื่องหมายถูกอยู่ในกล่องก่อนชื่อประเภท
-    expect(html, contains('<span class="check">✓</span><span>ลาป่วย</span>'));
-    expect(html,
-        contains('<span class="check"></span><span>ลากิจส่วนตัว</span>'));
+    expect(h, contains('<span class="check">✓</span><span>ลาป่วย</span>'));
+    expect(h, contains('<span class="check"></span><span>ลากิจส่วนตัว</span>'));
   });
 
   test('ชื่อผู้อำนวยการมาจากทะเบียนบุคลากร', () {
-    final html = buildLeaveFormHtml(buildData());
+    final h = html(buildData());
 
-    expect(html, contains('(นายสมศักดิ์ บริหารดี)'));
+    expect(h, contains('(นายสมศักดิ์ บริหารดี)'));
     // ตำแหน่งที่ยังไม่มีคน ให้เว้นวงเล็บว่างไว้เซ็น
-    expect(html, contains(LeaveFormData.blankSignature));
+    expect(h, contains(LeaveFormData.blankSignature));
   });
 
   test('ตารางสถิตินับใบลาก่อนหน้าถูกต้อง', () {
-    final html = buildLeaveFormHtml(buildData());
-
     // ลาป่วย: เคยลามาแล้ว 1 ครั้ง 1 วัน + ครั้งนี้ 1 ครั้ง 3 วัน = 2 ครั้ง 4 วัน
     expect(
-        html,
+        html(buildData()),
         contains(
             '<tr><td>ป่วย</td><td>1</td><td>1</td><td>1</td><td>3</td><td>2</td><td>4</td></tr>'));
   });
@@ -104,25 +114,25 @@ void main() {
         );
 
     // สูตร: จำนวน × 22px + ช่องไฟ 2px  (3 อัน = 70, 4 อัน = 94)
-    expect(buildLeaveFormHtml(withTypes(['ลาป่วย', 'ลากิจส่วนตัว', 'ลาคลอดบุตร'])),
+    expect(html(withTypes(['ลาป่วย', 'ลากิจส่วนตัว', 'ลาคลอดบุตร'])),
         contains('height: 70px'));
     expect(
-        buildLeaveFormHtml(
-            withTypes(['ลาป่วย', 'ลากิจส่วนตัว', 'ลาคลอดบุตร', 'ลาพักผ่อน'])),
+        html(withTypes(['ลาป่วย', 'ลากิจส่วนตัว', 'ลาคลอดบุตร', 'ลาพักผ่อน'])),
         contains('height: 94px'));
   });
 
-  test('autoPrint ใส่สคริปต์สั่งพิมพ์ให้เฉพาะตอนที่ขอ', () {
-    expect(buildLeaveFormHtml(buildData(), autoPrint: true),
-        contains('window.print()'));
+  test('หน้าพิมพ์มีปุ่มพิมพ์ + สั่งพิมพ์อัตโนมัติ / พรีวิวไม่มี', () {
+    final print = html(buildData(), forPrint: true);
+    expect(print, contains('window.print()'));
+    expect(print, contains('class="toolbar"'));
 
-    final plain = buildLeaveFormHtml(buildData());
-    // ปุ่มพิมพ์บนแถบเครื่องมือยังมีอยู่ แต่ต้องไม่มีสคริปต์สั่งพิมพ์อัตโนมัติ
-    expect(plain, isNot(contains('window.addEventListener')));
+    final preview = html(buildData());
+    expect(preview, isNot(contains('window.addEventListener')));
+    expect(preview, isNot(contains('class="toolbar"')));
   });
 
   test('ข้อความของผู้ใช้ถูก escape กัน HTML หลุดเข้าไปในเอกสาร', () {
-    final data = LeaveFormData(
+    final h = html(LeaveFormData(
       leaf: {
         'fullName': '<script>alert(1)</script>',
         'reason': 'ป่วย & อ่อนเพลีย',
@@ -130,12 +140,10 @@ void main() {
       },
       allUsers: const [],
       allLeaveRequests: const [],
-    );
+    ));
 
-    final html = buildLeaveFormHtml(data);
-
-    expect(html, isNot(contains('<script>alert(1)</script>')));
-    expect(html, contains('&lt;script&gt;'));
-    expect(html, contains('ป่วย &amp; อ่อนเพลีย'));
+    expect(h, isNot(contains('<script>alert(1)</script>')));
+    expect(h, contains('&lt;script&gt;'));
+    expect(h, contains('ป่วย &amp; อ่อนเพลีย'));
   });
 }
