@@ -253,7 +253,7 @@ function BoxPosition({ value, onChange }: { value: 'left' | 'center' | 'right'; 
 
 const SEGMENT_LABEL: Record<Segment['kind'], string> = {
   text: 'ข้อความ',
-  field: 'ช่องเส้นประ',
+  field: 'ช่องกรอก',
   checkbox: 'ช่องติ๊ก',
 };
 
@@ -302,6 +302,7 @@ function SegmentsEditor({ segments, onChange, flags }: { segments: Segment[]; on
             <>
               <TextInput value={s.text} onChange={(text) => set(i, { ...s, text })} placeholder="(ช่องว่างให้เขียนเอง)" />
               <div className="seg-opts">
+                <Toggle checked={!s.noLine} onChange={(line) => set(i, { ...s, noLine: !line })} label="เส้นประ" />
                 <Toggle checked={s.widthMm === null} onChange={(grow) => set(i, { ...s, widthMm: grow ? null : 40 })} label="ยืดเต็มที่ว่าง" />
                 {s.widthMm !== null && (
                   <NumberInput value={s.widthMm} min={5} onChange={(v) => set(i, { ...s, widthMm: v ?? 40 })} />
@@ -327,7 +328,7 @@ function SegmentsEditor({ segments, onChange, flags }: { segments: Segment[]; on
       ))}
       <div className="row" style={{ justifyContent: 'flex-start', margin: 0 }}>
         <button type="button" className="secondary small" onClick={() => onChange([...segments, { kind: 'text', text: '' }])}>+ ข้อความ</button>
-        <button type="button" className="secondary small" onClick={() => onChange([...segments, { kind: 'field', text: '', widthMm: null }])}>+ ช่องเส้นประ</button>
+        <button type="button" className="secondary small" onClick={() => onChange([...segments, { kind: 'field', text: '', widthMm: null }])}>+ ช่องกรอก</button>
         <button type="button" className="secondary small" onClick={() => onChange([...segments, convert({ kind: 'text', text: '' }, 'checkbox')])}>+ ช่องติ๊ก</button>
       </div>
     </div>

@@ -96,10 +96,11 @@ function segmentHtml(seg: Segment, ctx: RenderContext): string {
       const style = seg.nowrap ? ' style="white-space: nowrap;"' : '';
       return `<${tag}${style}>${renderText(seg.text, ctx)}</${tag}>`;
     }
-    case 'field':
-      return seg.widthMm === null
-        ? `<span class="line grow">${renderText(seg.text, ctx)}</span>`
-        : `<span class="line" style="width: ${seg.widthMm}mm">${renderText(seg.text, ctx)}</span>`;
+    case 'field': {
+      const cls = `line${seg.widthMm === null ? ' grow' : ''}${seg.noLine ? ' no-line' : ''}`;
+      const style = seg.widthMm === null ? '' : ` style="width: ${seg.widthMm}mm"`;
+      return `<span class="${cls}"${style}>${renderText(seg.text, ctx)}</span>`;
+    }
     case 'checkbox':
       return `<span>${checkbox(renderText(seg.label, ctx), flag(ctx, seg.flag))}</span>`;
   }
@@ -304,6 +305,7 @@ export function renderDocument(template: FormTemplate, ctx: RenderContext, opts:
     .textbox strong, .sig-box strong { font-weight: 700; }
     .row { display: flex; align-items: baseline; gap: 6px; }
     .line { border-bottom: 1px dotted #aaa; min-height: 20px; padding: 0 8px 1px; text-align: center; font-weight: 600; display: inline-block; white-space: nowrap; }
+    .line.no-line { border-bottom-color: transparent; }
     .grow { flex: 1; }
     .leave-block { display: grid; grid-template-columns: 78px 115px 62px 1fr; align-items: start; }
     .checks { display: grid; gap: 2px; }

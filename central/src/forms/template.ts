@@ -89,8 +89,8 @@ export interface BlockCommon {
 /** ส่วนย่อยของบรรทัดข้อความ */
 export type Segment =
   | { kind: 'text'; text: string; bold?: boolean; nowrap?: boolean }
-  /** ช่องเส้นประ — width null = ยืดเต็มที่ว่าง */
-  | { kind: 'field'; text: string; widthMm: number | null }
+  /** ช่องกรอก — width null = ยืดเต็มที่ว่าง, noLine = ไม่แสดงเส้นประใต้ช่อง */
+  | { kind: 'field'; text: string; widthMm: number | null; noLine?: boolean }
   /** ช่องติ๊ก — ติ๊กเมื่อเงื่อนไข (flag) เป็นจริง */
   | { kind: 'checkbox'; label: string; flag: string };
 
