@@ -71,7 +71,7 @@ function fromSupabaseLeave(r: Row): Row {
 }
 
 /** getUsersFromSupabase (เฉพาะช่องที่ใบลาใช้: ชื่อ ตำแหน่ง วิทยฐานะ ตำแหน่งบริหาร) */
-function mapTeachers(rows: Row[], positions: Row[], academics: Row[], adminRoles: Row[]): Row[] {
+export function mapTeachers(rows: Row[], positions: Row[], academics: Row[], adminRoles: Row[]): Row[] {
   const posMap = new Map<string, string>();
   for (const p of positions) {
     const id = text(coalesce(p.ID_Positions, p.id));
