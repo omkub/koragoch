@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../forms/form_template.dart';
 import '../services/firebase_service.dart';
+import '../services/form_template_service.dart';
 import '../utils/school_info.dart';
 import 'dashboard_screen.dart';
 import 'leave_form_screen.dart';
@@ -120,6 +122,8 @@ class _MainLayoutState extends State<MainLayout> {
     _loadUser();
     _loadPendingResets();
     _loadAttendanceEnabled();
+    // โหลดแม่แบบใบลาไว้ก่อน กดพิมพ์ครั้งแรกจะได้ไม่ต้องรอ
+    FormTemplateService.instance.resolve(FormType.leave);
   }
 
   Future<void> _loadAttendanceEnabled() async {
@@ -244,6 +248,7 @@ class _MainLayoutState extends State<MainLayout> {
       debugPrint('⚠️  ออกจากระบบ Supabase ไม่สำเร็จ: $e');
     }
     SchoolInfo.reset();
+    FormTemplateService.instance.clearCache();
     if (mounted) {
       Navigator.pushReplacement(
           context, MaterialPageRoute(builder: (ctx) => const LoginScreen()));

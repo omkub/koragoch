@@ -12,6 +12,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:school_leave_app/forms/default_templates.dart';
 import 'package:school_leave_app/forms/form_render.dart';
 import 'package:school_leave_app/forms/form_template.dart';
+import 'package:school_leave_app/forms/leave_render_context.dart';
+import 'package:school_leave_app/utils/school_info.dart';
 import 'package:school_leave_app/widgets/leave_form_data.dart';
 
 RenderContext _context(Map<String, dynamic> c) {
@@ -92,6 +94,49 @@ void main() {
       expect(diff, isNull, reason: diff);
     });
   }
+
+  group('ข้อมูลใบลา → ตัวแทนข้อมูล ตรงกับ web', () {
+    final contexts = jsonDecode(
+            File('test/fixtures/leave_context_cases.json').readAsStringSync())
+        as List;
+
+    for (final raw in contexts.cast<Map<String, dynamic>>()) {
+      test(raw['name'], () {
+        List<Map<String, dynamic>> rows(Object? v) => [
+              for (final r in v as List) Map<String, dynamic>.from(r as Map)
+            ];
+        final data = LeaveFormData(
+          leaf: Map<String, dynamic>.from(raw['leaf'] as Map),
+          allUsers: rows(raw['allUsers']),
+          allLeaveRequests: rows(raw['allLeaveRequests']),
+          leaveTypeNames: (raw['leaveTypeNames'] as List).cast<String>(),
+        );
+        final ctx = leaveRenderContext(data,
+            school: SchoolRecord.fromRow(
+                Map<String, dynamic>.from(raw['schoolRow'] as Map)));
+        final web = raw['context'] as Map<String, dynamic>;
+
+        expect(ctx.title, web['title']);
+        expect(ctx.values, Map<String, String>.from(web['values'] as Map));
+        expect(ctx.flags, Map<String, bool>.from(web['flags'] as Map));
+        expect(ctx.reason, web['reason']);
+        expect(
+            ctx.leaveTypes!.map((t) => {'label': t.label, 'checked': t.checked}),
+            web['leaveTypes']);
+        expect(
+            ctx.stats!.map((r) => {
+                  'label': r.label,
+                  'previousTimes': r.previousTimes,
+                  'previousDays': r.previousDays,
+                  'currentTimes': r.currentTimes,
+                  'currentDays': r.currentDays,
+                  'totalTimes': r.totalTimes,
+                  'totalDays': r.totalDays,
+                }),
+            web['stats']);
+      });
+    }
+  });
 
   test('ตัวเลขเขียนแบบ JavaScript', () {
     expect(jsNum(10), '10');

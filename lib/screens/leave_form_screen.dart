@@ -6,7 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
 import '../widgets/leave_form_data.dart';
-import '../widgets/leave_form_document.dart';
+import '../widgets/leave_template_document.dart';
 import '../widgets/thai_buddhist_calendar_widget.dart';
 
 class LeaveFormScreen extends StatefulWidget {
@@ -845,9 +845,8 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
 
           // Right Side - แบบใบลาฉบับกลาง (ซ่อนในมือถือครับ)
           //
-          // เดิมวาดเอกสารซ้ำไว้ที่นี่อีกชุดหนึ่ง ~430 บรรทัด ตอนนี้ใช้
-          // LeaveFormDocument ร่วมกับหน้าประวัติการลาและหน้าปฏิทินแล้ว
-          // แก้เอกสารที่เดียวมีผลทุกหน้า
+          // วาดจากแม่แบบที่ออกแบบในหน้าแบบฟอร์มของ web (LeaveTemplateDocument)
+          // ชุดเดียวกับหน้าประวัติการลา หน้าปฏิทิน และตอนพิมพ์
           if (!isMobile)
             Expanded(
               flex: 7,
@@ -857,7 +856,12 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(
                         vertical: 40, horizontal: 20),
-                    child: LeaveFormDocument(data: _previewData(totalDays)),
+                    // แบบเดียวกับที่ออกแบบในหน้าแบบฟอร์มของ web และตอนพิมพ์
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child:
+                          LeaveTemplateDocument(data: _previewData(totalDays)),
+                    ),
                   ),
                 ),
               ),
