@@ -26,6 +26,24 @@ jobs:
           channel: stable
           cache: true
 
+      # เว็บผู้ดูแลระบบส่วนกลาง (React) — วางไว้ใต้แอป Flutter ที่ /koragoch/central/
+      # hosting เดียวกัน deploy พร้อมกันทุกครั้งที่ push main (ดู central/)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: central/package-lock.json
+
+      - name: ติดตั้ง dependencies ของเว็บส่วนกลาง
+        working-directory: central
+        run: npm ci
+
+      # แม่แบบฟอร์มเริ่มต้นของ app สร้างจากโค้ด web ทุกครั้งก่อน build
+      # app จึงตรงกับ web เสมอ แม้ลืมรันเองหลังแก้ leaveTemplate.ts / tripTemplate.ts
+      - name: สร้างแม่แบบฟอร์มเริ่มต้นให้ app
+        working-directory: central
+        run: npm run form-defaults
+
       - name: ติดตั้ง dependencies
         run: flutter pub get
 
@@ -36,19 +54,9 @@ jobs:
       - name: Build Flutter web
         run: flutter build web --release --base-href /koragoch/
 
-      # เว็บผู้ดูแลระบบส่วนกลาง (React) — วางไว้ใต้แอป Flutter ที่ /koragoch/central/
-      # hosting เดียวกัน deploy พร้อมกันทุกครั้งที่ push main (ดู central/)
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: central/package-lock.json
-
       - name: Build เว็บผู้ดูแลส่วนกลาง
         working-directory: central
-        run: |
-          npm ci
-          npm run build
+        run: npm run build
 
       - name: รวมเว็บส่วนกลางเข้าไปในเว็บหลัก
         run: cp -r central/dist build/web/central
