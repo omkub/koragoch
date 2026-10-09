@@ -18,6 +18,7 @@ import 'login_logs_screen.dart'; // 🛡️ นำเข้าหน้าปร
 import 'calendar_screen.dart'; // 📅 นำเข้าหน้าปฏิทินกิจกรรม 🥇🏆
 import 'official_trip_screen.dart';
 import '../utils/profile_image.dart';
+import '../widgets/notification_bell.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -192,6 +193,9 @@ class _MainLayoutState extends State<MainLayout> {
       debugPrint('⚠️  รีเฟรชรูปโปรไฟล์จากคลาวด์ไม่สำเร็จ: $e');
     }
   }
+
+  bool get _isAdminUser =>
+      _userRole.contains('ผู้ดูแลระบบ') || _currentUser == 'ผู้ดูแลระบบ';
 
   /// ชื่อที่แสดงในการ์ดโปรไฟล์ — ใช้ชื่อ-นามสกุลจริงถ้ามี
   String get _displayName =>
@@ -571,6 +575,12 @@ class _MainLayoutState extends State<MainLayout> {
                             fontWeight: FontWeight.w500)),
                   ],
                 ),
+                const Spacer(),
+                // 🔔 แจ้งเตือนใบลาใหม่ — เฉพาะผู้ดูแลระบบ
+                if (_isAdminUser)
+                  NotificationBell(
+                    onOpenLeaves: () => setState(() => _selectedIndex = 3),
+                  ),
               ],
             ),
           ),
