@@ -1,0 +1,9 @@
+{
+  "url": "https://uziajblqlbrvqmxvizsi.supabase.co/functions/v1/attendance-ingest",
+  "deviceKey": "วางรหัสลับเครื่องที่ออกจาก web ที่นี่",
+  "folder": "C:\AttendanceExport",
+  "filePattern": "",
+  "dateOrder": "DMY",
+  "codeColumn": 0,
+  "recurse": false
+}
