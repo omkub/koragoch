@@ -183,3 +183,15 @@ td.actions { display: flex; gap: 6px; justify-content: flex-end; }
 button.danger { color: var(--err); }
 input.invalid { border-color: var(--err); background: var(--err-bg); }
 tr.dirty td { background: #fef9c3; }
+
+/* ── แบบฟอร์ม ─────────────────────────────────────────────── */
+.form-layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; align-items: start; }
+.form-side { display: flex; flex-direction: column; gap: 10px; position: sticky; top: 16px; }
+.leave-list { max-height: 70vh; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.leave-item { display: flex; flex-direction: column; align-items: flex-start; text-align: left; background: none; color: var(--text); padding: 8px 10px; border-radius: 8px; font-weight: 600; }
+.leave-item small { color: var(--muted); font-weight: 400; }
+.leave-item:hover:not(:disabled) { background: #f1f5f9; }
+.leave-item.active { background: #dbeafe; }
+.form-preview-pane { min-width: 0; }
+.doc-frame { width: 100%; height: 1240px; border: 0; border-radius: 12px; background: #475569; display: block; }
+@media (max-width: 900px) { .form-layout { grid-template-columns: 1fr; } .form-side { position: static; } .leave-list { max-height: 260px; } }

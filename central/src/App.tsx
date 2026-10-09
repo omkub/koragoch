@@ -10,6 +10,7 @@ import LinePage from './pages/LinePage';
 import RolePermissionsPage from './pages/RolePermissionsPage';
 import UserPermissionsPage from './pages/UserPermissionsPage';
 import AttendancePage from './pages/AttendancePage';
+import LeaveFormPage from './pages/LeaveFormPage';
 
 /**
  * เว็บผู้ดูแลระบบ
@@ -79,6 +80,7 @@ export default function App() {
             <NavLink to="/line">LINE แจ้งเตือน</NavLink>
             <NavLink to="/role-permissions">เพดานสิทธิ์</NavLink>
             <NavLink to="/attendance">ลงเวลา (สแกนหน้า)</NavLink>
+            <NavLink to="/forms/leave">แบบฟอร์มใบลา</NavLink>
           </>
         )}
         <NavLink to="/user-permissions">สิทธิ์ผู้ใช้</NavLink>
@@ -98,6 +100,7 @@ export default function App() {
               <Route path="/line" element={<LinePage />} />
               <Route path="/role-permissions" element={<RolePermissionsPage />} />
               <Route path="/attendance" element={<AttendancePage />} />
+              <Route path="/forms/leave" element={<LeaveFormPage />} />
               <Route path="/user-permissions" element={<UserPermissionsPage access={access} />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </>
