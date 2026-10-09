@@ -86,19 +86,17 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
       debugPrint('⚠️  อ่านข้อมูลผู้ใช้จากเครื่องไม่สำเร็จ: $e');
     }
     _myId = myId;
-    _isAdmin =
-        role.contains('ผู้ดูแลระบบ') || currentUser == 'ผู้ดูแลระบบ';
+    _isAdmin = role.contains('ผู้ดูแลระบบ') || currentUser == 'ผู้ดูแลระบบ';
 
     try {
       final results = await Future.wait([
         _firebaseService.getUsersFromSupabase(),
         _service.getSpecialDates(),
       ]);
-      final teachers = sortedTeachers(
-          (results[0] as List<Map<String, dynamic>>)
-              .where((t) => _asInt(t['id_user']) != null));
-      final special = results[1]
-          as ({Set<String> holidays, Set<String> workingDays});
+      final teachers = sortedTeachers((results[0] as List<Map<String, dynamic>>)
+          .where((t) => _asInt(t['id_user']) != null));
+      final special =
+          results[1] as ({Set<String> holidays, Set<String> workingDays});
       if (!mounted) return;
       setState(() {
         _teachers = teachers;
@@ -141,7 +139,8 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
   bool _isOwner(Map<String, dynamic> t) =>
       _myId != null && _asInt(t['id_user']) == _myId;
   bool _isPending(Map<String, dynamic> t) =>
-      (t['status'] ?? OfficialTripService.pending) == OfficialTripService.pending;
+      (t['status'] ?? OfficialTripService.pending) ==
+      OfficialTripService.pending;
   bool _canEdit(Map<String, dynamic> t) =>
       _isAdmin || (_isOwner(t) && _isPending(t));
   bool _canApprove(Map<String, dynamic> t) => _isAdmin && _isPending(t);
@@ -191,8 +190,8 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
     try {
       await action();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(doneMessage), backgroundColor: Colors.green));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(doneMessage), backgroundColor: Colors.green));
       await _loadTrips();
     } catch (e) {
       if (!mounted) return;
@@ -229,7 +228,8 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('ลบรายการไปราชการ', style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+        title: Text('ลบรายการไปราชการ',
+            style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
         content: Text('ลบ "${trip['title']}" ใช่ไหม? ลบแล้วกู้คืนไม่ได้',
             style: GoogleFonts.sarabun()),
         actions: [
@@ -244,8 +244,8 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
       ),
     );
     if (ok == true) {
-      await _run(() => _service.deleteTrip(_asInt(trip['id_trip'])!),
-          'ลบรายการแล้ว');
+      await _run(
+          () => _service.deleteTrip(_asInt(trip['id_trip'])!), 'ลบรายการแล้ว');
     }
   }
 
@@ -264,8 +264,7 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
             children: [
               Text(trip['title']?.toString() ?? '',
                   style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
-              Text(
-                  '${_teacherName(trip['id_user'])} · ${_dateText(trip)}',
+              Text('${_teacherName(trip['id_user'])} · ${_dateText(trip)}',
                   style: GoogleFonts.sarabun(color: _muted)),
               const SizedBox(height: 16),
               TextField(
@@ -278,8 +277,7 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('ยกเลิก')),
+              onPressed: () => Navigator.pop(ctx), child: const Text('ยกเลิก')),
           OutlinedButton(
               style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
               onPressed: () => Navigator.pop(ctx, OfficialTripService.rejected),
@@ -298,7 +296,9 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
     await _run(
         () => _service.setStatus(_asInt(trip['id_trip'])!,
             status: status, approverId: _myId, note: note),
-        status == OfficialTripService.approved ? 'อนุมัติแล้ว' : 'บันทึกว่าไม่อนุมัติแล้ว');
+        status == OfficialTripService.approved
+            ? 'อนุมัติแล้ว'
+            : 'บันทึกว่าไม่อนุมัติแล้ว');
   }
 
   Future<void> _openReport(Map<String, dynamic> trip) async {
@@ -314,8 +314,8 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
           child: TextField(
             controller: ctrl,
             maxLines: 8,
-            decoration: _inputDecoration(
-                'สรุปสาระสำคัญ / สิ่งที่ได้รับ / การนำไปใช้'),
+            decoration:
+                _inputDecoration('สรุปสาระสำคัญ / สิ่งที่ได้รับ / การนำไปใช้'),
           ),
         ),
         actions: [
@@ -342,28 +342,40 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
       ('ประเภท', trip['tripType']?.toString()),
       ('วันที่', '${_dateText(trip)} (${_daysText(trip)})'),
       ('หน่วยงานที่จัด', trip['organizer']?.toString()),
-      ('สถานที่',
-          [trip['location'], trip['province']].whereType<Object>().join(' จ.')),
-      ('หนังสืออ้างอิง', [
-        trip['docNumber'],
-        if (OfficialTripService.parseDate(trip['docDate']) != null)
-          'ลงวันที่ ${OfficialTripService.formatThaiDate(OfficialTripService.parseDate(trip['docDate'])!)}',
-      ].whereType<Object>().join(' ')),
+      (
+        'สถานที่',
+        [trip['location'], trip['province']].whereType<Object>().join(' จ.')
+      ),
+      (
+        'หนังสืออ้างอิง',
+        [
+          trip['docNumber'],
+          if (OfficialTripService.parseDate(trip['docDate']) != null)
+            'ลงวันที่ ${OfficialTripService.formatThaiDate(OfficialTripService.parseDate(trip['docDate'])!)}',
+        ].whereType<Object>().join(' ')
+      ),
       ('ผู้บันทึก', _teacherName(trip['id_user'])),
       ('ผู้ร่วมเดินทาง', _memberNames(trip).join(', ')),
       ('การเดินทาง', trip['travelMode']?.toString()),
-      ('ค่าใช้จ่าย', [
-        trip['budgetSource'],
-        if (trip['estimatedCost'] != null)
-          '${FirebaseService.formatLeaveDayCount(trip['estimatedCost'])} บาท',
-      ].whereType<Object>().join(' · ')),
+      (
+        'ค่าใช้จ่าย',
+        [
+          trip['budgetSource'],
+          if (trip['estimatedCost'] != null)
+            '${FirebaseService.formatLeaveDayCount(trip['estimatedCost'])} บาท',
+        ].whereType<Object>().join(' · ')
+      ),
       ('หมายเหตุ', trip['note']?.toString()),
-      ('สถานะ', [
-        trip['status'],
-        if (trip['approvedBy'] != null) 'โดย ${_teacherName(trip['approvedBy'])}',
-        if ((trip['approverNote'] ?? '').toString().isNotEmpty)
-          '— ${trip['approverNote']}',
-      ].whereType<Object>().join(' ')),
+      (
+        'สถานะ',
+        [
+          trip['status'],
+          if (trip['approvedBy'] != null)
+            'โดย ${_teacherName(trip['approvedBy'])}',
+          if ((trip['approverNote'] ?? '').toString().isNotEmpty)
+            '— ${trip['approverNote']}',
+        ].whereType<Object>().join(' ')
+      ),
       ('รายงานผล', trip['reportSummary']?.toString()),
     ];
     showDialog(
@@ -427,21 +439,38 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // เกณฑ์เดียวกับ ResponsiveLayout — แคบกว่านี้ = ใช้ MobileMainLayout
     final isMobile = MediaQuery.of(context).size.width < 1100;
     final visible = _visibleTrips;
 
-    return Container(
+    final content = Container(
       color: _pageBg,
-      padding: EdgeInsets.all(isMobile ? 16 : 32),
+      padding: EdgeInsets.fromLTRB(
+          isMobile ? 16 : 32, isMobile ? 12 : 32, isMobile ? 16 : 32, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildHeader(isMobile),
-          const SizedBox(height: 20),
-          _buildFilters(),
-          const SizedBox(height: 16),
-          Expanded(child: _buildBody(visible)),
+          SizedBox(height: isMobile ? 12 : 20),
+          _buildFilters(isMobile),
+          SizedBox(height: isMobile ? 12 : 16),
+          Expanded(child: _buildBody(visible, isMobile)),
         ],
+      ),
+    );
+    if (!isMobile) return content;
+
+    // มือถือ: ปุ่มบันทึกเป็นปุ่มลอยมุมขวาล่าง (มุมขวาบนเป็นที่ของกระดิ่งแจ้งเตือน)
+    return Scaffold(
+      backgroundColor: _pageBg,
+      body: SafeArea(bottom: false, child: content),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: _ink,
+        foregroundColor: Colors.white,
+        onPressed: () => _openForm(),
+        icon: const Icon(Icons.add_rounded),
+        label: Text('บันทึกไปราชการ',
+            style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
       ),
     );
   }
@@ -468,91 +497,122 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
           onPressed: _loading ? null : _loadTrips,
           icon: const Icon(Icons.refresh_rounded, color: _muted),
         ),
-        const SizedBox(width: 8),
-        FilledButton.icon(
-          style: FilledButton.styleFrom(
-            backgroundColor: _ink,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        // มือถือ: เว้นที่ให้กระดิ่งแจ้งเตือนที่ลอยอยู่มุมขวาบน / ปุ่มบันทึกอยู่ล่าง
+        if (isMobile) const SizedBox(width: 48),
+        if (!isMobile) const SizedBox(width: 8),
+        if (!isMobile)
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: _ink,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => _openForm(),
+            icon: const Icon(Icons.add_rounded, size: 20),
+            label: Text('บันทึกไปราชการ',
+                style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
           ),
-          onPressed: () => _openForm(),
-          icon: const Icon(Icons.add_rounded, size: 20),
-          label: Text('บันทึกไปราชการ',
-              style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
-        ),
       ],
     );
   }
 
-  Widget _buildFilters() {
+  Widget _buildFilters(bool isMobile) {
     final scoped = _scopedTrips;
     int count(String? status) => status == null
         ? scoped.length
         : scoped.where((t) => t['status'] == status).length;
     final thisYear = OfficialTripService.fiscalYearOf(DateTime.now());
 
+    final yearPicker = _box(DropdownButtonHideUnderline(
+      child: DropdownButton<int>(
+        value: _fiscalYear,
+        style: GoogleFonts.sarabun(color: _ink, fontWeight: FontWeight.w600),
+        items: [
+          for (var y = thisYear + 1; y >= thisYear - 4; y--)
+            DropdownMenuItem(value: y, child: Text('ปีงบประมาณ $y')),
+        ],
+        onChanged: (y) {
+          if (y == null || y == _fiscalYear) return;
+          setState(() => _fiscalYear = y);
+          _loadTrips();
+        },
+      ),
+    ));
+    final scope = SegmentedButton<bool>(
+      segments: const [
+        ButtonSegment(value: false, label: Text('ทั้งโรงเรียน')),
+        ButtonSegment(value: true, label: Text('ของฉัน')),
+      ],
+      selected: {_onlyMine},
+      showSelectedIcon: false,
+      onSelectionChanged: (s) => setState(() => _onlyMine = s.first),
+    );
+    final statusChips = [
+      for (final status in [
+        null,
+        OfficialTripService.pending,
+        OfficialTripService.approved,
+        OfficialTripService.rejected,
+      ])
+        ChoiceChip(
+          label: Text('${status ?? 'ทั้งหมด'} (${count(status)})',
+              style: GoogleFonts.sarabun(fontSize: 13)),
+          selected: _statusFilter == status,
+          onSelected: (_) => setState(() => _statusFilter = status),
+        ),
+    ];
+    final search = TextField(
+      onChanged: (v) => setState(() => _search = v),
+      decoration: _inputDecoration('ค้นหาเรื่อง / สถานที่ / ชื่อ',
+          icon: Icons.search_rounded),
+    );
+
+    if (isMobile) {
+      // มือถือ: ปี + ขอบเขต แถวเดียว, ชิปสถานะเลื่อนข้าง, ช่องค้นหาเต็มความกว้าง
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [yearPicker, const SizedBox(width: 8), scope]),
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              for (final chip in statusChips)
+                Padding(padding: const EdgeInsets.only(right: 8), child: chip),
+            ]),
+          ),
+          const SizedBox(height: 8),
+          search,
+        ],
+      );
+    }
+
     return Wrap(
       spacing: 12,
       runSpacing: 12,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        _box(DropdownButtonHideUnderline(
-          child: DropdownButton<int>(
-            value: _fiscalYear,
-            style: GoogleFonts.sarabun(color: _ink, fontWeight: FontWeight.w600),
-            items: [
-              for (var y = thisYear + 1; y >= thisYear - 4; y--)
-                DropdownMenuItem(value: y, child: Text('ปีงบประมาณ $y')),
-            ],
-            onChanged: (y) {
-              if (y == null || y == _fiscalYear) return;
-              setState(() => _fiscalYear = y);
-              _loadTrips();
-            },
-          ),
-        )),
-        SegmentedButton<bool>(
-          segments: const [
-            ButtonSegment(value: false, label: Text('ทั้งโรงเรียน')),
-            ButtonSegment(value: true, label: Text('ของฉัน')),
-          ],
-          selected: {_onlyMine},
-          showSelectedIcon: false,
-          onSelectionChanged: (s) => setState(() => _onlyMine = s.first),
-        ),
-        for (final status in [
-          null,
-          OfficialTripService.pending,
-          OfficialTripService.approved,
-          OfficialTripService.rejected,
-        ])
-          ChoiceChip(
-            label: Text('${status ?? 'ทั้งหมด'} (${count(status)})',
-                style: GoogleFonts.sarabun(fontSize: 13)),
-            selected: _statusFilter == status,
-            onSelected: (_) => setState(() => _statusFilter = status),
-          ),
-        SizedBox(
-          width: 260,
-          child: TextField(
-            onChanged: (v) => setState(() => _search = v),
-            decoration: _inputDecoration('ค้นหาเรื่อง / สถานที่ / ชื่อ',
-                icon: Icons.search_rounded),
-          ),
-        ),
+        yearPicker,
+        scope,
+        ...statusChips,
+        SizedBox(width: 260, child: search),
       ],
     );
   }
 
-  Widget _buildBody(List<Map<String, dynamic>> visible) {
+  Widget _buildBody(List<Map<String, dynamic>> visible, bool isMobile) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, color: Colors.red, size: 40),
+            const Icon(Icons.error_outline_rounded,
+                color: Colors.red, size: 40),
             const SizedBox(height: 8),
             Text('โหลดข้อมูลไม่สำเร็จ: $_error',
                 textAlign: TextAlign.center,
@@ -573,6 +633,8 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
       );
     }
     return ListView.separated(
+      // มือถือ: เว้นท้ายรายการไม่ให้ปุ่มลอยบังรายการสุดท้าย
+      padding: EdgeInsets.only(bottom: isMobile ? 96 : 32),
       itemCount: visible.length,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (_, i) => _buildTripCard(visible[i]),
@@ -624,7 +686,8 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
                             ? ''
                             : OfficialTripService.formatThaiDate(start)
                                 .split(' ')[1],
-                        style: GoogleFonts.sarabun(fontSize: 12, color: _muted)),
+                        style:
+                            GoogleFonts.sarabun(fontSize: 12, color: _muted)),
                   ],
                 ),
               ),
@@ -652,8 +715,7 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text('${_dateText(trip)} · ${_daysText(trip)}',
-                        style: GoogleFonts.sarabun(
-                            fontSize: 13, color: _ink)),
+                        style: GoogleFonts.sarabun(fontSize: 13, color: _ink)),
                     if (place.isNotEmpty)
                       Text(place,
                           style:
@@ -877,7 +939,13 @@ class _TripFormDialogState extends State<_TripFormDialog> {
   @override
   void dispose() {
     for (final c in [
-      _title, _organizer, _location, _province, _docNumber, _cost, _note
+      _title,
+      _organizer,
+      _location,
+      _province,
+      _docNumber,
+      _cost,
+      _note
     ]) {
       c.dispose();
     }
@@ -937,7 +1005,8 @@ class _TripFormDialogState extends State<_TripFormDialog> {
       'location': _clean(_location),
       'province': _clean(_province),
       'docNumber': _clean(_docNumber),
-      'docDate': _docDate == null ? null : OfficialTripService.dateKey(_docDate!),
+      'docDate':
+          _docDate == null ? null : OfficialTripService.dateKey(_docDate!),
       'startDate': OfficialTripService.dateKey(_startDate),
       'endDate': OfficialTripService.dateKey(_endDate),
       'isHalfDay': halfDay,
@@ -964,7 +1033,8 @@ class _TripFormDialogState extends State<_TripFormDialog> {
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(_isEdit ? 'บันทึกการแก้ไขแล้ว' : 'บันทึกการไปราชการแล้ว'),
+          content:
+              Text(_isEdit ? 'บันทึกการแก้ไขแล้ว' : 'บันทึกการไปราชการแล้ว'),
           backgroundColor: Colors.green));
       Navigator.pop(context, true);
     } catch (e) {
@@ -983,269 +1053,277 @@ class _TripFormDialogState extends State<_TripFormDialog> {
       ..._members.where((id) => id != _ownerId),
     ];
 
+    final form = Form(
+      key: _formKey,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 12, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                      _isEdit ? 'แก้ไขการไปราชการ' : 'บันทึกการไปราชการ',
+                      style: GoogleFonts.sarabun(
+                          fontSize: 20, fontWeight: FontWeight.bold)),
+                ),
+                IconButton(
+                    onPressed:
+                        _saving ? null : () => Navigator.pop(context, false),
+                    icon: const Icon(Icons.close_rounded)),
+              ],
+            ),
+          ),
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (widget.isAdmin) ...[
+                    _section('ผู้ขอไปราชการ'),
+                    DropdownButtonFormField<int>(
+                      initialValue: _ownerId,
+                      isExpanded: true,
+                      decoration: _inputDecoration('บันทึกในนามของ'),
+                      items: [
+                        for (final t in widget.teachers)
+                          DropdownMenuItem(
+                              value: _asInt(t['id_user']),
+                              child: Text(t['fullName'].toString(),
+                                  style: GoogleFonts.sarabun())),
+                      ],
+                      onChanged: _isEdit
+                          ? null
+                          : (id) {
+                              if (id == null) return;
+                              setState(() {
+                                _members.remove(_ownerId);
+                                _ownerId = id;
+                              });
+                            },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  _section('เรื่องที่ไป'),
+                  TextFormField(
+                    controller: _title,
+                    decoration: _inputDecoration(
+                        'เรื่อง เช่น ประชุมผู้บริหารสถานศึกษา *'),
+                    validator: (v) => (v ?? '').trim().isEmpty
+                        ? 'กรุณากรอกเรื่องที่ไปราชการ'
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
+                  _row([
+                    DropdownButtonFormField<String>(
+                      initialValue: _tripType,
+                      decoration: _inputDecoration('ประเภท'),
+                      items: [
+                        for (final v in OfficialTripService.tripTypes)
+                          DropdownMenuItem(value: v, child: Text(v)),
+                      ],
+                      onChanged: (v) =>
+                          setState(() => _tripType = v ?? _tripType),
+                    ),
+                    TextFormField(
+                        controller: _organizer,
+                        decoration: _inputDecoration('หน่วยงานที่จัด')),
+                  ]),
+                  const SizedBox(height: 12),
+                  _row([
+                    TextFormField(
+                        controller: _location,
+                        decoration: _inputDecoration('สถานที่')),
+                    TextFormField(
+                        controller: _province,
+                        decoration: _inputDecoration('จังหวัด')),
+                  ]),
+                  const SizedBox(height: 12),
+                  _row([
+                    TextFormField(
+                        controller: _docNumber,
+                        decoration:
+                            _inputDecoration('เลขที่หนังสือเชิญ / คำสั่ง')),
+                    _dateField(
+                      'ลงวันที่ (หนังสือ)',
+                      _docDate,
+                      () => _pickDate(_docDate ?? DateTime.now(),
+                          (d) => setState(() => _docDate = d)),
+                      onClear: _docDate == null
+                          ? null
+                          : () => setState(() => _docDate = null),
+                    ),
+                  ]),
+                  const SizedBox(height: 20),
+                  _section('วันที่ไปราชการ'),
+                  _row([
+                    _dateField(
+                      'วันเริ่ม *',
+                      _startDate,
+                      () => _pickDate(_startDate, (d) {
+                        setState(() {
+                          _startDate = d;
+                          if (_endDate.isBefore(d)) _endDate = d;
+                        });
+                      }),
+                    ),
+                    _dateField(
+                      'วันสิ้นสุด *',
+                      _endDate,
+                      () => _pickDate(_endDate, (d) {
+                        setState(() {
+                          _endDate = d.isBefore(_startDate) ? _startDate : d;
+                        });
+                      }),
+                    ),
+                  ]),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (_sameDay) ...[
+                        FilterChip(
+                          label: const Text('ครึ่งวัน'),
+                          selected: _isHalfDay,
+                          onSelected: (v) => setState(() => _isHalfDay = v),
+                        ),
+                        if (_isHalfDay)
+                          SegmentedButton<String>(
+                            segments: const [
+                              ButtonSegment(
+                                  value: 'morning', label: Text('เช้า')),
+                              ButtonSegment(
+                                  value: 'afternoon', label: Text('บ่าย')),
+                            ],
+                            selected: {_halfDayPeriod},
+                            showSelectedIcon: false,
+                            onSelectionChanged: (s) =>
+                                setState(() => _halfDayPeriod = s.first),
+                          ),
+                      ],
+                      Text(
+                        'รวม ${FirebaseService.formatLeaveDayCount(_totalDays)} วันทำการ',
+                        style: GoogleFonts.sarabun(
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF16A34A)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  _section('ผู้ร่วมเดินทาง (${members.length} คน)'),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final id in members)
+                        InputChip(
+                          label: Text(_nameOf(id),
+                              style: GoogleFonts.sarabun(fontSize: 13)),
+                          onDeleted: id == _ownerId
+                              ? null
+                              : () => setState(() => _members.remove(id)),
+                        ),
+                      ActionChip(
+                        avatar: const Icon(Icons.person_add_alt_1_rounded,
+                            size: 18),
+                        label: const Text('เพิ่มผู้ร่วมเดินทาง'),
+                        onPressed: _pickMembers,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  _section('การเดินทาง / ค่าใช้จ่าย'),
+                  _row([
+                    DropdownButtonFormField<String>(
+                      initialValue: _travelMode,
+                      decoration: _inputDecoration('เดินทางโดย'),
+                      items: [
+                        for (final v in OfficialTripService.travelModes)
+                          DropdownMenuItem(value: v, child: Text(v)),
+                      ],
+                      onChanged: (v) => setState(() => _travelMode = v),
+                    ),
+                    DropdownButtonFormField<String>(
+                      initialValue: _budgetSource,
+                      decoration: _inputDecoration('ค่าใช้จ่าย'),
+                      items: [
+                        for (final v in OfficialTripService.budgetSources)
+                          DropdownMenuItem(value: v, child: Text(v)),
+                      ],
+                      onChanged: (v) => setState(() => _budgetSource = v),
+                    ),
+                    TextFormField(
+                      controller: _cost,
+                      decoration: _inputDecoration('ประมาณการ (บาท)'),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))
+                      ],
+                    ),
+                  ]),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _note,
+                    maxLines: 2,
+                    decoration: _inputDecoration('หมายเหตุ'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed:
+                      _saving ? null : () => Navigator.pop(context, false),
+                  child: const Text('ยกเลิก'),
+                ),
+                const SizedBox(width: 12),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _ink,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 16),
+                  ),
+                  onPressed: _saving ? null : _save,
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.save_rounded, size: 18),
+                  label: Text(_isEdit ? 'บันทึกการแก้ไข' : 'บันทึก',
+                      style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    // มือถือ: เปิดเต็มจอ (ฟอร์มยาว กล่องเล็กกลางจอกรอกลำบาก)
+    if (MediaQuery.of(context).size.width < 600) {
+      return Dialog.fullscreen(
+        backgroundColor: _pageBg,
+        child: SafeArea(child: form),
+      );
+    }
     return Dialog(
       backgroundColor: _pageBg,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 760, maxHeight: 820),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 12, 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                          _isEdit ? 'แก้ไขการไปราชการ' : 'บันทึกการไปราชการ',
-                          style: GoogleFonts.sarabun(
-                              fontSize: 20, fontWeight: FontWeight.bold)),
-                    ),
-                    IconButton(
-                        onPressed:
-                            _saving ? null : () => Navigator.pop(context, false),
-                        icon: const Icon(Icons.close_rounded)),
-                  ],
-                ),
-              ),
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (widget.isAdmin) ...[
-                        _section('ผู้ขอไปราชการ'),
-                        DropdownButtonFormField<int>(
-                          initialValue: _ownerId,
-                          isExpanded: true,
-                          decoration: _inputDecoration('บันทึกในนามของ'),
-                          items: [
-                            for (final t in widget.teachers)
-                              DropdownMenuItem(
-                                  value: _asInt(t['id_user']),
-                                  child: Text(t['fullName'].toString(),
-                                      style: GoogleFonts.sarabun())),
-                          ],
-                          onChanged: _isEdit
-                              ? null
-                              : (id) {
-                                  if (id == null) return;
-                                  setState(() {
-                                    _members.remove(_ownerId);
-                                    _ownerId = id;
-                                  });
-                                },
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                      _section('เรื่องที่ไป'),
-                      TextFormField(
-                        controller: _title,
-                        decoration:
-                            _inputDecoration('เรื่อง เช่น ประชุมผู้บริหารสถานศึกษา *'),
-                        validator: (v) => (v ?? '').trim().isEmpty
-                            ? 'กรุณากรอกเรื่องที่ไปราชการ'
-                            : null,
-                      ),
-                      const SizedBox(height: 12),
-                      _row([
-                        DropdownButtonFormField<String>(
-                          initialValue: _tripType,
-                          decoration: _inputDecoration('ประเภท'),
-                          items: [
-                            for (final v in OfficialTripService.tripTypes)
-                              DropdownMenuItem(value: v, child: Text(v)),
-                          ],
-                          onChanged: (v) =>
-                              setState(() => _tripType = v ?? _tripType),
-                        ),
-                        TextFormField(
-                            controller: _organizer,
-                            decoration: _inputDecoration('หน่วยงานที่จัด')),
-                      ]),
-                      const SizedBox(height: 12),
-                      _row([
-                        TextFormField(
-                            controller: _location,
-                            decoration: _inputDecoration('สถานที่')),
-                        TextFormField(
-                            controller: _province,
-                            decoration: _inputDecoration('จังหวัด')),
-                      ]),
-                      const SizedBox(height: 12),
-                      _row([
-                        TextFormField(
-                            controller: _docNumber,
-                            decoration:
-                                _inputDecoration('เลขที่หนังสือเชิญ / คำสั่ง')),
-                        _dateField(
-                          'ลงวันที่ (หนังสือ)',
-                          _docDate,
-                          () => _pickDate(_docDate ?? DateTime.now(),
-                              (d) => setState(() => _docDate = d)),
-                          onClear: _docDate == null
-                              ? null
-                              : () => setState(() => _docDate = null),
-                        ),
-                      ]),
-                      const SizedBox(height: 20),
-                      _section('วันที่ไปราชการ'),
-                      _row([
-                        _dateField(
-                          'วันเริ่ม *',
-                          _startDate,
-                          () => _pickDate(_startDate, (d) {
-                            setState(() {
-                              _startDate = d;
-                              if (_endDate.isBefore(d)) _endDate = d;
-                            });
-                          }),
-                        ),
-                        _dateField(
-                          'วันสิ้นสุด *',
-                          _endDate,
-                          () => _pickDate(_endDate, (d) {
-                            setState(() {
-                              _endDate = d.isBefore(_startDate) ? _startDate : d;
-                            });
-                          }),
-                        ),
-                      ]),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 12,
-                        runSpacing: 8,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          if (_sameDay) ...[
-                            FilterChip(
-                              label: const Text('ครึ่งวัน'),
-                              selected: _isHalfDay,
-                              onSelected: (v) => setState(() => _isHalfDay = v),
-                            ),
-                            if (_isHalfDay)
-                              SegmentedButton<String>(
-                                segments: const [
-                                  ButtonSegment(
-                                      value: 'morning', label: Text('เช้า')),
-                                  ButtonSegment(
-                                      value: 'afternoon', label: Text('บ่าย')),
-                                ],
-                                selected: {_halfDayPeriod},
-                                showSelectedIcon: false,
-                                onSelectionChanged: (s) =>
-                                    setState(() => _halfDayPeriod = s.first),
-                              ),
-                          ],
-                          Text(
-                            'รวม ${FirebaseService.formatLeaveDayCount(_totalDays)} วันทำการ',
-                            style: GoogleFonts.sarabun(
-                                fontWeight: FontWeight.bold,
-                                color: const Color(0xFF16A34A)),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      _section('ผู้ร่วมเดินทาง (${members.length} คน)'),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          for (final id in members)
-                            InputChip(
-                              label: Text(_nameOf(id),
-                                  style: GoogleFonts.sarabun(fontSize: 13)),
-                              onDeleted: id == _ownerId
-                                  ? null
-                                  : () => setState(() => _members.remove(id)),
-                            ),
-                          ActionChip(
-                            avatar: const Icon(Icons.person_add_alt_1_rounded,
-                                size: 18),
-                            label: const Text('เพิ่มผู้ร่วมเดินทาง'),
-                            onPressed: _pickMembers,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      _section('การเดินทาง / ค่าใช้จ่าย'),
-                      _row([
-                        DropdownButtonFormField<String>(
-                          initialValue: _travelMode,
-                          decoration: _inputDecoration('เดินทางโดย'),
-                          items: [
-                            for (final v in OfficialTripService.travelModes)
-                              DropdownMenuItem(value: v, child: Text(v)),
-                          ],
-                          onChanged: (v) => setState(() => _travelMode = v),
-                        ),
-                        DropdownButtonFormField<String>(
-                          initialValue: _budgetSource,
-                          decoration: _inputDecoration('ค่าใช้จ่าย'),
-                          items: [
-                            for (final v in OfficialTripService.budgetSources)
-                              DropdownMenuItem(value: v, child: Text(v)),
-                          ],
-                          onChanged: (v) => setState(() => _budgetSource = v),
-                        ),
-                        TextFormField(
-                          controller: _cost,
-                          decoration: _inputDecoration('ประมาณการ (บาท)'),
-                          keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))
-                          ],
-                        ),
-                      ]),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _note,
-                        maxLines: 2,
-                        decoration: _inputDecoration('หมายเหตุ'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed:
-                          _saving ? null : () => Navigator.pop(context, false),
-                      child: const Text('ยกเลิก'),
-                    ),
-                    const SizedBox(width: 12),
-                    FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _ink,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 16),
-                      ),
-                      onPressed: _saving ? null : _save,
-                      icon: _saving
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.save_rounded, size: 18),
-                      label: Text(_isEdit ? 'บันทึกการแก้ไข' : 'บันทึก',
-                          style:
-                              GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+        child: form,
       ),
     );
   }
@@ -1359,12 +1437,12 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
                     value: _selected.contains(id),
                     onChanged: locked
                         ? null
-                        : (v) => setState(() =>
-                            v == true ? _selected.add(id) : _selected.remove(id)),
+                        : (v) => setState(() => v == true
+                            ? _selected.add(id)
+                            : _selected.remove(id)),
                     title: Text(t['fullName'].toString(),
                         style: GoogleFonts.sarabun(fontSize: 14)),
-                    subtitle: Text(
-                        locked ? 'ผู้ขอไปราชการ' : departmentOf(t),
+                    subtitle: Text(locked ? 'ผู้ขอไปราชการ' : departmentOf(t),
                         style: GoogleFonts.sarabun(fontSize: 12)),
                   );
                 },

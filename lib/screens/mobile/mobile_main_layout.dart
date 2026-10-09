@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/firebase_service.dart';
 import '../dashboard_screen.dart';
+import '../official_trip_screen.dart';
 import '../login_logs_screen.dart';
 import '../personnel_screen.dart';
 import '../report_overview_screen.dart';
@@ -57,8 +58,8 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
 
   List<int> _defaultAllowedMenus() {
     final allowed = _isAdmin
-        ? [0, 1, 2, 3, 4, 5, 7, 8, -1]
-        : [0, 2, 3, -1];
+        ? [0, 1, 2, 3, 4, 5, 7, 8, 9, -1]
+        : [0, 2, 3, 9, -1];
     if (_userRole.contains('ครู')) allowed.remove(0);
     return allowed;
   }
@@ -72,7 +73,7 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
 
   List<int> _allowedMenusFromData(Map<String, dynamic> data) {
     final allowed = <int>[];
-    for (int i = 0; i <= 8; i++) {
+    for (int i = 0; i <= 9; i++) {
       if (i == 6) continue;
       final val = data[i.toString()];
       if (_isTruthy(val)) {
@@ -161,6 +162,8 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
         return const LoginLogsScreen();
       case 8:
         return const MobileCalendarScreen();
+      case 9:
+        return const OfficialTripScreen();
       case -1:
         return const MobileProfileScreen();
       default:
@@ -190,6 +193,10 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
         return active
             ? Icons.calendar_month_rounded
             : Icons.calendar_month_outlined;
+      case 9:
+        return active
+            ? Icons.business_center_rounded
+            : Icons.business_center_outlined;
       case -1:
         return active ? Icons.person_rounded : Icons.person_outline_rounded;
       default:
@@ -215,6 +222,8 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
         return 'เข้าใช้งาน';
       case 8:
         return 'ปฏิทิน';
+      case 9:
+        return 'ราชการ';
       case -1:
         return 'บัญชี';
       default:
