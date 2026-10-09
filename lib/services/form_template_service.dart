@@ -54,6 +54,9 @@ class FormTemplateService {
       FormTemplateService._(fetch);
 
   static const Duration cacheFor = Duration(minutes: 5);
+
+  /// โหลดไม่สำเร็จ → ลองใหม่ได้หลังเวลานี้ (ระหว่างนั้นใช้แม่แบบสำรอง)
+  static const Duration retryAfter = Duration(seconds: 30);
   static const Duration _timeout = Duration(seconds: 8);
 
   final TemplateRowFetcher _fetch;
@@ -113,9 +116,14 @@ class FormTemplateService {
       return resolved;
     } catch (e) {
       // ยังไม่ได้รัน form_templates.sql / เน็ตหลุด — ใช้ของเดิมที่เคยโหลด
-      // ถ้าไม่เคยโหลดเลยใช้แม่แบบเริ่มต้น (ไม่เก็บผลนี้ไว้ ครั้งหน้าลองใหม่)
+      // ถ้าไม่เคยโหลดเลยใช้แม่แบบเริ่มต้น
       debugPrint('⚠️  โหลดแม่แบบ${type.key}ไม่สำเร็จ ใช้แม่แบบสำรอง: $e');
-      return stale ?? ResolvedTemplate(fallback, TemplateSource.builtIn, null);
+      final result =
+          stale ?? ResolvedTemplate(fallback, TemplateSource.builtIn, null);
+      // ต้องเก็บไว้ด้วย ไม่งั้น cached() คืน null ตลอด ปุ่มพิมพ์จะกดไม่ได้เลย
+      // แต่ให้หมดอายุเร็ว (หลัง [retryAfter]) จะได้ลองโหลดใหม่เร็ว ๆ
+      _cache[key] = (value: result, at: time.subtract(cacheFor - retryAfter));
+      return result;
     }
   }
 

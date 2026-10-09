@@ -8,7 +8,7 @@
 import { renderDocument, type RenderContext, type RenderOptions } from '../src/forms/render';
 import { defaultLeaveTemplate, leaveContext as buildLeaveContext } from '../src/forms/leaveTemplate';
 import { LeaveFormData, schoolRecordFromRow, type Row } from '../src/leaveForm/leaveFormData';
-import { defaultTripTemplate } from '../src/forms/tripTemplate';
+import { defaultTripTemplate, tripContext as buildTripContext } from '../src/forms/tripTemplate';
 import { commonDefaults, type Block, type FormTemplate } from '../src/forms/template';
 
 export interface RenderCase {
@@ -394,6 +394,69 @@ export function computedLeaveContexts() {
         school: schoolRecordFromRow(lc.schoolRow),
       }),
     ),
+  }));
+}
+
+// ── รายการไปราชการ → ตัวแทนข้อมูล (tripContext) ───────────────────
+
+export interface TripContextCase {
+  name: string;
+  trip: Row;
+  users: Row[];
+  schoolRow: Row;
+}
+
+const tripUsers: Row[] = [
+  { id_user: 1, fullName: 'นายทดสอบ ระบบ', position: 'ครู', academicStanding: 'ชำนาญการ' },
+  { id_user: 2, fullName: 'นางสาวไม่มี วิทยฐานะ', position: '--เลือก--', academicStanding: 'ไม่มีวิทยฐานะ' },
+  { id_user: 3, fullName: 'นายครูผู้ช่วย ใหม่', position: 'ครูผู้ช่วย', academicStanding: '-' },
+  { id_user: 9, fullName: 'นายผู้อำนวยการ ใจดี', ตำแหน่งงานบริหาร: 'ผู้อำนวยการโรงเรียน' },
+];
+
+export function tripContextCases(): TripContextCase[] {
+  const school = { namePart1: 'โรงเรียนทดสอบ', namePart2: '', address: 'อ.เมือง จ.บุรีรัมย์', affiliation: 'สพม.' };
+  return [
+    {
+      name: 'ไปราชการหลายวัน มีค่าใช้จ่าย อนุมัติแล้ว',
+      trip: {
+        id_trip: 1, id_user: 1, members: [3, 1, 2, 99],
+        title: '  ประชุมพัฒนาหลักสูตร ', tripType: 'อบรม', organizer: 'สพม.บุรีรัมย์', location: 'หอประชุม',
+        province: 'จังหวัดบุรีรัมย์', docNumber: 'ศธ 04xxx/1234', docDate: '2026-10-01',
+        startDate: '2026-10-09', endDate: '2026-10-10', isHalfDay: false, halfDayPeriod: null,
+        totalDays: 2, travelMode: 'รถยนต์ราชการ', budgetSource: 'เบิกจากต้นสังกัด', estimatedCost: 1234567.891,
+        note: 'หมายเหตุ', status: 'อนุมัติ', reportSummary: 'สรุปผล', createdAt: '2026-10-08T10:30:00',
+      },
+      users: tripUsers,
+      schoolRow: school,
+    },
+    {
+      name: 'ครึ่งวันบ่าย วันเดียว ไม่มีข้อมูลเสริม',
+      trip: {
+        id_trip: 2, id_user: 2, members: [], title: 'ประชุม', tripType: '', province: 'บุรีรัมย์',
+        startDate: '2026-10-12', endDate: '2026-10-12', isHalfDay: true, halfDayPeriod: 'afternoon',
+        totalDays: '0.5', estimatedCost: '0', status: 'ไม่อนุมัติ',
+      },
+      users: tripUsers,
+      schoolRow: school,
+    },
+    {
+      name: 'พรีวิวรายการใหม่ (ยังไม่บันทึก) ไม่มีรายชื่อบุคลากร',
+      trip: {
+        id_user: 5, members: [5], title: '', tripType: 'ประชุม', organizer: null, location: '',
+        province: ' ', docDate: null, startDate: '2026-10-09', endDate: '2026-10-09',
+        isHalfDay: true, halfDayPeriod: 'morning', totalDays: null, estimatedCost: 1500,
+      },
+      users: [],
+      schoolRow: {},
+    },
+  ];
+}
+
+/** ชุดทดสอบ tripContext พร้อมผลที่ web คำนวณ */
+export function computedTripContexts() {
+  return tripContextCases().map((tc) => ({
+    ...tc,
+    context: buildTripContext(tc.trip, { school: schoolRecordFromRow(tc.schoolRow), trips: [], users: tc.users }),
   }));
 }
 

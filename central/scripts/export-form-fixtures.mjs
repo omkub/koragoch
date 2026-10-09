@@ -18,7 +18,7 @@ const central = resolve(here, '..');
 const out = resolve(central, '../test/fixtures/form_render_cases.json');
 const bundle = resolve(central, 'node_modules/.cache/form-fixtures/bundle.mjs');
 
-const { renderedCases, computedLeaveContexts } = await bundleAndImport(
+const { renderedCases, computedLeaveContexts, computedTripContexts } = await bundleAndImport(
   resolve(here, 'form-render-cases.ts'),
   bundle,
 );
@@ -29,5 +29,8 @@ mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, JSON.stringify(cases, null, 1) + '\n');
 const outContexts = resolve(dirname(out), 'leave_context_cases.json');
 writeFileSync(outContexts, JSON.stringify(contexts, null, 1) + '\n');
-console.log(`เขียน ${cases.length} กรณีลง ${out} และ ${contexts.length} กรณีลง ${outContexts} แล้ว`);
+const trips = computedTripContexts();
+const outTrips = resolve(dirname(out), 'trip_context_cases.json');
+writeFileSync(outTrips, JSON.stringify(trips, null, 1) + '\n');
+console.log(`เขียน ${cases.length} + ${contexts.length} + ${trips.length} กรณีลง ${dirname(out)} แล้ว`);
 process.exit(0);
