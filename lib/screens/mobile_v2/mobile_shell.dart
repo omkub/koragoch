@@ -88,7 +88,7 @@ class _MobileShellState extends State<MobileShell> {
           }),
         );
       case _Tab.account:
-        return const MobileProfileScreen();
+        return const MobileProfileScreen(appStyle: true);
     }
   }
 

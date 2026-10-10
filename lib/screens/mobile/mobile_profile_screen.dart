@@ -14,7 +14,11 @@ import '../../utils/school_info.dart';
 import '../../widgets/mobile_ui_switch_tile.dart';
 
 class MobileProfileScreen extends StatefulWidget {
-  const MobileProfileScreen({super.key});
+  /// หน้าตาใหม่บนมือถือ (MobileShell): ไม่มีหัวหน้าใหญ่ (แถบหัวของแอปมีแล้ว)
+  /// ออกจากระบบเป็นรายการล่างสุดแบบหน้าตั้งค่า — false = หน้าตาเดิม
+  final bool appStyle;
+
+  const MobileProfileScreen({super.key, this.appStyle = false});
 
   @override
   State<MobileProfileScreen> createState() => _MobileProfileScreenState();
@@ -410,8 +414,12 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildHeader(),
-                            const SizedBox(height: 16),
+                            if (widget.appStyle)
+                              const SizedBox(height: 16)
+                            else ...[
+                              _buildHeader(),
+                              const SizedBox(height: 16),
+                            ],
                             _buildProfileCard(),
                             const SizedBox(height: 24),
                             _buildInfoSection(),
@@ -425,10 +433,38 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
                             const SizedBox(height: 24),
                             const MobileUiSwitchTile(),
 
+                            if (widget.appStyle) ...[
+                              const SizedBox(height: 16),
+                              _buildLogoutTile(),
+                            ],
+
                             const SizedBox(height: 40),
                           ],
                         ),
                       ),
+      ),
+    );
+  }
+
+  /// ออกจากระบบ — รายการล่างสุดแบบหน้าตั้งค่า (หน้าตาใหม่)
+  Widget _buildLogoutTile() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFECACA)),
+      ),
+      child: ListTile(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        leading: const Icon(Icons.logout_rounded, color: Color(0xFFDC2626)),
+        title: Text('ออกจากระบบ',
+            style: GoogleFonts.sarabun(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFFDC2626))),
+        onTap: _logout,
       ),
     );
   }
