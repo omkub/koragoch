@@ -84,5 +84,23 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # merge หลาย PR ติดกัน รอบ deploy วิ่งพร้อมกันแล้วจบไม่ตามลำดับได้
+      # (เคยเกิด: รอบของ PR เก่าจบทีหลัง เว็บเลยกลายเป็นเวอร์ชันเก่า)
+      # deploy เฉพาะเมื่อรอบนี้ยังเป็น commit ล่าสุดของ main — มีใหม่กว่าแล้ว
+      # ให้รอบของ commit ใหม่เป็นคน deploy
+      - name: ตรวจว่ายังเป็นเวอร์ชันล่าสุดของ main
+        id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head=$(gh api "repos/${{ github.repository }}/commits/main" --jq .sha)
+          if [ "$head" = "${{ github.sha }}" ]; then
+            echo "is_latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_latest=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::ข้าม deploy — main มี commit ใหม่กว่าแล้ว ($head)"
+          fi
+
       - id: deployment
+        if: steps.latest.outputs.is_latest == 'true'
         uses: actions/deploy-pages@v4
