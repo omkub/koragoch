@@ -7,11 +7,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/firebase_service.dart';
 import '../../widgets/thai_buddhist_calendar_widget.dart';
 import '../../utils/profile_image.dart';
+import '../../widgets/leave_form_page.dart';
 
 class MobileLeaveFormScreen extends StatefulWidget {
   final Map<String, dynamic>? initialData;
   final VoidCallback? onComplete;
-  const MobileLeaveFormScreen({super.key, this.initialData, this.onComplete});
+
+  /// หน้าตาใหม่บนมือถือ (MobileShell): ฟอร์มเต็มจอ วันที่คู่กัน
+  /// ปุ่มดูตัวอย่างใบลา และปุ่มส่งติดขอบล่าง — false = หน้าตาเดิม
+  final bool appStyle;
+
+  const MobileLeaveFormScreen(
+      {super.key, this.initialData, this.onComplete, this.appStyle = false});
 
   @override
   State<MobileLeaveFormScreen> createState() => _MobileLeaveFormScreenState();
@@ -597,28 +604,30 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
   @override
   Widget build(BuildContext context) {
     final bool isAdmin = _userRole?.contains('ผู้ดูแลระบบ') == true;
+    final app = widget.appStyle;
 
-    return Material(
-      color: const Color(0xFFF4F7FC),
-      child: SafeArea(
-        child: SingleChildScrollView(
+    final scroll = SingleChildScrollView(
           controller: _scrollController,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          padding: app
+              ? const EdgeInsets.fromLTRB(16, 16, 16, 24)
+              : const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(32),
-                  boxShadow: [
-                    BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
-                        blurRadius: 24,
-                        offset: const Offset(0, 12))
-                  ],
-                ),
+                padding: app ? EdgeInsets.zero : const EdgeInsets.all(24),
+                decoration: app
+                    ? null
+                    : BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(32),
+                        boxShadow: [
+                          BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.03),
+                              blurRadius: 24,
+                              offset: const Offset(0, 12))
+                        ],
+                      ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -724,18 +733,55 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildFieldLabel("เริ่มวันที่"),
-                        _buildDatePickerField(
-                            FirebaseService.formatThaiDate(_startDate),
-                            () async {
-                          _showPremiumDatePicker(_startDate, _setStartDate);
-                        }),
-                        const SizedBox(height: 16),
-                        _buildFieldLabel("ถึงวันที่"),
-                        _buildDatePickerField(
-                            FirebaseService.formatThaiDate(_endDate), () async {
-                          _showPremiumDatePicker(_endDate, _setEndDate);
-                        }),
+                        if (app)
+                          // หน้าตาใหม่: เริ่ม / ถึง วางคู่กันเต็มความกว้าง
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildFieldLabel("เริ่มวันที่"),
+                                    _buildDatePickerField(
+                                        _shortThaiDate(_startDate),
+                                        () => _showPremiumDatePicker(
+                                            _startDate, _setStartDate),
+                                        fill: true),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildFieldLabel("ถึงวันที่"),
+                                    _buildDatePickerField(
+                                        _shortThaiDate(_endDate),
+                                        () => _showPremiumDatePicker(
+                                            _endDate, _setEndDate),
+                                        fill: true),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          )
+                        else ...[
+                          _buildFieldLabel("เริ่มวันที่"),
+                          _buildDatePickerField(
+                              FirebaseService.formatThaiDate(_startDate),
+                              () async {
+                            _showPremiumDatePicker(_startDate, _setStartDate);
+                          }),
+                          const SizedBox(height: 16),
+                          _buildFieldLabel("ถึงวันที่"),
+                          _buildDatePickerField(
+                              FirebaseService.formatThaiDate(_endDate),
+                              () async {
+                            _showPremiumDatePicker(_endDate, _setEndDate);
+                          }),
+                        ],
                         const SizedBox(height: 16),
                         _buildHalfDaySelector(),
                         const SizedBox(height: 16),
@@ -830,6 +876,11 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
                   ],
                 ),
               ),
+              if (app) ...[
+                const SizedBox(height: 16),
+                _buildPreviewButton(),
+              ],
+              if (!app) ...[
               const SizedBox(height: 32),
               Container(
                 width: double.infinity,
@@ -885,11 +936,130 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
                 ),
               ),
               const SizedBox(height: 48),
+              ],
             ],
           ),
-        ),
+        );
+
+    if (!app) {
+      return Material(
+        color: const Color(0xFFF4F7FC),
+        child: SafeArea(child: scroll),
+      );
+    }
+
+    // หน้าตาใหม่: ฟอร์มเลื่อนได้ + ปุ่มส่งติดขอบล่างเสมอ
+    return Material(
+      color: Colors.white,
+      child: Column(
+        children: [
+          Expanded(child: scroll),
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: _isSubmitting ? null : _submitForm,
+                icon: _isSubmitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2.5))
+                    : Icon(
+                        _editRequestId != null
+                            ? Icons.save_rounded
+                            : Icons.send_rounded,
+                        size: 20),
+                label: Text(
+                    _editRequestId != null ? 'บันทึกการแก้ไข' : 'ส่งใบลา',
+                    style: GoogleFonts.sarabun(
+                        fontSize: 17, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  /// 9 ต.ค. 2569 — สั้นพอให้วันที่สองช่องวางคู่กันบนจอมือถือได้
+  static String _shortThaiDate(DateTime d) {
+    const months = [
+      'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', //
+      'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
+    ];
+    return '${d.day} ${months[d.month - 1]} ${d.year + 543}';
+  }
+
+  /// ดูใบลาที่กำลังกรอก วาดจากแม่แบบที่ออกแบบใน web (หน้าเดียวกับพิมพ์)
+  Widget _buildPreviewButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFF2563EB),
+          side: const BorderSide(color: Color(0xFFBFDBFE)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+        onPressed: _openPreview,
+        icon: const Icon(Icons.description_outlined, size: 20),
+        label: Text('ดูตัวอย่างใบลา',
+            style: GoogleFonts.sarabun(
+                fontSize: 15, fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+
+  bool _openingPreview = false;
+
+  Future<void> _openPreview() async {
+    if (_openingPreview) return;
+    final user = _selectedUser ?? const <String, dynamic>{};
+    final fullName = (user['fullName'] ?? '').toString();
+    setState(() => _openingPreview = true);
+    // ประวัติการลาของผู้ลา ใช้คำนวณตารางสถิติและ "ลาครั้งล่าสุด" ในใบลา
+    final history = fullName.isEmpty
+        ? <Map<String, dynamic>>[]
+        : await _firebaseService.getMyLeaveRequestsFromSupabase(fullName);
+    if (!mounted) return;
+    setState(() => _openingPreview = false);
+    final leaf = <String, dynamic>{
+      if (_editRequestId != null) 'requestId': _editRequestId,
+      'fullName': fullName,
+      'position': user['position'] ?? '',
+      'academicStanding': user['academicStanding'] ?? '',
+      'leaveType': _selectedLeaveType ?? '',
+      'reason': _reasonController.text,
+      'startDate': _formatDate(_startDate),
+      'endDate': _formatDate(_endDate),
+      'totalDays': _calculatedTotalDays(),
+      'phone': _phoneController.text,
+      'year': _yearController.text,
+      // วันที่เขียนใบลา = วันนี้ (หรือวันที่ยื่นเดิมถ้าแก้ใบเดิม)
+      'timestamp': widget.initialData?['timestamp'] ??
+          DateTime.now().toIso8601String(),
+    };
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => LeaveFormPage(
+        leaf: leaf,
+        allUsers: _allUsers,
+        allLeaveRequests: history,
+        leaveTypeNames: _leaveTypeNames,
+      ),
+    ));
   }
 
   Widget _buildHalfDaySelector() {
@@ -1112,10 +1282,14 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
                 onChanged: (v) => onChanged(v!))),
       );
 
-  Widget _buildDatePickerField(String value, VoidCallback onTap) => InkWell(
+  /// [fill] = กว้างเต็มช่อง (หน้าตาใหม่ วางสองช่องคู่กัน)
+  Widget _buildDatePickerField(String value, VoidCallback onTap,
+          {bool fill = false}) =>
+      InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
+          width: fill ? double.infinity : null,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
           decoration: BoxDecoration(
               color: const Color(0xFFF8FAFC),

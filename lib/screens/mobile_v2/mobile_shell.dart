@@ -65,11 +65,13 @@ class _MobileShellState extends State<MobileShell> {
   Widget _page(_Tab tab) {
     switch (tab) {
       case _Tab.home:
-        return MobileHomeScreen(access: _access!, onGoTab: (i) => _go(_Tab.values[i]));
+        return MobileHomeScreen(
+            access: _access!, onGoTab: (i) => _go(_Tab.values[i]));
       case _Tab.leave:
         return MobileLeaveFormScreen(
           key: ValueKey('leave_${_editData?['requestId'] ?? 'new'}'),
           initialData: _editData,
+          appStyle: true,
           onComplete: () => setState(() {
             _editData = null;
             _historyVersion++;
