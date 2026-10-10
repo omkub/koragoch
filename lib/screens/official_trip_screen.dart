@@ -503,7 +503,7 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // เกณฑ์เดียวกับ ResponsiveLayout — แคบกว่านี้ = ใช้ MobileMainLayout
+    // เกณฑ์เดียวกับ ResponsiveLayout — แคบกว่านี้ = หน้าจอมือถือ (MobileShell)
     final isMobile = MediaQuery.of(context).size.width < 1100;
     final visible = _visibleTrips;
 
