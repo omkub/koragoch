@@ -64,7 +64,11 @@ const _pageBg = Color(0xFFF1F5F9);
     };
 
 class AttendanceScreen extends StatefulWidget {
-  const AttendanceScreen({super.key});
+  /// false = ไม่แสดงชื่อหน้า (เปิดในหน้าตาใหม่บนมือถือ ซึ่งมีแถบหัวของแอปแล้ว)
+  /// ยังแสดงเวลาเข้างาน / สาย / เลิกงาน
+  final bool showHeader;
+
+  const AttendanceScreen({super.key, this.showHeader = true});
 
   @override
   State<AttendanceScreen> createState() => _AttendanceScreenState();
@@ -195,11 +199,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('ลงเวลา',
-                        style: GoogleFonts.sarabun(
-                            fontSize: isMobile ? 22 : 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black)),
+                    if (widget.showHeader)
+                      Text('ลงเวลา',
+                          style: GoogleFonts.sarabun(
+                              fontSize: isMobile ? 22 : 28,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black)),
                     Text(
                         'เข้างาน ${_settings.workStart} · สายหลัง ${_settings.lateAfter} · เลิกงาน ${_settings.workEnd}',
                         style:
@@ -208,7 +213,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 ),
               ),
               // มือถือ: เว้นที่ให้กระดิ่งแจ้งเตือนที่ลอยอยู่มุมขวาบน
-              if (isMobile) const SizedBox(width: 48),
+              if (isMobile && widget.showHeader) const SizedBox(width: 48),
             ],
           ),
           SizedBox(height: isMobile ? 8 : 16),
@@ -216,7 +221,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         ],
       ),
     );
-    return isMobile
+    return isMobile && widget.showHeader
         ? Scaffold(
             backgroundColor: _pageBg,
             body: SafeArea(bottom: false, child: content))

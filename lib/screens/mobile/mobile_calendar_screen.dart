@@ -4,7 +4,11 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../services/firebase_service.dart';
 
 class MobileCalendarScreen extends StatefulWidget {
-  const MobileCalendarScreen({super.key});
+  /// false = ไม่แสดงแถบหัวสีน้ำเงิน (เปิดในหน้าตาใหม่ ซึ่งมีแถบหัวของแอปแล้ว)
+  /// ปุ่ม "วันนี้" ย้ายไปอยู่เหนือปฏิทินแทน
+  final bool showHeader;
+
+  const MobileCalendarScreen({super.key, this.showHeader = true});
 
   @override
   State<MobileCalendarScreen> createState() => _MobileCalendarScreenState();
@@ -72,7 +76,23 @@ class _MobileCalendarScreenState extends State<MobileCalendarScreen> {
 
             return Column(
               children: [
+                if (!widget.showHeader)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () =>
+                            setState(() => _focusedDay = DateTime.now()),
+                        icon: const Icon(Icons.today_rounded, size: 18),
+                        label: Text('วันนี้',
+                            style: GoogleFonts.sarabun(
+                                fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ),
                 // 📅 Header
+                if (widget.showHeader)
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 16),

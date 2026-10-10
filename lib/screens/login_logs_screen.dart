@@ -4,7 +4,11 @@ import 'package:intl/intl.dart';
 import '../services/firebase_service.dart';
 
 class LoginLogsScreen extends StatefulWidget {
-  const LoginLogsScreen({super.key});
+  /// หน้าตาใหม่บนมือถือ: รายการการ์ดต่อการเข้าใช้งาน แทนตารางกว้าง + คอลัมน์ข้าง
+  /// (ตัวกรองรอบงบ / ค้นหาใช้ของเดิม) — false = หน้าตาเดิม (จอคอม)
+  final bool appStyle;
+
+  const LoginLogsScreen({super.key, this.appStyle = false});
 
   @override
   State<LoginLogsScreen> createState() => _LoginLogsScreenState();
@@ -95,8 +99,122 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
     }
   }
 
+  /// หน้าตาใหม่บนมือถือ — รายการเลื่อนลงต่อเนื่อง
+  Widget _buildAppStyle() {
+    if (_loginLogsStream == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _loginLogsStream,
+      builder: (context, snapshot) {
+        final logs = (snapshot.data ?? [])
+            .where((log) => log['fullName'] != 'ผู้ดูแลระบบ')
+            .where(_matchesFilters)
+            .toList();
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          children: [
+            if (!_isRoundsLoading && _allRounds.isNotEmpty) ...[
+              _buildRoundSelector(),
+              const SizedBox(height: 10),
+            ],
+            TextField(
+              onChanged: (v) => setState(() => _searchQuery = v),
+              decoration: InputDecoration(
+                hintText: 'ค้นหาชื่อ / username',
+                hintStyle: GoogleFonts.sarabun(fontSize: 14),
+                prefixIcon: const Icon(Icons.search_rounded),
+                isDense: true,
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE0E3E6))),
+                enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE0E3E6))),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+                snapshot.connectionState == ConnectionState.waiting
+                    ? 'กำลังโหลด...'
+                    : 'การเข้าใช้งาน ${logs.length} รายการ',
+                style: GoogleFonts.sarabun(
+                    fontSize: 13, color: const Color(0xFF717783))),
+            const SizedBox(height: 8),
+            for (final log in logs.take(300)) ...[
+              _buildLogCard(log),
+              const SizedBox(height: 8),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildLogCard(Map<String, dynamic> log) {
+    final isWeb = log['platform'] == 'Web';
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE0E3E6)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: isWeb ? const Color(0xFFDFF0FF) : const Color(0xFFE8F5E9),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+                isWeb ? Icons.desktop_windows_outlined : Icons.smartphone_rounded,
+                color: isWeb ? const Color(0xFF0084FF) : Colors.green,
+                size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(log['fullName'] ?? 'ไม่ระบุชื่อ',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.sarabun(
+                        fontSize: 14, fontWeight: FontWeight.bold)),
+                Text('${log['role'] ?? 'ครู'} · ${log['username'] ?? '-'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.sarabun(
+                        fontSize: 12, color: const Color(0xFF717783))),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(_formatLogThaiDate(log),
+                  style: GoogleFonts.sarabun(fontSize: 12)),
+              Text(_formatLogClock(log),
+                  style: GoogleFonts.sarabun(
+                      fontSize: 11, color: const Color(0xFF717783))),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (widget.appStyle) {
+      return Material(
+          color: const Color(0xFFF4F7FC), child: _buildAppStyle());
+    }
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FC),
       body: Padding(

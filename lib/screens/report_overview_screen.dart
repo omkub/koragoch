@@ -8,7 +8,11 @@ import '../services/firebase_service.dart';
 import '../utils/teacher_sort.dart';
 
 class ReportOverviewScreen extends StatefulWidget {
-  const ReportOverviewScreen({super.key});
+  /// หน้าตาใหม่บนมือถือ: ไม่มีชื่อหน้าซ้ำ / ปุ่มย่อ / รายการเป็นการ์ดต่อคน
+  /// แทนตารางกว้างที่ต้องเลื่อนซ้ายขวา — false = หน้าตาเดิม
+  final bool appStyle;
+
+  const ReportOverviewScreen({super.key, this.appStyle = false});
 
   @override
   State<ReportOverviewScreen> createState() => _ReportOverviewScreenState();
@@ -142,6 +146,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
   @override
   Widget build(BuildContext context) {
     bool isMobile = MediaQuery.of(context).size.width < 1100;
+    if (widget.appStyle) return _buildAppStyle();
 
     return Material(
       color: const Color(0xFFF1F5F9),
@@ -372,6 +377,160 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                               color: const Color(0xFF64748B))))))
               .toList(),
         ),
+      ),
+    );
+  }
+
+  // ── หน้าตาใหม่บนมือถือ ──────────────────────────────────────────
+
+  Widget _buildAppStyle() {
+    Widget smallButton(IconData icon, String label, Color color,
+            VoidCallback onPressed) =>
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: onPressed,
+            icon: Icon(icon, size: 18, color: color),
+            label: Text(label,
+                style: GoogleFonts.sarabun(
+                    fontWeight: FontWeight.w700, color: color)),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Color(0xFFE2E8F0)),
+              backgroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        );
+
+    return Material(
+      color: const Color(0xFFF4F7FC),
+      child: RefreshIndicator(
+        onRefresh: _loadData,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          children: [
+            if (_selectedRound != null)
+              _buildRoundDropdown()
+            else
+              Text('กรุณาตั้งค่ารอบงบประมาณ',
+                  style:
+                      GoogleFonts.sarabun(fontSize: 14, color: Colors.blueGrey)),
+            const SizedBox(height: 12),
+            Row(children: [
+              smallButton(Icons.download_rounded, 'PDF',
+                  const Color(0xFF0F172A), _exportPdf),
+              const SizedBox(width: 10),
+              smallButton(Icons.table_view_rounded, 'Excel',
+                  const Color(0xFF047857), _exportExcel),
+            ]),
+            const SizedBox(height: 12),
+            if (_isLoading)
+              const Padding(
+                padding: EdgeInsets.all(48),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_activeRound == null)
+              _buildNoBudgetWarning()
+            else
+              for (final t in _visibleTeachers) ...[
+                _buildTeacherCard(t),
+                const SizedBox(height: 8),
+              ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// ใบลาที่อนุมัติแล้วของคนนี้ในรอบที่เลือก แยกตามประเภท
+  ({
+    Map<String, double> sick,
+    Map<String, double> personal,
+    Map<String, double> maternity,
+  }) _statsFor(Map<String, dynamic> teacher) {
+    final name = (teacher['fullName'] ?? '-').toString().trim();
+    final round = _selectedRound ?? _activeRound;
+    final approved = _allLeaves.where((l) {
+      if (round == null) return false;
+      if ((l['fullName'] ?? '').toString().trim() != name) return false;
+      final status = (l['status'] ?? '').toString();
+      final ok = status.contains('อนุญาต') ||
+          status.contains('ส่งใบลาแล้ว') ||
+          status.contains('ส่งใบแล้ว') ||
+          status.contains('อนุมัติ');
+      if (!ok) return false;
+      return FirebaseService.isDateInRange((l['startDate'] ?? '').toString(),
+          round['startDate'], round['endDate']);
+    }).toList();
+    return (
+      sick: _calcType(approved, 'ป่วย'),
+      personal: _calcType(approved, 'กิจ'),
+      maternity: _calcType(approved, 'คลอด'),
+    );
+  }
+
+  Widget _buildTeacherCard(Map<String, dynamic> teacher) {
+    final s = _statsFor(teacher);
+    final totalTimes = s.sick['times']!.toInt() +
+        s.personal['times']!.toInt() +
+        s.maternity['times']!.toInt();
+    final totalDays =
+        s.sick['days']! + s.personal['days']! + s.maternity['days']!;
+
+    Widget stat(String label, Map<String, double> v, Color color) => Expanded(
+          child: Column(
+            children: [
+              Text(label,
+                  style: GoogleFonts.sarabun(fontSize: 12, color: color)),
+              Text('${_formatNumber(v['days']!)} วัน',
+                  style: GoogleFonts.sarabun(
+                      fontSize: 15, fontWeight: FontWeight.w800, color: color)),
+              Text('${_formatNumber(v['times']!)} ครั้ง',
+                  style: GoogleFonts.sarabun(
+                      fontSize: 11, color: Colors.blueGrey)),
+            ],
+          ),
+        );
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text((teacher['fullName'] ?? '-').toString(),
+                        style: GoogleFonts.sarabun(
+                            fontSize: 15, fontWeight: FontWeight.bold)),
+                    Text(_getPositionAndDept(teacher),
+                        style: GoogleFonts.sarabun(
+                            fontSize: 12, color: Colors.blueGrey)),
+                  ],
+                ),
+              ),
+              Text('รวม $totalTimes ครั้ง / ${_formatNumber(totalDays)} วัน',
+                  style: GoogleFonts.sarabun(
+                      fontSize: 12, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(children: [
+            stat('ป่วย', s.sick, Colors.blue.shade700),
+            stat('กิจ', s.personal, Colors.orange.shade700),
+            stat('คลอด', s.maternity, Colors.purple.shade700),
+          ]),
+        ],
       ),
     );
   }

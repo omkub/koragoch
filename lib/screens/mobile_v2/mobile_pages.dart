@@ -52,25 +52,26 @@ Future<void> openMobileMenu(BuildContext context, MobileShortcut s) {
   ));
 }
 
+/// หน้าของแต่ละเมนู — ไม่มีชื่อหน้า / ปุ่มย้อนกลับซ้ำกับแถบหัวของ MobileSubPage
 Widget _pageFor(BuildContext context, int menu) {
-  void back() => Navigator.of(context).maybePop();
   switch (menu) {
     case 0:
       return const DashboardScreen();
     case 1:
-      return const ReportOverviewScreen();
+      return const ReportOverviewScreen(appStyle: true);
     case 4:
-      return UserManagementScreen(onBack: back);
+      // ไม่ส่ง onBack = ไม่มีปุ่มย้อนกลับซ้ำ (แถบหัวมีแล้ว)
+      return const UserManagementScreen();
     case 5:
-      return PersonnelScreen(onBack: back);
+      return const PersonnelScreen();
     case 7:
-      return const LoginLogsScreen();
+      return const LoginLogsScreen(appStyle: true);
     case 8:
-      return const MobileCalendarScreen();
+      return const MobileCalendarScreen(showHeader: false);
     case 9:
       return const OfficialTripScreen(showHeader: false);
     case 10:
-      return const AttendanceScreen();
+      return const AttendanceScreen(showHeader: false);
   }
   return const SizedBox.shrink();
 }
