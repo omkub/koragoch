@@ -11,11 +11,10 @@ import 'mobile_password_reset_screen.dart'; // 🔐 เพิ่ม Import ส�
 import '../user_management_screen.dart'; // 👤 เพิ่มหน้าจัดการผู้ใช้ครับ
 import '../../utils/profile_image.dart';
 import '../../utils/school_info.dart';
-import '../../widgets/mobile_ui_switch_tile.dart';
-
 class MobileProfileScreen extends StatefulWidget {
   /// หน้าตาใหม่บนมือถือ (MobileShell): ไม่มีหัวหน้าใหญ่ (แถบหัวของแอปมีแล้ว)
-  /// ออกจากระบบเป็นรายการล่างสุดแบบหน้าตั้งค่า — false = หน้าตาเดิม
+  /// ออกจากระบบเป็นรายการล่างสุดแบบหน้าตั้งค่า
+  /// false = มีหัวหน้า "โปรไฟล์ส่วนตัว" + ปุ่มออกจากระบบมุมขวา (ใช้ในจอคอม)
   final bool appStyle;
 
   const MobileProfileScreen({super.key, this.appStyle = false});
@@ -429,12 +428,8 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
                             if (_userRole.contains('ผู้ดูแลระบบ'))
                               _buildAdminSection(),
 
-                            // สลับหน้าตาใหม่ / เดิม ระหว่างทยอยปรับหน้าจอมือถือ
-                            const SizedBox(height: 24),
-                            const MobileUiSwitchTile(),
-
                             if (widget.appStyle) ...[
-                              const SizedBox(height: 16),
+                              const SizedBox(height: 24),
                               _buildLogoutTile(),
                             ],
 

@@ -1,5 +1,5 @@
-/// หน้าจอมือถือแบบใหม่ — ค่าเริ่มต้นของทุกเครื่อง ปิดกลับไปแบบเดิมได้ที่หน้าบัญชี
-/// (MobileUiPreference)
+/// หน้าจอมือถือ (จอแคบกว่า 1100px — ดู ResponsiveLayout)
+/// แบบเดิม (MobileMainLayout) ถูกลบแล้ว — ย้อนดูได้ที่ป้าย before-mobile-redesign
 ///
 /// โครงแบบแอปมือถือ:
 ///   - แถบล่าง 4 ปุ่ม: หน้าหลัก · ส่งใบลา · ประวัติ · บัญชี
@@ -72,7 +72,6 @@ class _MobileShellState extends State<MobileShell> {
         return MobileLeaveFormScreen(
           key: ValueKey('leave_${_editData?['requestId'] ?? 'new'}'),
           initialData: _editData,
-          appStyle: true,
           onComplete: () => setState(() {
             _editData = null;
             _historyVersion++;
