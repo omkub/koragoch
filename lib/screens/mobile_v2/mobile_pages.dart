@@ -68,7 +68,7 @@ Widget _pageFor(BuildContext context, int menu) {
     case 8:
       return const MobileCalendarScreen();
     case 9:
-      return const OfficialTripScreen();
+      return const OfficialTripScreen(showHeader: false);
     case 10:
       return const AttendanceScreen();
   }

@@ -106,7 +106,12 @@ class OfficialTripScreen extends StatefulWidget {
   final VoidCallback? onCreate;
   final ValueChanged<Map<String, dynamic>>? onEdit;
 
-  const OfficialTripScreen({super.key, this.onCreate, this.onEdit});
+  /// false = ไม่แสดงหัวหน้า (เปิดในหน้าตาใหม่บนมือถือ ซึ่งมีแถบหัวของแอปแล้ว)
+  /// โหลดใหม่ด้วยการดึงรายการลงแทนปุ่มรีเฟรช
+  final bool showHeader;
+
+  const OfficialTripScreen(
+      {super.key, this.onCreate, this.onEdit, this.showHeader = true});
 
   @override
   State<OfficialTripScreen> createState() => _OfficialTripScreenState();
@@ -509,8 +514,10 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildHeader(isMobile),
-          SizedBox(height: isMobile ? 12 : 20),
+          if (widget.showHeader) ...[
+            _buildHeader(isMobile),
+            SizedBox(height: isMobile ? 12 : 20),
+          ],
           _buildFilters(isMobile),
           SizedBox(height: isMobile ? 12 : 16),
           Expanded(child: _buildBody(visible, isMobile)),
@@ -691,12 +698,16 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
             style: GoogleFonts.sarabun(color: _muted, fontSize: 15)),
       );
     }
-    return ListView.separated(
-      // มือถือ: เว้นท้ายรายการไม่ให้ปุ่มลอยบังรายการสุดท้าย
-      padding: EdgeInsets.only(bottom: isMobile ? 96 : 32),
-      itemCount: visible.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (_, i) => _buildTripCard(visible[i]),
+    return RefreshIndicator(
+      onRefresh: _loadTrips,
+      child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
+        // มือถือ: เว้นท้ายรายการไม่ให้ปุ่มลอยบังรายการสุดท้าย
+        padding: EdgeInsets.only(bottom: isMobile ? 96 : 32),
+        itemCount: visible.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        itemBuilder: (_, i) => _buildTripCard(visible[i]),
+      ),
     );
   }
 
