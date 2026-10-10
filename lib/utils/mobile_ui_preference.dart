@@ -1,10 +1,10 @@
-/// สวิตช์ "หน้าตาใหม่บนมือถือ" — เลือกได้ต่อเครื่อง ระหว่างที่ทยอยปรับหน้าจอมือถือ
+/// สวิตช์ "หน้าตาใหม่บนมือถือ" — เลือกได้ต่อเครื่อง
 ///
-/// ปิด (ค่าเริ่มต้น) = หน้าจอมือถือแบบเดิม (MobileMainLayout)
-/// เปิด = หน้าจอมือถือแบบใหม่ (MobileShell) — ยังอยู่ระหว่างพัฒนา
+/// เปิด (ค่าเริ่มต้น ตั้งแต่พาร์ท 8) = หน้าจอมือถือแบบใหม่ (MobileShell)
+/// ปิด = กลับไปใช้หน้าจอมือถือแบบเดิม (MobileMainLayout)
 ///
-/// เก็บใน SharedPreferences ของเครื่อง จึงเปิดลองเฉพาะเครื่องตัวเองได้
-/// คนอื่นยังเห็นแบบเดิม เมื่อเปิดใช้จริงทุกคน (พาร์ท 8) ไฟล์นี้จะถูกลบ
+/// เก็บใน SharedPreferences ของเครื่อง — เครื่องที่เคยกดปิดไว้จะยังเป็นแบบเดิม
+/// เมื่อใช้หน้าตาใหม่จริงจนมั่นใจแล้ว ค่อยลบหน้าจอเดิม สวิตช์ และไฟล์นี้ทิ้ง
 library;
 
 import 'package:flutter/foundation.dart';
@@ -16,7 +16,7 @@ class MobileUiPreference {
   static const _key = 'mobile_ui_v2';
 
   /// true = ใช้หน้าตาใหม่ — หน้าจอที่ฟังค่านี้จะสลับให้ทันทีเมื่อเปลี่ยน
-  static final ValueNotifier<bool> useNewUi = ValueNotifier(false);
+  static final ValueNotifier<bool> useNewUi = ValueNotifier(true);
 
   static bool _loaded = false;
 
@@ -26,9 +26,9 @@ class MobileUiPreference {
     _loaded = true;
     try {
       final prefs = await SharedPreferences.getInstance();
-      useNewUi.value = prefs.getBool(_key) ?? false;
+      useNewUi.value = prefs.getBool(_key) ?? true;
     } catch (e) {
-      debugPrint('⚠️  อ่านค่าหน้าตามือถือไม่สำเร็จ ใช้แบบเดิม: $e');
+      debugPrint('⚠️  อ่านค่าหน้าตามือถือไม่สำเร็จ ใช้หน้าตาใหม่: $e');
     }
   }
 

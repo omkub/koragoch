@@ -30,13 +30,13 @@ class MobileUiSwitchTile extends StatelessWidget {
           activeTrackColor: const Color(0xFF2563EB),
           secondary: const Icon(Icons.auto_awesome_rounded,
               color: Color(0xFF2563EB)),
-          title: Text('หน้าตาใหม่บนมือถือ (ทดลอง)',
+          title: Text('หน้าตาใหม่บนมือถือ',
               style: GoogleFonts.sarabun(
                   fontSize: 15, fontWeight: FontWeight.w600)),
           subtitle: Text(
               on
-                  ? 'กำลังใช้หน้าตาใหม่ — ปิดเพื่อกลับไปแบบเดิม'
-                  : 'เปิดเพื่อลองหน้าตาใหม่ เฉพาะเครื่องนี้',
+                  ? 'กำลังใช้หน้าตาใหม่ — ปิดเพื่อกลับไปแบบเดิม (เฉพาะเครื่องนี้)'
+                  : 'กำลังใช้หน้าตาเดิม — เปิดเพื่อใช้หน้าตาใหม่',
               style: GoogleFonts.sarabun(
                   fontSize: 12, color: const Color(0xFF64748B))),
           shape: RoundedRectangleBorder(
