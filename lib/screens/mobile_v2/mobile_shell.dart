@@ -12,11 +12,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../widgets/notification_bell.dart';
-import '../mobile/mobile_history_screen.dart';
 import '../mobile/mobile_leave_form_screen.dart';
 import '../mobile/mobile_profile_screen.dart';
 import 'menu_access.dart';
 import 'mobile_home_screen.dart';
+import 'mobile_leave_history.dart';
 import 'mobile_pages.dart';
 
 enum _Tab { home, leave, history, account }
@@ -79,8 +79,9 @@ class _MobileShellState extends State<MobileShell> {
           }),
         );
       case _Tab.history:
-        return MobileHistoryScreen(
+        return MobileLeaveHistory(
           key: ValueKey('history_$_historyVersion'),
+          access: _access!,
           onEdit: (data) => setState(() {
             _editData = data;
             _tab = _Tab.leave;
