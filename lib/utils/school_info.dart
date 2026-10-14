@@ -11,6 +11,7 @@
 library;
 
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// ข้อมูลโรงเรียนหนึ่งแห่ง
@@ -125,6 +126,18 @@ class SchoolInfo {
   static SchoolRecord _current = SchoolRecord.fallback;
   static bool _loaded = false;
   static bool _isSuperAdmin = false;
+  static bool _oldMobileUi = false;
+
+  /// เก็บค่าล่าสุดไว้ในเครื่อง — โหลดจากฐานข้อมูลไม่ได้ (เน็ตช้า/หลุด)
+  /// จะได้ไม่สลับหน้าตาไปมาระหว่างการเปิดแอปแต่ละครั้ง
+  static const _oldMobileUiKey = 'schoolMobileUiOld';
+
+  /// โรงเรียนนี้ใช้หน้าจอมือถือแบบเดิม (แถบล่าง 9 ปุ่ม) หรือไม่
+  ///
+  /// ตั้งที่เว็บส่วนกลาง (Schools.mobile_ui — supabase/school_mobile_ui.sql)
+  /// ไม่มีคอลัมน์ / ไม่มีค่า = แบบใหม่ ค่าอ่านตอน [load] ResponsiveLayout
+  /// จำค่าไว้ตลอดการเปิดแอป จึงมีผลเมื่อเปิดแอปครั้งถัดไป
+  static bool get useOldMobileUi => _oldMobileUi;
 
   /// โรงเรียนที่ระบบกำลังใช้งานอยู่
   static SchoolRecord get current => _current;
@@ -184,8 +197,14 @@ class SchoolInfo {
           await query.order('id_school').limit(1).timeout(timeout);
 
       if (rows.isNotEmpty) {
-        _current = SchoolRecord.fromRow(Map<String, dynamic>.from(rows.first));
+        final row = Map<String, dynamic>.from(rows.first);
+        _current = SchoolRecord.fromRow(row);
+        _oldMobileUi = row['mobile_ui']?.toString() == 'old';
         _loaded = true;
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool(_oldMobileUiKey, _oldMobileUi);
+        } catch (_) {}
         debugPrint('✅ โหลดข้อมูลโรงเรียนแล้ว: ${_current.fullName} '
             '(id_school=${_current.idSchool})');
         return;
@@ -196,6 +215,12 @@ class SchoolInfo {
       // ยังไม่ได้สร้างตาราง หรือเน็ตหลุด — ใบลายังพิมพ์ได้ด้วยค่าสำรอง
       debugPrint('⚠️  โหลดข้อมูลโรงเรียนไม่สำเร็จ ใช้ค่าสำรองแทน: $e');
     }
+
+    // อ่านจากฐานข้อมูลไม่ได้ — ใช้หน้าตาเดียวกับครั้งก่อนในเครื่องนี้
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _oldMobileUi = prefs.getBool(_oldMobileUiKey) ?? false;
+    } catch (_) {}
   }
 
   /// ล้างค่าที่โหลดไว้ ใช้ตอนออกจากระบบ
@@ -206,6 +231,7 @@ class SchoolInfo {
     _current = SchoolRecord.fallback;
     _loaded = false;
     _isSuperAdmin = false;
+    _oldMobileUi = false;
   }
 
   // ── ค่าที่หน้าจอต่าง ๆ เรียกใช้ ─────────────────────────────────

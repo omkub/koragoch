@@ -13,9 +13,12 @@ class MobileLeaveFormScreen extends StatefulWidget {
   final Map<String, dynamic>? initialData;
   final VoidCallback? onComplete;
 
-  /// ฟอร์มส่งใบลาบนมือถือ (แท็บส่งใบลาใน MobileShell): ฟอร์มเต็มจอ วันที่คู่กัน
-  /// ปุ่มดูตัวอย่างใบลา และปุ่มส่งติดขอบล่าง
-  const MobileLeaveFormScreen({super.key, this.initialData, this.onComplete});
+  /// หน้าตาใหม่บนมือถือ (MobileShell): ฟอร์มเต็มจอ วันที่คู่กัน
+  /// ปุ่มดูตัวอย่างใบลา และปุ่มส่งติดขอบล่าง — false = หน้าตาเดิม
+  final bool appStyle;
+
+  const MobileLeaveFormScreen(
+      {super.key, this.initialData, this.onComplete, this.appStyle = false});
 
   @override
   State<MobileLeaveFormScreen> createState() => _MobileLeaveFormScreenState();
@@ -601,13 +604,31 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
   @override
   Widget build(BuildContext context) {
     final bool isAdmin = _userRole?.contains('ผู้ดูแลระบบ') == true;
+    final app = widget.appStyle;
+
     final scroll = SingleChildScrollView(
           controller: _scrollController,
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          padding: app
+              ? const EdgeInsets.fromLTRB(16, 16, 16, 24)
+              : const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
+              Container(
+                padding: app ? EdgeInsets.zero : const EdgeInsets.all(24),
+                decoration: app
+                    ? null
+                    : BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(32),
+                        boxShadow: [
+                          BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.03),
+                              blurRadius: 24,
+                              offset: const Offset(0, 12))
+                        ],
+                      ),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (isAdmin) ...[
@@ -712,8 +733,9 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // เริ่ม / ถึง วางคู่กันเต็มความกว้าง
-                        Row(
+                        if (app)
+                          // หน้าตาใหม่: เริ่ม / ถึง วางคู่กันเต็มความกว้าง
+                          Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Expanded(
@@ -744,7 +766,22 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
                                 ),
                               ),
                             ],
-                          ),
+                          )
+                        else ...[
+                          _buildFieldLabel("เริ่มวันที่"),
+                          _buildDatePickerField(
+                              FirebaseService.formatThaiDate(_startDate),
+                              () async {
+                            _showPremiumDatePicker(_startDate, _setStartDate);
+                          }),
+                          const SizedBox(height: 16),
+                          _buildFieldLabel("ถึงวันที่"),
+                          _buildDatePickerField(
+                              FirebaseService.formatThaiDate(_endDate),
+                              () async {
+                            _showPremiumDatePicker(_endDate, _setEndDate);
+                          }),
+                        ],
                         const SizedBox(height: 16),
                         _buildHalfDaySelector(),
                         const SizedBox(height: 16),
@@ -838,13 +875,80 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
                               ]))),
                   ],
                 ),
-              const SizedBox(height: 16),
-              _buildPreviewButton(),
+              ),
+              if (app) ...[
+                const SizedBox(height: 16),
+                _buildPreviewButton(),
+              ],
+              if (!app) ...[
+              const SizedBox(height: 32),
+              Container(
+                width: double.infinity,
+                height: 60,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: const LinearGradient(
+                      colors: [Color(0xFF3B82F6), Color(0xFF2563EB)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight),
+                  boxShadow: [
+                    BoxShadow(
+                        color: const Color(0xFF2563EB).withValues(alpha: 0.3),
+                        blurRadius: 15,
+                        offset: const Offset(0, 8))
+                  ],
+                ),
+                child: ElevatedButton(
+                  onPressed: _isSubmitting ? null : _submitForm,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    foregroundColor: Colors.white,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
+                  ),
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 3))
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                                _editRequestId != null
+                                    ? "อัพเดตข้อมูล"
+                                    : "ส่งใบลาเข้าระบบ",
+                                style: GoogleFonts.sarabun(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5)),
+                            const SizedBox(width: 8),
+                            Icon(
+                                _editRequestId != null
+                                    ? Icons.save_rounded
+                                    : Icons.send_rounded,
+                                size: 20,
+                                color: Colors.white),
+                          ],
+                        ),
+                ),
+              ),
+              const SizedBox(height: 48),
+              ],
             ],
           ),
         );
 
-    // ฟอร์มเลื่อนได้ + ปุ่มส่งติดขอบล่างเสมอ
+    if (!app) {
+      return Material(
+        color: const Color(0xFFF4F7FC),
+        child: SafeArea(child: scroll),
+      );
+    }
+
+    // หน้าตาใหม่: ฟอร์มเลื่อนได้ + ปุ่มส่งติดขอบล่างเสมอ
     return Material(
       color: Colors.white,
       child: Column(
