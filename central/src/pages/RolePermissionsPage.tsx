@@ -7,6 +7,7 @@ import {
   type Role,
   type School,
 } from '../supabase';
+import MenuVisibilityPanel from './MenuVisibilityPanel';
 
 type Grid = Record<string, boolean>; // `${id_role}:${item_key}` → allowed
 
@@ -20,6 +21,7 @@ const cellKey = (role: number, item: string) => `${role}:${item}`;
  * แม้เคยเปิดรายคนไว้ก็ตาม
  */
 export default function RolePermissionsPage() {
+  const [tab, setTab] = useState<'ceiling' | 'menus'>('ceiling');
   const [schools, setSchools] = useState<School[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [items, setItems] = useState<PermissionItem[]>([]);
@@ -104,10 +106,41 @@ export default function RolePermissionsPage() {
   const countFor = (role: number) =>
     items.filter((i) => grid[cellKey(role, i.key)]).length;
 
+  function switchTab(next: 'ceiling' | 'menus') {
+    if (next === tab) return;
+    if (tab === 'ceiling' && changed.length && !confirm('ยังไม่ได้บันทึกเพดานที่แก้ไว้ — ทิ้งการแก้?')) return;
+    if (tab === 'ceiling') setGrid(saved);
+    setTab(next);
+  }
+
+  const tabs = (
+    <div className="seg-tabs">
+      <button className={tab === 'ceiling' ? 'active' : ''} onClick={() => switchTab('ceiling')}>
+        เพดานสิทธิ์
+      </button>
+      <button className={tab === 'menus' ? 'active' : ''} onClick={() => switchTab('menus')}>
+        การมองเห็นเมนู
+      </button>
+    </div>
+  );
+
+  if (tab === 'menus') {
+    return (
+      <>
+        <div className="row">
+          <h1>เพดานสิทธิ์</h1>
+          {tabs}
+        </div>
+        <MenuVisibilityPanel roles={roles} />
+      </>
+    );
+  }
+
   return (
     <>
       <div className="row">
         <h1>เพดานสิทธิ์</h1>
+        {tabs}
         <select value={schoolId ?? ''} onChange={(e) => setSchoolId(Number(e.target.value))}>
           {schools.map((s) => (
             <option key={s.id_school} value={s.id_school}>{schoolName(s)}</option>
