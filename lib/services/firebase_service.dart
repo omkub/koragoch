@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../utils/school_info.dart';
+import '../utils/staff_status.dart';
 import '../utils/web_platform.dart' as platform;
 
 class FirebaseService {
@@ -478,6 +479,36 @@ class FirebaseService {
   // ดึงรายชื่อครูแบบครั้งเดียว — อ่านจาก Supabase
   Future<List<Map<String, dynamic>>> getUsers() async {
     return getUsersFromSupabase();
+  }
+
+  /// รายชื่อที่ใช้ทำงานวันนี้ (เลือกคนส่งใบลาแทน, หน้าบุคลากร, ฯลฯ):
+  /// เฉพาะบุคลากรที่ยังปฏิบัติงาน ไม่รวมบัญชีผู้ดูแลส่วนกลาง — ดู [StaffStatus]
+  ///
+  /// หน้าที่แสดงข้อมูลย้อนหลัง (ประวัติใบลา, ปฏิทิน, ประวัติล็อกอิน) ใช้
+  /// [getUsers] ที่มีทุกคน ชื่อในใบลาเก่าจะได้ไม่หาย
+  Future<List<Map<String, dynamic>>> getActiveUsers() async =>
+      (await getUsersFromSupabase()).where(StaffStatus.isListed).toList();
+
+  Stream<List<Map<String, dynamic>>> getActiveUsersStream() =>
+      Stream.fromFuture(getActiveUsers());
+
+  /// สถานะบุคลากรของคนที่ล็อกอินอยู่ (active / resigned / retired / transferred)
+  ///
+  /// null = ไม่รู้ (ยังไม่ได้รัน staff_status.sql / ต่อไม่ได้) — ผู้เรียกต้อง
+  /// ถือว่าใช้งานได้ตามเดิม ฐานข้อมูลเป็นตัวกันจริงอยู่แล้ว
+  static Future<String?> myEmploymentStatus() async {
+    final client = _supabaseIfReady;
+    if (client == null) return null;
+    try {
+      final result = await client
+          .rpc('my_employment_status')
+          .timeout(const Duration(seconds: 8));
+      final s = result?.toString().trim() ?? '';
+      return s.isEmpty ? null : s;
+    } catch (e) {
+      debugPrint('ℹ️  อ่านสถานะบุคลากรไม่ได้ (ยังไม่ได้รัน staff_status.sql?): $e');
+      return null;
+    }
   }
 
   // เพิ่มรายชื่อครูคนใหม่ลงฐานข้อมูลครับ 🏎️🏆

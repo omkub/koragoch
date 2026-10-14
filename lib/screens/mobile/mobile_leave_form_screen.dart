@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/firebase_service.dart';
 import '../../widgets/thai_buddhist_calendar_widget.dart';
 import '../../utils/profile_image.dart';
+import '../../utils/staff_status.dart';
 import '../../widgets/leave_form_page.dart';
 
 class MobileLeaveFormScreen extends StatefulWidget {
@@ -640,7 +641,10 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
                                   child: CircularProgressIndicator(
                                       strokeWidth: 2)))
                           : _buildSearchableDropdown(
+                              // เลือกได้เฉพาะคนที่ยังปฏิบัติงาน
+                              // (_allUsers มีทุกคน ไว้เปิดใบลาเก่า)
                               _allUsers
+                                  .where(StaffStatus.isListed)
                                   .map((u) => u['fullName']?.toString() ?? '')
                                   .toList(),
                               (val) => _fetchUserData(val),
