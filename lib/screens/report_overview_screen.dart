@@ -5,7 +5,9 @@ import 'dart:typed_data';
 import '../utils/web_platform.dart' as platform;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
+import '../utils/staff_status.dart';
 import '../utils/teacher_sort.dart';
+import '../widgets/leave_form_data.dart';
 
 class ReportOverviewScreen extends StatefulWidget {
   /// หน้าตาใหม่บนมือถือ: ไม่มีชื่อหน้าซ้ำ / ปุ่มย่อ / รายการเป็นการ์ดต่อคน
@@ -141,7 +143,18 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
 
   // ตรรกะการเรียง (กลุ่มสาระ → บริหาร → วิทยฐานะ → ชื่อ) ย้ายไปอยู่ที่
   // lib/utils/teacher_sort.dart แล้ว เพื่อให้หน้าบุคลากรใช้ชุดเดียวกัน
-  List<Map<String, dynamic>> get _visibleTeachers => sortedTeachers(_teachers);
+  //
+  // คนที่ลาออก/เกษียณ/ย้าย นับเฉพาะปีงบประมาณที่ยังปฏิบัติงานอยู่ (ดู
+  // StaffStatus.activeDuring) — เลือกรอบเก่าก็ยังเห็นชื่อ เลือกปีงบถัดไปจะหายไป
+  // รายการเงา (มีใบลาแต่ไม่มีในทะเบียน) แสดงเสมอเหมือนเดิม
+  List<Map<String, dynamic>> get _visibleTeachers {
+    final round = _selectedRound ?? _activeRound;
+    final roundStart = LeaveFormData.parseDate(round?['startDate']);
+    if (roundStart == null) return sortedTeachers(_teachers);
+    final fyStart = StaffStatus.fiscalYearStart(roundStart);
+    return sortedTeachers(_teachers.where((t) =>
+        t['isShadow'] == true || StaffStatus.activeDuring(t, fyStart)));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1091,10 +1104,16 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
   String _getPositionAndDept(Map<String, dynamic> teacher) {
     final pos = (teacher['position'] ?? '-').toString();
     final dept = (teacher['department'] ?? '').toString().trim();
-    if (dept.isEmpty || dept == '-') {
-      return pos;
+    final base = (dept.isEmpty || dept == '-') ? pos : '$pos ($dept)';
+    // คนพ้นสภาพที่ยังอยู่ในรายงานปีงบนั้น — บอกให้รู้ว่าตอนนี้ไม่อยู่แล้ว
+    if (teacher['isShadow'] == true || StaffStatus.isActive(teacher)) {
+      return base;
     }
-    return '$pos ($dept)';
+    final left = StaffStatus.leftDateOf(teacher);
+    final when = left == null
+        ? ''
+        : ' ${FirebaseService.formatThaiDate(left)}';
+    return '$base · ${StaffStatus.label(StaffStatus.statusOf(teacher))}$when';
   }
 
   Widget _buildValueCell(String v1, String v2,
