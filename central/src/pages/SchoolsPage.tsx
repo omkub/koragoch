@@ -1,8 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { schoolName, supabase, type MobileUi, type School } from '../supabase';
+import { schoolName, supabase, type MobileUi, type Role, type School } from '../supabase';
 import LeaveHeaderPreview from './LeaveHeaderPreview';
 
-type SchoolForm = Omit<School, 'id_school' | 'fullName' | 'mobile_ui'>;
+type SchoolForm = Omit<School, 'id_school' | 'fullName' | 'mobile_ui' | 'mobile_ui_by_role'>;
+
+/** หน้าจอมือถือรายสิทธิ์ { ID_Roles: new|old } — ไม่มีคีย์ = ตามโรงเรียน */
+type ByRole = Record<string, MobileUi>;
 
 const MOBILE_UI_LABEL: Record<MobileUi, string> = {
   new: 'แบบใหม่ (แถบล่าง 4 ปุ่ม)',
@@ -41,16 +44,35 @@ export default function SchoolsPage() {
   const [editing, setEditing] = useState<number | 'new' | null>(null);
   const [form, setForm] = useState<SchoolForm>(EMPTY);
   const [mobileUi, setMobileUi] = useState<MobileUi>('new');
+  const [byRole, setByRole] = useState<ByRole>({});
+  const [roles, setRoles] = useState<Role[]>([]);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // ยังไม่รัน school_mobile_ui.sql = ไม่มีคอลัมน์ ส่งค่าไปจะบันทึกไม่ผ่านทั้งแถว
+  // ยังไม่รัน school_mobile_ui.sql / school_mobile_ui_by_role.sql = ไม่มีคอลัมน์
+  // ส่งค่าไปจะบันทึกไม่ผ่านทั้งแถว
   const hasMobileUi = schools.some((s) => 'mobile_ui' in s);
+  const hasByRole = schools.some((s) => 'mobile_ui_by_role' in s);
 
   async function load() {
-    const { data, error } = await supabase.from('Schools').select('*').order('id_school');
-    if (error) setMessage({ text: error.message, error: true });
-    else setSchools(data as School[]);
+    const [s, r] = await Promise.all([
+      supabase.from('Schools').select('*').order('id_school'),
+      supabase.from('roles').select('ID_Roles, Accessrights').order('ID_Roles'),
+    ]);
+    if (s.error) setMessage({ text: s.error.message, error: true });
+    else setSchools(s.data as School[]);
+    if (!r.error) setRoles(r.data as Role[]);
+  }
+
+  const roleName = (id: string) => roles.find((r) => String(r.ID_Roles) === id)?.Accessrights ?? `สิทธิ์ ${id}`;
+
+  /** สรุปในตาราง เช่น "แบบเดิม · ผู้ดูแลระบบ: แบบใหม่" */
+  function mobileUiSummary(s: School) {
+    const base = s.mobile_ui === 'old' ? 'แบบเดิม' : 'แบบใหม่';
+    const overrides = Object.entries(s.mobile_ui_by_role ?? {}).map(
+      ([id, ui]) => `${roleName(id)}: ${ui === 'old' ? 'แบบเดิม' : 'แบบใหม่'}`,
+    );
+    return [base, ...overrides].join(' · ');
   }
 
   useEffect(() => {
@@ -63,6 +85,7 @@ export default function SchoolsPage() {
       setEditing('new');
       setForm(EMPTY);
       setMobileUi('new');
+      setByRole({});
       return;
     }
     setEditing(school.id_school);
@@ -70,6 +93,14 @@ export default function SchoolsPage() {
     for (const f of FIELDS) next[f.key] = school[f.key] ?? '';
     setForm(next);
     setMobileUi(school.mobile_ui === 'old' ? 'old' : 'new');
+    setByRole({ ...(school.mobile_ui_by_role ?? {}) });
+  }
+
+  function setRoleUi(id: number, value: MobileUi | '') {
+    const next = { ...byRole };
+    if (value) next[String(id)] = value;
+    else delete next[String(id)];
+    setByRole(next);
   }
 
   async function save(e: FormEvent) {
@@ -79,9 +110,10 @@ export default function SchoolsPage() {
       return;
     }
     setBusy(true);
-    const record: Record<string, string | null> = { updatedAt: new Date().toISOString() };
+    const record: Record<string, string | ByRole | null> = { updatedAt: new Date().toISOString() };
     for (const f of FIELDS) record[f.key] = form[f.key]?.trim() || null;
     if (hasMobileUi) record.mobile_ui = mobileUi;
+    if (hasByRole) record.mobile_ui_by_role = byRole;
 
     const { error } =
       editing === 'new'
@@ -140,6 +172,28 @@ export default function SchoolsPage() {
                     : 'ต้องรัน supabase/school_mobile_ui.sql ก่อน (ตอนนี้ทุกโรงเรียนใช้แบบใหม่)'}
                 </span>
               </label>
+              {roles.map((r) => (
+                <label key={r.ID_Roles}>
+                  หน้าจอมือถือ — {r.Accessrights}
+                  <select
+                    value={byRole[String(r.ID_Roles)] ?? ''}
+                    disabled={!hasByRole}
+                    onChange={(e) => setRoleUi(r.ID_Roles, e.target.value as MobileUi | '')}
+                  >
+                    <option value="">
+                      ตามโรงเรียน ({mobileUi === 'old' ? 'แบบเดิม' : 'แบบใหม่'})
+                    </option>
+                    {(Object.keys(MOBILE_UI_LABEL) as MobileUi[]).map((k) => (
+                      <option key={k} value={k}>
+                        {MOBILE_UI_LABEL[k]}
+                      </option>
+                    ))}
+                  </select>
+                  {!hasByRole && (
+                    <span className="small muted">ต้องรัน supabase/school_mobile_ui_by_role.sql ก่อน</span>
+                  )}
+                </label>
+              ))}
             </div>
             {/* อัปเดตทันทีที่พิมพ์ — เห็นก่อนบันทึกว่าหัวใบลาจะออกมาหน้าตาแบบไหน */}
             <LeaveHeaderPreview school={{ ...form, fullName: null }} />
@@ -172,7 +226,7 @@ export default function SchoolsPage() {
                 <td>{schoolName(s)}</td>
                 <td>{s.affiliation || '-'}</td>
                 <td>{[s.province, s.district, s.subdistrict].filter(Boolean).join(' / ') || '-'}</td>
-                <td>{s.mobile_ui === 'old' ? 'แบบเดิม' : 'แบบใหม่'}</td>
+                <td>{mobileUiSummary(s)}</td>
                 <td className="num">
                   <button className="secondary small" onClick={() => startEdit(s)}>แก้ไข</button>
                 </td>

@@ -134,8 +134,9 @@ class SchoolInfo {
 
   /// โรงเรียนนี้ใช้หน้าจอมือถือแบบเดิม (แถบล่าง 9 ปุ่ม) หรือไม่
   ///
-  /// ตั้งที่เว็บส่วนกลาง (Schools.mobile_ui — supabase/school_mobile_ui.sql)
-  /// ไม่มีคอลัมน์ / ไม่มีค่า = แบบใหม่ ค่าอ่านตอน [load] ResponsiveLayout
+  /// ตั้งที่เว็บส่วนกลาง (Schools.mobile_ui + mobile_ui_by_role รายสิทธิ์ —
+  /// ดู [resolveOldMobileUi]) ไม่มีคอลัมน์ / ไม่มีค่า = แบบใหม่
+  /// ค่าอ่านตอน [load] ResponsiveLayout
   /// จำค่าไว้ตลอดการเปิดแอป จึงมีผลเมื่อเปิดแอปครั้งถัดไป
   static bool get useOldMobileUi => _oldMobileUi;
 
@@ -199,7 +200,11 @@ class SchoolInfo {
       if (rows.isNotEmpty) {
         final row = Map<String, dynamic>.from(rows.first);
         _current = SchoolRecord.fromRow(row);
-        _oldMobileUi = row['mobile_ui']?.toString() == 'old';
+        _oldMobileUi = resolveOldMobileUi(
+          schoolUi: row['mobile_ui'],
+          byRole: row['mobile_ui_by_role'],
+          roleId: await _currentRoleId(client, timeout),
+        );
         _loaded = true;
         try {
           final prefs = await SharedPreferences.getInstance();
@@ -221,6 +226,38 @@ class SchoolInfo {
       final prefs = await SharedPreferences.getInstance();
       _oldMobileUi = prefs.getBool(_oldMobileUiKey) ?? false;
     } catch (_) {}
+  }
+
+  /// หน้าจอมือถือของผู้ใช้: ค่ารายสิทธิ์ของโรงเรียน (mobile_ui_by_role)
+  /// ถ้าตั้งไว้ ไม่งั้นใช้ค่าของโรงเรียน (mobile_ui) — ไม่มีค่าเลย = แบบใหม่
+  @visibleForTesting
+  static bool resolveOldMobileUi(
+      {Object? schoolUi, Object? byRole, int? roleId}) {
+    if (roleId != null && byRole is Map) {
+      final ui = byRole['$roleId']?.toString();
+      if (ui == 'old' || ui == 'new') return ui == 'old';
+    }
+    return schoolUi?.toString() == 'old';
+  }
+
+  /// สิทธิ์ (Teachers.id_role) ของคนที่ล็อกอิน — ตัวเดียวกับที่หน้าล็อกอินใช้
+  /// หาชื่อสิทธิ์ อ่านไม่ได้ = null (ใช้ค่าของโรงเรียน)
+  static Future<int?> _currentRoleId(
+      SupabaseClient client, Duration timeout) async {
+    final uid = client.auth.currentUser?.id;
+    if (uid == null) return null;
+    try {
+      final row = await client
+          .from('Teachers')
+          .select('id_role')
+          .eq('auth_uid', uid)
+          .maybeSingle()
+          .timeout(timeout);
+      return int.tryParse(row?['id_role']?.toString() ?? '');
+    } catch (e) {
+      debugPrint('ℹ️  อ่านสิทธิ์ของผู้ใช้ไม่ได้ ใช้หน้าจอมือถือของโรงเรียน: $e');
+      return null;
+    }
   }
 
   /// ล้างค่าที่โหลดไว้ ใช้ตอนออกจากระบบ

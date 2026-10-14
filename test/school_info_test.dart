@@ -115,4 +115,32 @@ void main() {
       expect(record.address, isNot(contains('null')));
     });
   });
+
+  group('หน้าจอมือถือ (โรงเรียน × สิทธิ์)', () {
+    bool resolve(Object? school, Object? byRole, int? role) =>
+        SchoolInfo.resolveOldMobileUi(
+            schoolUi: school, byRole: byRole, roleId: role);
+
+    test('ไม่มีค่าเลย = แบบใหม่', () {
+      expect(resolve(null, null, 22), isFalse);
+      expect(SchoolInfo.useOldMobileUi, isFalse);
+    });
+
+    test('สิทธิ์ที่ไม่ได้ตั้ง ใช้ค่าของโรงเรียน', () {
+      expect(resolve('old', {}, 23), isTrue);
+      expect(resolve('old', {'22': 'new'}, 23), isTrue);
+      expect(resolve('new', {'22': 'old'}, 23), isFalse);
+    });
+
+    test('ค่ารายสิทธิ์ทับค่าของโรงเรียน', () {
+      expect(resolve('old', {'22': 'new'}, 22), isFalse);
+      expect(resolve('new', {'23': 'old'}, 23), isTrue);
+    });
+
+    test('ไม่รู้สิทธิ์ / ค่าแปลก = ใช้ค่าของโรงเรียน', () {
+      expect(resolve('old', {'22': 'new'}, null), isTrue);
+      expect(resolve('old', {'22': 'xyz'}, 22), isTrue);
+      expect(resolve('new', 'not a map', 22), isFalse);
+    });
+  });
 }
