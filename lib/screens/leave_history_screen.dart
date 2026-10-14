@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'leave_form_screen.dart';
 import '../utils/profile_image.dart';
 import '../widgets/leave_form_page.dart';
+import '../utils/leave_permissions.dart';
 
 class LeaveHistoryScreen extends StatefulWidget {
   final Function(Map<String, dynamic>)? onEdit;
@@ -1063,9 +1064,11 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                   // อนุมัติ/เปลี่ยนสถานะ/กำหนดเลขรับ ทำได้เฉพาะผู้ดูแลระบบ (id_role 22)
                   // ผู้บริหารและครูเห็นแค่ดู/พิมพ์ และแก้/ลบใบของตัวเองที่ยังไม่อนุมัติ
                   // (ฐานข้อมูลบังคับไว้ด้วย ดู supabase/admin_role_by_id.sql)
-                  final isAdmin = _userRole?.contains('ผู้ดูแลระบบ') == true;
-                  final canEdit =
-                      isAdmin || status == 'รอพิจารณา' || status == 'ยังไม่ส่ง';
+                  final isAdmin = LeavePermissions.isAdminRole(_userRole);
+                  // สิทธิ์อื่นแก้/ลบได้เฉพาะใบของตัวเองที่ยังไม่อนุมัติ
+                  // (ผู้บริหารเห็นใบลาของทุกคน แต่แก้ของคนอื่นไม่ได้)
+                  final canEdit = LeavePermissions.canModify(leaf,
+                      role: _userRole, myName: _currentUser);
 
                   return [
                     if (isAdmin)

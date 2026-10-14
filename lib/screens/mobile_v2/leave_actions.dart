@@ -50,10 +50,6 @@ class LeaveStatus {
             const Color(0xFF991B1B)
           ),
       };
-
-  /// ผู้ลาแก้ใบตัวเองได้ระหว่างรอพิจารณา / ถูกส่งกลับ — ผู้ดูแลระบบแก้ได้ทุกใบ
-  static bool canEdit(String s, {required bool isAdmin}) =>
-      isAdmin || s == 'รอพิจารณา' || s == 'ยังไม่ส่ง';
 }
 
 class LeaveActions {

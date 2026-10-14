@@ -14,6 +14,7 @@ import '../../widgets/leave_form_page.dart';
 import 'leave_actions.dart';
 import 'menu_access.dart';
 import 'mobile_pages.dart';
+import '../../utils/leave_permissions.dart';
 
 class MobileLeaveDetail extends StatefulWidget {
   final Map<String, dynamic> leave;
@@ -176,7 +177,11 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
     final status = LeaveStatus.of(_leave);
     final (bg, fg) = LeaveStatus.colors(status);
     final group = LeaveStatus.group(status);
-    final canEdit = LeaveStatus.canEdit(status, isAdmin: _isAdmin);
+    // สิทธิ์อื่นแก้ได้เฉพาะใบของตัวเองที่ยังไม่อนุมัติ (ผู้บริหารเห็นทุกใบ
+    // แต่แก้ของคนอื่นไม่ได้)
+    final canEdit = _isAdmin ||
+        LeavePermissions.canModify(_leave,
+            role: widget.access.userRole, myName: widget.access.currentUser);
     final start = FirebaseService.formatThaiDate(_leave['startDate']);
     final end = FirebaseService.formatThaiDate(_leave['endDate']);
     final medical = (_leave['medicalCertificate'] ?? '').toString();
