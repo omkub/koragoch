@@ -62,7 +62,12 @@ export interface School {
   province: string | null;
   district: string | null;
   subdistrict: string | null;
+  /** หน้าจอแอปบนมือถือ — ไม่มีคอลัมน์ (ยังไม่รัน school_mobile_ui.sql) = แบบใหม่ */
+  mobile_ui?: MobileUi | null;
 }
+
+/** new = แบบแอป (แถบล่าง 4 ปุ่ม), old = แบบเดิม (แถบล่าง 9 ปุ่ม) */
+export type MobileUi = 'new' | 'old';
 
 /**
  * ชื่อเต็มของโรงเรียน = namePart1 + namePart2 (เหมือน SchoolRecord ในแอป Flutter)

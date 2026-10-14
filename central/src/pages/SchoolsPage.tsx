@@ -1,8 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { schoolName, supabase, type School } from '../supabase';
+import { schoolName, supabase, type MobileUi, type School } from '../supabase';
 import LeaveHeaderPreview from './LeaveHeaderPreview';
 
-type SchoolForm = Omit<School, 'id_school' | 'fullName'>;
+type SchoolForm = Omit<School, 'id_school' | 'fullName' | 'mobile_ui'>;
+
+const MOBILE_UI_LABEL: Record<MobileUi, string> = {
+  new: 'แบบใหม่ (แถบล่าง 4 ปุ่ม)',
+  old: 'แบบเดิม (แถบล่าง 9 ปุ่ม)',
+};
 
 const EMPTY: SchoolForm = {
   namePart1: '',
@@ -35,8 +40,12 @@ export default function SchoolsPage() {
   const [schools, setSchools] = useState<School[]>([]);
   const [editing, setEditing] = useState<number | 'new' | null>(null);
   const [form, setForm] = useState<SchoolForm>(EMPTY);
+  const [mobileUi, setMobileUi] = useState<MobileUi>('new');
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // ยังไม่รัน school_mobile_ui.sql = ไม่มีคอลัมน์ ส่งค่าไปจะบันทึกไม่ผ่านทั้งแถว
+  const hasMobileUi = schools.some((s) => 'mobile_ui' in s);
 
   async function load() {
     const { data, error } = await supabase.from('Schools').select('*').order('id_school');
@@ -53,12 +62,14 @@ export default function SchoolsPage() {
     if (!school) {
       setEditing('new');
       setForm(EMPTY);
+      setMobileUi('new');
       return;
     }
     setEditing(school.id_school);
     const next = { ...EMPTY };
     for (const f of FIELDS) next[f.key] = school[f.key] ?? '';
     setForm(next);
+    setMobileUi(school.mobile_ui === 'old' ? 'old' : 'new');
   }
 
   async function save(e: FormEvent) {
@@ -70,6 +81,7 @@ export default function SchoolsPage() {
     setBusy(true);
     const record: Record<string, string | null> = { updatedAt: new Date().toISOString() };
     for (const f of FIELDS) record[f.key] = form[f.key]?.trim() || null;
+    if (hasMobileUi) record.mobile_ui = mobileUi;
 
     const { error } =
       editing === 'new'
@@ -109,6 +121,25 @@ export default function SchoolsPage() {
                   />
                 </label>
               ))}
+              <label>
+                หน้าจอแอปบนมือถือ
+                <select
+                  value={mobileUi}
+                  disabled={!hasMobileUi}
+                  onChange={(e) => setMobileUi(e.target.value as MobileUi)}
+                >
+                  {(Object.keys(MOBILE_UI_LABEL) as MobileUi[]).map((k) => (
+                    <option key={k} value={k}>
+                      {MOBILE_UI_LABEL[k]}
+                    </option>
+                  ))}
+                </select>
+                <span className="small muted">
+                  {hasMobileUi
+                    ? 'ครูเห็นหน้าจอที่เปลี่ยนเมื่อเปิดแอปครั้งถัดไป · จอคอมไม่เปลี่ยน'
+                    : 'ต้องรัน supabase/school_mobile_ui.sql ก่อน (ตอนนี้ทุกโรงเรียนใช้แบบใหม่)'}
+                </span>
+              </label>
             </div>
             {/* อัปเดตทันทีที่พิมพ์ — เห็นก่อนบันทึกว่าหัวใบลาจะออกมาหน้าตาแบบไหน */}
             <LeaveHeaderPreview school={{ ...form, fullName: null }} />
@@ -130,6 +161,7 @@ export default function SchoolsPage() {
               <th>ชื่อโรงเรียน</th>
               <th>สังกัด</th>
               <th>จังหวัด / อำเภอ / ตำบล</th>
+              <th>หน้าจอมือถือ</th>
               <th />
             </tr>
           </thead>
@@ -140,6 +172,7 @@ export default function SchoolsPage() {
                 <td>{schoolName(s)}</td>
                 <td>{s.affiliation || '-'}</td>
                 <td>{[s.province, s.district, s.subdistrict].filter(Boolean).join(' / ') || '-'}</td>
+                <td>{s.mobile_ui === 'old' ? 'แบบเดิม' : 'แบบใหม่'}</td>
                 <td className="num">
                   <button className="secondary small" onClick={() => startEdit(s)}>แก้ไข</button>
                 </td>
