@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:file_picker/file_picker.dart';
@@ -9,6 +9,7 @@ import '../../widgets/thai_buddhist_calendar_widget.dart';
 import '../../utils/profile_image.dart';
 import '../../utils/staff_status.dart';
 import '../../widgets/leave_form_page.dart';
+import '../../utils/leave_permissions.dart';
 
 class MobileLeaveFormScreen extends StatefulWidget {
   final Map<String, dynamic>? initialData;
@@ -130,7 +131,7 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
     });
 
     // 🛡️ ฝั่งแอดมิน: ดึงรายชื่อครูจาก Cache มาโชว์ใน Dropdown ทันที! 🥇🏆
-    if (role?.contains('ผู้ดูแลระบบ') == true) {
+    if (LeavePermissions.canFileForOthers(role)) {
       final teachersCache = prefs.getString('admin_teachers_list_cache');
       if (teachersCache != null) {
         try {
@@ -604,7 +605,9 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isAdmin = _userRole?.contains('ผู้ดูแลระบบ') == true;
+    // ส่งใบลาแทนคนอื่นได้เฉพาะผู้ดูแลระบบ (รวมส่วนกลาง)
+    // สิทธิ์อื่นล็อกชื่อผู้ยื่นเป็นตัวเอง
+    final bool isAdmin = LeavePermissions.canFileForOthers(_userRole);
     final app = widget.appStyle;
 
     final scroll = SingleChildScrollView(

@@ -1,9 +1,10 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/firebase_service.dart';
 import 'mobile_leave_form_screen.dart';
+import '../../utils/leave_permissions.dart';
 
 class MobileHistoryScreen extends StatefulWidget {
   final Function(Map<String, dynamic>)? onEdit;
@@ -446,8 +447,10 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
   // 🛠️ เมนูจัดการ (Mobile Actions) 🕵️‍♂️🥇
   Widget _buildActionMenu(BuildContext context, Map<String, dynamic> leave,
       String status, Color statusColor) {
-    final isAdmin = _userRole.contains('ผู้ดูแลระบบ');
-    final canEdit = isAdmin || status == 'รอพิจารณา' || status == 'ยังไม่ส่ง';
+    final isAdmin = LeavePermissions.isAdminRole(_userRole);
+    // สิทธิ์อื่นแก้/ลบได้เฉพาะใบของตัวเองที่ยังไม่อนุมัติ
+    final canEdit = LeavePermissions.canModify(leave,
+        role: _userRole, myName: _currentUserName);
 
     return PopupMenuButton<String>(
       padding: EdgeInsets.zero,

@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +9,7 @@ import '../utils/staff_status.dart';
 import '../widgets/leave_form_data.dart';
 import '../widgets/leave_template_document.dart';
 import '../widgets/thai_buddhist_calendar_widget.dart';
+import '../utils/leave_permissions.dart';
 
 class LeaveFormScreen extends StatefulWidget {
   final Map<String, dynamic>? initialData;
@@ -556,7 +557,9 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                             fontWeight: FontWeight.bold,
                             color: const Color(0xFF1E293B))),
                     const SizedBox(height: 24),
-                    if (_userRole?.contains('ผู้ดูแลระบบ') == true) ...[
+                    // ส่งใบลาแทนคนอื่นได้เฉพาะผู้ดูแลระบบ (รวมส่วนกลาง)
+                    // สิทธิ์อื่นล็อกชื่อผู้ยื่นเป็นตัวเอง
+                    if (LeavePermissions.canFileForOthers(_userRole)) ...[
                       _buildAnimatedFormSection(
                           title: "ข้อมูลบุคลากร (สำหรับผู้ดูแลระบบ)",
                           icon: Icons.person_search_outlined,
