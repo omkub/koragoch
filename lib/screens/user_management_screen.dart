@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -19,6 +19,8 @@ import 'school_settings_tab.dart';
 import 'attendance_import_tab.dart';
 import '../utils/profile_image.dart';
 import '../utils/school_info.dart';
+import '../utils/staff_status.dart';
+import '../widgets/thai_buddhist_calendar_widget.dart';
 
 class UserManagementScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -38,6 +40,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   String? _userFormError;
   int _usersPage = 0;
   int _usersPageSize = 10; // 0 means all matching users.
+
+  /// แสดงคนที่ลาออก/เกษียณ/ย้ายด้วยหรือไม่ (ปกติซ่อน) — ดู StaffStatus
+  bool _showInactive = false;
+
+  /// จำนวนคนพ้นสภาพในรายชื่อ (นับตอนกรอง ใช้แสดงบนปุ่มตัวกรอง)
+  int _inactiveCount = 0;
 
   void _changeUsersPage(int page) {
     setState(() => _usersPage = page);
@@ -3238,8 +3246,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         builder: (context, snapshot) {
           final allUsers = snapshot.data ?? [];
 
+          // บัญชีผู้ดูแลส่วนกลางไม่ใช่บุคลากรของโรงเรียน — เห็นเฉพาะส่วนกลางเอง
+          final schoolUsers = allUsers
+              .where((u) =>
+                  SchoolInfo.isSuperAdmin || !StaffStatus.isSuperAdmin(u))
+              .toList();
+          _inactiveCount =
+              schoolUsers.where((u) => !StaffStatus.isActive(u)).length;
+
           // 🔥 ระบบกรองข้อมูลแบบ Real-time ครับ
-          final users = allUsers.where((u) {
+          final users = schoolUsers.where((u) {
+            if (!_showInactive && !StaffStatus.isActive(u)) return false;
             final name = [u['id_user'] ?? u['id'], u['fullName'], u['username']]
                 .join(' ')
                 .toLowerCase();
@@ -5126,6 +5143,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         ),
                         style: GoogleFonts.sarabun(fontSize: 12),
                       )),
+                  FilterChip(
+                    label: Text('แสดงคนพ้นสภาพ ($_inactiveCount)',
+                        style: GoogleFonts.sarabun(fontSize: 12)),
+                    tooltip: 'คนที่ลาออก / เกษียณ / ย้าย (ปกติซ่อนไว้)',
+                    selected: _showInactive,
+                    onSelected: (v) {
+                      setState(() => _showInactive = v);
+                      _changeUsersPage(0);
+                    },
+                  ),
                   FilledButton.icon(
                     onPressed: () => _openUserForm(),
                     icon: const Icon(Icons.person_add_alt_1, size: 18),
@@ -5171,22 +5198,29 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       _userTableCell('กลุ่มสาระการเรียนรู้', 3, heading: true),
       _userTableCell('สิทธิ์', 2, heading: true),
       const SizedBox(
-          width: 144, child: Text('จัดการ', textAlign: TextAlign.center)),
+          width: 184, child: Text('จัดการ', textAlign: TextAlign.center)),
     ]);
   }
 
   Widget _buildUsersTableRow(Map<String, dynamic> user) {
     final waiting = user['forgotPasswordStatus'] == 'waiting';
+    final active = StaffStatus.isActive(user);
+    final name = (user['fullName'] ?? user['name'] ?? '').toString();
     return Container(
       constraints: const BoxConstraints(minHeight: 68),
       decoration: BoxDecoration(
-        color: waiting ? Colors.orange.shade50 : Colors.white,
+        color: waiting
+            ? Colors.orange.shade50
+            : active
+                ? Colors.white
+                : const Color(0xFFF1F5F9),
         border: const Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
       ),
       child: Row(children: [
         _userTableCell((user['id_user'] ?? user['id'] ?? '').toString(), 1),
         SizedBox(width: 72, child: Center(child: _buildUserProfilePhoto(user))),
-        _userTableCell((user['fullName'] ?? user['name'] ?? '').toString(), 3),
+        _userTableCell(
+            active ? name : '$name  · ${_employmentStatusText(user)}', 3),
         _userTableCell((user['username'] ?? '').toString(), 2),
         Expanded(flex: 2, child: _buildPasswordCell(user)),
         _userTableCell(
@@ -5196,13 +5230,24 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         _userTableCell(
             (user['permission'] ?? user['role'] ?? '').toString(), 2),
         SizedBox(
-            width: 144,
+            width: 184,
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               IconButton(
                   tooltip: 'แก้ไข',
                   onPressed: () => _openUserForm(user: user),
                   color: Colors.blue,
                   icon: const Icon(Icons.edit_outlined, size: 20)),
+              IconButton(
+                  tooltip: active
+                      ? 'พ้นสภาพ (ลาออก / เกษียณ / ย้าย)'
+                      : 'สถานะ: ${_employmentStatusText(user)}',
+                  onPressed: () => _editEmploymentStatus(user),
+                  color: active ? Colors.blueGrey : Colors.teal,
+                  icon: Icon(
+                      active
+                          ? Icons.person_off_outlined
+                          : Icons.settings_backup_restore,
+                      size: 20)),
               IconButton(
                   tooltip: waiting ? 'อนุมัติรีเซ็ต' : 'รีเซ็ตรหัสผ่าน',
                   onPressed: () => _enablePasswordReset(user),
@@ -6606,6 +6651,132 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   // 🔥 ฟังก์ชันสำหรับสร้างหัวตารางให้ตรงแนวครับ
+  /// "เกษียณ 30 ก.ย. 2569" — สถานะ + วันที่พ้นสภาพ (ถ้ามี)
+  String _employmentStatusText(Map<String, dynamic> user) {
+    final label = StaffStatus.label(StaffStatus.statusOf(user));
+    final left = StaffStatus.leftDateOf(user);
+    return left == null
+        ? label
+        : '$label ${FirebaseService.formatThaiDate(left)}';
+  }
+
+  /// ตั้งสถานะบุคลากร: ปฏิบัติงาน / ลาออก / เกษียณ / ย้าย + วันที่พ้นสภาพ
+  ///
+  /// ไม่ลบรายชื่อ ใบลาเก่ายังอยู่ครบ คนพ้นสภาพเข้าระบบไม่ได้และไม่ขึ้นใน
+  /// รายชื่อที่ใช้ทำงาน (ดู supabase/staff_status.sql, StaffStatus)
+  Future<void> _editEmploymentStatus(Map<String, dynamic> user) async {
+    final client = _firebaseService.supabaseClient;
+    final idUser = int.tryParse('${user['id_user']}');
+    if (client == null || idUser == null) return;
+
+    var status = StaffStatus.statusOf(user);
+    var leftDate = StaffStatus.leftDateOf(user) ?? DateTime.now();
+    final name = (user['fullName'] ?? '').toString();
+    final prefs = await SharedPreferences.getInstance();
+    final isSelf = name.isNotEmpty && name == prefs.getString('currentUser');
+    if (!mounted) return;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialog) {
+          final leaving = status != StaffStatus.active;
+          return AlertDialog(
+            title: Text('สถานะบุคลากร: $name',
+                style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+            content: SizedBox(
+              width: 420,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: status,
+                    decoration: const InputDecoration(labelText: 'สถานะ'),
+                    items: [
+                      for (final s in StaffStatus.all)
+                        DropdownMenuItem(
+                            value: s, child: Text(StaffStatus.label(s))),
+                    ],
+                    onChanged: (v) => setDialog(() => status = v ?? status),
+                  ),
+                  if (leaving) ...[
+                    const SizedBox(height: 16),
+                    Text('วันที่พ้นสภาพ (วันสุดท้ายที่ปฏิบัติงาน)',
+                        style: GoogleFonts.sarabun(
+                            fontSize: 12, color: Colors.blueGrey)),
+                    const SizedBox(height: 4),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.event, size: 18),
+                      label: Text(FirebaseService.formatThaiDate(leftDate)),
+                      onPressed: () => showDialog(
+                        context: ctx,
+                        builder: (_) => Center(
+                          child: ThaiBuddhistCalendarWidget(
+                            initialDate: leftDate,
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(DateTime.now().year + 2),
+                            onDateSelected: (d) =>
+                                setDialog(() => leftDate = d),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                        'เข้าระบบไม่ได้ และไม่ขึ้นในรายชื่อที่ใช้ทำงาน '
+                        'ใบลาเก่ายังอยู่ครบ รายงานนับเฉพาะปีงบประมาณที่ยังปฏิบัติงาน',
+                        style: GoogleFonts.sarabun(
+                            fontSize: 12, color: Colors.blueGrey)),
+                    if (isSelf)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                            '⚠️ นี่คือบัญชีของคุณเอง — บันทึกแล้วจะเข้าระบบไม่ได้ทันที',
+                            style: GoogleFonts.sarabun(
+                                fontSize: 12, color: Colors.red.shade700)),
+                      ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('ยกเลิก')),
+              FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('บันทึก')),
+            ],
+          );
+        },
+      ),
+    );
+    if (ok != true) return;
+
+    final active = status == StaffStatus.active;
+    try {
+      await client.from('Teachers').update({
+        'employment_status': status,
+        'left_date': active ? null : FirebaseService.toIsoDate(leftDate),
+      }).eq('id_user', idUser);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(active
+              ? 'คืนสถานะปฏิบัติงานให้ $name แล้ว'
+              : 'ตั้ง $name เป็น ${StaffStatus.label(status)} แล้ว')));
+      _refreshUsers();
+    } catch (e) {
+      if (!mounted) return;
+      final missing = e.toString().contains('employment_status');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          backgroundColor: Colors.red.shade700,
+          content: Text(missing
+              ? 'ยังตั้งสถานะไม่ได้ — ต้องรัน supabase/staff_status.sql ก่อน'
+              : 'บันทึกสถานะไม่สำเร็จ: $e')));
+    }
+  }
+
   void _enablePasswordReset(Map<String, dynamic> user) async {
     final DateTime expiry = DateTime.now().add(const Duration(hours: 24));
     final String resetCode = FirebaseService.generateResetCode();

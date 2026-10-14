@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import SchoolsPage from './pages/SchoolsPage';
 import SchoolAdminsPage from './pages/SchoolAdminsPage';
+import StaffPage from './pages/StaffPage';
 import LinePage from './pages/LinePage';
 import RolePermissionsPage from './pages/RolePermissionsPage';
 import UserPermissionsPage from './pages/UserPermissionsPage';
@@ -77,6 +78,7 @@ export default function App() {
             <NavLink to="/" end>ภาพรวม</NavLink>
             <NavLink to="/schools">โรงเรียน</NavLink>
             <NavLink to="/admins">ผู้ดูแลโรงเรียน</NavLink>
+            <NavLink to="/staff">บุคลากร</NavLink>
             <NavLink to="/line">LINE แจ้งเตือน</NavLink>
             <NavLink to="/role-permissions">เพดานสิทธิ์</NavLink>
             <NavLink to="/attendance">ลงเวลา (สแกนหน้า)</NavLink>
@@ -97,6 +99,7 @@ export default function App() {
               <Route path="/" element={<DashboardPage />} />
               <Route path="/schools" element={<SchoolsPage />} />
               <Route path="/admins" element={<SchoolAdminsPage />} />
+              <Route path="/staff" element={<StaffPage />} />
               <Route path="/line" element={<LinePage />} />
               <Route path="/role-permissions" element={<RolePermissionsPage />} />
               <Route path="/attendance" element={<AttendancePage />} />
