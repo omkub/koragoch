@@ -1182,7 +1182,11 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
       valueOf(['department', 'กลุ่มสาระการเรียนรู้', 'กลุ่มสาระ']),
     ].where((part) => part.isNotEmpty).toList();
 
-    return parts.isEmpty ? 'กำลังโหลดข้อมูล...' : parts.join('  |  ');
+    // ข้อมูลบุคลากรโหลดมาแล้ว แค่ไม่ได้กรอกตำแหน่ง/กลุ่มสาระ (เช่นบัญชี
+    // ผู้ดูแลระบบ) — เดิมขึ้น "กำลังโหลดข้อมูล..." ค้างไว้ ทำให้ดูเหมือนโหลดไม่เสร็จ
+    return parts.isEmpty
+        ? 'ยังไม่ได้ระบุตำแหน่ง / กลุ่มสาระ'
+        : parts.join('  |  ');
   }
 
   Widget _buildUserInfoTag() {
