@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/firebase_service.dart';
 import '../services/official_trip_service.dart';
+import '../utils/staff_status.dart';
 import '../utils/teacher_sort.dart';
 import '../forms/form_template.dart';
 import '../forms/trip_render_context.dart';
@@ -1229,7 +1230,10 @@ class _TripFormPanelState extends State<TripFormPanel> {
                       isExpanded: true,
                       decoration: _inputDecoration('บันทึกในนามของ'),
                       items: [
+                        // คนพ้นสภาพเลือกไม่ได้ — ยกเว้นเจ้าของบันทึกเดิม (แก้รายการเก่า)
                         for (final t in widget.teachers)
+                          if (StaffStatus.isListed(t) ||
+                              _asInt(t['id_user']) == _ownerId)
                           DropdownMenuItem(
                               value: _asInt(t['id_user']),
                               child: Text(t['fullName'].toString(),
@@ -1679,6 +1683,11 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
   Widget build(BuildContext context) {
     final q = _query.trim().toLowerCase();
     final list = widget.teachers.where((t) {
+      // คนพ้นสภาพเลือกเพิ่มไม่ได้ แต่ที่เลือกไว้แล้ว (รายการเก่า) ยังเห็นเพื่อเอาออก
+      if (!StaffStatus.isListed(t) &&
+          !_selected.contains(_asInt(t['id_user']))) {
+        return false;
+      }
       if (q.isEmpty) return true;
       return '${t['fullName']} ${departmentOf(t)}'.toLowerCase().contains(q);
     }).toList();

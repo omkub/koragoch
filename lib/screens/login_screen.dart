@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'responsive_layout.dart';
 import '../services/firebase_service.dart'; // 🛡️ นำเข้า FirebaseService ครับ 🥇🏆
 import '../utils/school_info.dart';
+import '../utils/staff_status.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -138,6 +139,21 @@ class _LoginScreenState extends State<LoginScreen> {
         debugPrint('ℹ️  Supabase Auth ปฏิเสธ: ${e.message}');
         _showError('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้องครับ 🔐\n'
             'ถ้าเพิ่งกดแจ้งลืมรหัสผ่าน กรุณารอรหัสชั่วคราวจากแอดมินก่อนนะครับ');
+        return;
+      }
+
+      // 🛡️ [ด่านตรวจที่ 1.5] บุคลากรที่ลาออก/เกษียณ/ย้ายแล้ว เข้าระบบไม่ได้
+      //
+      // ฐานข้อมูลซ่อนแถวของคนพ้นสภาพอยู่แล้ว (supabase/staff_status.sql)
+      // ถ้าไม่ถามตรงนี้ จะขึ้นว่า "ยังไม่ได้ผูกกับข้อมูลบุคลากร" ซึ่งชวนสับสน
+      // ยังไม่ได้รัน SQL = ไม่มีฟังก์ชันนี้ = ข้ามไป (ทำงานแบบเดิม)
+      final employmentStatus = await FirebaseService.myEmploymentStatus();
+      if (employmentStatus != null &&
+          employmentStatus != StaffStatus.active) {
+        await supabase.auth.signOut();
+        _showError('บัญชีนี้พ้นสภาพแล้ว '
+            '(${StaffStatus.label(employmentStatus)}) จึงเข้าระบบไม่ได้ครับ\n'
+            'ถ้าไม่ถูกต้อง กรุณาแจ้งผู้ดูแลระบบของโรงเรียน');
         return;
       }
 

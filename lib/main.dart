@@ -9,7 +9,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dart:ui';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:thai_buddhist_date/thai_buddhist_date.dart' as tbd;
+import 'services/firebase_service.dart';
 import 'utils/school_info.dart';
+import 'utils/staff_status.dart';
 
 Future<void> clearSessionPrefs(SharedPreferences prefs) async {
   await prefs.remove('isLoggedIn');
@@ -93,8 +95,17 @@ class _MyAppState extends State<MyApp> {
             // ต่อ Supabase ไม่ได้ — ปล่อยให้ตกไปทางล้าง session ข้างล่าง
             debugPrint('⚠️  รอ Supabase ไม่สำเร็จ: $e');
           }
-          final hasSession =
+          var hasSession =
               Supabase.instance.client.auth.currentSession != null;
+          // ถูกตั้งเป็นพ้นสภาพระหว่างที่ยังล็อกอินค้างอยู่ — ออกจากระบบ
+          // (ฐานข้อมูลไม่ให้อ่านอะไรอยู่แล้ว ถ้าปล่อยไว้จะเจอหน้าว่างเปล่า)
+          if (hasSession) {
+            final status = await FirebaseService.myEmploymentStatus();
+            if (status != null && status != StaffStatus.active) {
+              await Supabase.instance.client.auth.signOut();
+              hasSession = false;
+            }
+          }
           if (hasSession) {
             // ชื่อโรงเรียนมาจากตาราง Schools ต้องโหลดก่อนวาดใบลา
             // ถ้าโหลดไม่ได้จะใช้ค่าสำรอง ไม่บล็อกการเข้าแอป

@@ -30,7 +30,8 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
     return Material(
       color: const Color(0xFFF1F5F9),
       child: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: _firebaseService.getUsersStream(),
+        // เฉพาะคนที่ยังปฏิบัติงาน (ไม่รวมคนลาออก/เกษียณ/ย้าย และบัญชีส่วนกลาง)
+        stream: _firebaseService.getActiveUsersStream(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(child: Text('เกิดข้อผิดพลาด: ${snapshot.error}', style: GoogleFonts.sarabun(color: Colors.black)));

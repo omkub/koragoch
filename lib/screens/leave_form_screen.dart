@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
+import '../utils/staff_status.dart';
 import '../widgets/leave_form_data.dart';
 import '../widgets/leave_template_document.dart';
 import '../widgets/thai_buddhist_calendar_widget.dart';
@@ -577,7 +578,10 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                                       ],
                                     )
                                   : _buildSearchableDropdown(
+                                      // เลือกได้เฉพาะคนที่ยังปฏิบัติงาน
+                                      // (_allUsers มีทุกคน ไว้เปิดใบลาเก่า)
                                       _allUsers
+                                          .where(StaffStatus.isListed)
                                           .map((u) =>
                                               u['fullName']?.toString() ?? '')
                                           .toList(),
