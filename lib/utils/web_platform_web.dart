@@ -187,3 +187,27 @@ Future<String?> pickAndCompressImage({
   uploadInput.click();
   return completer.future;
 }
+
+/// ข้อมูลการติดตั้งแอป (PWA) จาก index.html — koragochInstallInfo
+/// {canPrompt, installed, standalone, ios, android, inAppBrowser, safari}
+Map<String, dynamic> installInfo() {
+  try {
+    final raw = globalContext.callMethod<JSString?>('koragochInstallInfo'.toJS);
+    if (raw == null) return const {};
+    return Map<String, dynamic>.from(jsonDecode(raw.toDart) as Map);
+  } catch (_) {
+    return const {};
+  }
+}
+
+/// เปิดหน้าต่างติดตั้งของเบราว์เซอร์ (Chrome / Edge บน Android และ PC)
+/// คืน 'accepted' | 'dismissed' | 'unavailable' (ไม่มีหน้าต่างนี้ เช่น iPhone)
+Future<String> promptInstall() async {
+  try {
+    final result = globalContext
+        .callMethod<JSPromise<JSString>>('koragochPromptInstall'.toJS);
+    return (await result.toDart).toDart;
+  } catch (_) {
+    return 'unavailable';
+  }
+}

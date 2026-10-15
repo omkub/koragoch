@@ -2,7 +2,31 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { schoolName, supabase, type MobileUi, type Role, type School } from '../supabase';
 import LeaveHeaderPreview from './LeaveHeaderPreview';
 
-type SchoolForm = Omit<School, 'id_school' | 'fullName' | 'mobile_ui' | 'mobile_ui_by_role'>;
+type SchoolForm = Omit<School, 'id_school' | 'fullName' | 'mobile_ui' | 'mobile_ui_by_role' | 'logo'>;
+
+const LOGO_MAX = 256;
+
+/** ย่อรูปให้ด้านยาวไม่เกิน 256px แล้วแปลงเป็น PNG data URL (เก็บใน Schools.logo) */
+function resizeLogo(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, LOGO_MAX / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(img.width * scale));
+      canvas.height = Math.max(1, Math.round(img.height * scale));
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('อ่านไฟล์รูปไม่ได้'));
+    };
+    img.src = url;
+  });
+}
 
 /** หน้าจอมือถือรายสิทธิ์ { ID_Roles: new|old } — ไม่มีคีย์ = ตามโรงเรียน */
 type ByRole = Record<string, MobileUi>;
@@ -45,6 +69,7 @@ export default function SchoolsPage() {
   const [form, setForm] = useState<SchoolForm>(EMPTY);
   const [mobileUi, setMobileUi] = useState<MobileUi>('new');
   const [byRole, setByRole] = useState<ByRole>({});
+  const [logo, setLogo] = useState<string | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -53,6 +78,16 @@ export default function SchoolsPage() {
   // ส่งค่าไปจะบันทึกไม่ผ่านทั้งแถว
   const hasMobileUi = schools.some((s) => 'mobile_ui' in s);
   const hasByRole = schools.some((s) => 'mobile_ui_by_role' in s);
+  const hasLogo = schools.some((s) => 'logo' in s);
+
+  async function pickLogo(file: File | undefined) {
+    if (!file) return;
+    try {
+      setLogo(await resizeLogo(file));
+    } catch (e) {
+      setMessage({ text: (e as Error).message, error: true });
+    }
+  }
 
   async function load() {
     const [s, r] = await Promise.all([
@@ -86,6 +121,7 @@ export default function SchoolsPage() {
       setForm(EMPTY);
       setMobileUi('new');
       setByRole({});
+      setLogo(null);
       return;
     }
     setEditing(school.id_school);
@@ -94,6 +130,7 @@ export default function SchoolsPage() {
     setForm(next);
     setMobileUi(school.mobile_ui === 'old' ? 'old' : 'new');
     setByRole({ ...(school.mobile_ui_by_role ?? {}) });
+    setLogo(school.logo ?? null);
   }
 
   function setRoleUi(id: number, value: MobileUi | '') {
@@ -114,6 +151,7 @@ export default function SchoolsPage() {
     for (const f of FIELDS) record[f.key] = form[f.key]?.trim() || null;
     if (hasMobileUi) record.mobile_ui = mobileUi;
     if (hasByRole) record.mobile_ui_by_role = byRole;
+    if (hasLogo) record.logo = logo;
 
     const { error } =
       editing === 'new'
@@ -143,6 +181,31 @@ export default function SchoolsPage() {
           <h3>{editing === 'new' ? 'เพิ่มโรงเรียนใหม่' : 'แก้ไขข้อมูลโรงเรียน'}</h3>
           <div className="form-preview">
             <div className="grid">
+              <label>
+                โลโก้โรงเรียน
+                <div className="logo-field">
+                  {logo ? <img src={logo} alt="โลโก้" /> : <span className="logo-empty">ไม่มีโลโก้</span>}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    disabled={!hasLogo}
+                    onChange={(e) => {
+                      pickLogo(e.target.files?.[0]);
+                      e.target.value = '';
+                    }}
+                  />
+                  {logo && (
+                    <button type="button" className="secondary small" onClick={() => setLogo(null)}>
+                      ลบโลโก้
+                    </button>
+                  )}
+                </div>
+                <span className="small muted">
+                  {hasLogo
+                    ? 'แสดงในแอปหลังล็อกอิน และหน้าล็อกอินของเครื่องที่จำการเข้าระบบไว้ · ย่อเหลือ 256px อัตโนมัติ'
+                    : 'ต้องรัน supabase/school_logo.sql ก่อน'}
+                </span>
+              </label>
               {FIELDS.map((f) => (
                 <label key={f.key}>
                   {f.label}
@@ -222,7 +285,12 @@ export default function SchoolsPage() {
           <tbody>
             {schools.map((s) => (
               <tr key={s.id_school}>
-                <td>{s.id_school}</td>
+                <td>
+                  <span className="school-id">
+                    {s.logo ? <img className="logo-thumb" src={s.logo} alt="" /> : null}
+                    {s.id_school}
+                  </span>
+                </td>
                 <td>{schoolName(s)}</td>
                 <td>{s.affiliation || '-'}</td>
                 <td>{[s.province, s.district, s.subdistrict].filter(Boolean).join(' / ') || '-'}</td>

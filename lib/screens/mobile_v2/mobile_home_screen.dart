@@ -10,6 +10,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../services/firebase_service.dart';
+import '../../utils/school_info.dart';
+import '../../widgets/school_logo.dart';
 import 'menu_access.dart';
 import 'mobile_home_data.dart';
 import 'mobile_pages.dart';
@@ -93,6 +95,37 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
 
   Widget _greeting(MobileHomeData? d, MenuAccess access) {
     final name = d?.fullName ?? access.currentUser;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // โรงเรียนของผู้ใช้ (โลโก้ตั้งที่เว็บส่วนกลาง)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Row(
+            children: [
+              SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: SchoolLogo(dataUrl: SchoolInfo.logo, size: 28)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(SchoolInfo.fullName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.sarabun(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: mobileMuted)),
+              ),
+            ],
+          ),
+        ),
+        _greetingRow(name, d),
+      ],
+    );
+  }
+
+  Widget _greetingRow(String name, MobileHomeData? d) {
     return Row(
       children: [
         CircleAvatar(

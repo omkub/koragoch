@@ -7,6 +7,8 @@ import 'responsive_layout.dart';
 import '../services/firebase_service.dart'; // 🛡️ นำเข้า FirebaseService ครับ 🥇🏆
 import '../utils/school_info.dart';
 import '../utils/staff_status.dart';
+import '../widgets/install_app_button.dart';
+import '../widgets/school_logo.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -22,6 +24,9 @@ class _LoginScreenState extends State<LoginScreen> {
       FirebaseService(); // 🛡️ สร้าง Instance ครับ 🥇🏆
   bool _isLoading = false;
   bool _rememberMe = false;
+
+  /// โลโก้โรงเรียนที่จำไว้จากการล็อกอินครั้งก่อน (null = ไอคอนกลาง)
+  String? _savedLogo;
 
   @override
   void initState() {
@@ -43,9 +48,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
     _usernameController.text = prefs.getString('saved_username') ?? '';
     _passwordController.text = prefs.getString('saved_password') ?? '';
+    // เครื่องที่จำการเข้าระบบไว้ ขึ้นโลโก้โรงเรียนของบัญชีนั้นเลย
+    // (ไม่ได้จำ = หน้าล็อกอินกลาง ไม่มีโลโก้ ไม่รู้ว่าเป็นโรงเรียนไหน)
+    final logo = await SchoolInfo.savedLogo();
 
     if (mounted) {
-      setState(() => _rememberMe = true);
+      setState(() {
+        _rememberMe = true;
+        _savedLogo = logo;
+      });
     }
   }
 
@@ -713,7 +724,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         color: Colors.white.withValues(alpha: 0.2), width: 1),
                   ),
                   child: ClipOval(
-                    child: Image.asset('image/Logo.jpg', fit: BoxFit.contain),
+                    child: Center(
+                      child: SchoolLogo(
+                        dataUrl: _savedLogo,
+                        size: isMobile ? 76 : 116,
+                        iconColor: Colors.white70,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -910,6 +927,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
           ),
+          // ติดตั้งลงเครื่อง (ซ่อนเองถ้าเปิดจากแอปที่ติดตั้งแล้ว)
+          const SizedBox(height: 12),
+          const InstallAppButton(),
         ],
       ),
     );

@@ -11,6 +11,7 @@ import 'mobile_password_reset_screen.dart'; // 🔐 เพิ่ม Import ส�
 import '../user_management_screen.dart'; // 👤 เพิ่มหน้าจัดการผู้ใช้ครับ
 import '../../utils/profile_image.dart';
 import '../../utils/school_info.dart';
+import '../../widgets/install_app_button.dart';
 class MobileProfileScreen extends StatefulWidget {
   /// หน้าตาใหม่บนมือถือ (MobileShell): ไม่มีหัวหน้าใหญ่ (แถบหัวของแอปมีแล้ว)
   /// ออกจากระบบเป็นรายการล่างสุดแบบหน้าตั้งค่า
@@ -427,6 +428,10 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
                             // 🔥 ส่วนเมนูสำหรับแอดมิน (Admin Tools) 🕵️‍♂️🥇
                             if (_userRole.contains('ผู้ดูแลระบบ'))
                               _buildAdminSection(),
+
+                            // ติดตั้งลงเครื่อง (ซ่อนเองถ้าเปิดจากแอปที่ติดตั้งแล้ว)
+                            const SizedBox(height: 16),
+                            const InstallAppButton(tile: true),
 
                             if (widget.appStyle) ...[
                               const SizedBox(height: 24),
