@@ -200,6 +200,16 @@ Map<String, dynamic> installInfo() {
   }
 }
 
+/// โหลดแอปเวอร์ชันใหม่ — ดึงไฟล์หลักแบบข้ามแคชก่อน แล้วรีโหลดหน้า
+/// (koragochReload ใน web/index.html)
+void reloadApp() {
+  try {
+    globalContext.callMethod<JSAny?>('koragochReload'.toJS);
+  } catch (_) {
+    web.window.location.reload();
+  }
+}
+
 /// เปิดหน้าต่างติดตั้งของเบราว์เซอร์ (Chrome / Edge บน Android และ PC)
 /// คืน 'accepted' | 'dismissed' | 'unavailable' (ไม่มีหน้าต่างนี้ เช่น iPhone)
 Future<String> promptInstall() async {

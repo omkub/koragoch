@@ -134,6 +134,14 @@
           }, 200);
         });
       }
+      // แถบ "มีเวอร์ชันใหม่" (lib/widgets/update_banner.dart) — ดึงไฟล์หลักแบบ
+      // ข้ามแคชของเบราว์เซอร์ก่อน แล้วรีโหลด จะได้เวอร์ชันใหม่จริง ไม่ใช่ตัวในแคช
+      window.koragochReload = function() {
+        var files = ['./', 'flutter_bootstrap.js?v=20261015-install-sw', 'main.dart.js'];
+        Promise.all(files.map(function(f) {
+          return fetch(f, { cache: 'reload' }).catch(function() {});
+        })).then(function() { location.reload(); });
+      };
       window.koragochPromptInstall = function() {
         return waitForPrompt().then(function(e) {
           if (!e) return 'unavailable';

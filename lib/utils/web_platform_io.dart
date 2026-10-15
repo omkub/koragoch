@@ -78,3 +78,6 @@ Map<String, dynamic> installInfo() => const {'standalone': true};
 
 /// นอกเว็บไม่มีการติดตั้ง PWA
 Future<String> promptInstall() async => 'unavailable';
+
+/// นอกเว็บอัปเดตผ่านสโตร์ — ไม่มีอะไรให้โหลดใหม่
+void reloadApp() {}
