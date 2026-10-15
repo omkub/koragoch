@@ -120,14 +120,29 @@
           safari: /safari/i.test(ua) && !/crios|fxios|edgios|chrome|android/i.test(ua)
         });
       };
+      // กดปุ่มเร็วกว่าที่เบราว์เซอร์ส่งอีเวนต์มา — รอสูงสุด 3 วินาที
+      function waitForPrompt() {
+        if (deferred) return Promise.resolve(deferred);
+        return new Promise(function(resolve) {
+          var waited = 0;
+          var timer = setInterval(function() {
+            waited += 200;
+            if (deferred || waited >= 3000) {
+              clearInterval(timer);
+              resolve(deferred);
+            }
+          }, 200);
+        });
+      }
       window.koragochPromptInstall = function() {
-        if (!deferred) return Promise.resolve('unavailable');
-        var e = deferred;
-        deferred = null;
-        e.prompt();
-        return e.userChoice
-          .then(function(choice) { return choice.outcome; })
-          .catch(function() { return 'dismissed'; });
+        return waitForPrompt().then(function(e) {
+          if (!e) return 'unavailable';
+          deferred = null;
+          e.prompt();
+          return e.userChoice
+            .then(function(choice) { return choice.outcome; })
+            .catch(function() { return 'dismissed'; });
+        });
       };
     })();
   </script>
@@ -165,7 +180,9 @@
   <script>
     (function() {
       var cleanupKey = 'school_leave_sw_cleanup_version';
-      var cleanupVersion = '20260808-firebase-module-preload';
+      // เปลี่ยนค่านี้ = ล้าง service worker / cache เก่าทุกเครื่องหนึ่งครั้ง
+      // (20261015: ล้าง worker ของ Flutter ที่ค้างอยู่ ก่อนลงทะเบียน sw.js ของเรา)
+      var cleanupVersion = '20261015-install-sw';
 
       function getCleanupVersion() {
         try {
@@ -183,9 +200,16 @@
 
       function loadFlutter() {
         var script = document.createElement('script');
-        script.src = 'flutter_bootstrap.js?v=20260808-firebase-module-preload';
+        script.src = 'flutter_bootstrap.js?v=20261015-install-sw';
         script.async = true;
         document.body.appendChild(script);
+        registerInstallWorker();
+      }
+
+      // ทำให้ "ติดตั้งได้" ในทุกเบราว์เซอร์ที่รองรับ — web/sw.js ไม่แคชอะไร
+      function registerInstallWorker() {
+        if (!('serviceWorker' in navigator)) return;
+        navigator.serviceWorker.register('sw.js', { scope: './' }).catch(function() {});
       }
 
       function waitForFirebaseModules() {
