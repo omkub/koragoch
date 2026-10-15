@@ -4,156 +4,195 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../utils/web_platform.dart' as platform;
 
-/// ปุ่ม "ติดตั้งแอปลงเครื่อง" สำหรับคนที่สร้างทางลัดเองไม่เป็น (มือถือ + PC)
+/// ปุ่มติดตั้งแอป — มือถือ: "เพิ่มไปยังหน้าจอโฮม", คอม: "ติดตั้งแอปลงเครื่อง"
 ///
-/// - Chrome / Edge (Android, Windows, Mac): เปิดหน้าต่างติดตั้งของเบราว์เซอร์เลย
-/// - iPhone / iPad (Safari ไม่มีหน้าต่างนี้), เปิดผ่าน LINE, หรือเบราว์เซอร์ที่
-///   ยังไม่พร้อม: แสดงวิธีทำทีละขั้นตามเครื่อง
-/// - เปิดจากแอปที่ติดตั้งแล้ว: ไม่แสดงปุ่ม
+/// กดแล้วติดตั้งเลย (หน้าต่างยืนยันของเบราว์เซอร์ กด "ติดตั้ง" ครั้งเดียว) บน
+/// Chrome / Edge / Samsung Internet ทั้ง Android และ PC — ต้องมี web/sw.js +
+/// manifest ที่ถูกต้อง เบราว์เซอร์ถึงจะยอม
+///
+/// iPhone / iPad: Apple ไม่เปิดให้เว็บสั่งเพิ่มลงหน้าจอโฮมเอง (ไม่มีทางทำได้)
+/// จึงชี้ปุ่มแชร์ของ Safari ให้กด 2 ครั้งแทน · เปิดผ่าน LINE: ต้องเปิดในเบราว์เซอร์
+/// ก่อน · เปิดจากแอปที่ติดตั้งแล้ว: ไม่แสดงปุ่ม
 ///
 /// ฝั่ง JS อยู่ใน web/index.html (koragochInstallInfo / koragochPromptInstall)
-class InstallAppButton extends StatelessWidget {
+class InstallAppButton extends StatefulWidget {
   /// true = แถวแบบหน้าตั้งค่า (หน้าบัญชี), false = ปุ่มขอบ (หน้าล็อกอิน)
   final bool tile;
 
   const InstallAppButton({super.key, this.tile = false});
 
-  static bool get _alreadyInstalled {
-    final info = platform.installInfo();
-    return info['standalone'] == true || info['installed'] == true;
-  }
+  @override
+  State<InstallAppButton> createState() => _InstallAppButtonState();
+}
 
-  Future<void> _install(BuildContext context) async {
-    final info = platform.installInfo();
-    if (info['canPrompt'] == true) {
-      final outcome = await platform.promptInstall();
-      if (!context.mounted) return;
-      if (outcome == 'accepted') {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text(
-                'ติดตั้งแล้ว — เปิดจากไอคอน "ระบบวันลา" บนหน้าจอได้เลย')));
-        return;
-      }
-      if (outcome == 'dismissed') return;
+class _InstallAppButtonState extends State<InstallAppButton> {
+  bool _busy = false;
+  bool _done = false;
+
+  Map<String, dynamic> get _info => platform.installInfo();
+
+  bool get _isMobile => _info['ios'] == true || _info['android'] == true;
+
+  String get _label =>
+      _isMobile ? 'เพิ่มไปยังหน้าจอโฮม' : 'ติดตั้งแอปลงเครื่อง';
+
+  Future<void> _install() async {
+    final info = _info;
+    if (info['inAppBrowser'] == true) {
+      _openInBrowserSheet(info['ios'] == true);
+      return;
     }
-    if (!context.mounted) return;
-    _showSteps(context, info);
-  }
-
-  void _showSteps(BuildContext context, Map<String, dynamic> info) {
-    final ios = info['ios'] == true;
-    final android = info['android'] == true;
-    final inApp = info['inAppBrowser'] == true;
-    final safari = info['safari'] == true;
-
-    final String title;
-    final List<String> steps;
-    if (inApp) {
-      title = 'เปิดในเบราว์เซอร์ก่อน';
-      steps = [
-        'ตอนนี้เปิดผ่านแอป LINE / Facebook ซึ่งติดตั้งไม่ได้',
-        'กดปุ่ม "คัดลอกลิงก์" ด้านล่าง',
-        ios
-            ? 'เปิด Safari แล้ววางลิงก์ในช่องที่อยู่'
-            : 'เปิด Chrome แล้ววางลิงก์ในช่องที่อยู่',
-        'กดปุ่ม "ติดตั้งแอปลงเครื่อง" อีกครั้ง',
-      ];
-    } else if (ios && !safari) {
-      title = 'iPhone / iPad ต้องใช้ Safari';
-      steps = [
-        'กดปุ่ม "คัดลอกลิงก์" ด้านล่าง',
-        'เปิดแอป Safari แล้ววางลิงก์ในช่องที่อยู่',
-        'กดปุ่มแชร์ (สี่เหลี่ยมมีลูกศรชี้ขึ้น)',
-        'เลือก "เพิ่มไปยังหน้าจอโฮม" แล้วกด "เพิ่ม"',
-      ];
-    } else if (ios) {
-      title = 'ติดตั้งบน iPhone / iPad';
-      steps = [
-        'กดปุ่มแชร์ (สี่เหลี่ยมมีลูกศรชี้ขึ้น) แถบล่างของ Safari',
-        'เลื่อนลงแล้วเลือก "เพิ่มไปยังหน้าจอโฮม"',
-        'กด "เพิ่ม" มุมขวาบน',
-        'ไอคอน "ระบบวันลา" จะอยู่บนหน้าจอโฮม เปิดจากไอคอนได้เลย',
-      ];
-    } else if (android) {
-      title = 'ติดตั้งบนมือถือ Android';
-      steps = [
-        'เปิดหน้านี้ใน Chrome',
-        'กดเมนู ⋮ มุมขวาบน',
-        'เลือก "ติดตั้งแอป" หรือ "เพิ่มลงในหน้าจอหลัก"',
-        'กด "ติดตั้ง" — ไอคอน "ระบบวันลา" จะอยู่บนหน้าจอ',
-      ];
-    } else {
-      title = 'ติดตั้งบนคอมพิวเตอร์';
-      steps = [
-        'เปิดหน้านี้ใน Google Chrome หรือ Microsoft Edge',
-        'Chrome: กดไอคอนติดตั้ง (จอคอมมีลูกศร) ท้ายช่องที่อยู่ หรือเมนู ⋮ > '
-            '"แคสต์ บันทึก และแชร์" > "ติดตั้งหน้าเว็บเป็นแอป"',
-        'Edge: เมนู … > "แอป" > "ติดตั้งไซต์นี้เป็นแอป"',
-        'กด "ติดตั้ง" — จะมีไอคอน "ระบบวันลา" บนเดสก์ท็อป / เมนู Start',
-      ];
+    if (info['ios'] == true) {
+      _iosSheet(info['safari'] == true);
+      return;
     }
 
-    showDialog(
+    setState(() => _busy = true);
+    final outcome = await platform.promptInstall();
+    if (!mounted) return;
+    setState(() => _busy = false);
+
+    switch (outcome) {
+      case 'accepted':
+        setState(() => _done = true);
+        _snack('ติดตั้งแล้ว — เปิดจากไอคอน "ระบบวันลา" ได้เลย');
+      case 'dismissed':
+        break;
+      default:
+        // เบราว์เซอร์นี้ติดตั้งเองไม่ได้ (เช่น Firefox, Safari บน Mac) หรือ
+        // ติดตั้งไว้แล้วในเบราว์เซอร์นี้
+        _snack(_isMobile
+            ? 'เบราว์เซอร์นี้เพิ่มลงหน้าจอโฮมให้ไม่ได้ — เปิดลิงก์ใน Chrome แล้วกดอีกครั้ง'
+            : 'เบราว์เซอร์นี้ติดตั้งให้ไม่ได้ หรือติดตั้งไว้แล้ว — ใช้ Chrome หรือ Edge');
+    }
+  }
+
+  void _snack(String text) => ScaffoldMessenger.of(context)
+      .showSnackBar(SnackBar(content: Text(text)));
+
+  void _copyLink() {
+    final link = Uri.base.replace(fragment: '').toString();
+    Clipboard.setData(ClipboardData(
+        text: link.endsWith('#') ? link.substring(0, link.length - 1) : link));
+    _snack('คัดลอกลิงก์แล้ว');
+  }
+
+  /// iPhone: ชี้ปุ่มแชร์ของ Safari (แถบล่างกลางจอ) — กด 2 ครั้งก็เสร็จ
+  void _iosSheet(bool safari) {
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title,
-            style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
-        content: SizedBox(
-          width: 420,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (var i = 0; i < steps.length; i++)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      CircleAvatar(
-                        radius: 11,
-                        backgroundColor: const Color(0xFF2563EB),
-                        child: Text('${i + 1}',
-                            style: const TextStyle(
-                                fontSize: 12, color: Colors.white)),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                          child: Text(steps[i],
-                              style: GoogleFonts.sarabun(fontSize: 15))),
-                    ],
-                  ),
+              Text('เพิ่มไปยังหน้าจอโฮม',
+                  style: GoogleFonts.sarabun(
+                      fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              if (!safari) ...[
+                Text('iPhone ต้องเปิดใน Safari ก่อน',
+                    style: GoogleFonts.sarabun(fontSize: 15)),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: _copyLink,
+                  icon: const Icon(Icons.link),
+                  label: const Text('คัดลอกลิงก์ไปเปิดใน Safari'),
                 ),
+              ] else ...[
+                _iosStep(Icons.ios_share, 'แตะปุ่มแชร์', 'ที่แถบล่างของ Safari'),
+                const SizedBox(height: 12),
+                _iosStep(Icons.add_box_outlined, 'แตะ "เพิ่มไปยังหน้าจอโฮม"',
+                    'แล้วกด "เพิ่ม"'),
+                const SizedBox(height: 16),
+                const Icon(Icons.keyboard_double_arrow_down_rounded,
+                    size: 40, color: Color(0xFF2563EB)),
+              ],
             ],
           ),
         ),
-        actions: [
-          TextButton.icon(
-            icon: const Icon(Icons.link, size: 18),
-            label: const Text('คัดลอกลิงก์'),
-            onPressed: () {
-              final link = Uri.base.replace(fragment: '').toString();
-              Clipboard.setData(ClipboardData(
-                  text: link.endsWith('#')
-                      ? link.substring(0, link.length - 1)
-                      : link));
-              ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('คัดลอกลิงก์แล้ว')));
-            },
+      ),
+    );
+  }
+
+  Widget _iosStep(IconData icon, String title, String detail) => Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(12)),
+            child: Icon(icon, color: const Color(0xFF2563EB)),
           ),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('เข้าใจแล้ว')),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: GoogleFonts.sarabun(
+                        fontSize: 16, fontWeight: FontWeight.w700)),
+                Text(detail,
+                    style: GoogleFonts.sarabun(
+                        fontSize: 13, color: Colors.blueGrey)),
+              ],
+            ),
+          ),
         ],
+      );
+
+  /// เปิดผ่าน LINE / Facebook: ติดตั้งจากในแอปพวกนี้ไม่ได้
+  void _openInBrowserSheet(bool ios) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('เปิดใน${ios ? ' Safari' : ' Chrome'} ก่อน',
+                  style: GoogleFonts.sarabun(
+                      fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text(
+                  'เปิดผ่าน LINE อยู่ ซึ่งเพิ่มลงหน้าจอโฮมไม่ได้ — '
+                  'แตะ ⋮ หรือ … มุมขวาแล้วเลือก "เปิดในเบราว์เซอร์" '
+                  'หรือคัดลอกลิงก์ไปวาง',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.sarabun(fontSize: 14)),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: _copyLink,
+                icon: const Icon(Icons.link),
+                label: const Text('คัดลอกลิงก์'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_alreadyInstalled) return const SizedBox.shrink();
+    final info = _info;
+    if (_done || info['standalone'] == true || info['installed'] == true) {
+      return const SizedBox.shrink();
+    }
+    final icon = _isMobile
+        ? Icons.add_to_home_screen_rounded
+        : Icons.install_desktop_rounded;
+    const busyIcon = SizedBox(
+        width: 18,
+        height: 18,
+        child: CircularProgressIndicator(strokeWidth: 2));
 
-    if (tile) {
+    if (widget.tile) {
       return Card(
         elevation: 0,
         color: Colors.white,
@@ -161,22 +200,20 @@ class InstallAppButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             side: const BorderSide(color: Color(0xFFE2E8F0))),
         child: ListTile(
-          leading: const Icon(Icons.install_mobile_rounded,
-              color: Color(0xFF2563EB)),
-          title: Text('ติดตั้งแอปลงเครื่อง',
+          leading: _busy ? busyIcon : Icon(icon, color: const Color(0xFF2563EB)),
+          title: Text(_label,
               style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
-          subtitle: Text('มีไอคอนบนหน้าจอ เปิดได้เลยไม่ต้องพิมพ์ลิงก์',
+          subtitle: Text('มีไอคอน "ระบบวันลา" เปิดได้เลยไม่ต้องพิมพ์ลิงก์',
               style: GoogleFonts.sarabun(fontSize: 12)),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _install(context),
+          onTap: _busy ? null : _install,
         ),
       );
     }
 
     return OutlinedButton.icon(
-      onPressed: () => _install(context),
-      icon: const Icon(Icons.install_mobile_rounded, size: 18),
-      label: Text('ติดตั้งแอปลงเครื่อง',
+      onPressed: _busy ? null : _install,
+      icon: _busy ? busyIcon : Icon(icon, size: 18),
+      label: Text(_label,
           style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
       style: OutlinedButton.styleFrom(
         minimumSize: const Size.fromHeight(44),
