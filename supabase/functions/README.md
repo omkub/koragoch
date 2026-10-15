@@ -87,6 +87,28 @@ npx supabase functions deploy attendance-daily-line --no-verify-jwt --project-re
 
 ---
 
+## push-notify
+
+แจ้งเตือนแบบแอปจริง (Web Push) ให้ผู้ดูแลระบบ / ผู้ดูแลส่วนกลาง — ใบลาใหม่เด้งที่มือถือ/คอม
+แม้ปิดแอปอยู่ ผู้ใช้เปิดเองที่หน้าบัญชี > "แจ้งเตือนบนเครื่องนี้" (ดู `supabase/push_notifications.sql`)
+
+> ⚠️ ต้องปิด **Enforce JWT verification** เพราะฐานข้อมูล (pg_net) เรียกโดยไม่มี token ผู้ใช้
+> ฟังก์ชันตรวจ `x-push-secret` / token เองในโค้ด
+
+```bash
+npx supabase functions deploy push-notify --no-verify-jwt --project-ref uziajblqlbrvqmxvizsi
+```
+
+| เรียกจาก | ยืนยันตัวด้วย | ทำอะไร |
+|---|---|---|
+| trigger `push_new_notification` | header `x-push-secret` = `AppSecrets.push_secret` | ส่งแจ้งเตือนแถวนั้นไปทุกเครื่องของผู้รับ |
+| แอป `{ action: 'public_key' }` | token ผู้ใช้ | คืนกุญแจ VAPID สาธารณะ (สร้างให้เองครั้งแรก เก็บใน `AppSecrets`) |
+| แอป `{ action: 'test' }` | token ผู้ดูแลระบบ | ส่งแจ้งเตือนทดสอบไปเครื่องของคนที่กด |
+
+ไม่ต้องตั้งค่าลับเอง — กุญแจ VAPID สร้างอัตโนมัติ เครื่องที่เลิกรับแล้วถูกลบออกเอง
+
+---
+
 ## วิธี deploy (ไม่ต้องติดตั้งอะไรเพิ่ม)
 
 ทำผ่านหน้าเว็บของ Supabase ได้เลย

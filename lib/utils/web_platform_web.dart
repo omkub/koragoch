@@ -210,6 +210,28 @@ void reloadApp() {
   }
 }
 
+/// สถานะแจ้งเตือนแบบแอปของเครื่องนี้ (koragochPushState ใน web/index.html)
+/// 'on' | 'off' | 'denied' | 'unsupported' | 'needs-install'
+Future<String> pushState() => _callPromise('koragochPushState');
+
+/// ขอสิทธิ์ + สมัครรับแจ้งเตือน → JSON ของ subscription หรือ 'denied' / 'error:...'
+Future<String> pushEnable(String publicKey) =>
+    _callPromise('koragochPushEnable', publicKey);
+
+/// เลิกรับแจ้งเตือนบนเครื่องนี้ → endpoint เดิม (หรือ '')
+Future<String> pushDisable() => _callPromise('koragochPushDisable');
+
+Future<String> _callPromise(String fn, [String? arg]) async {
+  try {
+    final p = arg == null
+        ? globalContext.callMethod<JSPromise<JSString>>(fn.toJS)
+        : globalContext.callMethod<JSPromise<JSString>>(fn.toJS, arg.toJS);
+    return (await p.toDart).toDart;
+  } catch (e) {
+    return 'error:$e';
+  }
+}
+
 /// เปิดหน้าต่างติดตั้งของเบราว์เซอร์ (Chrome / Edge บน Android และ PC)
 /// คืน 'accepted' | 'dismissed' | 'unavailable' (ไม่มีหน้าต่างนี้ เช่น iPhone)
 Future<String> promptInstall() async {

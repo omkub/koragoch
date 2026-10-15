@@ -81,3 +81,8 @@ Future<String> promptInstall() async => 'unavailable';
 
 /// นอกเว็บอัปเดตผ่านสโตร์ — ไม่มีอะไรให้โหลดใหม่
 void reloadApp() {}
+
+/// Web Push มีเฉพาะบนเว็บ
+Future<String> pushState() async => 'unsupported';
+Future<String> pushEnable(String publicKey) async => 'error:unsupported';
+Future<String> pushDisable() async => '';
