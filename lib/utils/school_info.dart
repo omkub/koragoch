@@ -227,7 +227,10 @@ class SchoolInfo {
           roleId: await _currentRoleId(client, timeout),
         );
         final logo = (row['logo'] ?? '').toString();
-        _logo = logo.startsWith('data:image') ? logo : null;
+        // ลิงก์ Google Drive (โฟลเดอร์ LogoRPB) — ค่าเก่าอาจเป็น data URL
+        _logo = (logo.startsWith('http') || logo.startsWith('data:image'))
+            ? logo
+            : null;
         _loaded = true;
         try {
           final prefs = await SharedPreferences.getInstance();
