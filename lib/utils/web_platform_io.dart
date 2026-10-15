@@ -72,3 +72,9 @@ Future<String?> pickAndCompressImage({
   debugPrint('pickAndCompressImage: รองรับเฉพาะบนเว็บ');
   return null;
 }
+
+/// นอกเว็บไม่มีการติดตั้ง PWA — ถือว่าเป็นแอปที่ติดตั้งแล้ว (ไม่แสดงปุ่ม)
+Map<String, dynamic> installInfo() => const {'standalone': true};
+
+/// นอกเว็บไม่มีการติดตั้ง PWA
+Future<String> promptInstall() async => 'unavailable';

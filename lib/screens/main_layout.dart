@@ -23,6 +23,7 @@ import 'attendance_screen.dart';
 import '../services/attendance_service.dart';
 import '../utils/profile_image.dart';
 import '../widgets/notification_bell.dart';
+import '../widgets/school_logo.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -600,11 +601,12 @@ class _MainLayoutState extends State<MainLayout> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A),
+                      color: const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(10)),
                   clipBehavior: Clip.antiAlias,
-                  // โลโก้เดียวกับหน้าเข้าสู่ระบบ
-                  child: Image.asset('image/Logo.jpg', fit: BoxFit.cover),
+                  // โลโก้โรงเรียนของผู้ใช้ (ตั้งที่เว็บส่วนกลาง) — ไม่มี = ไอคอนกลาง
+                  child: Center(
+                      child: SchoolLogo(dataUrl: SchoolInfo.logo, size: 36)),
                 ),
                 const SizedBox(width: 12),
                 Column(

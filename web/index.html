@@ -44,7 +44,8 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="ระบบวันลา">
-  <link rel="apple-touch-icon" href="favicon.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="theme-color" content="#1E293B">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
@@ -84,6 +85,51 @@
     document.addEventListener('gesturestart', function(e) {
       e.preventDefault();
     });
+  </script>
+
+  <!--
+    ติดตั้งแอปลงเครื่อง (มือถือ / PC) — เบราว์เซอร์ส่ง beforeinstallprompt มาตั้งแต่
+    หน้ายังโหลดไม่เสร็จ ต้องดักไว้ก่อน Flutter เริ่ม แล้วให้ปุ่ม "ติดตั้งแอป" ในแอป
+    (lib/widgets/install_app_button.dart) เรียกผ่าน koragochInstallInfo /
+    koragochPromptInstall — iPhone ไม่มีอีเวนต์นี้ แอปจึงแสดงวิธีทำแทน
+  -->
+  <script>
+    (function() {
+      var deferred = null;
+      var installed = false;
+      window.addEventListener('beforeinstallprompt', function(e) {
+        e.preventDefault();
+        deferred = e;
+      });
+      window.addEventListener('appinstalled', function() {
+        deferred = null;
+        installed = true;
+      });
+      window.koragochInstallInfo = function() {
+        var ua = navigator.userAgent || '';
+        var ios = /iphone|ipad|ipod/i.test(ua) ||
+          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        return JSON.stringify({
+          canPrompt: !!deferred,
+          installed: installed,
+          standalone: (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+            navigator.standalone === true,
+          ios: ios,
+          android: /android/i.test(ua),
+          inAppBrowser: /Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(ua),
+          safari: /safari/i.test(ua) && !/crios|fxios|edgios|chrome|android/i.test(ua)
+        });
+      };
+      window.koragochPromptInstall = function() {
+        if (!deferred) return Promise.resolve('unavailable');
+        var e = deferred;
+        deferred = null;
+        e.prompt();
+        return e.userChoice
+          .then(function(choice) { return choice.outcome; })
+          .catch(function() { return 'dismissed'; });
+      };
+    })();
   </script>
 
   <script>

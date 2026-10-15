@@ -140,6 +140,27 @@ class SchoolInfo {
   /// จำค่าไว้ตลอดการเปิดแอป จึงมีผลเมื่อเปิดแอปครั้งถัดไป
   static bool get useOldMobileUi => _oldMobileUi;
 
+  static String? _logo;
+
+  /// โลโก้โรงเรียนที่จำไว้ในเครื่อง (data URL) — หน้าล็อกอินอ่านค่านี้
+  /// เพราะก่อนล็อกอินอ่านตาราง Schools ไม่ได้ (RLS)
+  static const logoKey = 'schoolLogo';
+
+  /// โลโก้ของโรงเรียนผู้ใช้ (data URL จาก Schools.logo — supabase/school_logo.sql)
+  /// null = ไม่มีโลโก้ (แสดงไอคอนกลางแทน)
+  static String? get logo => _logo;
+
+  /// โลโก้ที่จำไว้จากการล็อกอินครั้งก่อนในเครื่องนี้
+  static Future<String?> savedLogo() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final v = prefs.getString(logoKey);
+      return (v == null || v.isEmpty) ? null : v;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// โรงเรียนที่ระบบกำลังใช้งานอยู่
   static SchoolRecord get current => _current;
 
@@ -205,10 +226,18 @@ class SchoolInfo {
           byRole: row['mobile_ui_by_role'],
           roleId: await _currentRoleId(client, timeout),
         );
+        final logo = (row['logo'] ?? '').toString();
+        _logo = logo.startsWith('data:image') ? logo : null;
         _loaded = true;
         try {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setBool(_oldMobileUiKey, _oldMobileUi);
+          // จำโลโก้ของโรงเรียนนี้ไว้ — เปิดแอปครั้งถัดไปหน้าล็อกอินใช้ได้เลย
+          if (_logo == null) {
+            await prefs.remove(logoKey);
+          } else {
+            await prefs.setString(logoKey, _logo!);
+          }
         } catch (_) {}
         debugPrint('✅ โหลดข้อมูลโรงเรียนแล้ว: ${_current.fullName} '
             '(id_school=${_current.idSchool})');
@@ -225,6 +254,7 @@ class SchoolInfo {
     try {
       final prefs = await SharedPreferences.getInstance();
       _oldMobileUi = prefs.getBool(_oldMobileUiKey) ?? false;
+      _logo = prefs.getString(logoKey);
     } catch (_) {}
   }
 
@@ -269,6 +299,7 @@ class SchoolInfo {
     _loaded = false;
     _isSuperAdmin = false;
     _oldMobileUi = false;
+    _logo = null; // ค่าในเครื่อง (logoKey) เก็บไว้ ให้หน้าล็อกอินครั้งถัดไปใช้
   }
 
   // ── ค่าที่หน้าจอต่าง ๆ เรียกใช้ ─────────────────────────────────

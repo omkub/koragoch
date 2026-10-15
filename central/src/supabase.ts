@@ -66,6 +66,8 @@ export interface School {
   mobile_ui?: MobileUi | null;
   /** หน้าจอมือถือรายสิทธิ์ { ID_Roles: new|old } ไม่มีคีย์ = ตามโรงเรียน */
   mobile_ui_by_role?: Record<string, MobileUi> | null;
+  /** โลโก้โรงเรียน (data URL ≤ 256×256) — ไม่มีคอลัมน์ = ยังไม่รัน school_logo.sql */
+  logo?: string | null;
 }
 
 /** new = แบบแอป (แถบล่าง 4 ปุ่ม), old = แบบเดิม (แถบล่าง 9 ปุ่ม) */
