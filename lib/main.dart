@@ -12,6 +12,7 @@ import 'package:thai_buddhist_date/thai_buddhist_date.dart' as tbd;
 import 'services/firebase_service.dart';
 import 'utils/school_info.dart';
 import 'utils/staff_status.dart';
+import 'widgets/update_banner.dart';
 
 Future<void> clearSessionPrefs(SharedPreferences prefs) async {
   await prefs.remove('isLoggedIn');
@@ -150,6 +151,9 @@ class _MyAppState extends State<MyApp> {
       scrollBehavior: const MyScrollBehavior(),
       // โชว์หน้า Login ทันที! (ไม่มีหน้าแดง ไม่มีค้างแน่นอนครับ)🏁🏆🥇🚀
       home: _homeWidget,
+      // แถบ "มีเวอร์ชันใหม่" ลอยบนทุกหน้า (ไม่บังคับอัปเดต)
+      builder: (context, child) =>
+          UpdateBanner(child: child ?? const SizedBox.shrink()),
     );
   }
 }
