@@ -230,8 +230,13 @@ function doPost(e) {
 
     // 📁 คำสั่งอัปโหลดไฟล์ (POST เท่านั้นเพราะไฟล์มีขนาดใหญ่)
     if (action === "upload") {
-      var folderId = data.folderId || (data.folderType === "profile" ? FOLDER_PROFILE_ID : FOLDER_LEAVE_ID);
-      var folder = DriveApp.getFolderById(folderId);
+      var folder;
+      if (data.folderType === "logo") {
+        folder = getOrCreateLogoFolder_(); // 🏫 โลโก้โรงเรียน → โฟลเดอร์ LogoRPB
+      } else {
+        var folderId = data.folderId || (data.folderType === "profile" ? FOLDER_PROFILE_ID : FOLDER_LEAVE_ID);
+        folder = DriveApp.getFolderById(folderId);
+      }
       var rawFile = data.file64 || data.file || "";
       var base64Data = rawFile.indexOf("base64,") >= 0 ? rawFile.split("base64,").pop() : rawFile;
       var blob = Utilities.newBlob(Utilities.base64Decode(base64Data), data.mimeType, data.name || data.fileName);
@@ -256,6 +261,16 @@ function doPost(e) {
 
     return createJsonResponse({ status: "error", message: "Invalid action" });
   } catch (error) { return createJsonResponse({ status: "error", message: error.toString() }); }
+}
+
+// 🏫 โฟลเดอร์เก็บโลโก้โรงเรียน (ตั้งจากเว็บส่วนกลาง) — ชื่อ LogoRPB
+// อยู่ข้างโฟลเดอร์รูปโปรไฟล์ (โฟลเดอร์แม่เดียวกัน) ไม่มีก็สร้างให้ครั้งแรก
+var LOGO_FOLDER_NAME = "LogoRPB";
+function getOrCreateLogoFolder_() {
+  var parents = DriveApp.getFolderById(FOLDER_PROFILE_ID).getParents();
+  var parent = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
+  var found = parent.getFoldersByName(LOGO_FOLDER_NAME);
+  return found.hasNext() ? found.next() : parent.createFolder(LOGO_FOLDER_NAME);
 }
 
 function createJsonResponse(data, e) {

@@ -3,11 +3,14 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
-/// โลโก้โรงเรียน (data URL จาก Schools.logo) — ไม่มีโลโก้ / ถอดรหัสไม่ได้
-/// = ไอคอนโรงเรียนกลาง ๆ แทน
+import '../utils/profile_image.dart';
+
+/// โลโก้โรงเรียน (Schools.logo) — ไม่มีโลโก้ / โหลดไม่ขึ้น = ไอคอนโรงเรียนกลาง ๆ
 ///
-/// ตั้งโลโก้ที่เว็บส่วนกลาง > โรงเรียน (supabase/school_logo.sql)
-class SchoolLogo extends StatelessWidget {
+/// ค่าในฐานข้อมูลเป็นลิงก์ Google Drive (โฟลเดอร์ LogoRPB ตั้งที่เว็บส่วนกลาง)
+/// แสดงผ่านพร็อกซีแบบเดียวกับรูปโปรไฟล์ (profile_image.dart) ถ้าไม่ขึ้นลองลิงก์
+/// สำรองของ Google — ค่าเก่าที่เป็น data URL ยังแสดงได้
+class SchoolLogo extends StatefulWidget {
   final String? dataUrl;
   final double size;
 
@@ -40,17 +43,61 @@ class SchoolLogo extends StatelessWidget {
   }
 
   @override
+  State<SchoolLogo> createState() => _SchoolLogoState();
+}
+
+class _SchoolLogoState extends State<SchoolLogo> {
+  // 0 = พร็อกซีหลัก, 1 = ลิงก์สำรองของ Google, 2 = ยอมแพ้ แสดงไอคอน
+  int _attempt = 0;
+
+  @override
+  void didUpdateWidget(covariant SchoolLogo oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.dataUrl != widget.dataUrl) _attempt = 0;
+  }
+
+  Widget get _fallback => Icon(Icons.school_rounded,
+      size: widget.size * 0.6, color: widget.iconColor);
+
+  @override
   Widget build(BuildContext context) {
-    final bytes = decode(dataUrl);
-    if (bytes == null) {
-      return Icon(Icons.school_rounded, size: size * 0.6, color: iconColor);
+    final raw = widget.dataUrl;
+    final bytes = SchoolLogo.decode(raw);
+    if (bytes != null) {
+      return Image.memory(bytes,
+          width: widget.size,
+          height: widget.size,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+          errorBuilder: (_, __, ___) => _fallback);
     }
-    return Image.memory(bytes,
-        width: size,
-        height: size,
-        fit: BoxFit.contain,
-        gaplessPlayback: true,
-        errorBuilder: (_, __, ___) =>
-            Icon(Icons.school_rounded, size: size * 0.6, color: iconColor));
+
+    String? url;
+    if (raw != null && raw.startsWith('http') && _attempt < 2) {
+      if (_attempt == 0) {
+        url = resolveDisplayImageUrl(raw);
+      } else {
+        final id = extractDriveFileId(raw);
+        url = id == null ? null : driveProxyUrl(id);
+      }
+    }
+    if (url == null) return _fallback;
+
+    return Image.network(
+      url,
+      // บนเว็บวาดผ่าน <img> ตรง ๆ เลี่ยง CORS ของ Google Drive
+      webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
+      width: widget.size,
+      height: widget.size,
+      fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) {
+        if (_attempt < 2) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _attempt++);
+          });
+        }
+        return _fallback;
+      },
+    );
   }
 }

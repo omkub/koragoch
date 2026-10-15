@@ -16,6 +16,8 @@
  *   line_test         ส่งข้อความทดสอบ (ผู้ดูแลระบบส่วนกลาง)
  *   line_latest_id    ดึงไอดีกลุ่ม LINE ล่าสุด (ผู้ดูแลระบบส่วนกลาง)
  *   drive_upload      อัปโหลดไฟล์ (โฟลเดอร์กำหนดฝั่งเซิร์ฟเวอร์)
+ *                     folderType: leave | profile | logo (โลโก้โรงเรียน → LogoRPB
+ *                     เฉพาะผู้ดูแลระบบส่วนกลาง)
  *   drive_delete      ลบไฟล์ — ผู้ดูแลระบบ หรือคนที่อัปโหลดไฟล์นั้นเอง
  *
  * วิธี deploy:
@@ -255,10 +257,16 @@ Deno.serve(async (req) => {
       if (file64.length > MAX_FILE64_LENGTH) {
         return reply(413, { error: 'ไฟล์ใหญ่เกินไป (ไม่เกิน 10 MB)' });
       }
-      const folderType = payload.folderType === 'profile' ? 'profile' : 'leave';
+      const folderType = payload.folderType === 'profile'
+        ? 'profile'
+        : payload.folderType === 'logo' ? 'logo' : 'leave';
+      // โลโก้โรงเรียน (โฟลเดอร์ LogoRPB — Apps Script หา/สร้างเอง) ตั้งได้เฉพาะส่วนกลาง
+      if (folderType === 'logo' && !isSuper) {
+        return reply(403, { error: 'อัปโหลดโลโก้โรงเรียนได้เฉพาะผู้ดูแลระบบส่วนกลาง' });
+      }
       const folderId = folderType === 'profile'
         ? config.driveProfileFolderId
-        : config.driveLeaveFolderId;
+        : folderType === 'logo' ? '' : config.driveLeaveFolderId;
 
       const result = await bridgePost(config, {
         action: 'upload',
