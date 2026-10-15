@@ -12,6 +12,7 @@ import '../user_management_screen.dart'; // 👤 เพิ่มหน้าจ�
 import '../../utils/profile_image.dart';
 import '../../utils/school_info.dart';
 import '../../widgets/install_app_button.dart';
+import '../../widgets/push_toggle_tile.dart';
 class MobileProfileScreen extends StatefulWidget {
   /// หน้าตาใหม่บนมือถือ (MobileShell): ไม่มีหัวหน้าใหญ่ (แถบหัวของแอปมีแล้ว)
   /// ออกจากระบบเป็นรายการล่างสุดแบบหน้าตั้งค่า
@@ -105,7 +106,13 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
         setState(() {
           _teacherData = decoded;
           _currentUserName = decoded['fullName'] ?? decoded['name'] ?? '';
-          _userRole = decoded['role'] ?? decoded['permission'] ?? 'ครู';
+          // ใช้สิทธิ์ที่บันทึกตอนล็อกอินก่อน — userFullDataJson ถูกหน้าอื่น
+          // (ฟอร์มส่งใบลา) เขียนทับด้วยแถวดิบจากฐานข้อมูลที่ไม่มีชื่อสิทธิ์
+          // ส่วนผู้ดูแลระบบในหน้านี้เลยเคยหายไปทั้งที่ล็อกอินเป็นแอดมิน
+          _userRole = prefs.getString('userRole') ??
+              decoded['role'] ??
+              decoded['permission'] ??
+              'ครู';
 
           _phoneController.text =
               decoded['phone'] ?? decoded['phoneNumber'] ?? '';
@@ -432,6 +439,12 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
                             // ติดตั้งลงเครื่อง (ซ่อนเองถ้าเปิดจากแอปที่ติดตั้งแล้ว)
                             const SizedBox(height: 16),
                             const InstallAppButton(tile: true),
+
+                            // แจ้งเตือนแบบแอป (Web Push) — เฉพาะผู้ดูแลระบบ
+                            if (_userRole.contains('ผู้ดูแลระบบ')) ...[
+                              const SizedBox(height: 8),
+                              const PushToggleTile(),
+                            ],
 
                             if (widget.appStyle) ...[
                               const SizedBox(height: 24),

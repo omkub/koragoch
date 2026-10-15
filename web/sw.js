@@ -11,6 +11,41 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
+// ── แจ้งเตือนแบบแอป (Web Push) — เฉพาะผู้ดูแลระบบที่เปิดไว้ ─────────────────
+// ส่งมาจาก Edge Function push-notify: { title, body, url, tag }
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (_) {
+    data = { title: 'ระบบวันลา', body: event.data ? event.data.text() : '' };
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'ระบบวันลา', {
+      body: data.body || '',
+      icon: 'icons/Icon-192.png',
+      badge: 'icons/Icon-maskable-192.png',
+      tag: data.tag || undefined,
+      renotify: !!data.tag,
+      data: { url: data.url || './' },
+    }),
+  );
+});
+
+// แตะแจ้งเตือน → สลับไปแอปที่เปิดอยู่ ไม่มีก็เปิดใหม่
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = new URL((event.notification.data && event.notification.data.url) || './', self.registration.scope).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        if (c.url.startsWith(self.registration.scope) && 'focus' in c) return c.focus();
+      }
+      return self.clients.openWindow(target);
+    }),
+  );
+});
+
 self.addEventListener('fetch', (event) => {
   if (event.request.mode !== 'navigate') return;
   event.respondWith(

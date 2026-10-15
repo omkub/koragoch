@@ -134,6 +134,66 @@
           }, 200);
         });
       }
+      // ── แจ้งเตือนแบบแอป (Web Push) — lib/services/push_service.dart ──────────
+      function pushSupported() {
+        return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+      }
+      function isStandalone() {
+        return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+          navigator.standalone === true;
+      }
+      function isIos() {
+        var ua = navigator.userAgent || '';
+        return /iphone|ipad|ipod/i.test(ua) ||
+          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      }
+      function b64urlToBytes(s) {
+        var pad = '='.repeat((4 - s.length % 4) % 4);
+        var raw = atob((s + pad).replace(/-/g, '+').replace(/_/g, '/'));
+        var out = new Uint8Array(raw.length);
+        for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+        return out;
+      }
+      // 'on' | 'off' | 'denied' | 'unsupported' | 'needs-install' (iPhone ต้องติดตั้งก่อน)
+      window.koragochPushState = function() {
+        if (isIos() && !isStandalone()) return Promise.resolve('needs-install');
+        if (!pushSupported()) return Promise.resolve('unsupported');
+        if (Notification.permission === 'denied') return Promise.resolve('denied');
+        return navigator.serviceWorker.ready
+          .then(function(reg) { return reg.pushManager.getSubscription(); })
+          .then(function(sub) {
+            return sub && Notification.permission === 'granted' ? 'on' : 'off';
+          })
+          .catch(function() { return 'off'; });
+      };
+      // ขอสิทธิ์ + สมัครรับ → JSON ของ subscription หรือ 'denied' / 'error:...'
+      window.koragochPushEnable = function(publicKey) {
+        if (!pushSupported()) return Promise.resolve('error:unsupported');
+        return Notification.requestPermission().then(function(p) {
+          if (p !== 'granted') return 'denied';
+          return navigator.serviceWorker.ready.then(function(reg) {
+            return reg.pushManager.getSubscription().then(function(old) {
+              return old || reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: b64urlToBytes(publicKey)
+              });
+            });
+          }).then(function(sub) { return JSON.stringify(sub.toJSON()); });
+        }).catch(function(e) { return 'error:' + (e && e.message || e); });
+      };
+      // เลิกรับ → endpoint เดิม (ไว้ลบแถวในฐานข้อมูล) หรือ ''
+      window.koragochPushDisable = function() {
+        if (!pushSupported()) return Promise.resolve('');
+        return navigator.serviceWorker.ready
+          .then(function(reg) { return reg.pushManager.getSubscription(); })
+          .then(function(sub) {
+            if (!sub) return '';
+            var endpoint = sub.endpoint;
+            return sub.unsubscribe().then(function() { return endpoint; });
+          })
+          .catch(function() { return ''; });
+      };
+
       // แถบ "มีเวอร์ชันใหม่" (lib/widgets/update_banner.dart) — ดึงไฟล์หลักแบบ
       // ข้ามแคชของเบราว์เซอร์ก่อน แล้วรีโหลด จะได้เวอร์ชันใหม่จริง ไม่ใช่ตัวในแคช
       window.koragochReload = function() {
