@@ -112,7 +112,6 @@ function Sidebar({ isSuper, onNavigate }: { isSuper: boolean; onNavigate?: () =>
 
 /**
  * โครงหน้าเว็บส่วนกลาง — จอกว้าง: เมนูซ้ายติดจอ / มือถือ: เมนูเลื่อนออกจากซ้ายด้วยปุ่ม ☰
- * หน้าที่ยังไม่ย้ายไป Tailwind ห่อด้วย .legacy ใน App.tsx
  */
 export default function AppShell({ isSuper, children }: { isSuper: boolean; children: ReactNode }) {
   const [open, setOpen] = useState(false);
