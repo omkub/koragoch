@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { functionError, schoolName, supabase, type School } from '../supabase';
+import { Field, Notice, PageHeader } from '../ui/components';
 
 interface LineRow {
   id_school: number;
@@ -140,114 +141,161 @@ export default function LinePage() {
     }
   }
 
+  const rowOf = (s: School): LineRow =>
+    rows[s.id_school] ?? { id_school: s.id_school, groupId: null, template: null, enabled: false };
+  const statusBadge = (row: LineRow) =>
+    row.enabled ? <span className="badge-green">เปิด</span> : <span className="badge-slate">ปิด</span>;
+  const openEdit = (row: LineRow) => {
+    setMessage(null);
+    setEditing({ ...row });
+  };
+
   return (
     <>
-      <h1>LINE แจ้งเตือน</h1>
-      <p className="muted" style={{ marginBottom: 16 }}>
-        LINE Official Account เดียวกันทั้งระบบ แต่แต่ละโรงเรียนส่งเข้ากลุ่มของตัวเอง
-        โรงเรียนที่ปิดไว้หรือยังไม่มี Group ID จะไม่ส่งแจ้งเตือน
-      </p>
-      {message && <div className={message.error ? 'error' : 'ok'}>{message.text}</div>}
+      <PageHeader
+        title="LINE แจ้งเตือน"
+        description="LINE Official Account เดียวกันทั้งระบบ แต่แต่ละโรงเรียนส่งเข้ากลุ่มของตัวเอง · โรงเรียนที่ปิดไว้หรือยังไม่มี Group ID จะไม่ส่งแจ้งเตือน"
+      />
+      <Notice message={message} />
 
-      <div className="card form">
-        <h3>สะพาน Apps Script (ใช้ร่วมทุกโรงเรียน)</h3>
-        <div className="row" style={{ marginBottom: 0 }}>
-          <input
-            style={{ flex: 1 }}
-            value={bridgeUrl}
-            placeholder="https://script.google.com/macros/s/.../exec"
-            onChange={(e) => setBridgeUrl(e.target.value)}
-          />
-          <button onClick={saveBridgeUrl}>บันทึก URL</button>
+      <section className="card mb-5">
+        <div className="card-title">สะพาน Apps Script (ใช้ร่วมทุกโรงเรียน)</div>
+        <div className="flex flex-col gap-3 px-4 pb-4 sm:px-5">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              className="input font-mono text-[13px]"
+              value={bridgeUrl}
+              placeholder="https://script.google.com/macros/s/.../exec"
+              onChange={(e) => setBridgeUrl(e.target.value)}
+            />
+            <button className="btn-primary sm:shrink-0" onClick={saveBridgeUrl}>
+              บันทึก URL
+            </button>
+          </div>
+          <div className="flex flex-col gap-2 rounded-xl bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-[13px] text-slate-600">
+              หา Group ID: เชิญบอทเข้ากลุ่ม แล้วพิมพ์อะไรก็ได้ในกลุ่ม จากนั้นกดปุ่มนี้
+            </span>
+            <button className="btn-secondary sm:shrink-0" onClick={fetchLatestId}>
+              ดึง Group ID ล่าสุด
+            </button>
+          </div>
+          {latest && (
+            <p className="text-[13px]">
+              ไอดีล่าสุด:{' '}
+              <code className="select-all break-all rounded bg-slate-100 px-1.5 py-0.5 text-xs">{latest}</code>
+            </p>
+          )}
         </div>
-        <div className="row" style={{ marginTop: 12, marginBottom: 0 }}>
-          <span className="muted">
-            หา Group ID: เชิญบอทเข้ากลุ่ม แล้วพิมพ์อะไรก็ได้ในกลุ่ม จากนั้นกดปุ่มนี้
-          </span>
-          <button className="secondary" onClick={fetchLatestId}>ดึง Group ID ล่าสุด</button>
-        </div>
-        {latest && (
-          <p style={{ marginTop: 8 }}>
-            ไอดีล่าสุด: <code>{latest}</code>
-          </p>
-        )}
-      </div>
+      </section>
 
       {editing && (
-        <div className="card form">
-          <h3>
+        <section className="card mb-5">
+          <div className="card-title">
             ตั้งค่า LINE —{' '}
-            {schoolName(schools.find((s) => s.id_school === editing.id_school) ?? {
-              namePart1: null, namePart2: null, fullName: `#${editing.id_school}`,
-            })}
-          </h3>
-          <div className="grid">
-            <label>
-              Group ID
-              <input
-                value={editing.groupId ?? ''}
-                placeholder="C1234..."
-                onChange={(e) => setEditing({ ...editing, groupId: e.target.value })}
-              />
-            </label>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={editing.enabled}
-                onChange={(e) => setEditing({ ...editing, enabled: e.target.checked })}
-              />
-              เปิดแจ้งเตือนใบลาใหม่
-            </label>
+            {schoolName(
+              schools.find((s) => s.id_school === editing.id_school) ?? {
+                namePart1: null,
+                namePart2: null,
+                fullName: `#${editing.id_school}`,
+              },
+            )}
           </div>
-          <label style={{ marginTop: 14 }}>
-            ข้อความ (เว้นว่าง = ใช้แบบมาตรฐาน) — ใช้ได้: {TEMPLATE_HINT}
-            <textarea
-              rows={6}
-              value={editing.template ?? ''}
-              onChange={(e) => setEditing({ ...editing, template: e.target.value })}
-            />
-          </label>
-          <div className="row end">
-            <button type="button" className="secondary" onClick={() => setEditing(null)}>ยกเลิก</button>
-            <button type="button" className="secondary" disabled={busy} onClick={() => sendTest(editing)}>
+          <div className="flex flex-col gap-4 px-4 pb-4 sm:px-5">
+            <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <Field label="Group ID" hint="ขึ้นต้นด้วย C (กลุ่ม), U (คน) หรือ R (ห้อง)">
+                <input
+                  className="input font-mono text-[13px]"
+                  value={editing.groupId ?? ''}
+                  placeholder="C1234..."
+                  onChange={(e) => setEditing({ ...editing, groupId: e.target.value })}
+                />
+              </Field>
+              <label className="flex items-center gap-2 pb-2 text-[13px] font-medium">
+                <input
+                  type="checkbox"
+                  className="checkbox"
+                  checked={editing.enabled}
+                  onChange={(e) => setEditing({ ...editing, enabled: e.target.checked })}
+                />
+                เปิดแจ้งเตือนใบลาใหม่
+              </label>
+            </div>
+            <Field label="ข้อความ (เว้นว่าง = ใช้แบบมาตรฐาน)" hint={`ใช้ได้: ${TEMPLATE_HINT}`}>
+              <textarea
+                className="input min-h-[140px] resize-y"
+                value={editing.template ?? ''}
+                onChange={(e) => setEditing({ ...editing, template: e.target.value })}
+              />
+            </Field>
+          </div>
+          <div className="flex flex-wrap justify-end gap-2 border-t border-line px-4 py-3 sm:px-5">
+            <button type="button" className="btn-secondary" onClick={() => setEditing(null)}>
+              ยกเลิก
+            </button>
+            <button type="button" className="btn-secondary" disabled={busy} onClick={() => sendTest(editing)}>
               ทดสอบส่ง
             </button>
-            <button type="button" disabled={busy} onClick={save}>บันทึก</button>
+            <button type="button" className="btn-primary" disabled={busy} onClick={save}>
+              บันทึก
+            </button>
           </div>
-        </div>
+        </section>
       )}
 
-      <div className="card">
-        <table>
-          <thead>
-            <tr>
-              <th>โรงเรียน</th>
-              <th>Group ID</th>
-              <th>แจ้งเตือน</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {schools.map((s) => {
-              const row = rows[s.id_school] ?? {
-                id_school: s.id_school, groupId: null, template: null, enabled: false,
-              };
-              return (
-                <tr key={s.id_school}>
-                  <td>{schoolName(s)}</td>
-                  <td><code>{row.groupId ? `${row.groupId.slice(0, 10)}…` : '-'}</code></td>
-                  <td>{row.enabled ? <span className="badge on">เปิด</span> : <span className="warn">ปิด</span>}</td>
-                  <td className="num">
-                    <button className="secondary small" onClick={() => { setMessage(null); setEditing({ ...row }); }}>
-                      ตั้งค่า
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <section className="card overflow-hidden">
+        <div className="card-title">กลุ่ม LINE ของแต่ละโรงเรียน</div>
+        <div className="hidden overflow-x-auto md:block">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>โรงเรียน</th>
+                <th>Group ID</th>
+                <th>แจ้งเตือน</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {schools.map((s) => {
+                const row = rowOf(s);
+                return (
+                  <tr key={s.id_school}>
+                    <td className="font-medium">{schoolName(s)}</td>
+                    <td>
+                      <code className="text-xs text-slate-600">{row.groupId ? `${row.groupId.slice(0, 10)}…` : '-'}</code>
+                    </td>
+                    <td>{statusBadge(row)}</td>
+                    <td className="text-right">
+                      <button className="btn-secondary btn-sm" onClick={() => openEdit(row)}>
+                        ตั้งค่า
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <ul className="divide-y divide-slate-100 md:hidden">
+          {schools.map((s) => {
+            const row = rowOf(s);
+            return (
+              <li key={s.id_school} className="flex items-center gap-3 px-4 py-3.5">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium">{schoolName(s)}</div>
+                  <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+                    {statusBadge(row)}
+                    <code className="truncate">{row.groupId ? `${row.groupId.slice(0, 10)}…` : 'ยังไม่มี Group ID'}</code>
+                  </div>
+                </div>
+                <button className="btn-secondary btn-sm" onClick={() => openEdit(row)}>
+                  ตั้งค่า
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
     </>
   );
 }
