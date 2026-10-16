@@ -6,6 +6,8 @@ export default {
     extend: {
       fontFamily: {
         sans: ['"Noto Sans Thai"', 'system-ui', 'sans-serif'],
+        // ตัวอย่างเอกสารราชการ (หัวใบลา) — ตรงกับแบบฟอร์มจริง
+        doc: ['Sarabun', '"TH Sarabun New"', 'Tahoma', 'sans-serif'],
       },
       colors: {
         brand: {

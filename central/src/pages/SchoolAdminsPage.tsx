@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ADMIN_FUNCTION, ADMIN_ROLE_ID, functionError, schoolName, supabase, type School } from '../supabase';
+import { EmptyState, Field, Notice, PageHeader } from '../ui/components';
 
 interface AdminRow {
   id_user: number;
@@ -76,17 +77,26 @@ export default function SchoolAdminsPage() {
     return s ? schoolName(s) : `#${id}`;
   };
 
+  const status = (a: AdminRow) =>
+    a.is_super_admin ? (
+      <span className="badge-brand">ส่วนกลาง</span>
+    ) : a.auth_uid ? (
+      <span className="badge-green">พร้อมใช้งาน</span>
+    ) : (
+      <span className="badge-amber">ยังไม่มีบัญชีเข้าระบบ</span>
+    );
+
   return (
     <>
-      <h1>ผู้ดูแลโรงเรียน</h1>
-      {message && <div className={message.error ? 'error' : 'ok'}>{message.text}</div>}
+      <PageHeader title="ผู้ดูแลโรงเรียน" description="บัญชีผู้ดูแลระบบของแต่ละโรงเรียน (อนุมัติใบลา / จัดการบุคลากรในแอป)" />
+      <Notice message={message} />
 
-      <form className="card form" onSubmit={create}>
-        <h3>สร้างผู้ดูแลระบบให้โรงเรียน</h3>
-        <div className="grid">
-          <label>
-            โรงเรียน
+      <form className="card mb-5" onSubmit={create}>
+        <div className="card-title">สร้างผู้ดูแลระบบให้โรงเรียน</div>
+        <div className="grid gap-4 px-4 pb-4 sm:grid-cols-2 sm:px-5 xl:grid-cols-4">
+          <Field label="โรงเรียน">
             <select
+              className="input"
               value={form.id_school}
               onChange={(e) => setForm({ ...form, id_school: e.target.value })}
               required
@@ -98,66 +108,93 @@ export default function SchoolAdminsPage() {
                 </option>
               ))}
             </select>
-          </label>
-          <label>
-            ชื่อ-นามสกุล
-            <input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required />
-          </label>
-          <label>
-            ชื่อผู้ใช้ (ห้ามซ้ำทั้งระบบ)
+          </Field>
+          <Field label="ชื่อ-นามสกุล">
             <input
+              className="input"
+              value={form.fullName}
+              onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+              required
+            />
+          </Field>
+          <Field label="ชื่อผู้ใช้" hint="ห้ามซ้ำทั้งระบบ · a-z 0-9 . _ -">
+            <input
+              className="input"
               value={form.username}
               onChange={(e) => setForm({ ...form, username: e.target.value })}
               pattern="[A-Za-z0-9._\-]+"
               title="ใช้ได้เฉพาะ a-z 0-9 . _ -"
+              autoComplete="off"
               required
             />
-          </label>
-          <label>
-            รหัสผ่านเริ่มต้น
+          </Field>
+          <Field label="รหัสผ่านเริ่มต้น" hint="อย่างน้อย 6 ตัว">
             <input
+              className="input"
               type="password"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
+              autoComplete="new-password"
               required
             />
-          </label>
+          </Field>
         </div>
-        <div className="row end">
-          <button type="submit" disabled={busy}>{busy ? 'กำลังสร้าง...' : 'สร้างผู้ดูแลระบบ'}</button>
+        <div className="flex justify-end border-t border-line px-4 py-3 sm:px-5">
+          <button type="submit" className="btn-primary" disabled={busy}>
+            {busy ? 'กำลังสร้าง...' : 'สร้างผู้ดูแลระบบ'}
+          </button>
         </div>
       </form>
 
-      <div className="card">
-        <table>
-          <thead>
-            <tr>
-              <th>โรงเรียน</th>
-              <th>ชื่อผู้ใช้</th>
-              <th>ชื่อ-นามสกุล</th>
-              <th>สถานะ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {admins.map((a) => (
-              <tr key={a.id_user}>
-                <td>{schoolNameOf(a.id_school)}</td>
-                <td>{a.username}</td>
-                <td>{a.fullName}</td>
-                <td>
-                  {a.is_super_admin ? (
-                    <span className="badge">ส่วนกลาง</span>
-                  ) : a.auth_uid ? (
-                    'พร้อมใช้งาน'
-                  ) : (
-                    <span className="warn">ยังไม่มีบัญชีเข้าระบบ</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <section className="card overflow-hidden">
+        <div className="card-title">
+          ผู้ดูแลระบบทั้งหมด
+          <span className="text-xs font-medium text-slate-500">{admins.length} คน</span>
+        </div>
+        {admins.length === 0 ? (
+          <EmptyState>ยังไม่มีผู้ดูแลระบบ</EmptyState>
+        ) : (
+          <>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>ชื่อ-นามสกุล</th>
+                    <th>ชื่อผู้ใช้</th>
+                    <th>โรงเรียน</th>
+                    <th>สถานะ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {admins.map((a) => (
+                    <tr key={a.id_user}>
+                      <td className="font-medium">{a.fullName}</td>
+                      <td className="text-slate-600">{a.username}</td>
+                      <td>{schoolNameOf(a.id_school)}</td>
+                      <td>{status(a)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ul className="divide-y divide-slate-100 md:hidden">
+              {admins.map((a) => (
+                <li key={a.id_user} className="px-4 py-3.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate font-medium">{a.fullName}</div>
+                      <div className="truncate text-xs text-slate-500">
+                        {a.username} · {schoolNameOf(a.id_school)}
+                      </div>
+                    </div>
+                    {status(a)}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
     </>
   );
 }
