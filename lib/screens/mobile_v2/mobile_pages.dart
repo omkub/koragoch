@@ -16,6 +16,8 @@ import '../official_trip_screen.dart';
 import '../personnel_screen.dart';
 import '../report_overview_screen.dart';
 import '../user_management_screen.dart';
+import '../../utils/school_info.dart';
+import '../../widgets/school_logo.dart';
 
 const mobileInk = Color(0xFF0F172A);
 const mobileMuted = Color(0xFF64748B);
@@ -93,7 +95,12 @@ class MobileSubPage extends StatelessWidget {
   }
 }
 
-AppBar mobileAppBar(String title, {List<Widget> actions = const []}) {
+/// [showLogo] = โลโก้โรงเรียนของผู้ใช้หน้าชื่อหน้า (แถบหัวของแท็บหลักใน MobileShell)
+AppBar mobileAppBar(String title,
+    {List<Widget> actions = const [], bool showLogo = false}) {
+  final text = Text(title,
+      style: GoogleFonts.sarabun(
+          fontSize: 20, fontWeight: FontWeight.w700, color: mobileInk));
   return AppBar(
     backgroundColor: Colors.white,
     surfaceTintColor: Colors.white,
@@ -102,9 +109,16 @@ AppBar mobileAppBar(String title, {List<Widget> actions = const []}) {
     scrolledUnderElevation: 0.5,
     centerTitle: false,
     titleSpacing: 16,
-    title: Text(title,
-        style: GoogleFonts.sarabun(
-            fontSize: 20, fontWeight: FontWeight.w700, color: mobileInk)),
+    title: showLogo
+        ? Row(children: [
+            SizedBox(
+                width: 30,
+                height: 30,
+                child: SchoolLogo(dataUrl: SchoolInfo.logo, size: 30)),
+            const SizedBox(width: 10),
+            Flexible(child: text),
+          ])
+        : text,
     actions: [...actions, const SizedBox(width: 4)],
     shape: const Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
   );
