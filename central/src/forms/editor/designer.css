@@ -1,0 +1,68 @@
+/* ============================================================================
+   ตัวแก้บรรทัด / ตั้งค่ากระดาษ ของหน้าแบบฟอร์ม (BlockEditor, PaperEditor, inputs)
+   ใช้ชื่อคลาสเดิมของคอมโพเนนต์ แต่หน้าตาตามระบบดีไซน์ใหม่ (Tailwind)
+   ขอบเขต: เฉพาะภายใน .block-editor / .paper-editor — ไม่กระทบปุ่ม/ช่องที่อื่น
+   ============================================================================ */
+
+:is(.block-editor, .paper-editor) {
+  @apply text-[13px] text-ink;
+
+  input:not([type='checkbox']):not([type='radio']):not([type='file']),
+  select,
+  textarea {
+    @apply w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[13px] text-ink
+      focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100;
+  }
+  input[type='checkbox'] { @apply h-4 w-4 accent-brand-600; }
+
+  button {
+    @apply inline-flex items-center justify-center gap-1 rounded-lg bg-ink px-3 py-1.5 text-[13px] font-semibold text-white
+      hover:bg-slate-700 disabled:opacity-50;
+  }
+  button.secondary { @apply border border-slate-200 bg-white text-slate-700 hover:bg-slate-50; }
+  button.small { @apply px-2.5 py-1 text-xs; }
+  button.danger { @apply text-red-600; }
+
+  .muted { @apply text-slate-500; }
+  .small { @apply text-xs font-normal; }
+  .row { @apply flex flex-wrap items-center justify-between gap-2; }
+  .spacer { @apply flex-1; }
+
+  .fd-field { @apply flex min-w-0 flex-col gap-1 text-[12.5px] font-medium text-slate-700; }
+  .fd-field small { @apply font-normal; }
+  .fd-grid { @apply my-1.5 grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] items-end gap-2.5; }
+  .fd-grid.margins { @apply grid-cols-2 sm:grid-cols-4; }
+  .fd-check { @apply my-1 flex flex-row items-center gap-1.5 text-[13px] font-medium; }
+  .num-input { @apply flex items-center gap-1.5; }
+  .num-input input { @apply min-w-0; }
+
+  fieldset { @apply mt-3 rounded-xl border border-slate-200 px-3 py-2.5; }
+  legend { @apply px-1 text-[12.5px] font-semibold; }
+
+  .lines-editor { @apply my-1.5 flex flex-col gap-1; }
+  .line-row { @apply flex items-center gap-1; }
+  .line-row input, .line-row textarea { @apply min-w-0 flex-1; }
+  textarea.auto-grow { @apply resize-none overflow-hidden leading-[1.45]; }
+
+  .segments { @apply flex flex-col gap-2; }
+  .segment { @apply flex flex-col gap-1.5 rounded-xl border border-dashed border-slate-300 p-2.5; }
+  .segment-head { @apply flex items-center gap-1; }
+  .segment-head select { width: auto !important; }
+  .seg-opts { @apply flex flex-wrap items-center gap-3; }
+  .seg-opts .num-input { @apply w-[120px]; }
+
+  .icon-btn { @apply rounded-md bg-transparent px-1.5 py-1 text-sm font-normal text-slate-500 hover:bg-slate-100 hover:text-ink; }
+  .icon-btn.danger { @apply text-red-600; }
+
+  .ph-bar { @apply mb-2; }
+  .link-btn { @apply bg-transparent p-0 text-[13px] font-semibold text-brand-600 hover:bg-transparent hover:underline; }
+  .ph-list { @apply mt-1.5 flex max-h-40 flex-wrap gap-1 overflow-y-auto; }
+  .ph-chip {
+    @apply inline-flex flex-col items-start rounded-lg bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700 hover:bg-brand-100;
+  }
+  .ph-chip small { @apply text-[11px] font-normal text-brand-500; }
+}
+
+/* กรอบตัวอย่างเอกสาร (PreviewFrame) */
+.preview-wrap { @apply overflow-hidden rounded-2xl bg-slate-600; }
+.preview-wrap iframe { @apply block border-0 bg-slate-600; }
