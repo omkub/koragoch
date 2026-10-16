@@ -1,0 +1,69 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================================
+   ระบบดีไซน์เว็บส่วนกลาง (แบบ A: ขาวเรียบ) — ชิ้นส่วนที่ใช้ซ้ำทุกหน้า
+   ปุ่ม / ช่องกรอก / การ์ด / ป้าย / ตาราง / ข้อความแจ้ง
+   ============================================================================ */
+
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
+  body { @apply bg-canvas font-sans text-[14px] text-ink antialiased; }
+}
+
+@layer components {
+  /* ── ปุ่ม ───────────────────────────────────────────────── */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-2
+      text-[13px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary { @apply btn bg-ink text-white hover:bg-slate-700; }
+  .btn-secondary { @apply btn border border-slate-200 bg-white text-slate-700 hover:bg-slate-50; }
+  .btn-ghost { @apply btn text-slate-600 hover:bg-slate-100; }
+  .btn-danger { @apply btn border border-red-200 bg-white text-red-600 hover:bg-red-50; }
+  .btn-sm { @apply px-2.5 py-1.5 text-xs; }
+
+  /* ── ช่องกรอก ───────────────────────────────────────────── */
+  .field { @apply flex min-w-0 flex-col gap-1.5 text-[13px] font-medium text-slate-700; }
+  .field-hint { @apply text-xs font-normal text-slate-500; }
+  .input {
+    @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-ink
+      placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100
+      disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400;
+  }
+  .checkbox { @apply h-4 w-4 cursor-pointer rounded border-slate-300 accent-brand-600; }
+
+  /* ── การ์ด ──────────────────────────────────────────────── */
+  .card { @apply rounded-2xl border border-line bg-white shadow-card; }
+  .card-body { @apply p-4 sm:p-5; }
+  .card-title { @apply flex items-center justify-between gap-3 px-4 pb-2 pt-4 text-[15px] font-semibold sm:px-5; }
+
+  /* ── ป้ายสถานะ ──────────────────────────────────────────── */
+  .badge { @apply inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold; }
+  .badge-green { @apply badge bg-green-100 text-green-800; }
+  .badge-amber { @apply badge bg-amber-100 text-amber-800; }
+  .badge-brand { @apply badge bg-brand-100 text-brand-700; }
+  .badge-slate { @apply badge bg-slate-100 text-slate-600; }
+  .badge-red { @apply badge bg-red-100 text-red-700; }
+
+  /* ── ตาราง ──────────────────────────────────────────────── */
+  .table { @apply w-full border-collapse text-left; }
+  .table th {
+    @apply whitespace-nowrap border-y border-slate-100 bg-slate-50/60 px-4 py-2.5 text-xs font-semibold text-slate-500 sm:px-5;
+  }
+  .table td { @apply border-b border-slate-100 px-4 py-3 text-[13.5px] sm:px-5; }
+  .table tbody tr:last-child td { @apply border-b-0; }
+  .table tbody tr:hover td { @apply bg-slate-50/60; }
+
+  /* ── ข้อความแจ้ง ────────────────────────────────────────── */
+  .alert { @apply rounded-xl border px-4 py-3 text-sm; }
+  .alert-error { @apply alert border-red-200 bg-red-50 text-red-800; }
+  .alert-ok { @apply alert border-green-200 bg-green-50 text-green-800; }
+  .alert-info { @apply alert border-brand-100 bg-brand-50 text-brand-700; }
+
+  /* ── สลับแท็บแบบแคปซูล ──────────────────────────────────── */
+  .seg { @apply inline-flex rounded-lg bg-slate-100 p-1; }
+  .seg > button { @apply rounded-md px-3 py-1.5 text-[13px] font-medium text-slate-600 hover:text-ink; }
+  .seg > button.active { @apply bg-white text-ink shadow-sm; }
+}

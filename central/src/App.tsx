@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, type Access } from './supabase';
+import AppShell from './ui/AppShell';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import SchoolsPage from './pages/SchoolsPage';
@@ -12,6 +13,14 @@ import RolePermissionsPage from './pages/RolePermissionsPage';
 import UserPermissionsPage from './pages/UserPermissionsPage';
 import AttendancePage from './pages/AttendancePage';
 import FormDesignerPage from './pages/FormDesignerPage';
+
+/** หน้าที่ยังใช้สไตล์เดิม (legacy.css) — ย้ายครบแล้วลบทิ้ง */
+const Legacy = ({ children }: { children: ReactNode }) => <div className="legacy">{children}</div>;
+
+/** หน้าเต็มจอกลางจอ (ตรวจสิทธิ์ / ไม่มีสิทธิ์) */
+function CenterScreen({ children }: { children: ReactNode }) {
+  return <div className="grid min-h-screen place-items-center p-4">{children}</div>;
+}
 
 /**
  * เว็บผู้ดูแลระบบ
@@ -49,73 +58,56 @@ export default function App() {
       });
     })();
   }, [session]);
-
-  if (!session) return <LoginPage />;
-  if (access === null) return <div className="center">กำลังตรวจสิทธิ์...</div>;
+  if (!session) {
+    return (
+      <Legacy>
+        <LoginPage />
+      </Legacy>
+    );
+  }
+  if (access === null) {
+    return <CenterScreen><p className="text-sm text-slate-500">กำลังตรวจสิทธิ์...</p></CenterScreen>;
+  }
   if (access.level === 'none') {
     return (
-      <div className="center">
-        <div className="card narrow">
-          <h2>ไม่มีสิทธิ์เข้าหน้านี้</h2>
-          <p>หน้านี้สำหรับผู้ดูแลระบบเท่านั้น</p>
-          <button onClick={() => supabase.auth.signOut()}>ออกจากระบบ</button>
+      <CenterScreen>
+        <div className="card w-full max-w-sm p-6">
+          <h2 className="text-lg font-bold">ไม่มีสิทธิ์เข้าหน้านี้</h2>
+          <p className="mt-1 text-sm text-slate-500">หน้านี้สำหรับผู้ดูแลระบบเท่านั้น</p>
+          <button className="btn-primary mt-5 w-full" onClick={() => supabase.auth.signOut()}>
+            ออกจากระบบ
+          </button>
         </div>
-      </div>
+      </CenterScreen>
     );
   }
 
   const isSuper = access.level === 'super';
 
   return (
-    <div className="layout">
-      <nav className="sidebar">
-        <div className="brand">
-          {isSuper ? 'ผู้ดูแลระบบส่วนกลาง' : 'ผู้ดูแลระบบโรงเรียน'}
-          <small>ระบบลาออนไลน์</small>
-        </div>
-        {isSuper && (
+    <AppShell isSuper={isSuper}>
+      <Routes>
+        {isSuper ? (
           <>
-            <NavLink to="/" end>ภาพรวม</NavLink>
-            <NavLink to="/schools">โรงเรียน</NavLink>
-            <NavLink to="/admins">ผู้ดูแลโรงเรียน</NavLink>
-            <NavLink to="/staff">บุคลากร</NavLink>
-            <NavLink to="/line">LINE แจ้งเตือน</NavLink>
-            <NavLink to="/role-permissions">เพดานสิทธิ์</NavLink>
-            <NavLink to="/attendance">ลงเวลา (สแกนหน้า)</NavLink>
-            <NavLink to="/forms">แบบฟอร์ม</NavLink>
+            <Route path="/" element={<Legacy><DashboardPage /></Legacy>} />
+            <Route path="/schools" element={<Legacy><SchoolsPage /></Legacy>} />
+            <Route path="/admins" element={<Legacy><SchoolAdminsPage /></Legacy>} />
+            <Route path="/staff" element={<Legacy><StaffPage /></Legacy>} />
+            <Route path="/line" element={<Legacy><LinePage /></Legacy>} />
+            <Route path="/role-permissions" element={<Legacy><RolePermissionsPage /></Legacy>} />
+            <Route path="/attendance" element={<Legacy><AttendancePage /></Legacy>} />
+            <Route path="/forms" element={<Legacy><FormDesignerPage /></Legacy>} />
+            <Route path="/forms/leave" element={<Navigate to="/forms" replace />} />
+            <Route path="/user-permissions" element={<Legacy><UserPermissionsPage access={access} /></Legacy>} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </>
+        ) : (
+          <>
+            <Route path="/user-permissions" element={<Legacy><UserPermissionsPage access={access} /></Legacy>} />
+            <Route path="*" element={<Navigate to="/user-permissions" replace />} />
           </>
         )}
-        <NavLink to="/user-permissions">สิทธิ์ผู้ใช้</NavLink>
-        <div className="spacer" />
-        <a href="../">เปิดแอปครู ↗</a>
-        <button className="link" onClick={() => supabase.auth.signOut()}>
-          ออกจากระบบ
-        </button>
-      </nav>
-      <main className="content">
-        <Routes>
-          {isSuper ? (
-            <>
-              <Route path="/" element={<DashboardPage />} />
-              <Route path="/schools" element={<SchoolsPage />} />
-              <Route path="/admins" element={<SchoolAdminsPage />} />
-              <Route path="/staff" element={<StaffPage />} />
-              <Route path="/line" element={<LinePage />} />
-              <Route path="/role-permissions" element={<RolePermissionsPage />} />
-              <Route path="/attendance" element={<AttendancePage />} />
-              <Route path="/forms" element={<FormDesignerPage />} />
-              <Route path="/forms/leave" element={<Navigate to="/forms" replace />} />
-              <Route path="/user-permissions" element={<UserPermissionsPage access={access} />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </>
-          ) : (
-            <>
-              <Route path="/user-permissions" element={<UserPermissionsPage access={access} />} />
-              <Route path="*" element={<Navigate to="/user-permissions" replace />} />
-            </>
-          )}
-        </Routes>
-      </main>
-    </div>
+      </Routes>
+    </AppShell>
   );
 }
