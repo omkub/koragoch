@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { schoolName, supabase, type School } from '../supabase';
+import { EmptyState, Field, Notice, PageHeader } from '../ui/components';
+import { IconPlus, IconSearch } from '../ui/icons';
+import { SaveBar } from '../ui/PermMatrix';
 
 interface Settings {
   id_school: number;
@@ -350,202 +353,234 @@ export default function AttendancePage() {
 
   const pendingCodes = Object.entries(unmatched).filter(([code]) => !assignedCodes.has(code));
 
+  const dirtyCount = changed.length + exemptChanged.length;
+  const check = (checked: boolean, onChange: (v: boolean) => void, label: string) => (
+    <label className="flex items-start gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[13px] font-medium">
+      <input type="checkbox" className="checkbox mt-0.5" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span>{label}</span>
+    </label>
+  );
+  const deviceBadges = (d: Device) => (
+    <>
+      {d.device_key_hash ? <span className="badge-green">มีรหัสแล้ว</span> : <span className="badge-amber">ยังไม่มีรหัส</span>}
+      {d.is_active ? <span className="badge-green">ใช้งาน</span> : <span className="badge-slate">ปิด</span>}
+    </>
+  );
+  const deviceActions = (d: Device) => (
+    <div className="flex flex-wrap justify-end gap-1.5">
+      <button
+        className="btn-secondary btn-sm"
+        onClick={() => {
+          setMessage(null);
+          setEditingDevice({ ...d });
+        }}
+      >
+        แก้ไข
+      </button>
+      <button className="btn-secondary btn-sm" disabled={busy} onClick={() => issueKey(d)}>
+        {d.device_key_hash ? 'ออกรหัสใหม่' : 'ออกรหัส'}
+      </button>
+      <button className="btn-danger btn-sm" onClick={() => deleteDevice(d)}>
+        ลบ
+      </button>
+    </div>
+  );
+
   return (
     <>
-      <div className="row">
-        <h1>ลงเวลา (สแกนหน้า)</h1>
-        <select value={schoolId ?? ''} onChange={(e) => setSchoolId(Number(e.target.value))}>
-          {schools.map((s) => (
-            <option key={s.id_school} value={s.id_school}>
-              {schoolName(s)}
-            </option>
-          ))}
-        </select>
-      </div>
-      <p className="muted" style={{ marginBottom: 16 }}>
-        ระบบเก็บแค่ "ใคร สแกนเมื่อไร ที่เครื่องไหน" — ไม่เก็บภาพหรือข้อมูลใบหน้า (อยู่ในเครื่องสแกนเท่านั้น)
-      </p>
-
-      {message && <div className={message.error ? 'error' : 'ok'}>{message.text}</div>}
+      <PageHeader
+        title="ลงเวลา (สแกนหน้า)"
+        description={'ระบบเก็บแค่ "ใคร สแกนเมื่อไร ที่เครื่องไหน" — ไม่เก็บภาพหรือข้อมูลใบหน้า (อยู่ในเครื่องสแกนเท่านั้น)'}
+        actions={
+          <select
+            className="input w-auto max-w-full"
+            value={schoolId ?? ''}
+            onChange={(e) => setSchoolId(Number(e.target.value))}
+            aria-label="เลือกโรงเรียน"
+          >
+            {schools.map((s) => (
+              <option key={s.id_school} value={s.id_school}>
+                {schoolName(s)}
+              </option>
+            ))}
+          </select>
+        }
+      />
+      <Notice message={message} />
 
       {newKey && (
-        <div className="card form key-card">
-          <h3>รหัสลับของเครื่อง "{newKey.device}"</h3>
-          <p className="muted">
-            คัดลอกเก็บไว้ตอนนี้ — <b>รหัสนี้แสดงครั้งเดียว</b> ระบบเก็บแบบเข้ารหัสทางเดียว ดูย้อนหลังไม่ได้
-            ถ้าทำหายให้กด "ออกรหัสใหม่"
-          </p>
-          <div className="row" style={{ marginTop: 12, marginBottom: 0 }}>
-            <code className="secret">{newKey.key}</code>
-            <button
-              className="secondary"
-              onClick={() =>
-                navigator.clipboard
-                  .writeText(newKey.key)
-                  .then(() => setMessage({ text: 'คัดลอกรหัสแล้ว' }))
-              }
-            >
-              คัดลอก
-            </button>
-            <button onClick={() => setNewKey(null)}>เก็บแล้ว ปิด</button>
+        <section className="card mb-5 border-2 border-brand-500">
+          <div className="card-title">รหัสลับของเครื่อง "{newKey.device}"</div>
+          <div className="flex flex-col gap-3 px-4 pb-4 sm:px-5">
+            <p className="text-[13px] text-slate-600">
+              คัดลอกเก็บไว้ตอนนี้ — <b>รหัสนี้แสดงครั้งเดียว</b> ระบบเก็บแบบเข้ารหัสทางเดียว ดูย้อนหลังไม่ได้
+              ถ้าทำหายให้กด "ออกรหัสใหม่"
+            </p>
+            <code className="select-all break-all rounded-lg bg-slate-100 px-3 py-2.5 font-mono text-[15px]">
+              {newKey.key}
+            </code>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                className="btn-secondary"
+                onClick={() =>
+                  navigator.clipboard.writeText(newKey.key).then(() => setMessage({ text: 'คัดลอกรหัสแล้ว' }))
+                }
+              >
+                คัดลอก
+              </button>
+              <button className="btn-primary" onClick={() => setNewKey(null)}>
+                เก็บแล้ว ปิด
+              </button>
+            </div>
           </div>
-        </div>
+        </section>
       )}
 
-      {/* 1) ตั้งค่าเวลา */}
+      {/* 1) ตั้งค่าเวลา + สรุป LINE */}
       {settings && (
-        <div className="card form">
-          <h3>เวลาปฏิบัติราชการ</h3>
-          <div className="grid">
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={settings.enabled}
-                onChange={(e) => setSettings({ ...settings, enabled: e.target.checked })}
-              />
-              เปิดใช้ระบบลงเวลาของโรงเรียนนี้
-            </label>
-            <label>
-              เวลาเข้างาน
-              <input
-                type="time"
-                value={hhmm(settings.work_start)}
-                onChange={(e) => setSettings({ ...settings, work_start: e.target.value })}
-              />
-            </label>
-            <label>
-              สแกนหลังเวลานี้ = สาย
-              <input
-                type="time"
-                value={hhmm(settings.late_after)}
-                onChange={(e) => setSettings({ ...settings, late_after: e.target.value })}
-              />
-            </label>
-            <label>
-              เวลาเลิกงาน
-              <input
-                type="time"
-                value={hhmm(settings.work_end)}
-                onChange={(e) => setSettings({ ...settings, work_end: e.target.value })}
-              />
-            </label>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={settings.require_checkout}
-                onChange={(e) => setSettings({ ...settings, require_checkout: e.target.checked })}
-              />
-              ต้องสแกนออกด้วย
-            </label>
-            <label>
-              วันเริ่มใช้ระบบจริง
-              <input
-                type="date"
-                value={settings.start_date ?? ''}
-                onChange={(e) => setSettings({ ...settings, start_date: e.target.value || null })}
-              />
-            </label>
-          </div>
-          <p className="muted">
-            ปิดไว้ = ครูยังไม่เห็นเมนูลงเวลาใน app แต่เครื่องยังส่งข้อมูลเข้ามาเก็บได้ (ใช้ทดลองก่อนเปิดจริง)
-            <br />
-            วันเริ่มใช้: ก่อนวันนี้ไม่นับว่า "ขาด" — เว้นว่าง = นับจากวันที่มีการสแกนครั้งแรก
-          </p>
+        <section className="card mb-5">
+          <div className="card-title">เวลาปฏิบัติราชการ</div>
+          <div className="flex flex-col gap-4 px-4 pb-4 sm:px-5">
+            {check(settings.enabled, (v) => setSettings({ ...settings, enabled: v }), 'เปิดใช้ระบบลงเวลาของโรงเรียนนี้')}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Field label="เวลาเข้างาน">
+                <input
+                  className="input"
+                  type="time"
+                  value={hhmm(settings.work_start)}
+                  onChange={(e) => setSettings({ ...settings, work_start: e.target.value })}
+                />
+              </Field>
+              <Field label="สแกนหลังเวลานี้ = สาย">
+                <input
+                  className="input"
+                  type="time"
+                  value={hhmm(settings.late_after)}
+                  onChange={(e) => setSettings({ ...settings, late_after: e.target.value })}
+                />
+              </Field>
+              <Field label="เวลาเลิกงาน">
+                <input
+                  className="input"
+                  type="time"
+                  value={hhmm(settings.work_end)}
+                  onChange={(e) => setSettings({ ...settings, work_end: e.target.value })}
+                />
+              </Field>
+              <Field label="วันเริ่มใช้ระบบจริง">
+                <input
+                  className="input"
+                  type="date"
+                  value={settings.start_date ?? ''}
+                  onChange={(e) => setSettings({ ...settings, start_date: e.target.value || null })}
+                />
+              </Field>
+            </div>
+            {check(settings.require_checkout, (v) => setSettings({ ...settings, require_checkout: v }), 'ต้องสแกนออกด้วย')}
+            <p className="field-hint">
+              ปิดไว้ = ครูยังไม่เห็นเมนูลงเวลาใน app แต่เครื่องยังส่งข้อมูลเข้ามาเก็บได้ (ใช้ทดลองก่อนเปิดจริง) ·
+              วันเริ่มใช้: ก่อนวันนี้ไม่นับว่า "ขาด" — เว้นว่าง = นับจากวันที่มีการสแกนครั้งแรก
+            </p>
 
-          <h3 style={{ marginTop: 20 }}>สรุปประจำวันทาง LINE</h3>
-          <div className="grid">
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={!!settings.line_summary_enabled}
-                onChange={(e) => setSettings({ ...settings, line_summary_enabled: e.target.checked })}
-              />
-              ส่งสรุปเข้ากลุ่ม LINE ของโรงเรียนทุกวันทำการ
-            </label>
-            <label>
-              เวลาที่ส่ง
-              <input
-                type="time"
-                value={hhmm(settings.line_summary_time ?? '09:00')}
-                onChange={(e) => setSettings({ ...settings, line_summary_time: e.target.value })}
-              />
-            </label>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={settings.line_list_missing ?? true}
-                onChange={(e) => setSettings({ ...settings, line_list_missing: e.target.checked })}
-              />
-              แนบรายชื่อคนที่ยังไม่สแกน
-            </label>
+            <h4 className="mt-2 text-[13px] font-semibold text-slate-500">สรุปประจำวันทาง LINE</h4>
+            <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_200px]">
+              {check(
+                !!settings.line_summary_enabled,
+                (v) => setSettings({ ...settings, line_summary_enabled: v }),
+                'ส่งสรุปเข้ากลุ่ม LINE ของโรงเรียนทุกวันทำการ',
+              )}
+              <Field label="เวลาที่ส่ง">
+                <input
+                  className="input"
+                  type="time"
+                  value={hhmm(settings.line_summary_time ?? '09:00')}
+                  onChange={(e) => setSettings({ ...settings, line_summary_time: e.target.value })}
+                />
+              </Field>
+            </div>
+            {check(
+              settings.line_list_missing ?? true,
+              (v) => setSettings({ ...settings, line_list_missing: v }),
+              'แนบรายชื่อคนที่ยังไม่สแกน',
+            )}
+            <p className="field-hint">
+              ส่งเข้ากลุ่มที่ตั้งไว้ในหน้า "LINE แจ้งเตือน" เช่น "มา 45 · สาย 3 · ลา 2 · ไปราชการ 1 · ยังไม่สแกน 4" ·
+              การส่งอัตโนมัติต้องรัน <code className="rounded bg-slate-100 px-1">attendance_line_cron.sql</code> ครั้งเดียว
+              {settings.line_summary_sent_on ? ` · ส่งล่าสุด ${settings.line_summary_sent_on}` : ''}
+            </p>
           </div>
-          <p className="muted">
-            ส่งเข้ากลุ่มที่ตั้งไว้ในหน้า "ตั้งค่า LINE" เช่น "มา 45 · สาย 3 · ลา 2 · ไปราชการ 1 · ยังไม่สแกน 4"
-            <br />
-            การส่งอัตโนมัติต้องรัน <code>attendance_line_cron.sql</code> ครั้งเดียว
-            {settings.line_summary_sent_on ? ` · ส่งล่าสุด ${settings.line_summary_sent_on}` : ''}
-          </p>
-          <div className="row end">
-            <button className="secondary" disabled={busy} onClick={sendLineTest}>ทดลองส่งสรุปวันนี้</button>
-            <button disabled={busy} onClick={saveSettings}>บันทึกการตั้งค่า</button>
+          <div className="flex flex-wrap justify-end gap-2 border-t border-line px-4 py-3 sm:px-5">
+            <button className="btn-secondary" disabled={busy} onClick={sendLineTest}>
+              ทดลองส่งสรุปวันนี้
+            </button>
+            <button className="btn-primary" disabled={busy} onClick={saveSettings}>
+              บันทึกการตั้งค่า
+            </button>
           </div>
-        </div>
+        </section>
       )}
 
       {/* 2) เครื่องสแกน */}
-      <div className="card">
-        <div className="row">
-          <h3 style={{ margin: 0 }}>เครื่องสแกน ({devices.length})</h3>
-          <button className="secondary small" onClick={() => { setMessage(null); setEditingDevice({ ...NEW_DEVICE }); }}>
-            + ลงทะเบียนเครื่อง
+      <section className="card mb-5 overflow-hidden">
+        <div className="card-title">
+          เครื่องสแกน ({devices.length})
+          <button
+            className="btn-secondary btn-sm"
+            onClick={() => {
+              setMessage(null);
+              setEditingDevice({ ...NEW_DEVICE });
+            }}
+          >
+            <IconPlus className="h-3.5 w-3.5" /> ลงทะเบียนเครื่อง
           </button>
         </div>
 
         {editingDevice && (
-          <div className="form sub-form">
-            <div className="grid">
-              <label>
-                ชื่อเครื่อง *
+          <div className="mx-4 mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:mx-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="ชื่อเครื่อง *">
                 <input
+                  className="input"
                   value={editingDevice.name ?? ''}
                   placeholder="เช่น หน้าอาคาร 1"
                   onChange={(e) => setEditingDevice({ ...editingDevice, name: e.target.value })}
                 />
-              </label>
-              <label>
-                ตำแหน่งที่ติดตั้ง
+              </Field>
+              <Field label="ตำแหน่งที่ติดตั้ง">
                 <input
+                  className="input"
                   value={editingDevice.location ?? ''}
                   onChange={(e) => setEditingDevice({ ...editingDevice, location: e.target.value })}
                 />
-              </label>
-              <label>
-                ยี่ห้อ / รุ่น
+              </Field>
+              <Field label="ยี่ห้อ / รุ่น">
                 <input
+                  className="input"
                   value={editingDevice.brand ?? ''}
                   placeholder="เช่น ZKTeco SpeedFace"
                   onChange={(e) => setEditingDevice({ ...editingDevice, brand: e.target.value })}
                 />
-              </label>
-              <label>
-                Serial No.
+              </Field>
+              <Field label="Serial No.">
                 <input
+                  className="input"
                   value={editingDevice.serial_no ?? ''}
                   onChange={(e) => setEditingDevice({ ...editingDevice, serial_no: e.target.value })}
                 />
-              </label>
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={editingDevice.is_active ?? true}
-                  onChange={(e) => setEditingDevice({ ...editingDevice, is_active: e.target.checked })}
-                />
-                ใช้งานอยู่ (ปิด = ไม่รับข้อมูลจากเครื่องนี้)
-              </label>
+              </Field>
             </div>
-            <div className="row end">
-              <button className="secondary" onClick={() => setEditingDevice(null)}>ยกเลิก</button>
-              <button disabled={busy} onClick={saveDevice}>
+            <div className="mt-4">
+              {check(
+                editingDevice.is_active ?? true,
+                (v) => setEditingDevice({ ...editingDevice, is_active: v }),
+                'ใช้งานอยู่ (ปิด = ไม่รับข้อมูลจากเครื่องนี้)',
+              )}
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button className="btn-secondary" onClick={() => setEditingDevice(null)}>
+                ยกเลิก
+              </button>
+              <button className="btn-primary" disabled={busy} onClick={saveDevice}>
                 {editingDevice.id_device ? 'บันทึก' : 'ลงทะเบียน + ออกรหัส'}
               </button>
             </div>
@@ -553,111 +588,130 @@ export default function AttendancePage() {
         )}
 
         {devices.length === 0 ? (
-          <p className="muted">ยังไม่มีเครื่อง — ระหว่างนี้ใช้ "นำเข้าไฟล์" จาก app ได้</p>
+          <EmptyState>ยังไม่มีเครื่อง — ระหว่างนี้ใช้ "นำเข้าไฟล์" จาก app ได้</EmptyState>
         ) : (
-          <table>
+          <>
+            <div className="hidden overflow-x-auto lg:block">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>ชื่อเครื่อง</th>
+                    <th>ตำแหน่ง</th>
+                    <th>ยี่ห้อ</th>
+                    <th>สถานะ</th>
+                    <th>ส่งข้อมูลล่าสุด</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {devices.map((d) => (
+                    <tr key={d.id_device}>
+                      <td className="font-semibold">{d.name}</td>
+                      <td>{d.location ?? '-'}</td>
+                      <td>{d.brand ?? '-'}</td>
+                      <td>
+                        <div className="flex flex-wrap gap-1">{deviceBadges(d)}</div>
+                      </td>
+                      <td className="whitespace-nowrap">{thaiDateTime(d.last_seen_at)}</td>
+                      <td>{deviceActions(d)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ul className="divide-y divide-slate-100 lg:hidden">
+              {devices.map((d) => (
+                <li key={d.id_device} className="flex flex-col gap-2 px-4 py-3.5">
+                  <div>
+                    <div className="font-semibold">{d.name}</div>
+                    <div className="text-xs text-slate-500">
+                      {[d.location, d.brand].filter(Boolean).join(' · ') || '-'} · ล่าสุด {thaiDateTime(d.last_seen_at)}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1">{deviceBadges(d)}</div>
+                  {deviceActions(d)}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
+
+      {/* 3) จับคู่ครูกับรหัสในเครื่อง */}
+      <section className="card overflow-hidden">
+        <div className="card-title flex-wrap">
+          รหัสในเครื่องสแกน ({teachers.filter((t) => t.device_code).length}/{teachers.length} คน)
+        </div>
+        <div className="flex flex-col gap-3 px-4 pb-3 sm:px-5">
+          <p className="field-hint">
+            ใส่ "รหัสพนักงาน / User ID" ที่ตั้งไว้ในเครื่องสแกนให้ตรงกับครูแต่ละคน · ติ๊ก "ไม่ต้องสแกน"
+            ให้บัญชีที่ไม่ใช่บุคลากรจริง (เช่น บัญชีกลาง) จะไม่ถูกนับในรายงาน
+          </p>
+          {pendingCodes.length > 0 && (
+            <div className="alert-error text-[13px]">
+              มีสแกนจากรหัสที่ยังไม่จับคู่: {pendingCodes.map(([code, n]) => `${code} (${n} ครั้ง)`).join(', ')} —
+              ใส่รหัสให้ครูแล้วบันทึก ระบบจะผูกสแกนเหล่านี้ให้อัตโนมัติ
+            </div>
+          )}
+          <div className="relative sm:w-72">
+            <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              className="input pl-9"
+              placeholder="ค้นหาชื่อ / รหัส"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="table">
             <thead>
               <tr>
-                <th>ชื่อเครื่อง</th>
-                <th>ตำแหน่ง</th>
-                <th>ยี่ห้อ</th>
-                <th>รหัสลับ</th>
-                <th>สถานะ</th>
-                <th>ส่งข้อมูลล่าสุด</th>
-                <th />
+                <th>ชื่อ - สกุล</th>
+                <th className="hidden sm:table-cell">ชื่อผู้ใช้</th>
+                <th className="w-[140px] sm:w-[200px]">รหัสในเครื่อง</th>
+                <th className="w-[90px] text-center">ไม่ต้องสแกน</th>
               </tr>
             </thead>
             <tbody>
-              {devices.map((d) => (
-                <tr key={d.id_device}>
-                  <td><b>{d.name}</b></td>
-                  <td>{d.location ?? '-'}</td>
-                  <td>{d.brand ?? '-'}</td>
-                  <td>{d.device_key_hash ? <span className="badge on">ออกแล้ว</span> : <span className="warn">ยังไม่มี</span>}</td>
-                  <td>{d.is_active ? <span className="badge on">ใช้งาน</span> : <span className="warn">ปิด</span>}</td>
-                  <td>{thaiDateTime(d.last_seen_at)}</td>
-                  <td className="num actions">
-                    <button className="secondary small" onClick={() => { setMessage(null); setEditingDevice({ ...d }); }}>
-                      แก้ไข
-                    </button>
-                    <button className="secondary small" disabled={busy} onClick={() => issueKey(d)}>
-                      {d.device_key_hash ? 'ออกรหัสใหม่' : 'ออกรหัส'}
-                    </button>
-                    <button className="secondary small danger" onClick={() => deleteDevice(d)}>ลบ</button>
-                  </td>
-                </tr>
-              ))}
+              {visibleTeachers.map((t) => {
+                const code = codes[t.id_user] ?? '';
+                const dirty = code.trim() !== (t.device_code ?? '') || !!exempt[t.id_user] !== !!t.attendance_exempt;
+                const dup = duplicateCodes.has(code.trim());
+                return (
+                  <tr key={t.id_user} className={dirty ? '[&>td]:!bg-amber-50' : undefined}>
+                    <td className="min-w-[140px]">{t.fullName ?? '-'}</td>
+                    <td className="hidden text-slate-500 sm:table-cell">{t.username ?? '-'}</td>
+                    <td>
+                      <input
+                        className={`input py-1.5 ${dup ? '!border-red-400 !bg-red-50' : ''}`}
+                        value={code}
+                        placeholder="-"
+                        onChange={(e) => setCodes({ ...codes, [t.id_user]: e.target.value })}
+                      />
+                    </td>
+                    <td className="text-center">
+                      <input
+                        type="checkbox"
+                        className="checkbox"
+                        checked={!!exempt[t.id_user]}
+                        onChange={(e) => setExempt({ ...exempt, [t.id_user]: e.target.checked })}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-        )}
-      </div>
-
-      {/* 3) จับคู่ครูกับรหัสในเครื่อง */}
-      <div className="card">
-        <div className="row">
-          <h3 style={{ margin: 0 }}>
-            รหัสในเครื่องสแกน ({teachers.filter((t) => t.device_code).length}/{teachers.length} คน)
-          </h3>
-          <div className="row" style={{ margin: 0 }}>
-            <input placeholder="ค้นหาชื่อ / รหัส" value={search} onChange={(e) => setSearch(e.target.value)} />
-            <button disabled={busy || changed.length + exemptChanged.length === 0} onClick={saveCodes}>
-              บันทึก{changed.length + exemptChanged.length ? ` (${changed.length + exemptChanged.length})` : ''}
-            </button>
-          </div>
         </div>
-        <p className="muted" style={{ marginBottom: 12 }}>
-          ใส่ "รหัสพนักงาน / User ID" ที่ตั้งไว้ในเครื่องสแกนให้ตรงกับครูแต่ละคน
-          · ติ๊ก "ไม่ต้องสแกน" ให้บัญชีที่ไม่ใช่บุคลากรจริง (เช่น บัญชีกลาง) จะไม่ถูกนับในรายงาน
-        </p>
-
-        {pendingCodes.length > 0 && (
-          <div className="error">
-            มีสแกนจากรหัสที่ยังไม่จับคู่:{' '}
-            {pendingCodes.map(([code, n]) => `${code} (${n} ครั้ง)`).join(', ')}
-            {' '}— ใส่รหัสให้ครูแล้วบันทึก ระบบจะผูกสแกนเหล่านี้ให้อัตโนมัติ
-          </div>
-        )}
-
-        <table>
-          <thead>
-            <tr>
-              <th>ชื่อ - สกุล</th>
-              <th>ชื่อผู้ใช้</th>
-              <th style={{ width: 200 }}>รหัสในเครื่อง</th>
-              <th style={{ width: 110 }}>ไม่ต้องสแกน</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visibleTeachers.map((t) => {
-              const code = codes[t.id_user] ?? '';
-              const dirty =
-                code.trim() !== (t.device_code ?? '') || !!exempt[t.id_user] !== !!t.attendance_exempt;
-              const dup = duplicateCodes.has(code.trim());
-              return (
-                <tr key={t.id_user} className={dirty ? 'dirty' : undefined}>
-                  <td>{t.fullName ?? '-'}</td>
-                  <td className="muted">{t.username ?? '-'}</td>
-                  <td>
-                    <input
-                      className={dup ? 'invalid' : undefined}
-                      value={code}
-                      placeholder="-"
-                      onChange={(e) => setCodes({ ...codes, [t.id_user]: e.target.value })}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="checkbox"
-                      checked={!!exempt[t.id_user]}
-                      onChange={(e) => setExempt({ ...exempt, [t.id_user]: e.target.checked })}
-                    />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+        <SaveBar
+          changed={dirtyCount}
+          busy={busy}
+          onReset={() => schoolId !== null && load(schoolId)}
+          onSave={saveCodes}
+        />
+      </section>
     </>
   );
 }
