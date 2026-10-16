@@ -14,7 +14,9 @@ import 'mobile_calendar_screen.dart';
 import 'mobile_history_screen.dart';
 import 'mobile_leave_form_screen.dart';
 import 'mobile_profile_screen.dart';
+import '../../utils/school_info.dart';
 import '../../widgets/notification_bell.dart';
+import '../../widgets/school_logo.dart';
 
 class MobileMainLayout extends StatefulWidget {
   const MobileMainLayout({super.key});
@@ -277,31 +279,59 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FC),
-      body: Stack(
+      body: Column(
         children: [
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: KeyedSubtree(
-              key: ValueKey('mobile_menu_$effectiveMenuIndex'),
-              child: _buildPage(effectiveMenuIndex),
-            ),
-          ),
-          // 🔔 แจ้งเตือนใบลาใหม่ — เฉพาะผู้ดูแลระบบ ลอยมุมขวาบน
-          if (_isAdmin)
-            Positioned(
-              top: 0,
-              right: 4,
-              child: SafeArea(
-                child: Material(
-                  color: Colors.white,
-                  shape: const CircleBorder(),
-                  elevation: 2,
-                  child: NotificationBell(
-                    onOpenLeaves: () => setState(() => _selectedMenuIndex = 3),
-                  ),
+          // แถบบน: โลโก้ + ชื่อโรงเรียนของผู้ใช้ (ตั้งที่เว็บส่วนกลาง) ทุกหน้า
+          // + กระดิ่งแจ้งเตือน (เฉพาะผู้ดูแลระบบ)
+          Material(
+            color: Colors.white,
+            elevation: 0.5,
+            child: SafeArea(
+              bottom: false,
+              child: SizedBox(
+                height: 48,
+                child: Row(
+                  children: [
+                    const SizedBox(width: 16),
+                    SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: SchoolLogo(dataUrl: SchoolInfo.logo, size: 28)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(SchoolInfo.fullName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.sarabun(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF0F172A))),
+                    ),
+                    if (_isAdmin)
+                      NotificationBell(
+                        onOpenLeaves: () =>
+                            setState(() => _selectedMenuIndex = 3),
+                      ),
+                    const SizedBox(width: 4),
+                  ],
                 ),
               ),
             ),
+          ),
+          Expanded(
+            // แถบบนกินขอบจอ (status bar) ไปแล้ว หน้าข้างในไม่ต้องเว้นซ้ำ
+            child: MediaQuery.removePadding(
+              context: context,
+              removeTop: true,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: KeyedSubtree(
+                  key: ValueKey('mobile_menu_$effectiveMenuIndex'),
+                  child: _buildPage(effectiveMenuIndex),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: Container(

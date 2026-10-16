@@ -113,7 +113,7 @@ class _MobileShellState extends State<MobileShell> {
       },
       child: Scaffold(
         backgroundColor: mobileBg,
-        appBar: mobileAppBar(_title(current), actions: [
+        appBar: mobileAppBar(_title(current), showLogo: true, actions: [
           if (access.isAdmin)
             NotificationBell(onOpenLeaves: () => _go(_Tab.history)),
         ]),
