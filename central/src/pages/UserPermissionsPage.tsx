@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   groupItems,
   schoolName,
@@ -8,6 +8,9 @@ import {
   type Role,
   type School,
 } from '../supabase';
+import { EmptyState, Notice, PageHeader } from '../ui/components';
+import { IconSearch } from '../ui/icons';
+import PermMatrix, { SaveBar } from '../ui/PermMatrix';
 
 interface TeacherRow {
   id_user: number;
@@ -41,6 +44,7 @@ export default function UserPermissionsPage({ access }: { access: Access }) {
   const [flags, setFlags] = useState<Flags>({});
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
+  const detailRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     (async () => {
@@ -153,107 +157,121 @@ export default function UserPermissionsPage({ access }: { access: Access }) {
   });
 
   const ceilingCount = (t: TeacherRow) => items.filter((i) => inCeiling(t, i.key)).length;
+  const currentSchool = schools.find((s) => s.id_school === schoolId);
+
+  function pick(t: TeacherRow) {
+    openTeacher(t);
+    // มือถือ: รายละเอียดอยู่ใต้รายชื่อ — เลื่อนลงไปให้เห็นทันที
+    if (window.matchMedia('(max-width: 1023px)').matches) {
+      setTimeout(() => detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    }
+  }
 
   return (
     <>
-      <div className="row">
-        <h1>สิทธิ์ผู้ใช้</h1>
-        {isSuper ? (
-          <select value={schoolId ?? ''} onChange={(e) => setSchoolId(Number(e.target.value))}>
-            {schools.map((s) => (
-              <option key={s.id_school} value={s.id_school}>{schoolName(s)}</option>
-            ))}
-          </select>
-        ) : (
-          <b>{schoolName(schools.find((s) => s.id_school === schoolId) ?? { namePart1: null, namePart2: null, fullName: '' })}</b>
-        )}
-      </div>
-      <p className="muted" style={{ marginBottom: 16 }}>
-        เปิด/ปิดรายการให้แต่ละคนได้ ไม่เกินเพดานของสิทธิ์ที่ผู้ดูแลส่วนกลางกำหนด
-        รายการสีเทา = อยู่นอกเพดาน เปิดให้ไม่ได้
-      </p>
-      {message && <div className={message.error ? 'error' : 'ok'}>{message.text}</div>}
-
-      <div className="perm-layout">
-        <div className="card perm-list">
-          <input
-            placeholder="ค้นหาชื่อ / username"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ width: '100%', marginBottom: 10 }}
-          />
-          {visible.map((t) => (
-            <button
-              key={t.id_user}
-              className={`perm-person${selected?.id_user === t.id_user ? ' active' : ''}`}
-              onClick={() => openTeacher(t)}
+      <PageHeader
+        title="สิทธิ์ผู้ใช้"
+        description="เปิด/ปิดรายการให้แต่ละคนได้ ไม่เกินเพดานของสิทธิ์ที่ผู้ดูแลส่วนกลางกำหนด · รายการสีเทา = อยู่นอกเพดาน"
+        actions={
+          isSuper ? (
+            <select
+              className="input w-auto max-w-full"
+              value={schoolId ?? ''}
+              onChange={(e) => setSchoolId(Number(e.target.value))}
+              aria-label="เลือกโรงเรียน"
             >
-              <span>{t.fullName || t.username}</span>
-              <small>
-                {t.is_super_admin ? 'ส่วนกลาง' : roleName(t.id_role)} · {ceilingCount(t)} รายการ
-              </small>
-            </button>
-          ))}
-          {visible.length === 0 && <p className="muted">ไม่พบรายชื่อ</p>}
-        </div>
+              {schools.map((s) => (
+                <option key={s.id_school} value={s.id_school}>
+                  {schoolName(s)}
+                </option>
+              ))}
+            </select>
+          ) : currentSchool ? (
+            <span className="badge-slate">{schoolName(currentSchool)}</span>
+          ) : null
+        }
+      />
+      <Notice message={message} />
 
-        <div className="card">
-          {!selected && <p className="muted">เลือกรายชื่อทางซ้ายเพื่อตั้งค่าสิทธิ์</p>}
-          {selected && (
+      <div className="grid items-start gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+        <section className="card overflow-hidden">
+          <div className="relative p-3">
+            <IconSearch className="pointer-events-none absolute left-6 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              className="input pl-9"
+              placeholder="ค้นหาชื่อ / username"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="max-h-[260px] overflow-y-auto border-t border-line p-2 lg:max-h-[70vh]">
+            {visible.map((t) => {
+              const active = selected?.id_user === t.id_user;
+              return (
+                <button
+                  key={t.id_user}
+                  className={`flex w-full flex-col items-start rounded-lg px-3 py-2 text-left transition-colors ${
+                    active ? 'bg-brand-50 text-brand-700' : 'hover:bg-slate-50'
+                  }`}
+                  onClick={() => pick(t)}
+                >
+                  <span className="text-[13.5px] font-medium">{t.fullName || t.username}</span>
+                  <span className="text-xs text-slate-500">
+                    {t.is_super_admin ? 'ส่วนกลาง' : roleName(t.id_role)} · {ceilingCount(t)} รายการ
+                  </span>
+                </button>
+              );
+            })}
+            {visible.length === 0 && <EmptyState>ไม่พบรายชื่อ</EmptyState>}
+          </div>
+        </section>
+
+        <section ref={detailRef} className="card scroll-mt-20 overflow-hidden">
+          {!selected ? (
+            <EmptyState>เลือกรายชื่อเพื่อตั้งค่าสิทธิ์</EmptyState>
+          ) : (
             <>
-              <h3>
-                {selected.fullName || selected.username}{' '}
-                <span className="muted small">
-                  ({selected.is_super_admin ? 'ผู้ดูแลส่วนกลาง' : roleName(selected.id_role)}) —
-                  ใช้ได้ {items.filter((i) => flags[i.key]).length}/{ceilingCount(selected)}
+              <div className="card-title flex-wrap">
+                <span>{selected.fullName || selected.username}</span>
+                <span className="text-xs font-medium text-slate-500">
+                  {selected.is_super_admin ? 'ผู้ดูแลส่วนกลาง' : roleName(selected.id_role)} · ใช้ได้{' '}
+                  {items.filter((i) => flags[i.key]).length}/{ceilingCount(selected)}
                 </span>
-              </h3>
+              </div>
               {selected.is_super_admin ? (
-                <p className="muted">ผู้ดูแลระบบส่วนกลางได้ทุกรายการเสมอ ปรับไม่ได้</p>
+                <EmptyState>ผู้ดูแลระบบส่วนกลางได้ทุกรายการเสมอ ปรับไม่ได้</EmptyState>
               ) : (
                 <>
-                  <table className="perm-table">
-                    <tbody>
-                      {groupItems(items).map(([group, list]) => (
-                        <Fragment key={group}>
-                          <tr className="group-row"><td colSpan={2}>{group}</td></tr>
-                          {list.map((item) => {
-                            const allowedByRole = inCeiling(selected, item.key);
-                            const dirty = flags[item.key] !== saved[item.key];
-                            return (
-                              <tr key={item.key} className={allowedByRole ? '' : 'disabled-row'}>
-                                <td>
-                                  {item.label}
-                                  {!allowedByRole && <span className="muted small"> — นอกเพดาน</span>}
-                                </td>
-                                <td className={`center-cell${dirty ? ' dirty' : ''}`}>
-                                  <input
-                                    type="checkbox"
-                                    disabled={!allowedByRole}
-                                    checked={flags[item.key] ?? false}
-                                    onChange={() => setFlags({ ...flags, [item.key]: !flags[item.key] })}
-                                  />
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-                  <div className="row end">
-                    <button className="secondary" disabled={changed.length === 0} onClick={() => setFlags(saved)}>
-                      ยกเลิกการแก้
-                    </button>
-                    <button disabled={busy || changed.length === 0} onClick={save}>
-                      {busy ? 'กำลังบันทึก...' : `บันทึก${changed.length ? ` (${changed.length})` : ''}`}
-                    </button>
-                  </div>
+                  <PermMatrix
+                    firstHeader="รายการ"
+                    groups={groupItems(items).map(([group, list]) => ({
+                      group,
+                      rows: list.map((item) => {
+                        const allowedByRole = inCeiling(selected, item.key);
+                        return {
+                          key: item.key,
+                          label: item.label,
+                          note: allowedByRole ? undefined : 'นอกเพดาน',
+                          muted: !allowedByRole,
+                          cells: [
+                            {
+                              key: item.key,
+                              checked: flags[item.key] ?? false,
+                              dirty: flags[item.key] !== saved[item.key],
+                              disabled: !allowedByRole,
+                              onChange: () => setFlags({ ...flags, [item.key]: !flags[item.key] }),
+                            },
+                          ],
+                        };
+                      }),
+                    }))}
+                  />
+                  <SaveBar changed={changed.length} busy={busy} onReset={() => setFlags(saved)} onSave={save} />
                 </>
               )}
             </>
           )}
-        </div>
+        </section>
       </div>
     </>
   );

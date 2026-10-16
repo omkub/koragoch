@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase, type Role } from '../supabase';
+import { Notice } from '../ui/components';
+import PermMatrix, { SaveBar } from '../ui/PermMatrix';
 
 type Device = 'pc' | 'mobile';
 
@@ -113,8 +115,8 @@ export default function MenuVisibilityPanel({ roles }: { roles: Role[] }) {
 
   return (
     <>
-      <div className="row">
-        <div className="seg-tabs">
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <div className="seg">
           <button className={device === 'pc' ? 'active' : ''} onClick={() => switchDevice('pc')}>
             จอคอม (PC)
           </button>
@@ -123,55 +125,42 @@ export default function MenuVisibilityPanel({ roles }: { roles: Role[] }) {
           </button>
         </div>
       </div>
-      <p className="muted" style={{ marginBottom: 16 }}>
-        เลือกว่าแต่ละสิทธิ์ "เห็นเมนูไหน" ในแอป{device === 'pc' ? 'บนจอคอม' : 'บนมือถือ'} —
-        ใช้ร่วมกันทุกโรงเรียน (ชุดเดียวกับ จัดการระบบ &gt; สิทธิ์การเข้าถึง ในแอป)
+      <div className="alert-info mb-4 text-[13px] leading-relaxed">
+        เลือกว่าแต่ละสิทธิ์ "เห็นเมนูไหน" ในแอป{device === 'pc' ? 'บนจอคอม' : 'บนมือถือ'} — ใช้ร่วมกันทุกโรงเรียน
+        (ชุดเดียวกับ จัดการระบบ &gt; สิทธิ์การเข้าถึง ในแอป)
         <br />
-        ข้อยกเว้นในแอป: ผู้ดูแลระบบเห็น "จัดการระบบ" เสมอ · ครูไม่เห็น "สรุปผล/แดชบอร์ด" ·
-        "ลงเวลา" ขึ้นเฉพาะโรงเรียนที่เปิดใช้ระบบลงเวลา
+        ข้อยกเว้นในแอป: ผู้ดูแลระบบเห็น "จัดการระบบ" เสมอ · ครูไม่เห็น "สรุปผล/แดชบอร์ด" · "ลงเวลา"
+        ขึ้นเฉพาะโรงเรียนที่เปิดใช้ระบบลงเวลา
         {device === 'mobile' && ' · ถ้าไม่ได้ตั้งค่ามือถือของสิทธิ์ไหนไว้เลย แอปใช้ค่าของจอคอมแทน'}
-      </p>
-      {message && <div className={message.error ? 'error' : 'ok'}>{message.text}</div>}
-
-      <div className="card">
-        <table className="perm-table">
-          <thead>
-            <tr>
-              <th>เมนู</th>
-              {roles.map((r) => (
-                <th key={r.ID_Roles} className="center-cell">
-                  {r.Accessrights}
-                  <div className="muted small">{countFor(r.ID_Roles)}/{menus.length}</div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {menus.map((m) => (
-                <tr key={m.id}>
-                  <td>{m.label}</td>
-                  {roles.map((r) => {
-                    const k = cellKey(r.ID_Roles, m.id);
-                    const dirty = (grid[k] ?? false) !== (saved[k] ?? false);
-                    return (
-                      <td key={k} className={`center-cell${dirty ? ' dirty' : ''}`}>
-                        <input type="checkbox" checked={grid[k] ?? false} onChange={() => toggle(r.ID_Roles, m.id)} />
-                      </td>
-                    );
-                  })}
-                </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="row end">
-          <button className="secondary" disabled={changed.length === 0} onClick={() => setGrid(saved)}>
-            ยกเลิกการแก้
-          </button>
-          <button disabled={busy || changed.length === 0} onClick={save}>
-            {busy ? 'กำลังบันทึก...' : `บันทึก${changed.length ? ` (${changed.length})` : ''}`}
-          </button>
-        </div>
       </div>
+      <Notice message={message} />
+
+      <section className="card overflow-hidden">
+        <PermMatrix
+          firstHeader="เมนู"
+          roles={roles}
+          countLabel={(r) => `${countFor(r.ID_Roles)}/${menus.length}`}
+          groups={[
+            {
+              group: null,
+              rows: menus.map((m) => ({
+                key: String(m.id),
+                label: m.label,
+                cells: roles.map((r) => {
+                  const k = cellKey(r.ID_Roles, m.id);
+                  return {
+                    key: k,
+                    checked: grid[k] ?? false,
+                    dirty: (grid[k] ?? false) !== (saved[k] ?? false),
+                    onChange: () => toggle(r.ID_Roles, m.id),
+                  };
+                }),
+              })),
+            },
+          ]}
+        />
+        <SaveBar changed={changed.length} busy={busy} onReset={() => setGrid(saved)} onSave={save} />
+      </section>
     </>
   );
 }
