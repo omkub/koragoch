@@ -30,6 +30,8 @@ import {
 import PaperEditor from '../forms/editor/PaperEditor';
 import BlockEditor from '../forms/editor/BlockEditor';
 import PreviewFrame, { type FitInfo } from '../forms/editor/PreviewFrame';
+import '../forms/editor/designer.css';
+import { EmptyState, Field, Notice, PageHeader } from '../ui/components';
 
 type Scope = 'global' | number;
 type Message = { text: string; error?: boolean } | null;
@@ -299,144 +301,239 @@ export default function FormDesignerPage() {
 
   return (
     <>
-      <div className="row">
-        <h1>แบบฟอร์ม</h1>
-        <div className="seg-tabs">
-          {(Object.keys(FORM_TYPE_LABEL) as FormType[]).map((t) => (
-            <button
-              key={t}
-              className={formType === t ? 'active' : ''}
-              onClick={() => {
-                if (t !== formType && confirmDiscard()) setFormType(t);
-              }}
-            >
-              {FORM_TYPE_LABEL[t]}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="card fd-toolbar">
-        <label className="fd-field">
-          <span>แก้แม่แบบของ</span>
-          <select
-            value={scope === 'global' ? 'global' : String(scope)}
-            onChange={(e) => {
-              if (!confirmDiscard()) return;
-              setScope(e.target.value === 'global' ? 'global' : Number(e.target.value));
-            }}
-          >
-            <option value="global">แม่แบบกลาง (ทุกโรงเรียน)</option>
-            {schools.map((s) => (
-              <option key={s.id_school} value={s.id_school}>{schoolName(s)}</option>
+      <PageHeader
+        title="แบบฟอร์ม"
+        description="ออกแบบใบลา / บันทึกไปราชการ ที่แอปใช้พิมพ์ — แก้แม่แบบกลาง หรือแม่แบบเฉพาะโรงเรียน"
+        actions={
+          <div className="seg">
+            {(Object.keys(FORM_TYPE_LABEL) as FormType[]).map((t) => (
+              <button
+                key={t}
+                className={formType === t ? 'active' : ''}
+                onClick={() => {
+                  if (t !== formType && confirmDiscard()) setFormType(t);
+                }}
+              >
+                {FORM_TYPE_LABEL[t]}
+              </button>
             ))}
-          </select>
-        </label>
-        <div className="fd-status">
-          <span className={`badge ${source === 'school' ? 'on' : ''}`}>
-            {scope === 'global' ? (source === 'builtin' ? SOURCE_LABEL.builtin : 'แม่แบบกลาง') : SOURCE_LABEL[source]}
-            {activeVersion !== null && ` · เวอร์ชัน ${activeVersion}`}
-          </span>
-          {dirty && <span className="warn">● ยังไม่ได้บันทึก</span>}
-        </div>
-        <span className="spacer" />
-        <select value="" onChange={(e) => copyFrom(e.target.value)}>
-          <option value="">คัดลอกแม่แบบจาก...</option>
-          <option value="builtin">ค่าเริ่มต้นของระบบ</option>
-          {scope !== 'global' && <option value="global">แม่แบบกลาง</option>}
-          {schools.filter((s) => s.id_school !== scope).map((s) => (
-            <option key={s.id_school} value={s.id_school}>{schoolName(s)}</option>
-          ))}
-        </select>
-        <button className="secondary" onClick={() => setShowHistory(!showHistory)}>ประวัติ ({versions.length})</button>
-        {scope !== 'global' && source === 'school' && (
-          <button className="secondary" disabled={busy} onClick={revertToGlobal}>ใช้แม่แบบกลาง</button>
-        )}
-        <input className="note-input" placeholder="หมายเหตุการบันทึก (ไม่บังคับ)" value={note} onChange={(e) => setNote(e.target.value)} />
-        <button disabled={busy || (!dirty && source !== 'builtin' && !(scope !== 'global' && source === 'global'))} onClick={save}>
-          {scope === 'global' ? 'บันทึกแม่แบบกลาง' : 'บันทึกสำหรับโรงเรียนนี้'}
-        </button>
+          </div>
+        }
+      />
+
+      {/* มือถือ: ใช้ดูตัวอย่างได้ แต่ออกแบบบนจอคอมจะสะดวกกว่ามาก */}
+      <div className="alert-info mb-4 text-[13px] lg:hidden">
+        หน้านี้ออกแบบบนจอคอมจะสะดวกที่สุด — บนมือถือใช้ดูตัวอย่าง / ทดลองพิมพ์ได้
       </div>
 
-      {scope !== 'global' && source === 'global' && (
-        <div className="ok">โรงเรียนนี้ใช้แม่แบบกลางอยู่ — แก้แล้วกดบันทึก จะกลายเป็นแม่แบบเฉพาะโรงเรียนนี้ (โรงเรียนอื่นไม่เปลี่ยน)</div>
-      )}
-      {scope === 'global' && source === 'builtin' && (
-        <div className="ok">ยังไม่เคยบันทึกแม่แบบกลางลงฐานข้อมูล — กด "บันทึกแม่แบบกลาง" หนึ่งครั้ง เพื่อให้ app ดึงไปใช้ได้</div>
-      )}
-      {message && <div className={message.error ? 'error' : 'ok'}>{message.text}</div>}
-
-      {showHistory && (
-        <div className="card">
-          <h3>ประวัติเวอร์ชัน — {scope === 'global' ? 'แม่แบบกลาง' : 'โรงเรียนนี้'}</h3>
-          {versions.length === 0 ? (
-            <p className="muted">ยังไม่มีการบันทึก</p>
-          ) : (
-            <table>
-              <thead>
-                <tr><th>เวอร์ชัน</th><th>เมื่อ</th><th>หมายเหตุ</th><th /></tr>
-              </thead>
-              <tbody>
-                {versions.map((v) => (
-                  <tr key={v.id_template}>
-                    <td><b>{v.version}</b>{v.version === versions[0].version && <span className="badge on" style={{ marginLeft: 6 }}>ล่าสุด</span>}</td>
-                    <td>{thaiDateTime(v.createdAt)}</td>
-                    <td>{v.uses_default ? <i>กลับไปใช้แม่แบบกลาง</i> : v.note ?? '-'}</td>
-                    <td className="num">
-                      {!v.uses_default && (
-                        <button className="secondary small" onClick={() => openVersion(v)}>เปิดเวอร์ชันนี้</button>
-                      )}
-                    </td>
-                  </tr>
+      {/* แถบเครื่องมือ */}
+      <section className="card mb-4 p-4 sm:px-5">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <Field label="แก้แม่แบบของ" className="sm:w-64">
+              <select
+                className="input"
+                value={scope === 'global' ? 'global' : String(scope)}
+                onChange={(e) => {
+                  if (!confirmDiscard()) return;
+                  setScope(e.target.value === 'global' ? 'global' : Number(e.target.value));
+                }}
+              >
+                <option value="global">แม่แบบกลาง (ทุกโรงเรียน)</option>
+                {schools.map((s) => (
+                  <option key={s.id_school} value={s.id_school}>
+                    {schoolName(s)}
+                  </option>
                 ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
-
-      <div className="fd-layout">
-        <div className="fd-side">
-          <div className="card">
-            <button className="fd-section-btn" onClick={() => setShowPaper(!showPaper)}>
-              {showPaper ? '▾' : '▸'} กระดาษ — {draft.paper.size === 'custom' ? 'กำหนดเอง' : draft.paper.size}{' '}
-              {draft.paper.orientation === 'portrait' ? 'แนวตั้ง' : 'แนวนอน'} · {draft.paper.fontSizePt} pt
-            </button>
-            {showPaper && <PaperEditor paper={draft.paper} onChange={(paper) => setDraft((d) => ({ ...d, paper }))} />}
+              </select>
+            </Field>
+            <div className="flex flex-wrap items-center gap-2 pb-1.5">
+              <span className={source === 'school' ? 'badge-green' : 'badge-slate'}>
+                {scope === 'global' ? (source === 'builtin' ? SOURCE_LABEL.builtin : 'แม่แบบกลาง') : SOURCE_LABEL[source]}
+                {activeVersion !== null && ` · เวอร์ชัน ${activeVersion}`}
+              </span>
+              {dirty && <span className="badge-amber">● ยังไม่ได้บันทึก</span>}
+            </div>
           </div>
 
-          <div className="card">
-            <div className="row" style={{ marginBottom: 8 }}>
-              <h3 style={{ margin: 0 }}>บรรทัด ({draft.blocks.length})</h3>
-              <select value="" onChange={(e) => e.target.value && addBlock(e.target.value as BlockType)}>
+          <div className="flex flex-1 flex-wrap items-end justify-end gap-2">
+            <select className="input w-auto" value="" onChange={(e) => copyFrom(e.target.value)} aria-label="คัดลอกแม่แบบ">
+              <option value="">คัดลอกแม่แบบจาก...</option>
+              <option value="builtin">ค่าเริ่มต้นของระบบ</option>
+              {scope !== 'global' && <option value="global">แม่แบบกลาง</option>}
+              {schools
+                .filter((s) => s.id_school !== scope)
+                .map((s) => (
+                  <option key={s.id_school} value={s.id_school}>
+                    {schoolName(s)}
+                  </option>
+                ))}
+            </select>
+            <button className="btn-secondary" onClick={() => setShowHistory(!showHistory)}>
+              ประวัติ ({versions.length})
+            </button>
+            {scope !== 'global' && source === 'school' && (
+              <button className="btn-secondary" disabled={busy} onClick={revertToGlobal}>
+                ใช้แม่แบบกลาง
+              </button>
+            )}
+            <input
+              className="input w-full sm:w-56"
+              placeholder="หมายเหตุการบันทึก (ไม่บังคับ)"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+            <button
+              className="btn-primary"
+              disabled={busy || (!dirty && source !== 'builtin' && !(scope !== 'global' && source === 'global'))}
+              onClick={save}
+            >
+              {scope === 'global' ? 'บันทึกแม่แบบกลาง' : 'บันทึกสำหรับโรงเรียนนี้'}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {scope !== 'global' && source === 'global' && (
+        <div className="alert-info mb-4">
+          โรงเรียนนี้ใช้แม่แบบกลางอยู่ — แก้แล้วกดบันทึก จะกลายเป็นแม่แบบเฉพาะโรงเรียนนี้ (โรงเรียนอื่นไม่เปลี่ยน)
+        </div>
+      )}
+      {scope === 'global' && source === 'builtin' && (
+        <div className="alert-info mb-4">
+          ยังไม่เคยบันทึกแม่แบบกลางลงฐานข้อมูล — กด "บันทึกแม่แบบกลาง" หนึ่งครั้ง เพื่อให้ app ดึงไปใช้ได้
+        </div>
+      )}
+      <Notice message={message} />
+
+      {showHistory && (
+        <section className="card mb-4 overflow-hidden">
+          <div className="card-title">ประวัติเวอร์ชัน — {scope === 'global' ? 'แม่แบบกลาง' : 'โรงเรียนนี้'}</div>
+          {versions.length === 0 ? (
+            <EmptyState>ยังไม่มีการบันทึก</EmptyState>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>เวอร์ชัน</th>
+                    <th>เมื่อ</th>
+                    <th>หมายเหตุ</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {versions.map((v) => (
+                    <tr key={v.id_template}>
+                      <td className="whitespace-nowrap">
+                        <b>{v.version}</b>
+                        {v.version === versions[0].version && <span className="badge-green ml-1.5">ล่าสุด</span>}
+                      </td>
+                      <td className="whitespace-nowrap">{thaiDateTime(v.createdAt)}</td>
+                      <td>{v.uses_default ? <i>กลับไปใช้แม่แบบกลาง</i> : v.note ?? '-'}</td>
+                      <td className="text-right">
+                        {!v.uses_default && (
+                          <button className="btn-secondary btn-sm" onClick={() => openVersion(v)}>
+                            เปิดเวอร์ชันนี้
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      <div className="grid items-start gap-4 lg:grid-cols-[400px_minmax(0,1fr)] xl:grid-cols-[430px_minmax(0,1fr)]">
+        {/* ซ้าย: กระดาษ / รายการบรรทัด / ตัวแก้ */}
+        <div className="flex min-w-0 flex-col gap-4">
+          <section className="card p-4">
+            <button
+              className="flex w-full items-center gap-2 text-left text-[13.5px] font-semibold hover:text-brand-700"
+              onClick={() => setShowPaper(!showPaper)}
+            >
+              <span className="text-slate-400">{showPaper ? '▾' : '▸'}</span>
+              กระดาษ — {draft.paper.size === 'custom' ? 'กำหนดเอง' : draft.paper.size}{' '}
+              {draft.paper.orientation === 'portrait' ? 'แนวตั้ง' : 'แนวนอน'} · {draft.paper.fontSizePt} pt
+            </button>
+            {showPaper && (
+              <div className="mt-3">
+                <PaperEditor paper={draft.paper} onChange={(paper) => setDraft((d) => ({ ...d, paper }))} />
+              </div>
+            )}
+          </section>
+
+          <section className="card overflow-hidden">
+            <div className="card-title">
+              บรรทัด ({draft.blocks.length})
+              <select
+                className="input w-auto py-1.5 text-[13px]"
+                value=""
+                onChange={(e) => e.target.value && addBlock(e.target.value as BlockType)}
+                aria-label="เพิ่มบรรทัด"
+              >
                 <option value="">+ เพิ่มบรรทัด</option>
                 {ADDABLE_BLOCKS[formType].map((t) => (
-                  <option key={t} value={t}>{BLOCK_TYPE_LABEL[t]}</option>
+                  <option key={t} value={t}>
+                    {BLOCK_TYPE_LABEL[t]}
+                  </option>
                 ))}
               </select>
             </div>
-            <ol className="block-list">
-              {draft.blocks.map((b, i) => (
-                <li key={b.id} className={`${b.id === selectedId ? 'active' : ''} ${b.visible ? '' : 'hidden-block'}`}>
-                  <button className="block-name" onClick={() => setSelectedId(b.id === selectedId ? null : b.id)}>
-                    <span className="muted small">{i + 1}.</span> {b.name}
-                    <small>{BLOCK_TYPE_LABEL[b.type]}{b.visible ? '' : ' · ซ่อนอยู่'}</small>
-                  </button>
-                  <button className="icon-btn" title={b.visible ? 'ซ่อน' : 'แสดง'} onClick={() => updateBlock({ ...b, visible: !b.visible })}>
-                    {b.visible ? '👁' : '◌'}
-                  </button>
-                  <button className="icon-btn" title="เลื่อนขึ้น" onClick={() => moveBlock(i, -1)}>↑</button>
-                  <button className="icon-btn" title="เลื่อนลง" onClick={() => moveBlock(i, 1)}>↓</button>
-                  {b.type !== 'approval' && b.type !== 'leaveTypes' && b.type !== 'header' && (
-                    <button className="icon-btn" title="ทำสำเนา" onClick={() => duplicateBlock(b)}>⧉</button>
-                  )}
-                </li>
-              ))}
+            <ol className="flex max-h-[46vh] flex-col gap-0.5 overflow-y-auto px-2 pb-2">
+              {draft.blocks.map((b, i) => {
+                const active = b.id === selectedId;
+                return (
+                  <li
+                    key={b.id}
+                    className={`flex items-center gap-0.5 rounded-lg pr-1 ${active ? 'bg-brand-50' : 'hover:bg-slate-50'}`}
+                  >
+                    <button
+                      className="flex min-w-0 flex-1 flex-col items-start px-2.5 py-1.5 text-left"
+                      onClick={() => setSelectedId(active ? null : b.id)}
+                    >
+                      <span
+                        className={`truncate text-[13px] font-semibold ${active ? 'text-brand-700' : ''} ${
+                          b.visible ? '' : 'text-slate-400 line-through'
+                        }`}
+                      >
+                        <span className="mr-1 font-normal text-slate-400">{i + 1}.</span>
+                        {b.name}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        {BLOCK_TYPE_LABEL[b.type]}
+                        {b.visible ? '' : ' · ซ่อนอยู่'}
+                      </span>
+                    </button>
+                    {[
+                      { t: b.visible ? 'ซ่อน' : 'แสดง', s: b.visible ? '👁' : '◌', f: () => updateBlock({ ...b, visible: !b.visible }) },
+                      { t: 'เลื่อนขึ้น', s: '↑', f: () => moveBlock(i, -1) },
+                      { t: 'เลื่อนลง', s: '↓', f: () => moveBlock(i, 1) },
+                      ...(b.type !== 'approval' && b.type !== 'leaveTypes' && b.type !== 'header'
+                        ? [{ t: 'ทำสำเนา', s: '⧉', f: () => duplicateBlock(b) }]
+                        : []),
+                    ].map((a) => (
+                      <button
+                        key={a.t}
+                        title={a.t}
+                        aria-label={a.t}
+                        className="rounded-md px-1.5 py-1 text-sm text-slate-500 hover:bg-slate-200 hover:text-ink"
+                        onClick={a.f}
+                      >
+                        {a.s}
+                      </button>
+                    ))}
+                  </li>
+                );
+              })}
             </ol>
-          </div>
+          </section>
 
           {selected && (
-            <div className="card">
+            <section className="card p-4">
               <BlockEditor
                 key={selected.id}
                 block={selected}
@@ -445,50 +542,68 @@ export default function FormDesignerPage() {
                 placeholders={placeholders}
                 flags={flags}
               />
-              {selected.builtIn && <p className="muted small">บรรทัดของแม่แบบเริ่มต้น ลบไม่ได้ แต่ซ่อนได้ (ปุ่ม 👁)</p>}
-            </div>
+              {selected.builtIn && (
+                <p className="field-hint mt-2">บรรทัดของแม่แบบเริ่มต้น ลบไม่ได้ แต่ซ่อนได้ (ปุ่ม 👁)</p>
+              )}
+            </section>
           )}
         </div>
 
-        <div className="fd-preview">
-          <div className="card fd-preview-bar">
-            <label className="fd-field">
-              <span>ข้อมูลตัวอย่างจาก</span>
-              <select value={dataSchoolId ?? ''} disabled={scope !== 'global'} onChange={(e) => setDataSchoolId(Number(e.target.value))}>
-                {schools.map((s) => (
-                  <option key={s.id_school} value={s.id_school}>{schoolName(s)}</option>
-                ))}
-              </select>
-            </label>
-            <label className="fd-field grow">
-              <span>{formType === 'leave' ? 'ใบลา' : 'รายการไปราชการ'}</span>
-              <select value={recordId} onChange={(e) => setRecordId(e.target.value)}>
-                <option value={SAMPLE}>ข้อมูลตัวอย่าง (สมมติ)</option>
-                {records.map((r) => (
-                  <option key={r.id} value={r.id}>{r.label}</option>
-                ))}
-              </select>
-            </label>
-            <button className="secondary" disabled={!context} onClick={printTest}>ทดลองพิมพ์ / PDF</button>
-          </div>
+        {/* ขวา: ตัวอย่างเอกสาร */}
+        <div className="min-w-0 lg:sticky lg:top-[72px]">
+          <section className="card mb-3 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <Field label="ข้อมูลตัวอย่างจาก" className="sm:w-56">
+                <select
+                  className="input"
+                  value={dataSchoolId ?? ''}
+                  disabled={scope !== 'global'}
+                  onChange={(e) => setDataSchoolId(Number(e.target.value))}
+                >
+                  {schools.map((s) => (
+                    <option key={s.id_school} value={s.id_school}>
+                      {schoolName(s)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label={formType === 'leave' ? 'ใบลา' : 'รายการไปราชการ'} className="min-w-0 flex-1">
+                <select className="input" value={recordId} onChange={(e) => setRecordId(e.target.value)}>
+                  <option value={SAMPLE}>ข้อมูลตัวอย่าง (สมมติ)</option>
+                  {records.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <button className="btn-secondary" disabled={!context} onClick={printTest}>
+                ทดลองพิมพ์ / PDF
+              </button>
+            </div>
+          </section>
 
           {fit && (fit.overflowPx > 1 || fit.overflowWidthPx > 1) && (
-            <div className="error">
+            <div className="alert-error mb-3 text-[13px]">
               เนื้อหา{fit.overflowPx > 1 ? `สูงเกินหน้ากระดาษ ${Math.ceil(fit.overflowPx / 3.78)} มม.` : ''}
               {fit.overflowWidthPx > 1 ? ` กว้างเกินกระดาษ ${Math.ceil(fit.overflowWidthPx / 3.78)} มม.` : ''} — พิมพ์แล้วจะ
               {fit.overflowPx > 1 ? 'ขึ้นหน้าใหม่' : 'ล้นขอบ'} ลดระยะเว้น / ขนาดตัวอักษร หรือเปิด "ย่อให้พอดีกระดาษ" ในตั้งค่ากระดาษ
             </div>
           )}
           {fit && fit.fitScale < 1 && (
-            <div className="ok">ย่ออัตโนมัติเหลือ {Math.round(fit.fitScale * 100)}% ให้พอดีกระดาษหน้าเดียว</div>
+            <div className="alert-ok mb-3 text-[13px]">
+              ย่ออัตโนมัติเหลือ {Math.round(fit.fitScale * 100)}% ให้พอดีกระดาษหน้าเดียว
+            </div>
           )}
 
           {html ? (
             <PreviewFrame html={html} onSelectBlock={setSelectedId} onFit={setFit} />
           ) : (
-            <div className="card muted">กำลังโหลดข้อมูลตัวอย่าง...</div>
+            <div className="card">
+              <EmptyState>กำลังโหลดข้อมูลตัวอย่าง...</EmptyState>
+            </div>
           )}
-          <p className="muted small">กดที่บรรทัดบนเอกสารเพื่อเลือกมาแก้</p>
+          <p className="field-hint mt-2">กดที่บรรทัดบนเอกสารเพื่อเลือกมาแก้</p>
         </div>
       </div>
     </>

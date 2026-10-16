@@ -14,9 +14,6 @@ import UserPermissionsPage from './pages/UserPermissionsPage';
 import AttendancePage from './pages/AttendancePage';
 import FormDesignerPage from './pages/FormDesignerPage';
 
-/** หน้าที่ยังใช้สไตล์เดิม (legacy.css) — ย้ายครบแล้วลบทิ้ง */
-const Legacy = ({ children }: { children: ReactNode }) => <div className="legacy">{children}</div>;
-
 /** หน้าเต็มจอกลางจอ (ตรวจสิทธิ์ / ไม่มีสิทธิ์) */
 function CenterScreen({ children }: { children: ReactNode }) {
   return <div className="grid min-h-screen place-items-center p-4">{children}</div>;
@@ -95,7 +92,7 @@ export default function App() {
             <Route path="/line" element={<LinePage />} />
             <Route path="/role-permissions" element={<RolePermissionsPage />} />
             <Route path="/attendance" element={<AttendancePage />} />
-            <Route path="/forms" element={<Legacy><FormDesignerPage /></Legacy>} />
+            <Route path="/forms" element={<FormDesignerPage />} />
             <Route path="/forms/leave" element={<Navigate to="/forms" replace />} />
             <Route path="/user-permissions" element={<UserPermissionsPage access={access} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
