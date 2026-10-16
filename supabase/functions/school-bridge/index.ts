@@ -264,9 +264,19 @@ Deno.serve(async (req) => {
       if (folderType === 'logo' && !isSuper) {
         return reply(403, { error: 'อัปโหลดโลโก้โรงเรียนได้เฉพาะผู้ดูแลระบบส่วนกลาง' });
       }
+      // logo: โฟลเดอร์ LogoRPB ที่ตั้งไว้ใน AppSecrets.driveLogoFolderId
+      // (supabase/school_logo_folder.sql) — Apps Script อัปลงโฟลเดอร์ที่ส่งไปได้เลย
+      // ไม่ได้ตั้ง = ห้ามส่ง ไม่งั้น Apps Script ตัวเดิมจะเอาไปลงโฟลเดอร์ใบลา
+      const logoFolder = (config.driveLogoFolderId ?? '').trim();
       const folderId = folderType === 'profile'
         ? config.driveProfileFolderId
-        : folderType === 'logo' ? '' : config.driveLeaveFolderId;
+        : folderType === 'logo' ? logoFolder : config.driveLeaveFolderId;
+      if (folderType === 'logo' && (!logoFolder || logoFolder.startsWith('<<'))) {
+        return reply(400, {
+          error: 'ยังไม่ได้ตั้งโฟลเดอร์โลโก้ — สร้างโฟลเดอร์ LogoRPB ใน Google Drive ' +
+            'แล้วรัน supabase/school_logo_folder.sql (ใส่รหัสโฟลเดอร์)',
+        });
+      }
 
       const result = await bridgePost(config, {
         action: 'upload',
