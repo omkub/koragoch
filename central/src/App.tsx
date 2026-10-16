@@ -93,16 +93,16 @@ export default function App() {
             <Route path="/admins" element={<SchoolAdminsPage />} />
             <Route path="/staff" element={<StaffPage />} />
             <Route path="/line" element={<Legacy><LinePage /></Legacy>} />
-            <Route path="/role-permissions" element={<Legacy><RolePermissionsPage /></Legacy>} />
+            <Route path="/role-permissions" element={<RolePermissionsPage />} />
             <Route path="/attendance" element={<Legacy><AttendancePage /></Legacy>} />
             <Route path="/forms" element={<Legacy><FormDesignerPage /></Legacy>} />
             <Route path="/forms/leave" element={<Navigate to="/forms" replace />} />
-            <Route path="/user-permissions" element={<Legacy><UserPermissionsPage access={access} /></Legacy>} />
+            <Route path="/user-permissions" element={<UserPermissionsPage access={access} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </>
         ) : (
           <>
-            <Route path="/user-permissions" element={<Legacy><UserPermissionsPage access={access} /></Legacy>} />
+            <Route path="/user-permissions" element={<UserPermissionsPage access={access} />} />
             <Route path="*" element={<Navigate to="/user-permissions" replace />} />
           </>
         )}

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   groupItems,
   schoolName,
@@ -8,6 +8,8 @@ import {
   type School,
 } from '../supabase';
 import MenuVisibilityPanel from './MenuVisibilityPanel';
+import { Notice, PageHeader } from '../ui/components';
+import PermMatrix, { SaveBar } from '../ui/PermMatrix';
 
 type Grid = Record<string, boolean>; // `${id_role}:${item_key}` → allowed
 
@@ -114,7 +116,7 @@ export default function RolePermissionsPage() {
   }
 
   const tabs = (
-    <div className="seg-tabs">
+    <div className="seg">
       <button className={tab === 'ceiling' ? 'active' : ''} onClick={() => switchTab('ceiling')}>
         เพดานสิทธิ์
       </button>
@@ -127,10 +129,11 @@ export default function RolePermissionsPage() {
   if (tab === 'menus') {
     return (
       <>
-        <div className="row">
-          <h1>เพดานสิทธิ์</h1>
-          {tabs}
-        </div>
+        <PageHeader
+          title="เพดานสิทธิ์"
+          description="เมนูที่แต่ละสิทธิ์เห็นในแอป (จอคอม / มือถือ) — ใช้ร่วมกันทุกโรงเรียน"
+          actions={tabs}
+        />
         <MenuVisibilityPanel roles={roles} />
       </>
     );
@@ -138,71 +141,58 @@ export default function RolePermissionsPage() {
 
   return (
     <>
-      <div className="row">
-        <h1>เพดานสิทธิ์</h1>
-        {tabs}
-        <select value={schoolId ?? ''} onChange={(e) => setSchoolId(Number(e.target.value))}>
-          {schools.map((s) => (
-            <option key={s.id_school} value={s.id_school}>{schoolName(s)}</option>
-          ))}
-        </select>
-      </div>
-      <p className="muted" style={{ marginBottom: 16 }}>
-        กำหนดว่าแต่ละสิทธิ์ทำอะไรได้ "มากที่สุด" ในโรงเรียนนี้ — แอดมินโรงเรียนปรับรายคนได้ไม่เกินนี้
-        ปิดรายการที่นี่ = ทุกคนในสิทธิ์นั้นเสียรายการนั้นทันที
-      </p>
-      {message && <div className={message.error ? 'error' : 'ok'}>{message.text}</div>}
-
-      <div className="card">
-        <table className="perm-table">
-          <thead>
-            <tr>
-              <th>รายการ</th>
-              {roles.map((r) => (
-                <th key={r.ID_Roles} className="center-cell">
-                  {r.Accessrights}
-                  <div className="muted small">{countFor(r.ID_Roles)}/{items.length}</div>
-                </th>
+      <PageHeader
+        title="เพดานสิทธิ์"
+        description={'กำหนดว่าแต่ละสิทธิ์ทำอะไรได้ "มากที่สุด" ในโรงเรียนนี้ — แอดมินโรงเรียนปรับรายคนได้ไม่เกินนี้ · ปิดรายการที่นี่ = ทุกคนในสิทธิ์นั้นเสียรายการนั้นทันที'}
+        actions={
+          <>
+            {tabs}
+            <select
+              className="input w-auto max-w-full"
+              value={schoolId ?? ''}
+              onChange={(e) => setSchoolId(Number(e.target.value))}
+              aria-label="เลือกโรงเรียน"
+            >
+              {schools.map((s) => (
+                <option key={s.id_school} value={s.id_school}>
+                  {schoolName(s)}
+                </option>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {groupItems(items).map(([group, list]) => (
-              <Fragment key={group}>
-                <tr className="group-row">
-                  <td colSpan={roles.length + 1}>{group}</td>
-                </tr>
-                {list.map((item) => (
-                  <tr key={item.key}>
-                    <td>{item.label}</td>
-                    {roles.map((r) => {
-                      const k = cellKey(r.ID_Roles, item.key);
-                      const dirty = (grid[k] ?? false) !== (saved[k] ?? false);
-                      return (
-                        <td key={k} className={`center-cell${dirty ? ' dirty' : ''}`}>
-                          <input
-                            type="checkbox"
-                            checked={grid[k] ?? false}
-                            onChange={() => toggle(r.ID_Roles, item.key)}
-                          />
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
-        <div className="row end">
-          <button className="secondary" disabled={changed.length === 0} onClick={() => setGrid(saved)}>
-            ยกเลิกการแก้
-          </button>
-          <button disabled={busy || changed.length === 0} onClick={save}>
-            {busy ? 'กำลังบันทึก...' : `บันทึก${changed.length ? ` (${changed.length})` : ''}`}
-          </button>
-        </div>
-      </div>
+            </select>
+          </>
+        }
+      />
+      <Notice message={message} />
+
+      <section className="card overflow-hidden">
+        <PermMatrix
+          firstHeader="รายการ"
+          roles={roles}
+          countLabel={(r) => `${countFor(r.ID_Roles)}/${items.length}`}
+          groups={groupItems(items).map(([group, list]) => ({
+            group,
+            rows: list.map((item) => ({
+              key: item.key,
+              label: item.label,
+              cells: roles.map((r) => {
+                const k = cellKey(r.ID_Roles, item.key);
+                return {
+                  key: k,
+                  checked: grid[k] ?? false,
+                  dirty: (grid[k] ?? false) !== (saved[k] ?? false),
+                  onChange: () => toggle(r.ID_Roles, item.key),
+                };
+              }),
+            })),
+          }))}
+        />
+        <SaveBar
+          changed={changed.length}
+          busy={busy}
+          onReset={() => setGrid(saved)}
+          onSave={save}
+        />
+      </section>
     </>
   );
 }
