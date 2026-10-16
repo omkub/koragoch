@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { authEmailForUsername, supabase } from '../supabase';
+import { Field } from '../ui/components';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -32,23 +33,45 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="center">
-      <form className="card narrow" onSubmit={submit}>
-        <h2>ผู้ดูแลระบบ</h2>
-        <p className="muted">ระบบลาออนไลน์ — ผู้ดูแลส่วนกลาง / ผู้ดูแลโรงเรียน</p>
-        <label>
-          ชื่อผู้ใช้
-          <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus required />
-        </label>
-        <label>
-          รหัสผ่าน
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        </label>
-        {error && <div className="error">{error}</div>}
-        <button type="submit" disabled={busy}>
-          {busy ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
-        </button>
-      </form>
+    <div className="grid min-h-screen place-items-center px-4 py-10">
+      <div className="w-full max-w-[380px]">
+        <div className="mb-6 flex flex-col items-center text-center">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-ink text-lg font-bold text-white">ลา</div>
+          <h1 className="mt-4 text-xl font-bold">ผู้ดูแลระบบ</h1>
+          <p className="mt-1 text-[13px] text-slate-500">ระบบวันลา — ผู้ดูแลส่วนกลาง / ผู้ดูแลโรงเรียน</p>
+        </div>
+
+        <form className="card flex flex-col gap-4 p-6" onSubmit={submit}>
+          <Field label="ชื่อผู้ใช้">
+            <input
+              className="input"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
+              autoFocus
+              required
+            />
+          </Field>
+          <Field label="รหัสผ่าน">
+            <input
+              className="input"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </Field>
+          {error && <div className="alert-error">{error}</div>}
+          <button type="submit" className="btn-primary mt-1 w-full py-2.5" disabled={busy}>
+            {busy ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
+          </button>
+        </form>
+
+        <a href="../" className="mt-5 block text-center text-[13px] text-slate-500 hover:text-ink">
+          ← ไปแอปสำหรับครู
+        </a>
+      </div>
     </div>
   );
 }

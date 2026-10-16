@@ -60,9 +60,8 @@ export default function App() {
   }, [session]);
   if (!session) {
     return (
-      <Legacy>
-        <LoginPage />
-      </Legacy>
+      <LoginPage />
+
     );
   }
   if (access === null) {
@@ -89,7 +88,7 @@ export default function App() {
       <Routes>
         {isSuper ? (
           <>
-            <Route path="/" element={<Legacy><DashboardPage /></Legacy>} />
+            <Route path="/" element={<DashboardPage />} />
             <Route path="/schools" element={<Legacy><SchoolsPage /></Legacy>} />
             <Route path="/admins" element={<Legacy><SchoolAdminsPage /></Legacy>} />
             <Route path="/staff" element={<Legacy><StaffPage /></Legacy>} />
