@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { schoolName, supabase, type Role, type School } from '../supabase';
+import { EmptyState, Field, Notice, PageHeader } from '../ui/components';
+import { IconSearch } from '../ui/icons';
 
 type EmploymentStatus = 'active' | 'resigned' | 'retired' | 'transferred';
 
@@ -129,32 +131,59 @@ export default function StaffPage() {
     if (schoolId !== null) load(schoolId);
   }
 
+  const statusBadge = (t: StaffRow) => {
+    const status = statusOf(t);
+    return status === 'active' ? (
+      <span className="badge-green">ปฏิบัติงาน</span>
+    ) : (
+      <span className="badge-slate">
+        {STATUS_LABEL[status]} {thaiDate(t.left_date)}
+      </span>
+    );
+  };
+  const editButton = (t: StaffRow) => {
+    const status = statusOf(t);
+    return (
+      <button
+        className="btn-secondary btn-sm"
+        disabled={!hasStatus}
+        onClick={() => setEditing({ row: t, status, left: t.left_date ?? today() })}
+      >
+        {status === 'active' ? 'พ้นสภาพ' : 'แก้สถานะ'}
+      </button>
+    );
+  };
+
   return (
     <>
-      <div className="row">
-        <h1>บุคลากร</h1>
-        <select value={schoolId ?? ''} onChange={(e) => setSchoolId(Number(e.target.value))}>
-          {schools.map((s) => (
-            <option key={s.id_school} value={s.id_school}>
-              {schoolName(s)}
-            </option>
-          ))}
-        </select>
-      </div>
-      <p className="muted" style={{ marginBottom: 16 }}>
-        ตั้งสถานะ ลาออก / เกษียณ / ย้าย — ไม่ลบรายชื่อ ใบลาเก่ายังอยู่ครบ · คนพ้นสภาพเข้าระบบไม่ได้
-        ไม่ขึ้นในรายชื่อที่ใช้ทำงาน และรายงานนับเฉพาะปีงบประมาณที่ยังปฏิบัติงาน
-      </p>
-      {!hasStatus && <div className="error">ยังตั้งสถานะไม่ได้ — ต้องรัน supabase/staff_status.sql ก่อน</div>}
-      {message && <div className={message.error ? 'error' : 'ok'}>{message.text}</div>}
+      <PageHeader
+        title="บุคลากร"
+        description="ตั้งสถานะ ลาออก / เกษียณ / ย้าย — ไม่ลบรายชื่อ ใบลาเก่ายังอยู่ครบ · คนพ้นสภาพเข้าระบบไม่ได้ และรายงานนับเฉพาะปีงบประมาณที่ยังปฏิบัติงาน"
+        actions={
+          <select
+            className="input w-auto max-w-full"
+            value={schoolId ?? ''}
+            onChange={(e) => setSchoolId(Number(e.target.value))}
+            aria-label="เลือกโรงเรียน"
+          >
+            {schools.map((s) => (
+              <option key={s.id_school} value={s.id_school}>
+                {schoolName(s)}
+              </option>
+            ))}
+          </select>
+        }
+      />
+      {!hasStatus && <div className="alert-error mb-4">ยังตั้งสถานะไม่ได้ — ต้องรัน supabase/staff_status.sql ก่อน</div>}
+      <Notice message={message} />
 
       {editing && (
-        <div className="card form">
-          <h3>สถานะ: {editing.row.fullName}</h3>
-          <div className="grid">
-            <label>
-              สถานะ
+        <div className="card mb-5">
+          <div className="card-title">สถานะ: {editing.row.fullName}</div>
+          <div className="grid gap-4 px-4 pb-4 sm:grid-cols-2 sm:px-5">
+            <Field label="สถานะ">
               <select
+                className="input"
                 value={editing.status}
                 onChange={(e) => setEditing({ ...editing, status: e.target.value as EmploymentStatus })}
               >
@@ -164,86 +193,97 @@ export default function StaffPage() {
                   </option>
                 ))}
               </select>
-            </label>
+            </Field>
             {editing.status !== 'active' && (
-              <label>
-                วันที่พ้นสภาพ (วันสุดท้ายที่ปฏิบัติงาน)
+              <Field label="วันที่พ้นสภาพ" hint="วันสุดท้ายที่ปฏิบัติงาน">
                 <input
+                  className="input"
                   type="date"
                   value={editing.left}
                   onChange={(e) => setEditing({ ...editing, left: e.target.value })}
                 />
-              </label>
+              </Field>
             )}
           </div>
-          <div className="row end">
-            <button className="secondary" onClick={() => setEditing(null)}>
+          <div className="flex justify-end gap-2 border-t border-line px-4 py-3 sm:px-5">
+            <button className="btn-secondary" onClick={() => setEditing(null)}>
               ยกเลิก
             </button>
-            <button disabled={busy} onClick={save}>
+            <button className="btn-primary" disabled={busy} onClick={save}>
               {busy ? 'กำลังบันทึก...' : 'บันทึก'}
             </button>
           </div>
         </div>
       )}
 
-      <div className="card">
-        <div className="row" style={{ marginBottom: 12 }}>
-          <input placeholder="ค้นหาชื่อ หรือ username" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <label className="check">
-            <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
+      <section className="card overflow-hidden">
+        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div className="relative sm:w-72">
+            <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              className="input pl-9"
+              placeholder="ค้นหาชื่อ หรือ username"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <label className="flex items-center gap-2 text-[13px] font-medium text-slate-600">
+            <input
+              type="checkbox"
+              className="checkbox"
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+            />
             แสดงคนพ้นสภาพ ({inactiveCount})
           </label>
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>ชื่อ-นามสกุล</th>
-              <th>Username</th>
-              <th>สิทธิ์</th>
-              <th>สถานะ</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((t) => {
-              const status = statusOf(t);
-              return (
-                <tr key={t.id_user} className={status === 'active' ? '' : 'muted'}>
-                  <td>{t.fullName || '-'}</td>
-                  <td>{t.username || '-'}</td>
-                  <td>{roleName(t.id_role)}</td>
-                  <td>
-                    {status === 'active' ? (
-                      'ปฏิบัติงาน'
-                    ) : (
-                      <span className="badge">
-                        {STATUS_LABEL[status]} {thaiDate(t.left_date)}
-                      </span>
-                    )}
-                  </td>
-                  <td className="num">
-                    <button
-                      className="secondary small"
-                      disabled={!hasStatus}
-                      onClick={() => setEditing({ row: t, status, left: t.left_date ?? today() })}
-                    >
-                      {status === 'active' ? 'พ้นสภาพ' : 'แก้สถานะ'}
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-            {visible.length === 0 && (
-              <tr>
-                <td colSpan={5} className="muted">
-                  ไม่พบบุคลากร
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+
+        {visible.length === 0 ? (
+          <EmptyState>ไม่พบบุคลากร</EmptyState>
+        ) : (
+          <>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>ชื่อ-นามสกุล</th>
+                    <th>Username</th>
+                    <th>สิทธิ์</th>
+                    <th>สถานะ</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {visible.map((t) => (
+                    <tr key={t.id_user} className={statusOf(t) === 'active' ? '' : 'text-slate-400'}>
+                      <td className="font-medium">{t.fullName || '-'}</td>
+                      <td>{t.username || '-'}</td>
+                      <td>{roleName(t.id_role)}</td>
+                      <td>{statusBadge(t)}</td>
+                      <td className="text-right">{editButton(t)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ul className="divide-y divide-slate-100 md:hidden">
+              {visible.map((t) => (
+                <li key={t.id_user} className="flex items-center gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className={`truncate font-medium ${statusOf(t) === 'active' ? '' : 'text-slate-400'}`}>
+                      {t.fullName || '-'}
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                      {roleName(t.id_role)} {statusOf(t) !== 'active' && statusBadge(t)}
+                    </div>
+                  </div>
+                  {editButton(t)}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
     </>
   );
 }

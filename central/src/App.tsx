@@ -89,9 +89,9 @@ export default function App() {
         {isSuper ? (
           <>
             <Route path="/" element={<DashboardPage />} />
-            <Route path="/schools" element={<Legacy><SchoolsPage /></Legacy>} />
-            <Route path="/admins" element={<Legacy><SchoolAdminsPage /></Legacy>} />
-            <Route path="/staff" element={<Legacy><StaffPage /></Legacy>} />
+            <Route path="/schools" element={<SchoolsPage />} />
+            <Route path="/admins" element={<SchoolAdminsPage />} />
+            <Route path="/staff" element={<StaffPage />} />
             <Route path="/line" element={<Legacy><LinePage /></Legacy>} />
             <Route path="/role-permissions" element={<Legacy><RolePermissionsPage /></Legacy>} />
             <Route path="/attendance" element={<Legacy><AttendancePage /></Legacy>} />
