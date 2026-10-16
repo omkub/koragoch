@@ -264,13 +264,24 @@ function doPost(e) {
 }
 
 // 🏫 โฟลเดอร์เก็บโลโก้โรงเรียน (ตั้งจากเว็บส่วนกลาง) — ชื่อ LogoRPB
-// อยู่ข้างโฟลเดอร์รูปโปรไฟล์ (โฟลเดอร์แม่เดียวกัน) ไม่มีก็สร้างให้ครั้งแรก
+// อยู่ข้างโฟลเดอร์รูปโปรไฟล์ — หาไม่เจอ/ไม่มีสิทธิ์ ใช้หน้าแรกของ My Drive แทน
+// (FOLDER_PROFILE_ID ในสคริปต์อาจเป็นโฟลเดอร์เก่า รูปโปรไฟล์จริงใช้รหัสที่
+//  school-bridge ส่งมาจากฐานข้อมูล)
 var LOGO_FOLDER_NAME = "LogoRPB";
 function getOrCreateLogoFolder_() {
-  var parents = DriveApp.getFolderById(FOLDER_PROFILE_ID).getParents();
-  var parent = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
+  var parent = null;
+  try {
+    var parents = DriveApp.getFolderById(FOLDER_PROFILE_ID).getParents();
+    if (parents.hasNext()) parent = parents.next();
+  } catch (err) {}
+  if (!parent) parent = DriveApp.getRootFolder();
   var found = parent.getFoldersByName(LOGO_FOLDER_NAME);
   return found.hasNext() ? found.next() : parent.createFolder(LOGO_FOLDER_NAME);
+}
+
+// ทดสอบในหน้าแก้โค้ด: เลือก testLogoFolder > Run → ลิงก์โฟลเดอร์ใน Execution log
+function testLogoFolder() {
+  Logger.log(getOrCreateLogoFolder_().getUrl());
 }
 
 function createJsonResponse(data, e) {
