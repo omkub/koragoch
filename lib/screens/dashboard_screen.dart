@@ -229,7 +229,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   else ...[
                     _buildStatsGrid(isMobile, totalAll, typeCountMap,
                         pendingCount, approvedCount),
-                    const SizedBox(height: 32),
+                    SizedBox(height: isMobile ? 16 : 32),
                     _buildMiddleSection(
                         isMobile, typeCountMap, totalAll, leaves),
                   ],
@@ -311,15 +311,20 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildStatsGrid(bool isMobile, int totalAll,
       Map<String, int> typeCountMap, int pend, int apprv) {
     return LayoutBuilder(builder: (context, constraints) {
-      int crossAxisCount = isMobile ? 2 : 3;
-      double aspectRatio = isMobile ? 1.4 : 4.2;
-      return GridView.count(
+      // ความสูงการ์ดคงที่ (เดิมใช้อัตราส่วน 1.4 จอยิ่งกว้างการ์ดยิ่งสูงจนโล่ง)
+      // จำนวนคอลัมน์ตามความกว้าง: มือถือ 2 · แท็บเล็ต/จอคอมทั่วไป 3 · จอกว้างมาก 5
+      final w = constraints.maxWidth;
+      final crossAxisCount = w < 420 ? 2 : (w < 1300 ? 3 : 5);
+      final spacing = isMobile ? 10.0 : 16.0;
+      return GridView(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        crossAxisCount: crossAxisCount,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: aspectRatio,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: crossAxisCount,
+          crossAxisSpacing: spacing,
+          mainAxisSpacing: spacing,
+          mainAxisExtent: isMobile ? 82 : 100,
+        ),
         children: [
           _buildCounterCard('การลาทั้งหมด', totalAll.toString(), 'รายการรวม',
               Icons.summarize_outlined, const Color(0xFFEFF6FF), Colors.blue,
@@ -375,8 +380,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       List<Map<String, dynamic>> leaves) {
     if (isMobile) {
       return Column(children: [
-        _buildChartCard(typeMap, total.toDouble()),
-        const SizedBox(height: 24),
+        _buildChartCard(typeMap, total.toDouble(), isMobile: true),
+        const SizedBox(height: 16),
         _buildHistoryCard(leaves, isMobile: true)
       ]);
     }
@@ -431,10 +436,10 @@ class _DashboardScreenState extends State<DashboardScreen>
       {bool isWarning = false, bool isMobile = false}) {
     return Container(
       padding:
-          EdgeInsets.symmetric(horizontal: isMobile ? 12 : 20, vertical: 10),
+          EdgeInsets.symmetric(horizontal: isMobile ? 12 : 18, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.02),
@@ -453,6 +458,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Row(
                 children: [
@@ -483,7 +489,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                   // 📏 ปรับขนาดตัวเลขลงบนมือถือ เพื่อประหยัดพื้นที่แนวตั้งครับ 🥇
                   Text(val,
                       style: GoogleFonts.sarabun(
-                          fontSize: isMobile ? 28 : 38,
+                          fontSize: isMobile ? 24 : 32,
+                          height: 1.2,
                           fontWeight: FontWeight.bold,
                           color: const Color(0xFF1E293B))),
                   const SizedBox(width: 4),
@@ -502,7 +509,8 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildChartCard(Map<String, dynamic> typeMap, double totalCount) {
+  Widget _buildChartCard(Map<String, dynamic> typeMap, double totalCount,
+      {bool isMobile = false}) {
     final List<Color> chartColors = [
       const Color(0xFF0F172A),
       const Color(0xFF3B82F6),
@@ -513,8 +521,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     ];
 
     return Container(
-      height: 480,
-      padding: const EdgeInsets.all(32),
+      // มือถือ: กล่องเตี้ยลง วงกลมเล็กลง (เดิมสูง 480 เท่าจอคอม)
+      height: isMobile ? 320 : 480,
+      padding: EdgeInsets.all(isMobile ? 18 : 32),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
@@ -549,7 +558,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       PieChart(
                         PieChartData(
                           sectionsSpace: 2,
-                          centerSpaceRadius: 100,
+                          centerSpaceRadius: isMobile ? 62 : 100,
                           sections: typeMap.entries.map((e) {
                             int index = typeMap.keys.toList().indexOf(e.key);
                             double value = 0;
@@ -561,7 +570,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                               color: chartColors[index % chartColors.length],
                               value: value,
                               title: '',
-                              radius: 35,
+                              radius: isMobile ? 24 : 35,
                             );
                           }).toList(),
                         ),
