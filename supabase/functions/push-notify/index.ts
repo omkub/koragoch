@@ -28,7 +28,7 @@ const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const ADMIN_ROLE_ID = 22;
 // ผู้ติดต่อใน VAPID (sub) ต้องเป็นอีเมล / เว็บจริง — Apple (iPhone) ปฏิเสธทุกข้อความ
 // ด้วย 403 BadJwtToken ถ้าเป็นโดเมนปลอม เช่น .local (Chrome ไม่เช็ก)
-const CONTACT = 'https://omkub.github.io/koragoch/';
+const CONTACT = 'https://rbp-chanikarnn.web.app/';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
