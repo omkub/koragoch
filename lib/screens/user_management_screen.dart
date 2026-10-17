@@ -41,7 +41,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   int _usersPage = 0;
   int _usersPageSize = 10; // 0 means all matching users.
 
-  /// แสดงคนที่ลาออก/เกษียณ/ย้ายด้วยหรือไม่ (ปกติซ่อน) — ดู StaffStatus
+  /// true = แสดงเฉพาะคนที่ลาออก/เกษียณ/ย้าย, false = เฉพาะคนที่ยังทำงาน — ดู StaffStatus
   bool _showInactive = false;
 
   /// จำนวนคนพ้นสภาพในรายชื่อ (นับตอนกรอง ใช้แสดงบนปุ่มตัวกรอง)
@@ -3259,7 +3259,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
           // 🔥 ระบบกรองข้อมูลแบบ Real-time ครับ
           final users = schoolUsers.where((u) {
-            if (!_showInactive && !StaffStatus.isActive(u)) return false;
+            // ติ๊ก "พ้นสภาพ" = ดูเฉพาะคนพ้นสภาพ, ไม่ติ๊ก = เฉพาะคนที่ยังทำงาน
+            if (StaffStatus.isActive(u) == _showInactive) return false;
             final name = [u['id_user'] ?? u['id'], u['fullName'], u['username']]
                 .join(' ')
                 .toLowerCase();
@@ -5037,7 +5038,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           if (waitingCount > 0) _buildEmergencyAlertBar(waitingCount),
           Expanded(
             child: users.isEmpty
-                ? const Center(child: Text('ไม่พบผู้ใช้งาน'))
+                ? Center(
+                    child: Text(_showInactive && _searchText.trim().isEmpty
+                        ? 'ไม่มีคนพ้นสภาพ'
+                        : 'ไม่พบผู้ใช้งาน'))
                 : narrow
                     ? Scrollbar(
                         controller: _scrollController,
@@ -5171,9 +5175,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
     final inactiveChip = FilterChip(
       label: Text(
-          narrow ? 'พ้นสภาพ ($_inactiveCount)' : 'แสดงคนพ้นสภาพ ($_inactiveCount)',
+          narrow ? 'พ้นสภาพ ($_inactiveCount)' : 'ดูเฉพาะคนพ้นสภาพ ($_inactiveCount)',
           style: GoogleFonts.sarabun(fontSize: 12)),
-      tooltip: 'แสดงคนที่ลาออก / เกษียณ / ย้าย (ปกติซ่อนไว้)',
+      tooltip: 'ดูเฉพาะคนที่ลาออก / เกษียณ / ย้าย (ปกติซ่อนไว้)',
       visualDensity: VisualDensity.compact,
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       selected: _showInactive,
@@ -5203,7 +5207,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             Text('รายชื่อผู้ใช้งาน',
                 style: GoogleFonts.sarabun(
                     fontSize: narrow ? 17 : 18, fontWeight: FontWeight.bold)),
-            Text('แสดง ${users.length} คน',
+            Text(
+                _showInactive
+                    ? 'คนพ้นสภาพ ${users.length} คน'
+                    : 'แสดง ${users.length} คน',
                 style:
                     GoogleFonts.sarabun(fontSize: 12, color: Colors.blueGrey)),
           ]),
