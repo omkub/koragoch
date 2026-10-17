@@ -129,11 +129,10 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
 
   Stream<List<Map<String, dynamic>>> _createLeaveRequestsStream(
       bool canViewAll, String? user) {
-    // 🚀 ใช้ Supabase read แล้วห่อเป็น Stream ชั่วคราว (Part 5 ค่อยทำ Realtime)
+    // realtime: โหลดใหม่เองเมื่อใบลาเปลี่ยนจากเครื่องไหนก็ได้
     return canViewAll
-        ? Stream.fromFuture(_firebaseService.getLeaveRequestsFromSupabase())
-        : Stream.fromFuture(
-            _firebaseService.getMyLeaveRequestsFromSupabase(user ?? ''));
+        ? _firebaseService.getLeaveRequestsStream()
+        : _firebaseService.getMyLeaveRequestsStream(user ?? '');
   }
 
   Map<String, dynamic> _userForLeave(Map<String, dynamic> leave) {
@@ -1482,8 +1481,8 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
 
   /// โหลดรายการใบลาใหม่จาก Supabase
   ///
-  /// สตรีมของหน้านี้เป็นแบบยิงครั้งเดียวจบ (Stream.value / Stream.fromFuture)
-  /// เมื่อมีการลบหรือแก้สถานะ ต้องสร้างสตรีมใหม่เอง ไม่งั้นตารางจะค้างข้อมูลเก่า
+  /// สตรีมโหลดใหม่เองเมื่อ Leaves เปลี่ยน (realtime) แต่ยังโหลดทันทีหลังลบ /
+  /// แก้สถานะ เผื่อยังไม่ได้เปิด realtime (leaves_realtime.sql) หรือเน็ตหลุด
   void _reloadLeaves() {
     if (!mounted) return;
     setState(() {

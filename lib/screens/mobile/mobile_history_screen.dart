@@ -21,6 +21,10 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
   bool _canViewAll = false;
   bool _isLoading = true;
 
+  /// สร้างครั้งเดียว (ไม่สร้างใหม่ทุกครั้งที่ build) — โหลดใหม่เองเมื่อใบลาเปลี่ยน
+  /// แบบ realtime และโหลดทันทีหลังอนุมัติ / ลบ ผ่าน [_reloadLeaves]
+  Stream<List<Map<String, dynamic>>>? _leavesStream;
+
   // 📅 ระบบจัดการรอบงบประมาณ 🥇🏆
   List<Map<String, dynamic>> _rounds = [];
   Map<String, dynamic>? _selectedRound;
@@ -68,7 +72,16 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
       _userRole = prefs.getString('userRole') ?? 'ครู';
       _canViewAll = canViewAll;
       _isLoading = false;
+      _leavesStream = _createLeavesStream();
     });
+  }
+
+  Stream<List<Map<String, dynamic>>> _createLeavesStream() => _canViewAll
+      ? _firebaseService.getLeaveRequestsStream()
+      : _firebaseService.getMyLeaveRequestsStream(_currentUserName.trim());
+
+  void _reloadLeaves() {
+    if (mounted) setState(() => _leavesStream = _createLeavesStream());
   }
 
   @override
@@ -183,10 +196,7 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
 
             Expanded(
               child: StreamBuilder<List<Map<String, dynamic>>>(
-                stream: _canViewAll
-                    ? _firebaseService.getLeaveRequestsStream()
-                    : _firebaseService
-                        .getMyLeaveRequestsStream(_currentUserName.trim()),
+                stream: _leavesStream,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
@@ -559,6 +569,7 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
       }
 
       await _firebaseService.updateLeaveRequest(requestId, updateData);
+      _reloadLeaves();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -609,6 +620,7 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
                 }
                 await _firebaseService.deleteLeaveFromSupabase(
                     leave['requestId']?.toString() ?? '');
+                _reloadLeaves();
                 // context ตัวนี้รับมาเป็นพารามิเตอร์ ไม่ใช่ของ State นี้
                 // จึงต้องเช็ก context.mounted ของมันเองหลัง await
                 if (context.mounted) {

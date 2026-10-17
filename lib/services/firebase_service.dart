@@ -1063,8 +1063,63 @@ class FirebaseService {
   }
 
   // ดึงประวัติการลาแบบเรียลไทม์จาก Supabase
+  /// ฟังการเปลี่ยนแปลงของตาราง Leaves แบบ realtime (ส่ง / แก้ / อนุมัติ / ลบ
+  /// จากเครื่องไหนก็ได้) → เรียก [onChange] (รวบหลายครั้งติดกันเป็นครั้งเดียว)
+  /// คืนฟังก์ชันสำหรับเลิกฟัง — เรียกใน dispose
+  ///
+  /// RLS กรองให้: ได้ยินเฉพาะใบลาที่ตัวเองมองเห็น (ยกเว้นการลบ ซึ่งแค่ทำให้โหลดใหม่)
+  /// ต้องรัน supabase/leaves_realtime.sql ก่อน ไม่งั้นไม่มีเหตุการณ์มา (หน้ายังใช้ได้ปกติ)
+  VoidCallback onLeavesChanged(VoidCallback onChange) {
+    final client = _supabaseIfReady;
+    if (client == null) return () {};
+    Timer? debounce;
+    final channel = client
+        .channel('leaves-${DateTime.now().microsecondsSinceEpoch}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'Leaves',
+          callback: (_) {
+            debounce?.cancel();
+            debounce = Timer(const Duration(milliseconds: 400), onChange);
+          },
+        )
+        .subscribe();
+    return () {
+      debounce?.cancel();
+      client.removeChannel(channel);
+    };
+  }
+
+  /// สตรีมที่โหลดครั้งแรก แล้วโหลดใหม่เองทุกครั้งที่ Leaves เปลี่ยน
+  Stream<List<Map<String, dynamic>>> _liveLeaves(
+      Future<List<Map<String, dynamic>>> Function() fetch) {
+    late final StreamController<List<Map<String, dynamic>>> controller;
+    VoidCallback? stop;
+    Future<void> load() async {
+      try {
+        final rows = await fetch();
+        if (!controller.isClosed) controller.add(rows);
+      } catch (e) {
+        if (!controller.isClosed) controller.addError(e);
+      }
+    }
+
+    controller = StreamController<List<Map<String, dynamic>>>(
+      onListen: () {
+        load();
+        stop = onLeavesChanged(load);
+      },
+      onCancel: () {
+        stop?.call();
+        return controller.close();
+      },
+    );
+    return controller.stream;
+  }
+
   Stream<List<Map<String, dynamic>>> getLeaveRequestsStream({int? year}) {
-    return Stream.fromFuture(getLeaveRequestsFromSupabase(year: year));
+    return _liveLeaves(() => getLeaveRequestsFromSupabase(year: year));
   }
 
   Future<List<Map<String, dynamic>>> getLeaveRequests({int? year}) async {
@@ -1072,7 +1127,7 @@ class FirebaseService {
   }
 
   Stream<List<Map<String, dynamic>>> getMyLeaveRequestsStream(String fullName) {
-    return Stream.fromFuture(getMyLeaveRequestsFromSupabase(fullName));
+    return _liveLeaves(() => getMyLeaveRequestsFromSupabase(fullName));
   }
 
   Future<List<Map<String, dynamic>>> getMyLeaveRequests(String fullName) async {
