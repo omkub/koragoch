@@ -1,0 +1,104 @@
+name: Deploy to Firebase Hosting
+
+# พาท 1–2 ของการย้ายไป Firebase Hosting (rbp-chanikarnn.web.app)
+#   ตอนนี้ deploy ขึ้น "ลิงก์ทดสอบ" (preview channel ชื่อ test) อย่างเดียว
+#   แอปเดิมที่ rbp-chanikarnn.web.app ยังไม่ถูกแตะ — GitHub Pages ยังทำงานเหมือนเดิม
+#   (deploy-pages.yml) พาท 3 ค่อยเปลี่ยนเป็นเวอร์ชันจริง
+#
+# deploy เฉพาะ hosting (ไม่แตะ Firestore / Storage / กฎความปลอดภัยของแอปเดิม)
+# ต้องมี secret FIREBASE_SERVICE_ACCOUNT_RBP_CHANIKARNN (JSON ของ service account)
+# ไม่มี secret = build อย่างเดียว ไม่ deploy (ไม่ทำให้รอบ deploy ขึ้นสีแดง)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firebase-hosting
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      HAS_FIREBASE_SECRET: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_RBP_CHANIKARNN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: central/package-lock.json
+
+      - name: ติดตั้ง dependencies ของเว็บส่วนกลาง
+        working-directory: central
+        run: npm ci
+
+      # แม่แบบฟอร์มเริ่มต้นของ app สร้างจากโค้ด web (เหมือน deploy-pages.yml)
+      - name: สร้างแม่แบบฟอร์มเริ่มต้นให้ app
+        working-directory: central
+        run: npm run form-defaults
+
+      - name: ติดตั้ง dependencies
+        run: flutter pub get
+
+      # Firebase เสิร์ฟที่ราก (/) ไม่ใช่ /koragoch/ แบบ GitHub Pages
+      - name: Build Flutter web
+        run: |
+          flutter build web --release --base-href / --dart-define=APP_BUILD=${{ github.sha }}
+          echo '{"build":"${{ github.sha }}"}' > build/web/app-version.json
+
+      # ล้างแคชของแอปเดิมในเครื่องผู้ใช้ (ดู hosting/flutter_service_worker.js)
+      - name: วางตัวล้างแอปเดิม
+        run: cp hosting/flutter_service_worker.js build/web/flutter_service_worker.js
+
+      - name: Build เว็บผู้ดูแลส่วนกลาง
+        working-directory: central
+        run: npm run build -- --base /central/
+
+      - name: รวมเว็บส่วนกลางเข้าไปในเว็บหลัก
+        run: cp -r central/dist build/web/central
+
+      # merge หลาย PR ติดกัน: deploy เฉพาะรอบที่ยังเป็น commit ล่าสุดของ main
+      - name: ตรวจว่ายังเป็นเวอร์ชันล่าสุดของ main
+        id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head=$(gh api "repos/${{ github.repository }}/commits/main" --jq .sha)
+          if [ "$head" = "${{ github.sha }}" ]; then
+            echo "is_latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_latest=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::ข้าม deploy — main มี commit ใหม่กว่าแล้ว ($head)"
+          fi
+
+      - name: ยังไม่ได้ตั้ง secret — ข้าม deploy
+        if: env.HAS_FIREBASE_SECRET != 'true'
+        run: echo "::notice::ยังไม่มี secret FIREBASE_SERVICE_ACCOUNT_RBP_CHANIKARNN — build ผ่านแต่ไม่ deploy"
+
+      # ลิงก์ทดสอบ: https://rbp-chanikarnn--test-<สุ่ม>.web.app (ดูในผลของขั้นนี้)
+      - name: Deploy ขึ้นลิงก์ทดสอบ (preview channel)
+        id: preview
+        if: env.HAS_FIREBASE_SECRET == 'true' && steps.latest.outputs.is_latest == 'true'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_RBP_CHANIKARNN }}
+          projectId: rbp-chanikarnn
+          channelId: test
+          expires: 30d
+
+      - name: ลิงก์ทดสอบ
+        if: steps.preview.outcome == 'success'
+        run: echo "::notice::ลิงก์ทดสอบ ${{ steps.preview.outputs.details_url }}"

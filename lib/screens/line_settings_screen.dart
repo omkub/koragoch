@@ -11,8 +11,10 @@ import 'package:url_launcher/url_launcher.dart';
 class LineSettingsScreen extends StatelessWidget {
   const LineSettingsScreen({super.key});
 
-  static final Uri centralUrl =
-      Uri.parse('https://omkub.github.io/koragoch/central/#/line');
+  /// เว็บส่วนกลางอยู่ที่ central/ ใต้ที่อยู่ของแอปเสมอ — คำนวณจากที่อยู่ปัจจุบัน
+  /// ใช้ได้ทั้ง rbp-chanikarnn.web.app/central/ และ omkub.github.io/koragoch/central/
+  static Uri get centralUrl =>
+      Uri.base.resolve('central/').replace(fragment: '/line');
 
   @override
   Widget build(BuildContext context) {
