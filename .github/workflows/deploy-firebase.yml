@@ -1,9 +1,9 @@
 name: Deploy to Firebase Hosting
 
-# พาท 1–2 ของการย้ายไป Firebase Hosting (rbp-chanikarnn.web.app)
-#   ตอนนี้ deploy ขึ้น "ลิงก์ทดสอบ" (preview channel ชื่อ test) อย่างเดียว
-#   แอปเดิมที่ rbp-chanikarnn.web.app ยังไม่ถูกแตะ — GitHub Pages ยังทำงานเหมือนเดิม
-#   (deploy-pages.yml) พาท 3 ค่อยเปลี่ยนเป็นเวอร์ชันจริง
+# เว็บจริง: https://rbp-chanikarnn.web.app (app) และ /central/ (เว็บส่วนกลาง)
+# merge เข้า main = ขึ้นเว็บจริงอัตโนมัติ (พาท 3 ของการย้าย แทนแอปเดิมที่ใช้ Firestore)
+#   ย้อนเวอร์ชัน: Firebase Console > Hosting > ประวัติการ release > Rollback
+#   GitHub Pages (deploy-pages.yml) ยังทำงานคู่กันจนถึงพาท 4
 #
 # deploy เฉพาะ hosting (ไม่แตะ Firestore / Storage / กฎความปลอดภัยของแอปเดิม)
 # ต้องมี secret FIREBASE_SERVICE_ACCOUNT_RBP_CHANIKARNN (JSON ของ service account)
@@ -87,8 +87,8 @@ jobs:
         if: env.HAS_FIREBASE_SECRET != 'true'
         run: echo "::notice::ยังไม่มี secret FIREBASE_SERVICE_ACCOUNT_RBP_CHANIKARNN — build ผ่านแต่ไม่ deploy"
 
-      # ลิงก์ทดสอบ: https://rbp-chanikarnn--test-<สุ่ม>.web.app (ดูในผลของขั้นนี้)
-      - name: Deploy ขึ้นลิงก์ทดสอบ (preview channel)
+      # channelId: live = เว็บจริง (เดิมพาท 1–2 ใช้ลิงก์ทดสอบ channel test)
+      - name: Deploy ขึ้นเว็บจริง
         id: preview
         if: env.HAS_FIREBASE_SECRET == 'true' && steps.latest.outputs.is_latest == 'true'
         uses: FirebaseExtended/action-hosting-deploy@v0
@@ -96,9 +96,8 @@ jobs:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_RBP_CHANIKARNN }}
           projectId: rbp-chanikarnn
-          channelId: test
-          expires: 30d
+          channelId: live
 
-      - name: ลิงก์ทดสอบ
+      - name: เว็บจริง
         if: steps.preview.outcome == 'success'
-        run: echo "::notice::ลิงก์ทดสอบ ${{ steps.preview.outputs.details_url }}"
+        run: echo "::notice::ขึ้นเว็บจริงแล้ว https://rbp-chanikarnn.web.app"
