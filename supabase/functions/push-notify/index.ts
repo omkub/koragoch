@@ -26,7 +26,9 @@ import webpush from 'npm:web-push@3.6.7';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const ADMIN_ROLE_ID = 22;
-const CONTACT = 'mailto:koragoch@leave.local';
+// ผู้ติดต่อใน VAPID (sub) ต้องเป็นอีเมล / เว็บจริง — Apple (iPhone) ปฏิเสธทุกข้อความ
+// ด้วย 403 BadJwtToken ถ้าเป็นโดเมนปลอม เช่น .local (Chrome ไม่เช็ก)
+const CONTACT = 'https://omkub.github.io/koragoch/';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -74,19 +76,30 @@ interface Payload {
   tag?: string;
 }
 
-/** ส่งไปทุกเครื่องของคนนี้ — คืนจำนวนที่ส่งสำเร็จ */
-async function sendToUser(idUser: number, payload: Payload): Promise<{ sent: number; removed: number }> {
+interface Failure {
+  host: string;
+  code?: number;
+  reason: string;
+}
+
+/** ส่งไปทุกเครื่องของคนนี้ — คืนจำนวนที่ส่งสำเร็จ + เหตุผลของเครื่องที่ส่งไม่ผ่าน
+ *  (เห็นได้ใน net._http_response.content ไม่ต้องเปิด log) */
+async function sendToUser(
+  idUser: number,
+  payload: Payload,
+): Promise<{ sent: number; removed: number; failed: Failure[] }> {
   const { data: subs } = await admin
     .from('PushSubscriptions')
     .select('id_subscription, endpoint, p256dh, auth')
     .eq('id_user', idUser);
-  if (!subs?.length) return { sent: 0, removed: 0 };
+  if (!subs?.length) return { sent: 0, removed: 0, failed: [] };
 
   const keys = await vapidKeys();
   webpush.setVapidDetails(CONTACT, keys.publicKey, keys.privateKey);
 
   let sent = 0;
   const dead: number[] = [];
+  const failed: Failure[] = [];
   await Promise.all(
     subs.map(async (s) => {
       try {
@@ -97,14 +110,21 @@ async function sendToUser(idUser: number, payload: Payload): Promise<{ sent: num
         );
         sent++;
       } catch (e) {
-        const code = (e as { statusCode?: number }).statusCode;
-        if (code === 404 || code === 410) dead.push(s.id_subscription);
-        else console.warn('push failed', code, (e as Error).message);
+        const err = e as { statusCode?: number; body?: string; message?: string };
+        const code = err.statusCode;
+        if (code === 404 || code === 410) {
+          dead.push(s.id_subscription);
+        } else {
+          // Apple / Google ส่งเหตุผลมาใน body เช่น {"reason":"BadJwtToken"}
+          const reason = (err.body || err.message || '').toString().slice(0, 300);
+          failed.push({ host: new URL(s.endpoint).host, code, reason });
+          console.warn('push failed', code, reason);
+        }
       }
     }),
   );
   if (dead.length) await admin.from('PushSubscriptions').delete().in('id_subscription', dead);
-  return { sent, removed: dead.length };
+  return { sent, removed: dead.length, failed };
 }
 
 /** ผู้เรียกจาก token — ต้องเป็นบุคลากรที่ยังปฏิบัติงาน */
