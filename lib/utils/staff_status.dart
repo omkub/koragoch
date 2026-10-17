@@ -55,8 +55,10 @@ class StaffStatus {
 
   /// ยังปฏิบัติงานอยู่ในช่วงที่เริ่ม [periodStart] (เช่นต้นปีงบประมาณ) หรือไม่
   ///
-  /// คนที่พ้นสภาพแล้ว นับเฉพาะช่วงที่วันพ้นสภาพยังไม่ก่อนวันเริ่มช่วง —
-  /// เกษียณ 30 ก.ย. 2569 ยังอยู่ในรายงานปีงบ 2569 (1 ต.ค. 68 – 30 ก.ย. 69)
+  /// left_date = วันที่พ้นสภาพ "มีผลตั้งแต่" (วันแรกที่ไม่ได้ปฏิบัติงานแล้ว)
+  /// ตามที่เขียนกันในคำสั่ง เช่น "เกษียณ 1 ต.ค. 2569"
+  /// นับเฉพาะช่วงที่พ้นสภาพหลังวันเริ่มช่วง —
+  /// เกษียณ 1 ต.ค. 2569 อยู่ในรายงานปีงบ 2569 (1 ต.ค. 68 – 30 ก.ย. 69)
   /// แต่ไม่อยู่ในปีงบ 2570 ไม่มีวันที่พ้นสภาพ = ไม่นับแล้ว (ไม่รู้ว่าออกเมื่อไร)
   static bool activeDuring(Map<String, dynamic> row, DateTime periodStart) {
     if (isActive(row)) return true;
@@ -64,7 +66,7 @@ class StaffStatus {
     if (left == null) return false;
     final start =
         DateTime(periodStart.year, periodStart.month, periodStart.day);
-    return !left.isBefore(start);
+    return left.isAfter(start);
   }
 
   /// วันเริ่มปีงบประมาณ (1 ต.ค.) ที่ [date] อยู่
