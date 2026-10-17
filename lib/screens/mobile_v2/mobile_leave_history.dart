@@ -3,7 +3,7 @@
 /// - การ์ดสั้น: ประเภท · จำนวนวัน · วันที่ · ป้ายสถานะ — แตะเพื่อดูรายละเอียด
 /// - ตัวกรองสถานะ / รอบงบประมาณ / ค้นหาชื่อ (ดูทั้งโรงเรียน)
 /// - ผู้ที่ฐานข้อมูลให้ดูทั้งโรงเรียนได้: สลับ "ของฉัน / ทั้งโรงเรียน"
-/// - ดึงลงเพื่อโหลดใหม่
+/// - ดึงลงเพื่อโหลดใหม่ · ใบลาเปลี่ยนจากเครื่องไหนก็ตาม โหลดใหม่เอง (realtime)
 library;
 
 import 'package:flutter/cupertino.dart';
@@ -49,10 +49,19 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
 
   String get _myName => widget.access.currentUser.trim();
 
+  VoidCallback? _stopLive;
+
   @override
   void initState() {
     super.initState();
     _init();
+    _stopLive = _service.onLeavesChanged(() => _load(quiet: true));
+  }
+
+  @override
+  void dispose() {
+    _stopLive?.call();
+    super.dispose();
   }
 
   Future<void> _init() async {
@@ -80,11 +89,15 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
     await _load();
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  /// [quiet] = โหลดเบื้องหลังจาก realtime ไม่ขึ้นวงหมุนทับรายการเดิม
+  Future<void> _load({bool quiet = false}) async {
+    if (!mounted) return;
+    if (!quiet) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final leaves = _showAll
           ? await _service.getLeaveRequestsFromSupabase(throwOnError: true)
