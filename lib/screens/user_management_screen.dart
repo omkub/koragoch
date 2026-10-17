@@ -3241,6 +3241,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
+      // หน้านี้อยู่ใน Scaffold ของหน้าหลักอีกชั้น ซึ่งหลบแป้นพิมพ์ให้แล้ว —
+      // ถ้าชั้นนี้หลบซ้ำ ความสูงถูกหักสองเท่าจนติดลบ หน้าขาวตอนพิมพ์ค้นหาบนมือถือ
+      resizeToAvoidBottomInset: false,
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: _usersStream,
         builder: (context, snapshot) {
@@ -5074,8 +5077,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         );
                       }),
           ),
-          Divider(height: narrow ? 16 : 24),
-          _buildUserPager(users.length, start, end, page, pageCount, narrow),
+          // ระหว่างพิมพ์ค้นหาบนมือถือ (แป้นพิมพ์เปิด) ซ่อนแถบเลื่อนหน้า ให้รายชื่อมีที่แสดง
+          if (!(narrow && MediaQuery.viewInsetsOf(context).bottom > 0)) ...[
+            Divider(height: narrow ? 16 : 24),
+            _buildUserPager(users.length, start, end, page, pageCount, narrow),
+          ],
         ]),
       );
     });
