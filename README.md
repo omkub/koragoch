@@ -6,7 +6,7 @@ A staff leave management system used in production at [Romburipittayakhom Ratcha
 - **School administrators** approve requests, manage personnel and roles, and track leave per fiscal year on a live dashboard.
 - **Central administrators** manage schools, permissions, LINE notifications, attendance devices, and the printed form templates.
 - **Stack:** Flutter (web) app + React/TypeScript central admin web, both on **Supabase** (Postgres, Auth, RLS, Edge Functions). Firebase is kept read-only for the legacy data import tool.
-- **Live:** https://omkub.github.io/koragoch/ (app) and https://omkub.github.io/koragoch/central/ (central admin), deployed automatically with GitHub Actions.
+- **Live:** https://rbp-chanikarnn.web.app/ (app) and https://rbp-chanikarnn.web.app/central/ (central admin) on Firebase Hosting, deployed automatically with GitHub Actions. The old https://omkub.github.io/koragoch/ redirects there.
 
 Documentation below is in Thai.
 
@@ -18,8 +18,8 @@ Documentation below is in Thai.
 
 | เรียกว่า | คืออะไร | โค้ด | URL | ผู้ใช้ |
 |---|---|---|---|---|
-| **app** | แอป Flutter (build เป็นเว็บ) | `lib/` (+ `web/` ไฟล์ประกอบของ Flutter) | https://omkub.github.io/koragoch/ | ครู / บุคลากร / แอดมินโรงเรียน |
-| **web** | เว็บผู้ดูแลระบบส่วนกลาง (React + TypeScript + Vite) | `central/` | https://omkub.github.io/koragoch/central/ | ผู้ดูแลส่วนกลาง / แอดมินโรงเรียน |
+| **app** | แอป Flutter (build เป็นเว็บ) | `lib/` (+ `web/` ไฟล์ประกอบของ Flutter) | https://rbp-chanikarnn.web.app/ | ครู / บุคลากร / แอดมินโรงเรียน |
+| **web** | เว็บผู้ดูแลระบบส่วนกลาง (React + TypeScript + Vite) | `central/` | https://rbp-chanikarnn.web.app/central/ | ผู้ดูแลส่วนกลาง / แอดมินโรงเรียน |
 
 > โฟลเดอร์ `web/` เป็นไฟล์ประกอบของแอป Flutter (`index.html`, ไอคอน) **ไม่ใช่** "web" ในตารางข้างบน
 
@@ -138,26 +138,26 @@ git push -u origin ชื่อ-branch
 gh pr create --base main
 ```
 
-เมื่อ merge เข้า `main` แล้ว GitHub Actions (`.github/workflows/deploy-pages.yml`) จะ
+เมื่อ merge เข้า `main` แล้ว GitHub Actions (`.github/workflows/deploy-firebase.yml`) จะ
 
 1. สร้างแม่แบบเริ่มต้น + ชุดทดสอบตัววาดจากโค้ด web
 2. เทียบตัววาดเอกสาร app กับ web (ไม่ผ่าน = หยุด ไม่ deploy)
 3. build app (Flutter web) และ web (`central/`) แล้ววาง web ไว้ใต้ `/central/`
-4. deploy ขึ้น GitHub Pages
+4. deploy ขึ้น Firebase Hosting (`rbp-chanikarnn.web.app`) เฉพาะ hosting · ย้อนเวอร์ชันได้ที่ Firebase Console > Hosting
 
 ตรวจสถานะได้ที่ https://github.com/omkub/koragoch/actions — รอบที่เป็นสีแดง เว็บจะยังเป็นเวอร์ชันก่อนหน้า
 
-### กำลังย้ายไป Firebase Hosting (`rbp-chanikarnn.web.app`)
+### ย้ายจาก GitHub Pages ไป Firebase Hosting (`rbp-chanikarnn.web.app`) — เสร็จแล้ว
 
 `.github/workflows/deploy-firebase.yml` build ชุดเดียวกันแต่เสิร์ฟที่ราก `/`
 (app: `--base-href /`, web: `npm run build -- --base /central/`) แล้ว deploy เฉพาะ hosting
 
 | พาท | สถานะ | ปลายทาง |
 |---|---|---|
-| 1 เตรียม | build ได้ทั้ง `/koragoch/` และ `/` · `firebase.json` · ตัวล้างแอปเดิม (`hosting/flutter_service_worker.js`) | — |
-| 2 ทดสอบ | deploy ขึ้น preview channel `test` (ลิงก์อยู่ในผลของ workflow) | `rbp-chanikarnn--test-….web.app` |
+| 1 เตรียม ✅ | build ได้ทั้ง `/koragoch/` และ `/` · `firebase.json` · ตัวล้างแอปเดิม (`hosting/flutter_service_worker.js`) | — |
+| 2 ทดสอบ ✅ | deploy ขึ้น preview channel `test` (ลิงก์อยู่ในผลของ workflow) | `rbp-chanikarnn--test-….web.app` |
 | 3 สลับจริง ✅ | นำเข้าข้อมูลรอบสุดท้าย แล้ว deploy ขึ้น live (merge = ขึ้นเว็บจริงอัตโนมัติ) — ย้อนกลับได้ที่ Firebase Console > Hosting | `rbp-chanikarnn.web.app` |
-| 4 ปิด Pages | GitHub Pages พาไปที่อยู่ใหม่ · deploy อัตโนมัติไป Firebase แทน | — |
+| 4 ปิด Pages ✅ | GitHub Pages พาไปที่อยู่ใหม่ (`hosting/pages-redirect/`) · deploy อัตโนมัติไป Firebase แทน | — |
 
 ต้องมี secret `FIREBASE_SERVICE_ACCOUNT_RBP_CHANIKARNN` (JSON ของ service account) ไม่มีจะ build อย่างเดียว ไม่ deploy
 ห้าม `firebase deploy` แบบไม่ระบุ `--only hosting` — จะไปทับกฎ Firestore / Storage ของแอปเดิม

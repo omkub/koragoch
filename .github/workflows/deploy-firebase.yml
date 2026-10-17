@@ -3,7 +3,7 @@ name: Deploy to Firebase Hosting
 # เว็บจริง: https://rbp-chanikarnn.web.app (app) และ /central/ (เว็บส่วนกลาง)
 # merge เข้า main = ขึ้นเว็บจริงอัตโนมัติ (พาท 3 ของการย้าย แทนแอปเดิมที่ใช้ Firestore)
 #   ย้อนเวอร์ชัน: Firebase Console > Hosting > ประวัติการ release > Rollback
-#   GitHub Pages (deploy-pages.yml) ยังทำงานคู่กันจนถึงพาท 4
+#   GitHub Pages (deploy-pages.yml) เหลือแค่หน้าพาไปที่อยู่ใหม่ (พาท 4)
 #
 # deploy เฉพาะ hosting (ไม่แตะ Firestore / Storage / กฎความปลอดภัยของแอปเดิม)
 # ต้องมี secret FIREBASE_SERVICE_ACCOUNT_RBP_CHANIKARNN (JSON ของ service account)
@@ -44,15 +44,32 @@ jobs:
         working-directory: central
         run: npm ci
 
-      # แม่แบบฟอร์มเริ่มต้นของ app สร้างจากโค้ด web (เหมือน deploy-pages.yml)
+      # แม่แบบฟอร์มเริ่มต้นของ app สร้างจากโค้ด web ทุกครั้งก่อน build
+      # app จึงตรงกับ web เสมอ แม้ลืมรันเองหลังแก้ leaveTemplate.ts / tripTemplate.ts
       - name: สร้างแม่แบบฟอร์มเริ่มต้นให้ app
         working-directory: central
         run: npm run form-defaults
 
+      # ชุดทดสอบตัววาดเอกสาร: HTML ที่ web วาดจริงจากโค้ดล่าสุด
+      - name: สร้างชุดทดสอบตัววาดเอกสารจาก web
+        working-directory: central
+        run: npm run form-fixtures
+
       - name: ติดตั้ง dependencies
         run: flutter pub get
 
-      # Firebase เสิร์ฟที่ราก (/) ไม่ใช่ /koragoch/ แบบ GitHub Pages
+      # ตัววาดของ app ต้องได้เอกสารเดียวกับ web ทุกตัวอักษร
+      # ไม่ผ่าน = ไม่ deploy (เว็บเดิมยังใช้งานได้) ใบที่ครูพิมพ์จะได้ไม่ต่างจากที่ออกแบบไว้
+      # (ย้ายมาจาก deploy-pages.yml ตอนเลิกใช้ GitHub Pages)
+      - name: เทียบตัววาดเอกสาร app กับ web
+        run: flutter test test/form_template_test.dart test/form_render_parity_test.dart
+
+      - name: ตรวจสอบโค้ด (ไม่บล็อกการ deploy)
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings || true
+
+      # Firebase เสิร์ฟที่ราก (/)
+      # APP_BUILD + app-version.json: แอปเทียบสองค่านี้แล้วขึ้นแถบ "มีเวอร์ชันใหม่"
+      # (lib/services/update_checker.dart)
       - name: Build Flutter web
         run: |
           flutter build web --release --base-href / --dart-define=APP_BUILD=${{ github.sha }}
