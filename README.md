@@ -156,7 +156,7 @@ gh pr create --base main
 |---|---|---|
 | 1 เตรียม | build ได้ทั้ง `/koragoch/` และ `/` · `firebase.json` · ตัวล้างแอปเดิม (`hosting/flutter_service_worker.js`) | — |
 | 2 ทดสอบ | deploy ขึ้น preview channel `test` (ลิงก์อยู่ในผลของ workflow) | `rbp-chanikarnn--test-….web.app` |
-| 3 สลับจริง | นำเข้าข้อมูลรอบสุดท้าย แล้ว deploy ขึ้น live — ย้อนกลับได้ที่ Firebase Console > Hosting | `rbp-chanikarnn.web.app` |
+| 3 สลับจริง ✅ | นำเข้าข้อมูลรอบสุดท้าย แล้ว deploy ขึ้น live (merge = ขึ้นเว็บจริงอัตโนมัติ) — ย้อนกลับได้ที่ Firebase Console > Hosting | `rbp-chanikarnn.web.app` |
 | 4 ปิด Pages | GitHub Pages พาไปที่อยู่ใหม่ · deploy อัตโนมัติไป Firebase แทน | — |
 
 ต้องมี secret `FIREBASE_SERVICE_ACCOUNT_RBP_CHANIKARNN` (JSON ของ service account) ไม่มีจะ build อย่างเดียว ไม่ deploy
