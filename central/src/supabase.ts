@@ -39,6 +39,13 @@ export interface PermissionItem {
 export interface Role {
   ID_Roles: number;
   Accessrights: string;
+  /** ว่าง = สิทธิ์หลักใช้ทุกโรงเรียน / มีค่า = สิทธิ์ที่โรงเรียนนั้นเพิ่มเอง (roles_per_school.sql) */
+  id_school?: number | null;
+}
+
+/** สิทธิ์ที่โรงเรียนนี้ใช้ได้: สิทธิ์หลัก + สิทธิ์ของโรงเรียนนั้น */
+export function rolesForSchool(roles: Role[], schoolId: number | null): Role[] {
+  return roles.filter((r) => r.id_school == null || r.id_school === schoolId);
 }
 
 /** จัดกลุ่มรายการสิทธิ์ตามหมวด เรียงตาม sort */

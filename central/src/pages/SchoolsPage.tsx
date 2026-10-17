@@ -1,5 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { functionError, schoolName, supabase, type MobileUi, type Role, type School } from '../supabase';
+import {
+  functionError,
+  rolesForSchool,
+  schoolName,
+  supabase,
+  type MobileUi,
+  type Role,
+  type School,
+} from '../supabase';
 import LeaveHeaderPreview from './LeaveHeaderPreview';
 import { EmptyState, Field, Notice, PageHeader } from '../ui/components';
 import { IconPlus } from '../ui/icons';
@@ -115,7 +123,7 @@ export default function SchoolsPage() {
   async function load() {
     const [s, r] = await Promise.all([
       supabase.from('Schools').select('*').order('id_school'),
-      supabase.from('roles').select('ID_Roles, Accessrights').order('ID_Roles'),
+      supabase.from('roles').select('ID_Roles, Accessrights, id_school').order('ID_Roles'),
     ]);
     if (s.error) setMessage({ text: s.error.message, error: true });
     else setSchools(s.data as School[]);
@@ -319,7 +327,7 @@ export default function SchoolsPage() {
                       {uiOptions}
                     </select>
                   </Field>
-                  {roles.map((r) => (
+                  {rolesForSchool(roles, typeof editing === 'number' ? editing : null).map((r) => (
                     <Field
                       key={r.ID_Roles}
                       label={`เฉพาะ ${r.Accessrights}`}
