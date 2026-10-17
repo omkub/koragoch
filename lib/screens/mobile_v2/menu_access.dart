@@ -60,17 +60,19 @@ class MenuAccess {
     final isAdmin =
         userRole.contains('ผู้ดูแลระบบ') || currentUser == 'ผู้ดูแลระบบ';
     var allowed =
-        data == null ? _defaults(isAdmin) : _fromData(data, isAdmin: isAdmin);
-    if (userRole.contains('ครู')) allowed.remove(0);
+        data == null ? _defaults(isAdmin, userRole) : _fromData(data, isAdmin: isAdmin);
     if (!attendanceEnabled) allowed.remove(10);
-    if (allowed.isEmpty) allowed = _defaults(isAdmin);
+    if (allowed.isEmpty) allowed = _defaults(isAdmin, userRole);
 
     return MenuAccess(
         currentUser: currentUser, userRole: userRole, allowed: allowed);
   }
 
-  static List<int> _defaults(bool isAdmin) =>
-      isAdmin ? [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, -1] : [0, 2, 3, 9, 10, -1];
+  /// โหลดสิทธิ์ไม่ได้: สรุปผลเฉพาะผู้บริหาร — สิทธิ์ของโรงเรียน (ครู ฯลฯ ชื่อตั้งเองได้)
+  /// เห็นอะไรตั้งที่หน้ากำหนดสิทธิ์ ไม่เดาจากชื่อ
+  static List<int> _defaults(bool isAdmin, String userRole) => isAdmin
+      ? [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, -1]
+      : [if (userRole.contains('ผู้บริหาร')) 0, 2, 3, 9, 10, -1];
 
   static List<int> _fromData(Map<String, dynamic> data,
       {required bool isAdmin}) {

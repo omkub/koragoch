@@ -355,16 +355,18 @@ class _MainLayoutState extends State<MainLayout> {
       body: Builder(
           builder: (context) {
             int effectiveIndex = _selectedIndex;
-            if (_userRole.contains('ครู') && effectiveIndex == 0) {
-              effectiveIndex = 2;
-            }
             if (effectiveIndex >= _cachedScreens.length) effectiveIndex = 0;
 
             if (_permissionData == null) {
               final defaultAllowed = (_userRole.contains('ผู้ดูแลระบบ') ||
                       _currentUser == 'ผู้ดูแลระบบ')
                   ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-                  : [0, 2, 3, 9, 10];
+                  // โหลดสิทธิ์ไม่ได้: สรุปผลเฉพาะผู้บริหาร
+                  : [if (_userRole.contains('ผู้บริหาร')) 0, 2, 3, 9, 10];
+              // ไม่มีสิทธิ์เห็นสรุปผล → เปิดหน้าส่งใบลาแทน
+              if (effectiveIndex == 0 && !defaultAllowed.contains(0)) {
+                effectiveIndex = 2;
+              }
               if (!_attendanceEnabled) defaultAllowed.remove(10);
               if (defaultAllowed.contains(9)) defaultAllowed.add(_tripFormIndex);
               return Row(
@@ -423,10 +425,11 @@ class _MainLayoutState extends State<MainLayout> {
                 _currentUser == 'ผู้ดูแลระบบ') {
               if (!allowed.contains(4)) allowed.add(4);
             }
-            if (_userRole.contains('ครู')) allowed.remove(0);
             if (!_attendanceEnabled) allowed.remove(10);
             if (allowed.contains(9)) allowed.add(_tripFormIndex);
             allowed.sort();
+            // สรุปผลเปิด/ปิดตามหน้ากำหนดสิทธิ์ (เดิมซ่อนจากชื่อ "ครู" ตายตัว)
+            if (effectiveIndex == 0 && !allowed.contains(0)) effectiveIndex = 2;
 
             return Row(
               children: [
