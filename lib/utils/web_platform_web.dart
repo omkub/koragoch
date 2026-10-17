@@ -214,6 +214,21 @@ void reloadApp() {
 /// 'on' | 'off' | 'denied' | 'unsupported' | 'needs-install'
 Future<String> pushState() => _callPromise('koragochPushState');
 
+/// ขอสิทธิ์แจ้งเตือนอย่างเดียว → 'granted' | 'denied' | 'default' | 'unsupported'
+/// เรียกทันทีในปุ่มที่ผู้ใช้แตะ ก่อนโหลดอะไร (Safari ต้องการ)
+Future<String> pushPermission() => _callPromise('koragochPushPermission');
+
+/// เคยตอบเรื่องแจ้งเตือนแล้วหรือยัง ('default' = ยังไม่เคยถาม)
+String pushPermissionState() {
+  try {
+    return globalContext
+        .callMethod<JSString>('koragochPushPermissionState'.toJS)
+        .toDart;
+  } catch (_) {
+    return 'unsupported';
+  }
+}
+
 /// ขอสิทธิ์ + สมัครรับแจ้งเตือน → JSON ของ subscription หรือ 'denied' / 'error:...'
 Future<String> pushEnable(String publicKey) =>
     _callPromise('koragochPushEnable', publicKey);

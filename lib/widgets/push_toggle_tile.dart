@@ -3,10 +3,13 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../services/push_service.dart';
 
-/// สวิตช์ "แจ้งเตือนบนเครื่องนี้" (Web Push) — แสดงเฉพาะผู้ดูแลระบบ
-/// ผู้เรียกเป็นคนเช็กสิทธิ์ (หน้าบัญชี: ส่วนผู้ดูแลระบบ) ฐานข้อมูลกันซ้ำอีกชั้น
+/// สวิตช์ "แจ้งเตือนบนเครื่องนี้" (Web Push) — ทุกคน (หน้าบัญชี)
+/// ผู้ดูแลระบบได้ใบลาใหม่ด้วย คนอื่นได้เฉพาะผลการอนุมัติใบลาของตัวเอง
+/// (ฐานข้อมูลเลือกผู้รับ — supabase/push_for_everyone.sql)
 class PushToggleTile extends StatefulWidget {
-  const PushToggleTile({super.key});
+  final bool isAdmin;
+
+  const PushToggleTile({super.key, this.isAdmin = false});
 
   @override
   State<PushToggleTile> createState() => _PushToggleTileState();
@@ -40,7 +43,7 @@ class _PushToggleTileState extends State<PushToggleTile> {
       if (error != null) {
         _snack(error, error: true);
       } else {
-        _snack('เปิดแจ้งเตือนแล้ว — ใบลาใหม่จะเด้งที่เครื่องนี้');
+        _snack('เปิดแจ้งเตือนแล้ว — $_what จะเด้งที่เครื่องนี้');
       }
     } else {
       await PushService.instance.disable();
@@ -65,17 +68,21 @@ class _PushToggleTileState extends State<PushToggleTile> {
     if (mounted) setState(() => _busy = false);
   }
 
+  String get _what => widget.isAdmin
+      ? 'ใบลาใหม่และผลการอนุมัติใบลาของคุณ'
+      : 'ผลการอนุมัติใบลาของคุณ';
+
   @override
   Widget build(BuildContext context) {
     final s = _state;
     final on = s == 'on';
     final String subtitle = switch (s) {
       null => 'กำลังตรวจสอบ...',
-      'on' => 'ใบลาใหม่จะเด้งที่เครื่องนี้ แม้ปิดแอปอยู่',
+      'on' => '$_what จะเด้งที่เครื่องนี้ แม้ปิดแอปอยู่',
       'denied' => 'เบราว์เซอร์บล็อกการแจ้งเตือนไว้ — เปิดได้ที่การตั้งค่าเว็บไซต์',
       'needs-install' => 'iPhone: กด "เพิ่มไปยังหน้าจอโฮม" ก่อน แล้วเปิดจากไอคอนแอป',
       'unsupported' => 'เบราว์เซอร์นี้ไม่รองรับ — ใช้ Chrome / Edge / Safari',
-      _ => 'เปิดเพื่อให้ใบลาใหม่เด้งที่เครื่องนี้ เหมือนแอปทั่วไป',
+      _ => 'เปิดเพื่อให้$_whatเด้งที่เครื่องนี้ เหมือนแอปทั่วไป',
     };
     final canToggle = s == 'on' || s == 'off';
 

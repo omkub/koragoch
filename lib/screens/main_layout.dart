@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../forms/form_template.dart';
 import '../services/firebase_service.dart';
 import '../services/form_template_service.dart';
+import '../services/push_service.dart';
 import '../utils/school_info.dart';
 import 'dashboard_screen.dart';
 import 'leave_form_screen.dart';
@@ -120,7 +121,10 @@ class _MainLayoutState extends State<MainLayout> {
   @override
   void initState() {
     super.initState();
-    _loadUser();
+    // ถามเปิดแจ้งเตือนครั้งเดียวต่อเครื่อง หลังรู้สิทธิ์แล้ว
+    _loadUser().then((_) {
+      if (mounted) PushService.instance.offerOnce(context, isAdmin: _isAdminUser);
+    });
     _loadPendingResets();
     _loadAttendanceEnabled();
     // โหลดแม่แบบใบลาไว้ก่อน กดพิมพ์ครั้งแรกจะได้ไม่ต้องรอ
@@ -628,9 +632,8 @@ class _MainLayoutState extends State<MainLayout> {
                   ],
                 ),
                 const Spacer(),
-                // 🔔 แจ้งเตือนใบลาใหม่ — เฉพาะผู้ดูแลระบบ
-                if (_isAdminUser)
-                  NotificationBell(
+                // 🔔 แจ้งเตือน — ผู้ดูแลระบบ: ใบลาใหม่ · ทุกคน: ผลการอนุมัติใบลาของตัวเอง
+                NotificationBell(
                     onOpenLeaves: () => setState(() => _selectedIndex = 3),
                   ),
               ],

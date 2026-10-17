@@ -13,6 +13,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../services/push_service.dart';
 import '../../widgets/notification_bell.dart';
 import '../mobile/mobile_leave_form_screen.dart';
 import '../mobile/mobile_profile_screen.dart';
@@ -44,7 +45,10 @@ class _MobileShellState extends State<MobileShell> {
   void initState() {
     super.initState();
     MenuAccess.load().then((a) {
-      if (mounted) setState(() => _access = a);
+      if (!mounted) return;
+      setState(() => _access = a);
+      // ถามเปิดแจ้งเตือนครั้งเดียวต่อเครื่อง
+      PushService.instance.offerOnce(context, isAdmin: a.isAdmin);
     });
   }
 
@@ -114,8 +118,7 @@ class _MobileShellState extends State<MobileShell> {
       child: Scaffold(
         backgroundColor: mobileBg,
         appBar: mobileAppBar(_title(current), showLogo: true, actions: [
-          if (access.isAdmin)
-            NotificationBell(onOpenLeaves: () => _go(_Tab.history)),
+          NotificationBell(onOpenLeaves: () => _go(_Tab.history)),
         ]),
         body: IndexedStack(
           index: tabs.indexOf(current),
