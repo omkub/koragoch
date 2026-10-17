@@ -7,9 +7,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // ═══════════════════════════════════════════════════════════════
-// กระดิ่งแจ้งเตือนใน app (เฉพาะผู้ดูแลระบบ)
+// กระดิ่งแจ้งเตือนใน app (ทุกคน)
 //
-// แจ้งเตือนสร้างโดยฐานข้อมูลเอง (supabase/notifications.sql) เมื่อมีใบลาใหม่
+// แจ้งเตือนสร้างโดยฐานข้อมูลเอง: ใบลาใหม่ → ผู้ดูแลระบบ (notifications.sql)
+// อนุมัติ / ไม่อนุมัติ → เจ้าของใบลา (push_for_everyone.sql)
 // ฝั่ง app แค่ฟังตาราง AppNotifications แบบ realtime แล้วแสดงตัวเลข
 // + เด้งข้อความสั้น ๆ เมื่อมีแจ้งเตือนใหม่เข้ามาระหว่างเปิด app อยู่
 // RLS ให้เห็นเฉพาะแจ้งเตือนของตัวเอง
@@ -219,7 +220,7 @@ class _NotificationBellState extends State<NotificationBell> {
                                 backgroundColor: unread
                                     ? const Color(0xFF2563EB)
                                     : const Color(0xFFE2E8F0),
-                                child: Icon(Icons.event_note_rounded,
+                                child: Icon(_iconFor(n['type']),
                                     size: 18,
                                     color: unread ? Colors.white : _muted),
                               ),
@@ -258,6 +259,12 @@ class _NotificationBellState extends State<NotificationBell> {
       }),
     );
   }
+
+  static IconData _iconFor(dynamic type) => switch (type) {
+        'leave_approved' => Icons.check_circle_rounded,
+        'leave_returned' => Icons.undo_rounded,
+        _ => Icons.event_note_rounded,
+      };
 
   static String _ago(dynamic iso) {
     final t = DateTime.tryParse(iso?.toString() ?? '')?.toLocal();

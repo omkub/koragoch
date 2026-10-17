@@ -84,5 +84,7 @@ void reloadApp() {}
 
 /// Web Push มีเฉพาะบนเว็บ
 Future<String> pushState() async => 'unsupported';
+Future<String> pushPermission() async => 'unsupported';
+String pushPermissionState() => 'unsupported';
 Future<String> pushEnable(String publicKey) async => 'error:unsupported';
 Future<String> pushDisable() async => '';

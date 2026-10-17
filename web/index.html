@@ -173,6 +173,17 @@
           })
           .catch(function() { return 'off'; });
       };
+      // ขอสิทธิ์แจ้งเตือนอย่างเดียว → 'granted' | 'denied' | 'default' | 'unsupported'
+      // ต้องเรียกทันทีตอนผู้ใช้แตะปุ่ม (Safari ไม่ยอมถ้ารอโหลดอะไรก่อน)
+      window.koragochPushPermission = function() {
+        if (!pushSupported()) return Promise.resolve('unsupported');
+        if (Notification.permission !== 'default') return Promise.resolve(Notification.permission);
+        return Notification.requestPermission().catch(function() { return 'default'; });
+      };
+      // แจ้งเตือนเคยตัดสินใจแล้วหรือยัง (ยังไม่เคยถาม = 'default')
+      window.koragochPushPermissionState = function() {
+        return pushSupported() ? Notification.permission : 'unsupported';
+      };
       // ขอสิทธิ์ + สมัครรับ → JSON ของ subscription หรือ 'denied' / 'error:...'
       window.koragochPushEnable = function(publicKey) {
         if (!pushSupported()) return Promise.resolve('error:unsupported');

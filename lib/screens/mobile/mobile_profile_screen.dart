@@ -440,11 +440,10 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
                             const SizedBox(height: 16),
                             const InstallAppButton(tile: true),
 
-                            // แจ้งเตือนแบบแอป (Web Push) — เฉพาะผู้ดูแลระบบ
-                            if (_userRole.contains('ผู้ดูแลระบบ')) ...[
-                              const SizedBox(height: 8),
-                              const PushToggleTile(),
-                            ],
+                            // แจ้งเตือนแบบแอป (Web Push) — ทุกคน (ผู้รับเลือกโดยฐานข้อมูล)
+                            const SizedBox(height: 8),
+                            PushToggleTile(
+                                isAdmin: _userRole.contains('ผู้ดูแลระบบ')),
 
                             if (widget.appStyle) ...[
                               const SizedBox(height: 24),

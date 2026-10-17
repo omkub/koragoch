@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/firebase_service.dart';
+import '../../services/push_service.dart';
 import '../dashboard_screen.dart';
 import '../official_trip_screen.dart';
 import '../attendance_screen.dart';
@@ -52,6 +53,7 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
     _isLoading = false;
     if (mounted) setState(() {});
     _loadPermissions();
+    if (mounted) PushService.instance.offerOnce(context, isAdmin: _isAdmin);
     _loadAttendanceEnabled();
   }
 
@@ -306,8 +308,7 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
                               fontWeight: FontWeight.w700,
                               color: const Color(0xFF0F172A))),
                     ),
-                    if (_isAdmin)
-                      NotificationBell(
+                    NotificationBell(
                         onOpenLeaves: () =>
                             setState(() => _selectedMenuIndex = 3),
                       ),
