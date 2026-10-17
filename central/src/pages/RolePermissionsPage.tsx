@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   groupItems,
+  rolesForSchool,
   schoolName,
   supabase,
   type PermissionItem,
@@ -37,7 +38,7 @@ export default function RolePermissionsPage() {
     (async () => {
       const [s, r, i] = await Promise.all([
         supabase.from('Schools').select('*').order('id_school'),
-        supabase.from('roles').select('ID_Roles, Accessrights').order('ID_Roles'),
+        supabase.from('roles').select('ID_Roles, Accessrights, id_school').order('ID_Roles'),
         supabase.from('PermissionItems').select('key, group, label, sort').order('sort'),
       ]);
       const failed = s.error ?? r.error ?? i.error;
@@ -78,6 +79,9 @@ export default function RolePermissionsPage() {
     () => Object.keys(grid).filter((k) => grid[k] !== (saved[k] ?? false)),
     [grid, saved],
   );
+
+  // สิทธิ์หลัก + สิทธิ์ที่โรงเรียนที่เลือกเพิ่มเอง
+  const schoolRoles = useMemo(() => rolesForSchool(roles, schoolId), [roles, schoolId]);
 
   async function save() {
     if (schoolId === null || changed.length === 0) return;
@@ -126,15 +130,38 @@ export default function RolePermissionsPage() {
     </div>
   );
 
+  const schoolPicker = (
+    <select
+      className="input w-auto max-w-full"
+      value={schoolId ?? ''}
+      onChange={(e) => {
+        if (tab === 'ceiling' && changed.length && !confirm('ยังไม่ได้บันทึกเพดานที่แก้ไว้ — ทิ้งการแก้แล้วเปลี่ยนโรงเรียน?')) return;
+        setSchoolId(Number(e.target.value));
+      }}
+      aria-label="เลือกโรงเรียน"
+    >
+      {schools.map((s) => (
+        <option key={s.id_school} value={s.id_school}>
+          {schoolName(s)}
+        </option>
+      ))}
+    </select>
+  );
+
   if (tab === 'menus') {
     return (
       <>
         <PageHeader
           title="เพดานสิทธิ์"
-          description="เมนูที่แต่ละสิทธิ์เห็นในแอป (จอคอม / มือถือ) — ใช้ร่วมกันทุกโรงเรียน"
-          actions={tabs}
+          description="เมนูที่แต่ละสิทธิ์เห็นในแอป (จอคอม / มือถือ) — แยกตามโรงเรียน ชุดเดียวกับ จัดการระบบ > กำหนดสิทธิ์เข้าถึง ในแอปของโรงเรียนนั้น"
+          actions={
+            <>
+              {tabs}
+              {schoolPicker}
+            </>
+          }
         />
-        <MenuVisibilityPanel roles={roles} />
+        {schoolId !== null && <MenuVisibilityPanel roles={schoolRoles} schoolId={schoolId} />}
       </>
     );
   }
@@ -147,18 +174,7 @@ export default function RolePermissionsPage() {
         actions={
           <>
             {tabs}
-            <select
-              className="input w-auto max-w-full"
-              value={schoolId ?? ''}
-              onChange={(e) => setSchoolId(Number(e.target.value))}
-              aria-label="เลือกโรงเรียน"
-            >
-              {schools.map((s) => (
-                <option key={s.id_school} value={s.id_school}>
-                  {schoolName(s)}
-                </option>
-              ))}
-            </select>
+            {schoolPicker}
           </>
         }
       />
@@ -167,14 +183,14 @@ export default function RolePermissionsPage() {
       <section className="card overflow-hidden">
         <PermMatrix
           firstHeader="รายการ"
-          roles={roles}
+          roles={schoolRoles}
           countLabel={(r) => `${countFor(r.ID_Roles)}/${items.length}`}
           groups={groupItems(items).map(([group, list]) => ({
             group,
             rows: list.map((item) => ({
               key: item.key,
               label: item.label,
-              cells: roles.map((r) => {
+              cells: schoolRoles.map((r) => {
                 const k = cellKey(r.ID_Roles, item.key);
                 return {
                   key: k,

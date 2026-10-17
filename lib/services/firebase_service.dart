@@ -23,8 +23,11 @@ class FirebaseService {
   // หลายโรงเรียน (ดู supabase/multi_school_step1_id_school.sql)
   //
   // ตารางในชุดนี้มีคอลัมน์ id_school — อ่านต้องกรองด้วย [inSchool]
-  // เขียนต้องแนบด้วย [withSchool] ส่วนตารางอื่น (FiscalRounds, roles,
-  // positions, academics, LeaveTypes ฯลฯ) ใช้ร่วมกันทุกโรงเรียน
+  // เขียนต้องแนบด้วย [withSchool] ส่วนตารางอื่น (FiscalRounds, positions,
+  // academics, LeaveTypes ฯลฯ) ใช้ร่วมกันทุกโรงเรียน
+  //
+  // roles ผสมกัน: id_school ว่าง = สิทธิ์หลักใช้ทุกโรงเรียน, มีค่า = ของโรงเรียน
+  // นั้น — อ่านด้วย [rolesInSchool] (ดู supabase/roles_per_school.sql)
   //
   // ฐานข้อมูลมี trigger เติม id_school ให้อยู่แล้ว (ใบลาใช้โรงเรียนของ
   // เจ้าของเสมอ) การแนบจากแอปเป็นแค่ความชัดเจน ไม่ได้เป็นตัวกันความปลอดภัย
@@ -36,7 +39,20 @@ class FirebaseService {
     'LoginLogs',
     'departments',
     'adminroles',
+    'LeaveReasons',
+    'Permissions',
+    'MobilePermissions',
   };
+
+  /// กรอง roles ให้เหลือสิทธิ์หลัก + สิทธิ์ของโรงเรียนผู้ใช้
+  ///
+  /// RLS กรองให้แอดมินโรงเรียนอยู่แล้ว แต่ผู้ดูแลส่วนกลางเห็นทุกโรงเรียน
+  /// ถ้าไม่กรอง ชื่อเดียวกันของสองโรงเรียน (เช่น แม่บ้าน) จะชนกัน
+  static PostgrestFilterBuilder<T> rolesInSchool<T>(
+      PostgrestFilterBuilder<T> query) {
+    final id = SchoolInfo.currentSchoolId;
+    return id == null ? query : query.or('id_school.is.null,id_school.eq.$id');
+  }
 
   /// กรอง query ให้เหลือเฉพาะโรงเรียนของผู้ใช้ที่ล็อกอินอยู่
   ///
@@ -616,10 +632,10 @@ class FirebaseService {
     if (rec.containsKey('role')) {
       final roleName = rec['role']?.toString().trim();
       if (roleName != null && roleName.isNotEmpty) {
-        final roleRows = await client
-            .from('roles')
-            .select('ID_Roles')
-            .ilike('Accessrights', roleName)
+        final roleRows = await rolesInSchool(client
+                .from('roles')
+                .select('ID_Roles')
+                .ilike('Accessrights', roleName))
             .limit(1);
         if ((roleRows as List).isNotEmpty) {
           rec['id_role'] = roleRows.first['ID_Roles'];
@@ -792,9 +808,9 @@ class FirebaseService {
     final client = _supabaseIfReady;
     if (client == null) throw Exception('Supabase not initialized');
     if (names.isEmpty) return;
-    await client
-        .from('LeaveReasons')
-        .insert(names.map((n) => {'reasonName': n}).toList());
+    await client.from('LeaveReasons').insert(names
+        .map((n) => withSchool('LeaveReasons', {'reasonName': n}))
+        .toList());
   }
 
   // ดึงกลุ่มสาระการเรียนรู้ — Supabase
@@ -2242,9 +2258,7 @@ class FirebaseService {
   static PostgrestFilterBuilder<T> _specialDatesInSchool<T>(
       PostgrestFilterBuilder<T> query) {
     final id = SchoolInfo.currentSchoolId;
-    return id == null
-        ? query
-        : query.or('id_school.is.null,id_school.eq.$id');
+    return id == null ? query : query.or('id_school.is.null,id_school.eq.$id');
   }
 
   Future<List<Map<String, dynamic>>> getSpecialHolidaysFromSupabase() async {
@@ -2418,7 +2432,8 @@ class FirebaseService {
     if (client == null) return [];
     try {
       final rows =
-          await client.from('roles').select('Accessrights').order('ID_Roles');
+          await rolesInSchool(client.from('roles').select('Accessrights'))
+              .order('ID_Roles');
       final seen = <String>{};
       final result = <String>[];
       for (final row in (rows as List)) {
@@ -2432,6 +2447,24 @@ class FirebaseService {
       return result;
     } catch (e) {
       debugPrint('❌ getPermissionsFromSupabase error: $e');
+      return [];
+    }
+  }
+
+  /// สิทธิ์ทั้งหมดที่โรงเรียนนี้ใช้ได้ พร้อมเลขและโรงเรียน
+  /// (id_school ว่าง = สิทธิ์หลักของระบบ ใช้ทุกโรงเรียน)
+  Future<List<Map<String, dynamic>>> getRoleRowsFromSupabase() async {
+    final client = _supabaseIfReady;
+    if (client == null) return [];
+    try {
+      final rows = await rolesInSchool(
+              client.from('roles').select('ID_Roles, Accessrights, id_school'))
+          .order('ID_Roles');
+      return (rows as List)
+          .map((r) => Map<String, dynamic>.from(r as Map))
+          .toList();
+    } catch (e) {
+      debugPrint('❌ getRoleRowsFromSupabase error: $e');
       return [];
     }
   }
@@ -2472,18 +2505,17 @@ class FirebaseService {
     final client = _supabaseIfReady;
     if (client == null) return null;
     try {
-      final roleRow = await client
-          .from('roles')
-          .select('ID_Roles')
-          .eq('Accessrights', role)
+      final roleRow = await rolesInSchool(
+              client.from('roles').select('ID_Roles').eq('Accessrights', role))
           .maybeSingle();
       if (roleRow == null) return null;
       final idRole = roleRow['ID_Roles'];
 
-      final rows = await client
+      // เมนูที่เห็นแยกตามโรงเรียน
+      final rows = await inSchool(client
           .from(collection)
           .select('menu_id, status')
-          .eq('id_role', idRole);
+          .eq('id_role', idRole));
 
       final result = <String, dynamic>{};
       for (final row in (rows as List)) {
@@ -2508,9 +2540,9 @@ class FirebaseService {
     final client = _supabaseIfReady;
     if (client == null) return [];
     try {
-      final rows = await client.from(collection).select();
-      final rolesRows =
-          await client.from('roles').select('ID_Roles, Accessrights');
+      final rows = await inSchool(client.from(collection).select());
+      final rolesRows = await rolesInSchool(
+          client.from('roles').select('ID_Roles, Accessrights'));
 
       final roleNameMap = <String, String>{};
       for (final r in (rolesRows as List)) {

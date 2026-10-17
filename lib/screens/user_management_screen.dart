@@ -219,8 +219,46 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     },
   ];
 
-  // 🔥 รายชื่อบทบาทหลักจาก Database (ใช้สำหรับ Column ตารางสิทธิ์)
-  final List<String> _permissionRoles = ['ผู้ดูแลระบบ', 'ผู้บริหาร', 'ครู'];
+  /// สิทธิ์ที่โรงเรียนนี้ใช้ได้ (ID_Roles, Accessrights, id_school)
+  /// id_school ว่าง = สิทธิ์หลักของระบบ ใช้ทุกโรงเรียน — ดู roles_per_school.sql
+  List<Map<String, dynamic>> _roleRows = [];
+
+  /// ชื่อสิทธิ์หลักของระบบ (แก้ชื่อ/ลบไม่ได้)
+  Set<String> get _coreRoleNames => {
+        for (final r in _roleRows)
+          if (r['id_school'] == null)
+            (r['Accessrights'] ?? '').toString().trim()
+      };
+
+  int? _roleIdByName(String name) {
+    for (final r in _roleRows) {
+      if ((r['Accessrights'] ?? '').toString().trim() == name) {
+        final id = r['ID_Roles'];
+        return id is int ? id : int.tryParse('$id');
+      }
+    }
+    return null;
+  }
+
+  /// คอลัมน์ตารางกำหนดสิทธิ์ — ตามตาราง roles ของโรงเรียนนี้
+  /// สิทธิ์หลักเรียงแบบเดิมไว้หน้า แล้วตามด้วยสิทธิ์ที่โรงเรียนเพิ่มเอง
+  List<String> get _permissionRoles {
+    const coreOrder = ['ผู้ดูแลระบบ', 'ผู้บริหาร', 'ครู'];
+    final names = _roleRows
+        .map((r) => (r['Accessrights'] ?? '').toString().trim())
+        .where((n) => n.isNotEmpty)
+        .toList();
+    if (names.isEmpty) return coreOrder;
+    return [
+      ...coreOrder.where(names.contains),
+      ...names.where((n) => !coreOrder.contains(n)),
+    ];
+  }
+
+  /// ข้อมูลพื้นฐานที่ใช้ร่วมกันทุกโรงเรียน: ตำแหน่ง / วิทยฐานะ / ประเภทการลา
+  /// แก้ได้เฉพาะผู้ดูแลส่วนกลาง (ฐานข้อมูลบังคับด้วย RLS)
+  bool get _masterTabIsShared =>
+      _masterSubTab == 0 || _masterSubTab == 1 || _masterSubTab == 5;
 
   // 🔥 เก็บสถานะสิทธิ์การเข้าถึงแบบ Real-time ครับ (Page ID -> Role -> bool) 🥇🏆
   final Map<String, Map<String, bool>> _rolePermsState = {};
@@ -404,6 +442,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         _firebaseService.getLeaveTypes(),
         _firebaseService.getLeaveReasons(),
         _loadMasterOrderByKey(),
+        _firebaseService.getRoleRowsFromSupabase(),
       ]);
 
       final pos = results[0] as List<String>;
@@ -414,8 +453,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       final lvt = results[5] as List<String>;
       final lvr = results[6] as List<String>;
       final masterOrders = results[7] as Map<String, int>;
+      final roleRows = results[8] as List<Map<String, dynamic>>;
 
       setState(() {
+        if (roleRows.isNotEmpty) _roleRows = roleRows;
         if (pos.isNotEmpty) _positions = ['---เลือก---', ...pos];
         if (dep.isNotEmpty) _departments = ['---เลือก---', ...dep];
         _masterOrderByKey = masterOrders;
@@ -3348,8 +3389,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               if (_currentTab == 7)
                                 const CalendarSettingsTab(tabIndex: 2),
                               if (_currentTab == 8) const SchoolSettingsTab(),
-                              if (_currentTab == 9)
-                                const AttendanceImportTab(),
+                              if (_currentTab == 9) const AttendanceImportTab(),
                             ],
                           ),
                         ),
@@ -3584,6 +3624,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       final client = _firebaseService.supabaseClient;
       if (client == null) return;
 
+      // สิทธิ์ที่เพิ่มเองเป็นของโรงเรียนนี้ — ฐานข้อมูลออกเลขให้
+      // (มองไม่เห็นสิทธิ์ของโรงเรียนอื่น หาเลขถัดไปเองจะชนกัน)
+      if (table == 'roles') {
+        await client.from(table).insert({
+          nameField: value,
+          if (SchoolInfo.currentSchoolId != null)
+            'id_school': SchoolInfo.currentSchoolId,
+        });
+        return;
+      }
+
       // กลุ่มสาระ/ตำแหน่งบริหาร แยกตามโรงเรียน — แนบโรงเรียนของผู้ใช้ไปด้วย
       if (idField.isEmpty) {
         await client
@@ -3595,9 +3646,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       try {
         final nextId = await _nextMasterNumericId(collection, idField);
         await client.from(table).insert(FirebaseService.withSchool(table, {
-          idField: nextId,
-          nameField: value,
-        }));
+              idField: nextId,
+              nameField: value,
+            }));
       } on PostgrestException catch (e) {
         // บางตาราง (เช่น LeaveTypes) ตั้ง PK เป็น identity แบบ GENERATED ALWAYS
         // ฐานข้อมูลออกเลขให้เอง ห้ามส่งค่าไปเอง -> insert ใหม่โดยไม่ใส่ id
@@ -3787,12 +3838,19 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       final client = _firebaseService.supabaseClient;
       if (client != null) {
         // ค้นด้วยชื่อ — ต้องจำกัดโรงเรียน ไม่งั้นไปเปลี่ยนชื่อของโรงเรียนอื่นด้วย
-        var query =
-            client.from(table).update({nameField: newValue}).eq(nameField, oldValue);
-        if (FirebaseService.schoolScopedTables.contains(table)) {
+        var query = client
+            .from(table)
+            .update({nameField: newValue}).eq(nameField, oldValue);
+        if (FirebaseService.schoolScopedTables.contains(table) ||
+            table == 'roles') {
+          // roles: แก้ได้เฉพาะสิทธิ์ของโรงเรียนนี้ (สิทธิ์หลักล็อกไว้)
           query = FirebaseService.inSchool(query);
         }
-        await query;
+        // RLS ไม่ให้แก้ = ไม่มีแถวเปลี่ยน แต่ไม่ error — ต้องบอกผู้ใช้ตามจริง
+        final changed = await query.select();
+        if ((changed as List).isEmpty) {
+          throw Exception('ไม่มีสิทธิ์แก้รายการนี้');
+        }
       }
     } catch (e) {
       debugPrint('Supabase _renameMasterItem error: $e');
@@ -3817,10 +3875,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       if (client != null) {
         // ลบด้วยชื่อ — ต้องจำกัดโรงเรียน ไม่งั้นไปลบของโรงเรียนอื่นด้วย
         var query = client.from(table).delete().eq(nameField, value);
-        if (FirebaseService.schoolScopedTables.contains(table)) {
+        if (FirebaseService.schoolScopedTables.contains(table) ||
+            table == 'roles') {
           query = FirebaseService.inSchool(query);
         }
-        await query;
+        final deleted = await query.select();
+        if ((deleted as List).isEmpty) {
+          throw Exception('ไม่มีสิทธิ์ลบรายการนี้');
+        }
       }
     } catch (e) {
       debugPrint('Supabase _deleteMasterItem error: $e');
@@ -3903,6 +3965,21 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     final visibleItems = currentItems
         .where((item) => !item.contains('เลือก') && item.trim().isNotEmpty)
         .toList();
+    // ตำแหน่ง/วิทยฐานะ/ประเภทการลา ใช้ร่วมกันทุกโรงเรียน — แก้ได้เฉพาะส่วนกลาง
+    final readOnly = _masterTabIsShared && !SchoolInfo.isSuperAdmin;
+    final isRolesTab = masterCollection == 'Roles';
+    final coreRoles = isRolesTab ? _coreRoleNames : const <String>{};
+    final String? scopeNote = _masterTabIsShared
+        ? 'ข้อมูลกลาง ใช้ร่วมกันทุกโรงเรียน — '
+            '${readOnly ? 'แก้ไขได้เฉพาะผู้ดูแลระบบส่วนกลาง' : 'แก้แล้วมีผลกับทุกโรงเรียน'}'
+        : isRolesTab
+            ? 'สิทธิ์ที่มีรูปกุญแจเป็นสิทธิ์หลักของระบบ ใช้ทุกโรงเรียน แก้หรือลบไม่ได้ · '
+                'สิทธิ์ที่เพิ่มเองใช้เฉพาะโรงเรียนนี้ และเริ่มต้นเห็นเมนูเหมือน "ครู"'
+            : (masterCollection == 'Departments' ||
+                    masterCollection == 'AdminRoles' ||
+                    masterCollection == 'LeaveReasons')
+                ? 'ข้อมูลเฉพาะโรงเรียนนี้ ไม่กระทบโรงเรียนอื่น'
+                : null;
 
     return _buildGlassCard(
       padding: EdgeInsets.zero,
@@ -3933,7 +4010,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   ],
                 ),
                 const Spacer(),
-                if (usesNumericSchema) ...[
+                if (usesNumericSchema && !readOnly) ...[
                   TextButton.icon(
                     onPressed: () async {
                       try {
@@ -4000,6 +4077,26 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               ],
             ),
           ),
+          if (scopeNote != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              color: color.withValues(alpha: 0.06),
+              child: Row(children: [
+                Icon(
+                    _masterTabIsShared || isRolesTab
+                        ? Icons.public_rounded
+                        : Icons.school_rounded,
+                    size: 15,
+                    color: color),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(scopeNote,
+                      style: GoogleFonts.sarabun(
+                          fontSize: 12, color: Colors.blueGrey.shade700)),
+                ),
+              ]),
+            ),
           const Divider(height: 1),
           Container(
             height: 400,
@@ -4051,6 +4148,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 ? (_masterOrderByKey[orderKey]?.toString() ??
                                     '${index + 1}')
                                 : '${index + 1}';
+                            final isCoreRole = coreRoles.contains(item);
+                            final locked = readOnly || isCoreRole;
+                            final (statusText, statusColor) = isRolesTab
+                                ? (isCoreRole
+                                    ? ('ทุกโรงเรียน', Colors.blue)
+                                    : ('เฉพาะโรงเรียนนี้', Colors.green))
+                                : ('ใช้งาน', Colors.green);
                             return DataRow(
                               color: WidgetStateProperty.resolveWith((states) {
                                 return index.isEven
@@ -4086,97 +4190,116 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                         horizontal: 10, vertical: 4),
                                     decoration: BoxDecoration(
                                       color:
-                                          Colors.green.withValues(alpha: 0.08),
+                                          statusColor.withValues(alpha: 0.08),
                                       borderRadius: BorderRadius.circular(999),
                                       border: Border.all(
-                                          color: Colors.green
-                                              .withValues(alpha: 0.16)),
+                                          color: statusColor.withValues(
+                                              alpha: 0.16)),
                                     ),
                                     child: Text(
-                                      'ใช้งาน',
+                                      statusText,
                                       style: GoogleFonts.sarabun(
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
-                                        color: Colors.green.shade700,
+                                        color: statusColor.shade700,
                                       ),
                                     ),
                                   ),
                                 ),
                                 DataCell(
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        tooltip: 'แก้ไข',
-                                        visualDensity: VisualDensity.compact,
-                                        onPressed: () =>
-                                            _showEditMasterItemDialog(
-                                                item, color),
-                                        icon: Icon(Icons.edit_outlined,
-                                            size: 17, color: color),
-                                      ),
-                                      IconButton(
-                                        tooltip: 'ลบ',
-                                        visualDensity: VisualDensity.compact,
-                                        onPressed: () async {
-                                          bool confirm = await showDialog(
-                                                  context: context,
-                                                  builder: (ctx) => AlertDialog(
-                                                        title: const Text(
-                                                            'ยืนยันการลบ'),
-                                                        content: Text(
-                                                            'คุณครูแน่ใจนะครับว่าจะลบ "$item"?'),
-                                                        actions: [
-                                                          TextButton(
-                                                              onPressed: () =>
-                                                                  Navigator.pop(
-                                                                      ctx,
-                                                                      false),
-                                                              child: const Text(
-                                                                  'ยกเลิก')),
-                                                          TextButton(
-                                                              onPressed: () =>
-                                                                  Navigator.pop(
-                                                                      ctx,
-                                                                      true),
-                                                              child: const Text(
-                                                                  'ลบเลย',
-                                                                  style: TextStyle(
-                                                                      color: Colors
-                                                                          .red))),
-                                                        ],
-                                                      )) ??
-                                              false;
+                                  locked
+                                      ? Tooltip(
+                                          message: isCoreRole
+                                              ? 'สิทธิ์หลักของระบบ แก้หรือลบไม่ได้'
+                                              : 'แก้ไขได้เฉพาะผู้ดูแลระบบส่วนกลาง',
+                                          child: Icon(
+                                              Icons.lock_outline_rounded,
+                                              size: 17,
+                                              color: Colors.blueGrey.shade300),
+                                        )
+                                      : Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            IconButton(
+                                              tooltip: 'แก้ไข',
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              onPressed: () =>
+                                                  _showEditMasterItemDialog(
+                                                      item, color),
+                                              icon: Icon(Icons.edit_outlined,
+                                                  size: 17, color: color),
+                                            ),
+                                            IconButton(
+                                              tooltip: 'ลบ',
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              onPressed: () async {
+                                                bool confirm = await showDialog(
+                                                        context: context,
+                                                        builder:
+                                                            (ctx) =>
+                                                                AlertDialog(
+                                                                  title: const Text(
+                                                                      'ยืนยันการลบ'),
+                                                                  content: Text(
+                                                                      'คุณครูแน่ใจนะครับว่าจะลบ "$item"?'),
+                                                                  actions: [
+                                                                    TextButton(
+                                                                        onPressed: () => Navigator.pop(
+                                                                            ctx,
+                                                                            false),
+                                                                        child: const Text(
+                                                                            'ยกเลิก')),
+                                                                    TextButton(
+                                                                        onPressed: () => Navigator.pop(
+                                                                            ctx,
+                                                                            true),
+                                                                        child: const Text(
+                                                                            'ลบเลย',
+                                                                            style:
+                                                                                TextStyle(color: Colors.red))),
+                                                                  ],
+                                                                )) ??
+                                                    false;
 
-                                          if (confirm) {
-                                            try {
-                                              await _deleteMasterItem(item);
-                                              if (mounted) {
-                                                ScaffoldMessenger.of(context)
-                                                    .showSnackBar(
-                                                        const SnackBar(
-                                                  content: Text(
-                                                      'ลบรายการเรียบร้อยแล้ว'),
-                                                  backgroundColor: Colors.green,
-                                                ));
-                                              }
-                                            } catch (e) {
-                                              if (mounted) {
-                                                ScaffoldMessenger.of(context)
-                                                    .showSnackBar(SnackBar(
-                                                  content:
-                                                      Text('ลบไม่สำเร็จ: $e'),
-                                                  backgroundColor: Colors.red,
-                                                ));
-                                              }
-                                            }
-                                          }
-                                        },
-                                        icon: const Icon(Icons.delete_outline,
-                                            size: 17, color: Colors.redAccent),
-                                      ),
-                                    ],
-                                  ),
+                                                if (confirm) {
+                                                  try {
+                                                    await _deleteMasterItem(
+                                                        item);
+                                                    if (mounted) {
+                                                      ScaffoldMessenger.of(
+                                                              context)
+                                                          .showSnackBar(
+                                                              const SnackBar(
+                                                        content: Text(
+                                                            'ลบรายการเรียบร้อยแล้ว'),
+                                                        backgroundColor:
+                                                            Colors.green,
+                                                      ));
+                                                    }
+                                                  } catch (e) {
+                                                    if (mounted) {
+                                                      ScaffoldMessenger.of(
+                                                              context)
+                                                          .showSnackBar(
+                                                              SnackBar(
+                                                        content: Text(
+                                                            'ลบไม่สำเร็จ: $e'),
+                                                        backgroundColor:
+                                                            Colors.red,
+                                                      ));
+                                                    }
+                                                  }
+                                                }
+                                              },
+                                              icon: const Icon(
+                                                  Icons.delete_outline,
+                                                  size: 17,
+                                                  color: Colors.redAccent),
+                                            ),
+                                          ],
+                                        ),
                                 ),
                               ],
                             );
@@ -4186,86 +4309,88 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     ),
                   ),
           ),
-          const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-            child: Row(
-              children: [
-                Expanded(
-                  child: SizedBox(
-                    height: 44,
-                    child: TextField(
-                      controller: masterCtrl,
-                      style: GoogleFonts.sarabun(fontSize: 13),
-                      decoration: InputDecoration(
-                        hintText: "เพิ่ม $title ใหม่...",
-                        hintStyle: GoogleFonts.sarabun(
-                            fontSize: 13, color: Colors.black26),
-                        filled: true,
-                        fillColor: const Color(0xFFF8FAFC),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 0),
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide:
-                                BorderSide(color: Colors.grey.shade100)),
-                        enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide:
-                                BorderSide(color: Colors.grey.shade100)),
+          if (!readOnly) const Divider(height: 1),
+          if (!readOnly)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 44,
+                      child: TextField(
+                        controller: masterCtrl,
+                        style: GoogleFonts.sarabun(fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: "เพิ่ม $title ใหม่...",
+                          hintStyle: GoogleFonts.sarabun(
+                              fontSize: 13, color: Colors.black26),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 0),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide:
+                                  BorderSide(color: Colors.grey.shade100)),
+                          enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide:
+                                  BorderSide(color: Colors.grey.shade100)),
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton(
-                  onPressed: () async {
-                    final String val = masterCtrl.text.trim();
-                    if (val.isEmpty) return;
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final String val = masterCtrl.text.trim();
+                      if (val.isEmpty) return;
 
-                    if (masterCollection.isEmpty) return;
+                      if (masterCollection.isEmpty) return;
 
-                    try {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('กำลังบันทึกข้อมูลลงฐานข้อมูล...'),
-                        duration: Duration(seconds: 1),
-                      ));
-
-                      await _createMasterItem(masterCollection, val);
-
-                      masterCtrl.clear();
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      try {
                         ScaffoldMessenger.of(context)
                             .showSnackBar(const SnackBar(
-                          content: Text('บันทึกข้อมูลใหม่สำเร็จแล้วครับ!'),
-                          backgroundColor: Colors.green,
+                          content: Text('กำลังบันทึกข้อมูลลงฐานข้อมูล...'),
+                          duration: Duration(seconds: 1),
                         ));
-                        _loadDropdownData();
+
+                        await _createMasterItem(masterCollection, val);
+
+                        masterCtrl.clear();
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                          ScaffoldMessenger.of(context)
+                              .showSnackBar(const SnackBar(
+                            content: Text('บันทึกข้อมูลใหม่สำเร็จแล้วครับ!'),
+                            backgroundColor: Colors.green,
+                          ));
+                          _loadDropdownData();
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text('ล้มเหลว: $e'),
+                            backgroundColor: Colors.red,
+                          ));
+                        }
                       }
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                          content: Text('ล้มเหลว: $e'),
-                          backgroundColor: Colors.red,
-                        ));
-                      }
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: color,
-                    minimumSize: const Size(44, 44),
-                    padding: EdgeInsets.zero,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: const Icon(Icons.add_rounded,
-                      color: Colors.white, size: 22),
-                )
-              ],
-            ),
-          )
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: color,
+                      minimumSize: const Size(44, 44),
+                      padding: EdgeInsets.zero,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Icon(Icons.add_rounded,
+                        color: Colors.white, size: 22),
+                  )
+                ],
+              ),
+            )
         ],
       ),
     );
@@ -4387,7 +4512,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 fontWeight: FontWeight.w900,
                                 color: primaryColor)),
                         const SizedBox(height: 4),
-                        Text("ตั้งค่าการมองเห็นเมนู$_permissionViewTitle",
+                        Text(
+                            "ตั้งค่าการมองเห็นเมนู$_permissionViewTitle · เฉพาะโรงเรียนนี้",
                             style: const TextStyle(
                                 color: Colors.blueGrey, fontSize: 13)),
                         const SizedBox(height: 16),
@@ -4439,31 +4565,29 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             final currentData = rolePerms[role] ?? {};
 
                             // ชื่อสิทธิ์ที่แสดงบนหน้าจอ ต้องแปลงเป็น ID_Roles ก่อน
-                            final roleRow = await client
-                                .from('roles')
-                                .select('ID_Roles')
-                                .eq('Accessrights', role)
-                                .maybeSingle();
-                            if (roleRow == null) continue;
+                            final idRole = _roleIdByName(role);
+                            if (idRole == null) continue;
 
                             for (final entry in menuEntries) {
                               final pageId = entry.key.toString();
                               final pageName = entry.value;
                               final allowed = _readPermissionValue(
                                   currentData, pageId, pageName);
-                              records.add({
-                                'id_role': roleRow['ID_Roles'],
+                              // เมนูที่เห็นแยกตามโรงเรียน (roles_per_school.sql)
+                              records.add(FirebaseService.withSchool(
+                                  _permissionCollectionName, {
+                                'id_role': idRole,
                                 'menu_id': int.tryParse(pageId) ?? 0,
                                 'status': allowed ? '1' : '0',
                                 'updatedAt': now,
-                              });
+                              }));
                             }
                           }
 
                           if (records.isNotEmpty) {
-                            await client
-                                .from(_permissionCollectionName)
-                                .upsert(records, onConflict: 'id_role,menu_id');
+                            await client.from(_permissionCollectionName).upsert(
+                                records,
+                                onConflict: 'id_school,id_role,menu_id');
                           }
                         } catch (e) {
                           // ห้ามกลืน error แล้วบอกว่าสำเร็จ ต้องบอกตามจริง
@@ -4524,17 +4648,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 fontWeight: FontWeight.w800,
                                 fontSize: 13,
                                 color: Colors.blueGrey.shade700))),
-                    ..._permissionRoles
-                        .map((role) => Expanded(
-                              child: Center(
-                                child: Text(role,
-                                    style: GoogleFonts.sarabun(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.blueGrey.shade500)),
-                              ),
-                            ))
-                        ,
+                    ..._permissionRoles.map((role) => Expanded(
+                          child: Center(
+                            child: Text(role,
+                                style: GoogleFonts.sarabun(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.blueGrey.shade500)),
+                          ),
+                        )),
                   ],
                 ),
               ),
@@ -4598,26 +4720,28 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                                 currentData['id_role']
                                                         ?.toString() ??
                                                     '');
-                                            if (resolvedId == null) {
-                                              final roleRow = await client
-                                                  .from('roles')
-                                                  .select('ID_Roles')
-                                                  .eq('Accessrights', role)
-                                                  .maybeSingle();
-                                              if (roleRow == null) return;
-                                              resolvedId =
-                                                  roleRow['ID_Roles'] as int;
-                                            }
+                                            resolvedId ??= _roleIdByName(role);
+                                            if (resolvedId == null) return;
+                                            // เมนูที่เห็นแยกตามโรงเรียน
                                             await client
                                                 .from(_permissionCollectionName)
-                                                .upsert({
-                                              'id_role': resolvedId,
-                                              'menu_id':
-                                                  int.tryParse(pageId) ?? 0,
-                                              'status': val ? '1' : '0',
-                                              'updatedAt': DateTime.now()
-                                                  .toIso8601String(),
-                                            }, onConflict: 'id_role,menu_id');
+                                                .upsert(
+                                                    FirebaseService.withSchool(
+                                                        _permissionCollectionName,
+                                                        {
+                                                          'id_role': resolvedId,
+                                                          'menu_id':
+                                                              int.tryParse(
+                                                                      pageId) ??
+                                                                  0,
+                                                          'status':
+                                                              val ? '1' : '0',
+                                                          'updatedAt': DateTime
+                                                                  .now()
+                                                              .toIso8601String(),
+                                                        }),
+                                                    onConflict:
+                                                        'id_school,id_role,menu_id');
                                             if (mounted) {
                                               setState(() {
                                                 _permsFuture = null;
@@ -4626,6 +4750,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                           } catch (e) {
                                             debugPrint(
                                                 '❌ Supabase permission toggle error: $e');
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(this.context)
+                                                  .showSnackBar(SnackBar(
+                                                backgroundColor:
+                                                    Colors.red.shade700,
+                                                content: Text(
+                                                    'บันทึกสิทธิ์ไม่สำเร็จ: $e'),
+                                              ));
+                                            }
                                           }
                                         },
                                 ),
@@ -4690,8 +4823,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 _buildTabButton(
                     7, Icons.calendar_today_rounded, "ตั้งค่าวันทำงานพิเศษ"),
                 _buildTabButton(8, Icons.school_rounded, "ข้อมูลโรงเรียน"),
-                _buildTabButton(
-                    9, Icons.fingerprint_rounded, "นำเข้าเวลาสแกน"),
+                _buildTabButton(9, Icons.fingerprint_rounded, "นำเข้าเวลาสแกน"),
               ],
             ),
           ),
@@ -5175,7 +5307,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
     final inactiveChip = FilterChip(
       label: Text(
-          narrow ? 'พ้นสภาพ ($_inactiveCount)' : 'ดูเฉพาะคนพ้นสภาพ ($_inactiveCount)',
+          narrow
+              ? 'พ้นสภาพ ($_inactiveCount)'
+              : 'ดูเฉพาะคนพ้นสภาพ ($_inactiveCount)',
           style: GoogleFonts.sarabun(fontSize: 12)),
       tooltip: 'ดูเฉพาะคนที่ลาออก / เกษียณ / ย้าย (ปกติซ่อนไว้)',
       visualDensity: VisualDensity.compact,
@@ -5203,7 +5337,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('รายชื่อผู้ใช้งาน',
                 style: GoogleFonts.sarabun(
                     fontSize: narrow ? 17 : 18, fontWeight: FontWeight.bold)),
@@ -5261,7 +5396,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         _buildUserProfilePhoto(user),
         const SizedBox(width: 12),
         Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(name.isEmpty ? '-' : name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -5273,15 +5409,18 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               Text(details,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style:
-                      GoogleFonts.sarabun(fontSize: 12, color: Colors.blueGrey)),
+                  style: GoogleFonts.sarabun(
+                      fontSize: 12, color: Colors.blueGrey)),
             if (!active || waiting || revealed != null)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Wrap(spacing: 6, runSpacing: 4, children: [
-                  if (!active) _userBadge(_employmentStatusText(user), Colors.blueGrey),
-                  if (waiting) _userBadge('ขอรีเซ็ตรหัสผ่าน', Colors.orange.shade800),
-                  if (revealed != null) _userBadge('รหัส: $revealed', Colors.green.shade800),
+                  if (!active)
+                    _userBadge(_employmentStatusText(user), Colors.blueGrey),
+                  if (waiting)
+                    _userBadge('ขอรีเซ็ตรหัสผ่าน', Colors.orange.shade800),
+                  if (revealed != null)
+                    _userBadge('รหัส: $revealed', Colors.green.shade800),
                 ]),
               ),
           ]),
@@ -5311,17 +5450,25 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             _userMenuItem('edit', Icons.edit_outlined, 'แก้ไข', Colors.blue),
             _userMenuItem(
                 'status',
-                active ? Icons.person_off_outlined : Icons.settings_backup_restore,
+                active
+                    ? Icons.person_off_outlined
+                    : Icons.settings_backup_restore,
                 active ? 'พ้นสภาพ (ลาออก / เกษียณ / ย้าย)' : 'แก้สถานะ',
                 active ? Colors.blueGrey : Colors.teal),
-            _userMenuItem('reset', Icons.lock_reset,
-                waiting ? 'อนุมัติรีเซ็ตรหัสผ่าน' : 'รีเซ็ตรหัสผ่าน', Colors.orange.shade800),
+            _userMenuItem(
+                'reset',
+                Icons.lock_reset,
+                waiting ? 'อนุมัติรีเซ็ตรหัสผ่าน' : 'รีเซ็ตรหัสผ่าน',
+                Colors.orange.shade800),
             _userMenuItem(
                 'password',
-                revealed == null ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                revealed == null
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
                 revealed == null ? 'ดูรหัสผ่าน' : 'ซ่อนรหัสผ่าน',
                 Colors.blueGrey),
-            _userMenuItem('delete', Icons.delete_outline, 'ลบข้อมูล', Colors.red),
+            _userMenuItem(
+                'delete', Icons.delete_outline, 'ลบข้อมูล', Colors.red),
           ],
         ),
       ]),

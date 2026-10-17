@@ -49,9 +49,9 @@ const isOn = (v: unknown) => v === true || v === 1 || String(v).trim() === '1' |
 
 /**
  * การมองเห็นเมนูในแอป (ไม่ใช่เพดาน) — ตาราง Permissions / MobilePermissions
- * ชุดเดียวกับหน้า "จัดการระบบ > สิทธิ์การเข้าถึง" ในแอป ใช้ร่วมกันทุกโรงเรียน
+ * ชุดเดียวกับหน้า "จัดการระบบ > กำหนดสิทธิ์เข้าถึง" ในแอป — แยกตามโรงเรียน (roles_per_school.sql)
  */
-export default function MenuVisibilityPanel({ roles }: { roles: Role[] }) {
+export default function MenuVisibilityPanel({ roles, schoolId }: { roles: Role[]; schoolId: number }) {
   const [device, setDevice] = useState<Device>('mobile');
   const [saved, setSaved] = useState<Grid>({});
   const [grid, setGrid] = useState<Grid>({});
@@ -60,7 +60,10 @@ export default function MenuVisibilityPanel({ roles }: { roles: Role[] }) {
   const menus = MENUS[device];
 
   async function load(d: Device) {
-    const { data, error } = await supabase.from(TABLE[d]).select('id_role, menu_id, status');
+    const { data, error } = await supabase
+      .from(TABLE[d])
+      .select('id_role, menu_id, status')
+      .eq('id_school', schoolId);
     if (error) {
       setMessage({ text: `โหลดไม่สำเร็จ: ${error.message}`, error: true });
       return;
@@ -77,7 +80,7 @@ export default function MenuVisibilityPanel({ roles }: { roles: Role[] }) {
   useEffect(() => {
     setMessage(null);
     load(device);
-  }, [device]);
+  }, [device, schoolId]);
 
   const changed = useMemo(
     () => Object.keys(grid).filter((k) => grid[k] !== (saved[k] ?? false)),
@@ -96,9 +99,11 @@ export default function MenuVisibilityPanel({ roles }: { roles: Role[] }) {
     const now = new Date().toISOString();
     const rows = changed.map((k) => {
       const [role, menu] = k.split(':').map(Number);
-      return { id_role: role, menu_id: menu, status: grid[k] ? '1' : '0', updatedAt: now };
+      return { id_school: schoolId, id_role: role, menu_id: menu, status: grid[k] ? '1' : '0', updatedAt: now };
     });
-    const { error } = await supabase.from(TABLE[device]).upsert(rows, { onConflict: 'id_role,menu_id' });
+    const { error } = await supabase
+      .from(TABLE[device])
+      .upsert(rows, { onConflict: 'id_school,id_role,menu_id' });
     setBusy(false);
     if (error) {
       setMessage({ text: `บันทึกไม่สำเร็จ: ${error.message}`, error: true });
@@ -126,7 +131,7 @@ export default function MenuVisibilityPanel({ roles }: { roles: Role[] }) {
         </div>
       </div>
       <div className="alert-info mb-4 text-[13px] leading-relaxed">
-        เลือกว่าแต่ละสิทธิ์ "เห็นเมนูไหน" ในแอป{device === 'pc' ? 'บนจอคอม' : 'บนมือถือ'} — ใช้ร่วมกันทุกโรงเรียน
+        เลือกว่าแต่ละสิทธิ์ "เห็นเมนูไหน" ในแอป{device === 'pc' ? 'บนจอคอม' : 'บนมือถือ'} ของโรงเรียนที่เลือก
         (ชุดเดียวกับ จัดการระบบ &gt; สิทธิ์การเข้าถึง ในแอป)
         <br />
         ข้อยกเว้นในแอป: ผู้ดูแลระบบเห็น "จัดการระบบ" เสมอ · ครูไม่เห็น "สรุปผล/แดชบอร์ด" · "ลงเวลา"
