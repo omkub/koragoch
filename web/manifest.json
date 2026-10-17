@@ -10,6 +10,12 @@
     "description": "ระบบขอใบลาอิเล็กทรอนิกส์สำหรับครูและบุคลากร",
     "orientation": "any",
     "prefer_related_applications": false,
+    "related_applications": [
+        {
+            "platform": "webapp",
+            "url": "https://omkub.github.io/koragoch/manifest.json"
+        }
+    ],
     "icons": [
         {
             "src": "icons/Icon-192.png",

@@ -105,6 +105,13 @@
         deferred = null;
         installed = true;
       });
+      // ติดตั้งไว้แล้ว Chrome จะไม่ส่ง beforeinstallprompt มาอีก — ถามเบราว์เซอร์ตรง ๆ
+      // (ใช้ related_applications ใน manifest.json) ปุ่มติดตั้งจะได้ซ่อนไป
+      if (navigator.getInstalledRelatedApps) {
+        navigator.getInstalledRelatedApps().then(function(apps) {
+          if (apps && apps.length) installed = true;
+        }).catch(function() {});
+      }
       window.koragochInstallInfo = function() {
         var ua = navigator.userAgent || '';
         var ios = /iphone|ipad|ipod/i.test(ua) ||
