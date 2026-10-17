@@ -6983,7 +6983,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   // 🔥 ฟังก์ชันสำหรับสร้างหัวตารางให้ตรงแนวครับ
-  /// "เกษียณ 30 ก.ย. 2569" — สถานะ + วันที่พ้นสภาพ (ถ้ามี)
+  /// "เกษียณ 1 ต.ค. 2569" — สถานะ + วันที่พ้นสภาพมีผล (ถ้ามี)
   String _employmentStatusText(Map<String, dynamic> user) {
     final label = StaffStatus.label(StaffStatus.statusOf(user));
     final left = StaffStatus.leftDateOf(user);
@@ -7034,7 +7034,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   ),
                   if (leaving) ...[
                     const SizedBox(height: 16),
-                    Text('วันที่พ้นสภาพ (วันสุดท้ายที่ปฏิบัติงาน)',
+                    Text('พ้นสภาพตั้งแต่วันที่ (วันแรกที่ไม่ได้ปฏิบัติงาน เช่น เกษียณ 1 ต.ค.)',
                         style: GoogleFonts.sarabun(
                             fontSize: 12, color: Colors.blueGrey)),
                     const SizedBox(height: 4),

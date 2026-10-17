@@ -195,7 +195,7 @@ export default function StaffPage() {
               </select>
             </Field>
             {editing.status !== 'active' && (
-              <Field label="วันที่พ้นสภาพ" hint="วันสุดท้ายที่ปฏิบัติงาน">
+              <Field label="พ้นสภาพตั้งแต่วันที่" hint="วันแรกที่ไม่ได้ปฏิบัติงาน เช่น เกษียณ 1 ต.ค.">
                 <input
                   className="input"
                   type="date"

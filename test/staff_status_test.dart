@@ -33,9 +33,15 @@ void main() {
       expect(StaffStatus.activeDuring(retiredSep30, fy2570), isFalse);
     });
 
-    test('พ้นสภาพวันแรกของปีงบ ยังนับปีงบนั้น', () {
-      final leftOct1 = {'employment_status': 'resigned', 'left_date': '2026-10-01'};
-      expect(StaffStatus.activeDuring(leftOct1, fy2570), isTrue);
+    test('เกษียณ 1 ต.ค. (มีผลวันแรกของปีงบ) ไม่อยู่ปีงบนั้น แต่อยู่ปีงบก่อน', () {
+      final retiredOct1 = {'employment_status': 'retired', 'left_date': '2026-10-01'};
+      expect(StaffStatus.activeDuring(retiredOct1, fy2570), isFalse);
+      expect(StaffStatus.activeDuring(retiredOct1, fy2569), isTrue);
+    });
+
+    test('ลาออกกลางปีงบ ยังนับปีงบนั้น', () {
+      final leftNov = {'employment_status': 'resigned', 'left_date': '2026-11-15'};
+      expect(StaffStatus.activeDuring(leftNov, fy2570), isTrue);
     });
 
     test('ปฏิบัติงานอยู่ นับทุกปีงบ / พ้นสภาพแต่ไม่มีวันที่ ไม่นับ', () {
