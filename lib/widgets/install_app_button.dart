@@ -59,12 +59,56 @@ class _InstallAppButtonState extends State<InstallAppButton> {
       case 'dismissed':
         break;
       default:
-        // เบราว์เซอร์นี้ติดตั้งเองไม่ได้ (เช่น Firefox, Safari บน Mac) หรือ
-        // ติดตั้งไว้แล้วในเบราว์เซอร์นี้
-        _snack(_isMobile
-            ? 'เบราว์เซอร์นี้เพิ่มลงหน้าจอโฮมให้ไม่ได้ — เปิดลิงก์ใน Chrome แล้วกดอีกครั้ง'
-            : 'เบราว์เซอร์นี้ติดตั้งให้ไม่ได้ หรือติดตั้งไว้แล้ว — ใช้ Chrome หรือ Edge');
+        if (_info['installed'] == true) {
+          setState(() => _done = true);
+          _snack('ติดตั้งไว้ในเครื่องนี้แล้ว — เปิดจากไอคอน "ระบบวันลา" ได้เลย');
+          return;
+        }
+        // Chrome ไม่ส่งสิทธิ์เปิดหน้าต่างติดตั้งมา: ติดตั้งไว้แล้ว (เช็กไม่ได้ทุกเครื่อง)
+        // เคยกดปิดหน้าต่างติดตั้ง หรือเป็นเบราว์เซอร์ที่ไม่รองรับ (Firefox, Safari)
+        _manualInstallSheet();
     }
+  }
+
+  /// สำรองเมื่อเบราว์เซอร์ไม่ยอมให้ปุ่มเปิดหน้าต่างติดตั้งเอง
+  void _manualInstallSheet() {
+    final mobile = _isMobile;
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('ติดตั้งจากปุ่มนี้ไม่ได้ตอนนี้',
+                  style: GoogleFonts.sarabun(
+                      fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text(
+                  'มักเกิดเมื่อเครื่องนี้ติดตั้งไว้แล้ว หรือเคยกดปิดหน้าต่างติดตั้งไป',
+                  style: GoogleFonts.sarabun(
+                      fontSize: 13, color: Colors.blueGrey)),
+              const SizedBox(height: 16),
+              _iosStep(Icons.apps_rounded, 'ถ้าติดตั้งไว้แล้ว',
+                  mobile
+                      ? 'หาไอคอน "ระบบวันลา" ที่หน้าจอโฮม'
+                      : 'หาไอคอน "ระบบวันลา" ที่เดสก์ท็อปหรือเมนู Start'),
+              const SizedBox(height: 12),
+              _iosStep(
+                  mobile ? Icons.more_vert : Icons.install_desktop_rounded,
+                  'ถ้ายังไม่ได้ติดตั้ง',
+                  mobile
+                      ? 'แตะ ⋮ มุมขวาบนของ Chrome > "เพิ่มลงในหน้าจอหลัก"'
+                      : 'คลิกไอคอนติดตั้งท้ายช่องที่อยู่เว็บ หรือ ⋮ > '
+                          '"ส่ง บันทึก และแชร์" > "ติดตั้งหน้าเว็บเป็นแอป"'),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _snack(String text) => ScaffoldMessenger.of(context)
