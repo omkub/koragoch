@@ -5017,157 +5017,324 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     final start = page * pageSize;
     final end = (start + pageSize).clamp(0, users.length);
     final pageUsers = users.sublist(start, end);
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(24)),
-      child: Column(children: [
-        _buildUserListHeader(users),
-        const SizedBox(height: 16),
-        if (users.any((u) => u['forgotPasswordStatus'] == 'waiting'))
-          _buildEmergencyAlertBar(users
-              .where((u) => u['forgotPasswordStatus'] == 'waiting')
-              .length),
-        Expanded(child: LayoutBuilder(builder: (context, constraints) {
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SizedBox(
-              width: constraints.maxWidth < 1200 ? 1200 : constraints.maxWidth,
-              child: Column(children: [
-                _buildUsersTableHeader(),
-                const Divider(height: 1),
-                Expanded(
-                    child: users.isEmpty
-                        ? const Center(child: Text('ไม่พบผู้ใช้งาน'))
-                        : Scrollbar(
-                            controller: _scrollController,
-                            thumbVisibility: true,
-                            child: ListView.builder(
-                              controller: _scrollController,
-                              itemCount: pageUsers.length,
-                              itemBuilder: (context, index) =>
-                                  _buildUsersTableRow(pageUsers[index]),
-                            ),
-                          )),
-              ]),
-            ),
-          );
-        })),
-        const Divider(height: 24),
-        SizedBox(
-          width: double.infinity,
-          child: Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 16,
-            runSpacing: 12,
-            children: [
-              Row(mainAxisSize: MainAxisSize.min, children: [
-                const Text('แสดงต่อหน้า'),
-                const SizedBox(width: 12),
-                DropdownButton<int>(
-                  value: _usersPageSize,
-                  items: const [
-                    DropdownMenuItem(value: 10, child: Text('10')),
-                    DropdownMenuItem(value: 15, child: Text('15')),
-                    DropdownMenuItem(value: 20, child: Text('20')),
-                    DropdownMenuItem(value: 25, child: Text('25')),
-                    DropdownMenuItem(value: 0, child: Text('ทั้งหมด')),
-                  ],
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() => _usersPageSize = value);
-                    _changeUsersPage(0);
-                  },
-                ),
-              ]),
-              Text(
-                  'แสดง ${users.isEmpty ? 0 : start + 1}–$end จาก ${users.length} รายการ'),
-              Row(mainAxisSize: MainAxisSize.min, children: [
-                IconButton(
-                  tooltip: 'หน้าก่อนหน้า',
-                  onPressed: page > 0 ? () => _changeUsersPage(page - 1) : null,
-                  icon: const Icon(Icons.chevron_left),
-                ),
-                Text('หน้า ${page + 1} / $pageCount'),
-                IconButton(
-                  tooltip: 'หน้าถัดไป',
-                  onPressed: page + 1 < pageCount
-                      ? () => _changeUsersPage(page + 1)
-                      : null,
-                  icon: const Icon(Icons.chevron_right),
-                ),
-              ]),
-            ],
+    final waitingCount =
+        users.where((u) => u['forgotPasswordStatus'] == 'waiting').length;
+
+    return LayoutBuilder(builder: (context, box) {
+      // จอแคบ (มือถือ): การ์ดทีละคนแทนตารางกว้าง 1,200px — เดิมส่วนหัว/ท้าย
+      // ตัดหลายบรรทัดจนกินความสูงหมด รายชื่อเลยไม่เหลือที่แสดง
+      final narrow = box.maxWidth < 700;
+      return Container(
+        padding: EdgeInsets.all(narrow ? 14 : 24),
+        decoration: BoxDecoration(
+            color: Colors.white, borderRadius: BorderRadius.circular(24)),
+        child: Column(children: [
+          _buildUserListHeader(users, narrow),
+          SizedBox(height: narrow ? 10 : 16),
+          if (waitingCount > 0) _buildEmergencyAlertBar(waitingCount),
+          Expanded(
+            child: users.isEmpty
+                ? const Center(child: Text('ไม่พบผู้ใช้งาน'))
+                : narrow
+                    ? Scrollbar(
+                        controller: _scrollController,
+                        child: ListView.separated(
+                          controller: _scrollController,
+                          itemCount: pageUsers.length,
+                          separatorBuilder: (_, __) => const Divider(
+                              height: 1, color: Color(0xFFF1F5F9)),
+                          itemBuilder: (context, index) =>
+                              _buildUserCard(pageUsers[index]),
+                        ),
+                      )
+                    : LayoutBuilder(builder: (context, constraints) {
+                        return SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: SizedBox(
+                            width: constraints.maxWidth < 1200
+                                ? 1200
+                                : constraints.maxWidth,
+                            child: Column(children: [
+                              _buildUsersTableHeader(),
+                              const Divider(height: 1),
+                              Expanded(
+                                child: Scrollbar(
+                                  controller: _scrollController,
+                                  thumbVisibility: true,
+                                  child: ListView.builder(
+                                    controller: _scrollController,
+                                    itemCount: pageUsers.length,
+                                    itemBuilder: (context, index) =>
+                                        _buildUsersTableRow(pageUsers[index]),
+                                  ),
+                                ),
+                              ),
+                            ]),
+                          ),
+                        );
+                      }),
           ),
+          Divider(height: narrow ? 16 : 24),
+          _buildUserPager(users.length, start, end, page, pageCount, narrow),
+        ]),
+      );
+    });
+  }
+
+  /// แถบเลื่อนหน้า — มือถือรวมเป็นบรรทัดเดียว
+  Widget _buildUserPager(
+      int total, int start, int end, int page, int pageCount, bool narrow) {
+    final pageSizeDropdown = DropdownButton<int>(
+      value: _usersPageSize,
+      isDense: true,
+      underline: const SizedBox.shrink(),
+      items: const [
+        DropdownMenuItem(value: 10, child: Text('10')),
+        DropdownMenuItem(value: 15, child: Text('15')),
+        DropdownMenuItem(value: 20, child: Text('20')),
+        DropdownMenuItem(value: 25, child: Text('25')),
+        DropdownMenuItem(value: 0, child: Text('ทั้งหมด')),
+      ],
+      onChanged: (value) {
+        if (value == null) return;
+        setState(() => _usersPageSize = value);
+        _changeUsersPage(0);
+      },
+    );
+    final nav = Row(mainAxisSize: MainAxisSize.min, children: [
+      IconButton(
+        tooltip: 'หน้าก่อนหน้า',
+        visualDensity: VisualDensity.compact,
+        onPressed: page > 0 ? () => _changeUsersPage(page - 1) : null,
+        icon: const Icon(Icons.chevron_left),
+      ),
+      Text('หน้า ${page + 1} / $pageCount',
+          style: GoogleFonts.sarabun(fontSize: narrow ? 13 : 14)),
+      IconButton(
+        tooltip: 'หน้าถัดไป',
+        visualDensity: VisualDensity.compact,
+        onPressed:
+            page + 1 < pageCount ? () => _changeUsersPage(page + 1) : null,
+        icon: const Icon(Icons.chevron_right),
+      ),
+    ]);
+
+    if (narrow) {
+      return Row(children: [
+        Text('ต่อหน้า ', style: GoogleFonts.sarabun(fontSize: 13)),
+        pageSizeDropdown,
+        const Spacer(),
+        nav,
+      ]);
+    }
+    return SizedBox(
+      width: double.infinity,
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 16,
+        runSpacing: 12,
+        children: [
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            const Text('แสดงต่อหน้า'),
+            const SizedBox(width: 12),
+            pageSizeDropdown,
+          ]),
+          Text('แสดง ${total == 0 ? 0 : start + 1}–$end จาก $total รายการ'),
+          nav,
+        ],
+      ),
+    );
+  }
+
+  /// ส่วนหัวรายชื่อ: ชื่อ + จำนวน (+ รีเฟรช) แล้วแถวเดียว: ค้นหา · พ้นสภาพ · เพิ่มผู้ใช้
+  Widget _buildUserListHeader(List<Map<String, dynamic>> users, bool narrow) {
+    final search = TextField(
+      onChanged: (value) {
+        setState(() => _searchText = value);
+        _changeUsersPage(0);
+      },
+      decoration: InputDecoration(
+        hintText: narrow ? 'ค้นหา' : 'ค้นหา ID ชื่อ หรือ username',
+        prefixIcon: const Icon(Icons.search, size: 18),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+      style: GoogleFonts.sarabun(fontSize: 13),
+    );
+    final inactiveChip = FilterChip(
+      label: Text(
+          narrow ? 'พ้นสภาพ ($_inactiveCount)' : 'แสดงคนพ้นสภาพ ($_inactiveCount)',
+          style: GoogleFonts.sarabun(fontSize: 12)),
+      tooltip: 'แสดงคนที่ลาออก / เกษียณ / ย้าย (ปกติซ่อนไว้)',
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      selected: _showInactive,
+      onSelected: (v) {
+        setState(() => _showInactive = v);
+        _changeUsersPage(0);
+      },
+    );
+    final addButton = narrow
+        ? IconButton.filled(
+            tooltip: 'เพิ่มผู้ใช้ใหม่',
+            onPressed: () => _openUserForm(),
+            style: IconButton.styleFrom(backgroundColor: primaryColor),
+            icon: const Icon(Icons.person_add_alt_1, size: 20),
+          )
+        : FilledButton.icon(
+            onPressed: () => _openUserForm(),
+            icon: const Icon(Icons.person_add_alt_1, size: 18),
+            label: const Text('เพิ่มผู้ใช้ใหม่'),
+            style: FilledButton.styleFrom(backgroundColor: primaryColor),
+          );
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('รายชื่อผู้ใช้งาน',
+                style: GoogleFonts.sarabun(
+                    fontSize: narrow ? 17 : 18, fontWeight: FontWeight.bold)),
+            Text('แสดง ${users.length} คน',
+                style:
+                    GoogleFonts.sarabun(fontSize: 12, color: Colors.blueGrey)),
+          ]),
+        ),
+        IconButton(
+            tooltip: 'รีเฟรช',
+            onPressed: _refreshUsers,
+            icon: const Icon(Icons.refresh)),
+      ]),
+      const SizedBox(height: 10),
+      Row(children: [
+        if (narrow)
+          Expanded(child: search)
+        else
+          SizedBox(width: 260, child: search),
+        const SizedBox(width: 8),
+        inactiveChip,
+        const SizedBox(width: 8),
+        if (!narrow) const Spacer(),
+        addButton,
+      ]),
+    ]);
+  }
+
+  /// การ์ดผู้ใช้บนมือถือ — ปุ่มจัดการรวมไว้ในเมนู ⋮
+  Widget _buildUserCard(Map<String, dynamic> user) {
+    final waiting = user['forgotPasswordStatus'] == 'waiting';
+    final active = StaffStatus.isActive(user);
+    final name = (user['fullName'] ?? user['name'] ?? '').toString();
+    final key = (user['id_user'] ?? user['id'] ?? '').toString();
+    final revealed = _revealedPasswords[key];
+    final role = (user['permission'] ?? user['role'] ?? '').toString();
+    final dept = (user['department'] ?? '').toString();
+    final details = [
+      (user['username'] ?? '').toString(),
+      role,
+      dept,
+    ].where((s) => s.trim().isNotEmpty && s != '-').join(' · ');
+
+    return Container(
+      color: waiting
+          ? Colors.orange.shade50
+          : active
+              ? null
+              : const Color(0xFFF8FAFC),
+      padding: const EdgeInsets.fromLTRB(4, 10, 0, 10),
+      child: Row(children: [
+        _buildUserProfilePhoto(user),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(name.isEmpty ? '-' : name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.sarabun(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: active ? const Color(0xFF0F172A) : Colors.blueGrey)),
+            if (details.isNotEmpty)
+              Text(details,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style:
+                      GoogleFonts.sarabun(fontSize: 12, color: Colors.blueGrey)),
+            if (!active || waiting || revealed != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Wrap(spacing: 6, runSpacing: 4, children: [
+                  if (!active) _userBadge(_employmentStatusText(user), Colors.blueGrey),
+                  if (waiting) _userBadge('ขอรีเซ็ตรหัสผ่าน', Colors.orange.shade800),
+                  if (revealed != null) _userBadge('รหัส: $revealed', Colors.green.shade800),
+                ]),
+              ),
+          ]),
+        ),
+        PopupMenuButton<String>(
+          tooltip: 'จัดการ',
+          icon: const Icon(Icons.more_vert),
+          onSelected: (action) {
+            switch (action) {
+              case 'edit':
+                _openUserForm(user: user);
+              case 'status':
+                _editEmploymentStatus(user);
+              case 'reset':
+                _enablePasswordReset(user);
+              case 'password':
+                if (revealed != null) {
+                  setState(() => _revealedPasswords.remove(key));
+                } else {
+                  _showViewPasswordDialog(user);
+                }
+              case 'delete':
+                _deleteUser(user);
+            }
+          },
+          itemBuilder: (_) => [
+            _userMenuItem('edit', Icons.edit_outlined, 'แก้ไข', Colors.blue),
+            _userMenuItem(
+                'status',
+                active ? Icons.person_off_outlined : Icons.settings_backup_restore,
+                active ? 'พ้นสภาพ (ลาออก / เกษียณ / ย้าย)' : 'แก้สถานะ',
+                active ? Colors.blueGrey : Colors.teal),
+            _userMenuItem('reset', Icons.lock_reset,
+                waiting ? 'อนุมัติรีเซ็ตรหัสผ่าน' : 'รีเซ็ตรหัสผ่าน', Colors.orange.shade800),
+            _userMenuItem(
+                'password',
+                revealed == null ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                revealed == null ? 'ดูรหัสผ่าน' : 'ซ่อนรหัสผ่าน',
+                Colors.blueGrey),
+            _userMenuItem('delete', Icons.delete_outline, 'ลบข้อมูล', Colors.red),
+          ],
         ),
       ]),
     );
   }
 
-  Widget _buildUserListHeader(List<Map<String, dynamic>> users) {
-    return SizedBox(
-        width: double.infinity,
-        child: Wrap(
-          spacing: 24,
-          runSpacing: 16,
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('รายชื่อผู้ใช้งาน',
-                  style: GoogleFonts.sarabun(
-                      fontSize: 18, fontWeight: FontWeight.bold)),
-              Text('แสดง ${users.length} คน',
-                  style: GoogleFonts.sarabun(
-                      fontSize: 12, color: Colors.blueGrey)),
-            ]),
-            Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  SizedBox(
-                      width: 230,
-                      child: TextField(
-                        onChanged: (value) {
-                          setState(() => _searchText = value);
-                          _changeUsersPage(0);
-                        },
-                        decoration: InputDecoration(
-                          hintText: 'ค้นหา ID ชื่อ หรือ username',
-                          prefixIcon: const Icon(Icons.search, size: 18),
-                          isDense: true,
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10)),
-                        ),
-                        style: GoogleFonts.sarabun(fontSize: 12),
-                      )),
-                  FilterChip(
-                    label: Text('แสดงคนพ้นสภาพ ($_inactiveCount)',
-                        style: GoogleFonts.sarabun(fontSize: 12)),
-                    tooltip: 'คนที่ลาออก / เกษียณ / ย้าย (ปกติซ่อนไว้)',
-                    selected: _showInactive,
-                    onSelected: (v) {
-                      setState(() => _showInactive = v);
-                      _changeUsersPage(0);
-                    },
-                  ),
-                  FilledButton.icon(
-                    onPressed: () => _openUserForm(),
-                    icon: const Icon(Icons.person_add_alt_1, size: 18),
-                    label: const Text('เพิ่มผู้ใช้ใหม่'),
-                    style:
-                        FilledButton.styleFrom(backgroundColor: primaryColor),
-                  ),
-                  IconButton(
-                      tooltip: 'รีเฟรช',
-                      onPressed: _refreshUsers,
-                      icon: const Icon(Icons.refresh)),
-                ]),
-          ],
-        ));
-  }
+  Widget _userBadge(String text, Color color) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(20)),
+        child: Text(text,
+            style: GoogleFonts.sarabun(
+                fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+      );
+
+  PopupMenuItem<String> _userMenuItem(
+          String value, IconData icon, String label, Color color) =>
+      PopupMenuItem(
+        value: value,
+        child: Row(children: [
+          Icon(icon, size: 20, color: color),
+          const SizedBox(width: 12),
+          Text(label, style: GoogleFonts.sarabun()),
+        ]),
+      );
 
   Widget _userTableCell(String value, int flex, {bool heading = false}) {
     return Expanded(
