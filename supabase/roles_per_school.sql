@@ -270,6 +270,10 @@ begin
       raise exception 'ยังมีบุคลากร % คนใช้สิทธิ์ "%" อยู่ — เปลี่ยนสิทธิ์ของคนเหล่านั้นก่อนแล้วค่อยลบ',
         users_count, old."Accessrights";
     end if;
+    -- เมนูที่เห็นของสิทธิ์นี้ ลบก่อนตัวสิทธิ์ — FK ของสองตารางนี้เดิมไม่ cascade
+    -- (ดู roles_delete_fix.sql)
+    delete from "Permissions" where id_role = old."ID_Roles";
+    delete from "MobilePermissions" where id_role = old."ID_Roles";
     return old;
   end if;
 

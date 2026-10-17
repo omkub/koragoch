@@ -3825,6 +3825,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     return 0;
   }
 
+  /// ข้อความ error ที่อ่านรู้เรื่อง — ฐานข้อมูลส่งเหตุผลภาษาไทยมาใน message แล้ว
+  String _dbError(Object e) => e is PostgrestException
+      ? e.message
+      : e.toString().replaceFirst('Exception: ', '');
+
   Future<void> _renameMasterItem(String oldValue, String newValue) async {
     final collection = _masterCollectionForCurrentTab();
     if (collection.isEmpty) return;
@@ -3949,7 +3954,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('แก้ไขไม่สำเร็จ: $e'),
+          content: Text('แก้ไขไม่สำเร็จ: ${_dbError(e)}'),
           backgroundColor: Colors.red,
         ));
       }
@@ -4285,7 +4290,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                                           .showSnackBar(
                                                               SnackBar(
                                                         content: Text(
-                                                            'ลบไม่สำเร็จ: $e'),
+                                                            'ลบไม่สำเร็จ: ${_dbError(e)}'),
                                                         backgroundColor:
                                                             Colors.red,
                                                       ));
@@ -4371,7 +4376,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       } catch (e) {
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text('ล้มเหลว: $e'),
+                            content: Text('ล้มเหลว: ${_dbError(e)}'),
                             backgroundColor: Colors.red,
                           ));
                         }
