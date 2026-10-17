@@ -9,6 +9,7 @@ import {
   type School,
 } from '../supabase';
 import MenuVisibilityPanel from './MenuVisibilityPanel';
+import RoleListPanel from './RoleListPanel';
 import { Notice, PageHeader } from '../ui/components';
 import PermMatrix, { SaveBar } from '../ui/PermMatrix';
 
@@ -24,7 +25,7 @@ const cellKey = (role: number, item: string) => `${role}:${item}`;
  * แม้เคยเปิดรายคนไว้ก็ตาม
  */
 export default function RolePermissionsPage() {
-  const [tab, setTab] = useState<'ceiling' | 'menus'>('ceiling');
+  const [tab, setTab] = useState<'ceiling' | 'menus' | 'roles'>('ceiling');
   const [schools, setSchools] = useState<School[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [items, setItems] = useState<PermissionItem[]>([]);
@@ -52,6 +53,14 @@ export default function RolePermissionsPage() {
       if (s.data?.length) setSchoolId((s.data[0] as School).id_school);
     })();
   }, []);
+
+  async function loadRoles() {
+    const { data, error } = await supabase
+      .from('roles')
+      .select('ID_Roles, Accessrights, id_school')
+      .order('ID_Roles');
+    if (!error) setRoles(data as Role[]);
+  }
 
   async function loadGrid(id: number) {
     const { data, error } = await supabase
@@ -112,7 +121,7 @@ export default function RolePermissionsPage() {
   const countFor = (role: number) =>
     items.filter((i) => grid[cellKey(role, i.key)]).length;
 
-  function switchTab(next: 'ceiling' | 'menus') {
+  function switchTab(next: 'ceiling' | 'menus' | 'roles') {
     if (next === tab) return;
     if (tab === 'ceiling' && changed.length && !confirm('ยังไม่ได้บันทึกเพดานที่แก้ไว้ — ทิ้งการแก้?')) return;
     if (tab === 'ceiling') setGrid(saved);
@@ -126,6 +135,9 @@ export default function RolePermissionsPage() {
       </button>
       <button className={tab === 'menus' ? 'active' : ''} onClick={() => switchTab('menus')}>
         การมองเห็นเมนู
+      </button>
+      <button className={tab === 'roles' ? 'active' : ''} onClick={() => switchTab('roles')}>
+        รายชื่อสิทธิ์
       </button>
     </div>
   );
@@ -147,6 +159,33 @@ export default function RolePermissionsPage() {
       ))}
     </select>
   );
+
+  if (tab === 'roles') {
+    return (
+      <>
+        <PageHeader
+          title="เพดานสิทธิ์"
+          description="สิทธิ์ที่โรงเรียนที่เลือกใช้ได้ — เพิ่ม / เปลี่ยนชื่อ / ลบ สิทธิ์ที่โรงเรียนนั้นใช้เอง"
+          actions={
+            <>
+              {tabs}
+              {schoolPicker}
+            </>
+          }
+        />
+        {schoolId !== null && (
+          <RoleListPanel
+            roles={schoolRoles}
+            schoolId={schoolId}
+            onChanged={async () => {
+              await loadRoles();
+              await loadGrid(schoolId);
+            }}
+          />
+        )}
+      </>
+    );
+  }
 
   if (tab === 'menus') {
     return (
