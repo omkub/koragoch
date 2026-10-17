@@ -41,7 +41,9 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
           }
 
           final allUsers = snapshot.data ?? [];
-          final users = allUsers.where((u) => u['fullName'] != 'ผู้ดูแลระบบ' && (u['role'] ?? u['permission']) != 'ผู้ดูแลระบบ').toList();
+          // ครูที่มีสิทธิ์ผู้ดูแลระบบเป็นบุคลากรจริง ต้องอยู่ในกลุ่มสาระของตัวเองด้วย
+          // ซ่อนเฉพาะบัญชีกลางชื่อ "ผู้ดูแลระบบ" (ไม่ใช่คน) — ส่วนกลางถูกกรองแล้วใน getActiveUsers
+          final users = allUsers.where((u) => u['fullName'] != 'ผู้ดูแลระบบ').toList();
           
           if (users.isEmpty) {
             return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
