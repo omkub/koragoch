@@ -4,6 +4,7 @@
 --  วิธีรัน: Supabase Dashboard > SQL Editor > วางทั้งไฟล์ > Run
 --  รันซ้ำได้ ไม่พัง  ต้องรันก่อนแล้ว: multi_school_step3_rls.sql,
 --  fine_permissions.sql, official_trips_permissions.sql, school_mobile_ui_by_role.sql
+--  ⚠️ ถ้ารัน teacher_role_per_school.sql แล้ว ห้ามรันไฟล์นี้ซ้ำ (seed_new_role จะกลับเป็นแบบเก่า)
 --
 --  1) roles (สิทธิ์การเข้าถึง)
 --     id_school ว่าง  = สิทธิ์หลักของระบบ ใช้ทุกโรงเรียน (ผู้ดูแลระบบ 22 / ครู 23 /

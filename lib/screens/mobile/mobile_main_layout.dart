@@ -73,8 +73,8 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
   List<int> _defaultAllowedMenus() {
     final allowed = _isAdmin
         ? [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, -1]
-        : [0, 2, 3, 9, 10, -1];
-    if (_userRole.contains('ครู')) allowed.remove(0);
+        // โหลดสิทธิ์ไม่ได้: สรุปผลเฉพาะผู้บริหาร (สิทธิ์อื่นตั้งที่หน้ากำหนดสิทธิ์)
+        : [if (_userRole.contains('ผู้บริหาร')) 0, 2, 3, 9, 10, -1];
     if (!_attendanceEnabled) allowed.remove(10);
     return allowed;
   }
@@ -126,7 +126,6 @@ class _MobileMainLayoutState extends State<MobileMainLayout> {
     }
 
     if (_isAdmin && !allowed.contains(4)) allowed.add(4);
-    if (_userRole.contains('ครู')) allowed.remove(0);
     if (!_attendanceEnabled) allowed.remove(10);
     allowed.sort((a, b) {
       if (a == -1) return 1;
