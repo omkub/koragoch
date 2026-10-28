@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import '../utils/web_platform.dart' as platform;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
+import '../utils/admin_position.dart';
 import '../utils/staff_status.dart';
 import '../utils/teacher_sort.dart';
 import '../widgets/leave_form_data.dart';
@@ -1104,7 +1105,11 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
   String _getPositionAndDept(Map<String, dynamic> teacher) {
     final pos = (teacher['position'] ?? '-').toString();
     final dept = (teacher['department'] ?? '').toString().trim();
-    final base = (dept.isEmpty || dept == '-') ? pos : '$pos ($dept)';
+    final withDept = (dept.isEmpty || dept == '-') ? pos : '$pos ($dept)';
+    // ตำแหน่งบริหารที่ดำรงในรอบที่ดูอยู่ — ไม่ใช่ตำแหน่งวันนี้ ดูรายงานปีก่อน
+    // ต้องเห็น ผอ. ของปีนั้น เปลี่ยนกลางรอบจะมีวันที่กำกับ
+    final admin = _adminPositionInRound(teacher);
+    final base = admin.isEmpty ? withDept : '$withDept · $admin';
     // คนพ้นสภาพที่ยังอยู่ในรายงานปีงบนั้น — บอกให้รู้ว่าตอนนี้ไม่อยู่แล้ว
     if (teacher['isShadow'] == true || StaffStatus.isActive(teacher)) {
       return base;
@@ -1114,6 +1119,26 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
         ? ''
         : ' ${FirebaseService.formatThaiDate(left)}';
     return '$base · ${StaffStatus.label(StaffStatus.statusOf(teacher))}$when';
+  }
+
+  /// ตำแหน่งบริหารในช่วงของรอบที่ดูอยู่ ('' = ไม่มี / ไม่มีประวัติและไม่ใช่รอบปัจจุบัน)
+  String _adminPositionInRound(Map<String, dynamic> teacher) {
+    if (teacher['isShadow'] == true) return '';
+    final round = _selectedRound ?? _activeRound;
+    final start = LeaveFormData.parseDate(round?['startDate']);
+    final end = LeaveFormData.parseDate(round?['endDate']);
+    if (start == null || end == null) return '';
+    final from = DateTime(start.year, start.month, start.day);
+    final until = DateTime(end.year, end.month, end.day + 1);
+    if (AdminPosition.historyOf(teacher).isEmpty) {
+      // ไม่มีประวัติ รู้แค่ตำแหน่งวันนี้ — แสดงเฉพาะรอบที่ครอบวันนี้
+      // (รอบเก่าอาจเป็นคนอื่น แสดงไปจะผิด)
+      final now = DateTime.now();
+      final inRound = !now.isBefore(from) && now.isBefore(until);
+      return inRound ? AdminPosition.positionOn(teacher, now) : '';
+    }
+    return AdminPosition.describeDuring(teacher, from, until,
+        formatDate: FirebaseService.formatThaiDate);
   }
 
   Widget _buildValueCell(String v1, String v2,

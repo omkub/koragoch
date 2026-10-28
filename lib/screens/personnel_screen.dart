@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/firebase_service.dart';
+import '../services/official_trip_service.dart';
+import '../utils/admin_position.dart';
 import '../utils/profile_image.dart';
 import '../utils/teacher_sort.dart';
 
@@ -200,6 +202,15 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
           ],
         ),
         const Spacer(),
+        TextButton.icon(
+          onPressed: () => showDialog<void>(
+            context: context,
+            builder: (_) => const AdminRosterDialog(),
+          ),
+          icon: const Icon(Icons.history_edu_rounded, size: 20),
+          label: Text(isMobile ? 'ทำเนียบ' : 'ทำเนียบผู้บริหาร',
+              style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+        ),
         IconButton(
             onPressed: () => setState(() {}),
             icon: const Icon(Icons.refresh, color: Colors.black)),
@@ -325,5 +336,139 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
           style: GoogleFonts.sarabun(
               fontSize: 12, color: c, fontWeight: FontWeight.bold)),
     );
+  }
+}
+
+/// ทำเนียบผู้บริหาร — ใครดำรงตำแหน่งบริหารอะไร ในปีงบประมาณไหน
+///
+/// โหลดรายชื่อทุกคนรวมคนที่พ้นสภาพแล้ว เพราะผู้บริหารปีก่อนๆ
+/// ส่วนใหญ่ย้าย/เกษียณไปแล้ว ถ้าใช้รายชื่อที่ยังทำงานอยู่จะหายหมด
+class AdminRosterDialog extends StatefulWidget {
+  const AdminRosterDialog({super.key});
+
+  @override
+  State<AdminRosterDialog> createState() => _AdminRosterDialogState();
+}
+
+class _AdminRosterDialogState extends State<AdminRosterDialog> {
+  final _service = FirebaseService();
+  late final Future<List<Map<String, dynamic>>> _users =
+      _service.getUsersFromSupabase();
+  final int _currentYear = OfficialTripService.fiscalYearOf(DateTime.now());
+  late int _year = _currentYear;
+
+  @override
+  Widget build(BuildContext context) {
+    final years = [for (var y = _currentYear; y > _currentYear - 6; y--) y];
+    // ปีงบ พ.ศ. 2570 = 1 ต.ค. 2569 ถึงก่อน 1 ต.ค. 2570
+    final from = DateTime(_year - 543 - 1, 10, 1);
+    final until = DateTime(_year - 543, 10, 1);
+
+    return AlertDialog(
+      title: Row(children: [
+        Expanded(
+          child: Text('ทำเนียบผู้บริหาร',
+              style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+        ),
+        DropdownButton<int>(
+          value: _year,
+          underline: const SizedBox.shrink(),
+          items: [
+            for (final y in years)
+              DropdownMenuItem(
+                  value: y,
+                  child: Text('ปีงบ $y', style: GoogleFonts.sarabun())),
+          ],
+          onChanged: (v) => setState(() => _year = v ?? _year),
+        ),
+      ]),
+      content: SizedBox(
+        width: 560,
+        child: FutureBuilder<List<Map<String, dynamic>>>(
+          future: _users,
+          builder: (context, snap) {
+            if (snap.connectionState != ConnectionState.done) {
+              return const SizedBox(
+                  height: 120,
+                  child: Center(child: CircularProgressIndicator()));
+            }
+            final users = snap.data ?? const [];
+            final hasHistory =
+                users.any((u) => AdminPosition.historyOf(u).isNotEmpty);
+            if (!hasHistory) {
+              return Text(
+                  'ยังไม่ได้เริ่มบันทึกประวัติตำแหน่งบริหาร\n'
+                  '(ผู้ดูแลระบบต้องรัน supabase/admin_position_history.sql ก่อน)',
+                  style: GoogleFonts.sarabun(color: Colors.blueGrey));
+            }
+
+            // ตำแหน่ง → รายชื่อพร้อมช่วงเวลาที่ดำรงในปีงบนี้
+            final byRole = <String, List<String>>{};
+            for (final u in users) {
+              final name = (u['fullName'] ?? '').toString().trim();
+              if (name.isEmpty) continue;
+              for (final p in AdminPosition.historyOf(u)) {
+                final text = AdminPosition.describeDuring(
+                  {...u, 'adminPositionHistory': [p.toMap()]},
+                  from,
+                  until,
+                  formatDate: FirebaseService.formatThaiDate,
+                );
+                if (text.isEmpty) continue;
+                // describeDuring คืน "ตำแหน่ง (ช่วงวันที่)" — แยกชื่อตำแหน่งออกไปเป็นหัวข้อ
+                final detail = text.substring(p.role.length).trim();
+                byRole
+                    .putIfAbsent(p.role, () => [])
+                    .add(detail.isEmpty ? name : '$name $detail');
+              }
+            }
+            if (byRole.isEmpty) {
+              return Text('ไม่มีผู้ดำรงตำแหน่งบริหารในปีงบ $_year',
+                  style: GoogleFonts.sarabun(color: Colors.blueGrey));
+            }
+            final roles = byRole.keys.toList()
+              ..sort((a, b) => _roleRank(a).compareTo(_roleRank(b)) != 0
+                  ? _roleRank(a).compareTo(_roleRank(b))
+                  : a.compareTo(b));
+
+            return SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final role in roles) ...[
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10, bottom: 2),
+                      child: Text(role,
+                          style: GoogleFonts.sarabun(
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF0F172A))),
+                    ),
+                    for (final line in byRole[role]!)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 12, top: 2),
+                        child: Text('• $line',
+                            style: GoogleFonts.sarabun(
+                                fontSize: 13.5, color: Colors.blueGrey.shade800)),
+                      ),
+                  ],
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('ปิด')),
+      ],
+    );
+  }
+
+  /// ผู้อำนวยการก่อน แล้วรองผู้อำนวยการ แล้วตำแหน่งอื่น
+  static int _roleRank(String role) {
+    if (role.contains('ผู้อำนวยการ') && !role.contains('รอง')) return 0;
+    if (role.contains('รอง')) return 1;
+    return 2;
   }
 }

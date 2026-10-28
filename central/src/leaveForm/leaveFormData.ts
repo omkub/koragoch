@@ -303,6 +303,78 @@ function sequenceDate(leave: Row): DartDate | null {
  * ไม่เชื่อช่อง year ก่อน: ฟอร์มรุ่นเก่าใส่ปี พ.ศ. ของวันที่ยื่น ใบลาช่วง ต.ค.–ธ.ค.
  * จึงได้ปีงบก่อนหน้า ตารางสถิติเลยนับใบลาปีงบเก่ารวมเข้ามา
  */
+// ── ตำแหน่งบริหาร ณ วันที่ใดๆ — lib/utils/admin_position.dart (AdminPosition) ──
+
+/** วันที่เป็นตัวเลข ปปปปดดวว ใช้เทียบก่อน/หลัง */
+const dayKey = (y: number, m: number, d: number) => y * 10000 + m * 100 + d;
+
+/** 'YYYY-MM-DD...' → ตัวเลขวัน (DateTime.tryParse แล้วตัดเวลา) */
+function isoDayKey(v: unknown): number | null {
+  const m = s(v).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? dayKey(Number(m[1]), Number(m[2]), Number(m[3])) : null;
+}
+
+const NO_ADMIN_POSITION = 'ไม่มีตำแหน่งบริหาร';
+const isNoAdminPosition = (v: string) => {
+  const t = v.trim();
+  return !t || t === NO_ADMIN_POSITION || t === '-';
+};
+
+interface AdminPeriod {
+  role: string;
+  start: number | null;
+  end: number | null;
+}
+
+/** AdminPosition.historyOf — เรียงจากเก่าไปใหม่ (ไม่มีวันเริ่มมาก่อน) */
+function adminHistoryOf(user: Row): AdminPeriod[] {
+  const raw = user.adminPositionHistory;
+  if (!Array.isArray(raw)) return [];
+  const list: AdminPeriod[] = [];
+  for (const h of raw) {
+    if (!h || typeof h !== 'object') continue;
+    const role = s((h as Row).role).trim();
+    if (!role) continue;
+    list.push({ role, start: isoDayKey((h as Row).start), end: isoDayKey((h as Row).end) });
+  }
+  // Dart List.sort ไม่การันตีลำดับของค่าที่เท่ากัน แต่ประวัติหนึ่งคนไม่มีวันเริ่มซ้ำ
+  return list.sort((a, b) => (a.start === null ? (b.start === null ? 0 : -1) : b.start === null ? 1 : a.start - b.start));
+}
+
+/** AdminPosition.positionOn — ตำแหน่งบริหารของคนนี้ในวันที่ [date] ('' = ไม่มี) */
+export function adminPositionOn(user: Row, date: DartDate): string {
+  const day = dayKey(dYear(date), dMonth(date), dDay(date));
+  const left = isoDayKey(user.left_date);
+  if (left !== null && day >= left) return '';
+  const history = adminHistoryOf(user);
+  if (!history.length) {
+    const current = s(user['ตำแหน่งงานบริหาร']).trim();
+    return isNoAdminPosition(current) ? '' : current;
+  }
+  for (const p of [...history].reverse()) {
+    if ((p.start === null || day >= p.start) && (p.end === null || day < p.end)) return p.role;
+  }
+  return '';
+}
+
+/** AdminPosition.holderOn — ผู้ดำรงตำแหน่ง [title] ในวันที่ [date] */
+export function adminHolderOn(users: Row[], title: string, date: DartDate): Row | null {
+  const norm = (v: string) => v.replace(/\s+/g, '').trim();
+  const target = norm(title);
+  if (!target) return null;
+  const find = (match: (v: string) => boolean) => {
+    for (const u of users) {
+      const role = norm(adminPositionOn(u, date));
+      if (role && match(role)) return u;
+    }
+    return null;
+  };
+  return find((v) => v === target) ?? find((v) => v.includes(target) || target.includes(v));
+}
+
+/** วันนี้แบบ DateTime.now() (เวลาเครื่อง) */
+export const dartNow = (): DartDate => ({ date: new Date(), utc: false });
+
 export function fiscalYearOfLeave(leave: Row): string {
   const start = parseDate(leave.startDateValue) ?? parseDate(leave.startDate);
   if (start) {
@@ -433,19 +505,16 @@ export class LeaveFormData {
   get latestDaysText() { const l = this.latestLeave; return l ? formatLeaveDayCount(l.totalDays) : ''; }
 
   // ── ชื่อผู้บริหารสำหรับช่องเซ็น ──
+  /** วันที่ใช้เลือกผู้ลงนาม = วันที่ส่งใบลา (ยังไม่ส่ง = วันนี้) */
+  get signingDate(): DartDate {
+    return parseDate(this.leaf.timestamp) ?? dartNow();
+  }
+
+  /** ผู้ดำรงตำแหน่ง [adminTitle] ในวันที่ส่งใบลา */
   managerName(adminTitle: string): string {
     if (!this.allUsers.length) return BLANK_SIGNATURE;
-    const norm = (v: string) => v.replace(/\s+/g, '').trim();
-    const target = norm(adminTitle);
-    const find = (match: (v: string) => boolean) =>
-      this.allUsers.find((u) => {
-        const value = str(u['ตำแหน่งงานบริหาร']) ?? '';
-        if (!value) return false;
-        return match(norm(value));
-      }) ?? {};
-    let manager = find((v) => v === target);
-    if (!Object.keys(manager).length) manager = find((v) => v.includes(target) || target.includes(v));
-    const name = (str(manager.fullName) ?? '').trim();
+    const manager = adminHolderOn(this.allUsers, adminTitle, this.signingDate);
+    const name = (str(manager?.fullName) ?? '').trim();
     return name ? `(${name})` : BLANK_SIGNATURE;
   }
 

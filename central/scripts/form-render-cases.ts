@@ -344,9 +344,54 @@ const history: Row[] = [
   { requestId: 'h4', fullName: 'นางสาวไม่มี วิทยฐานะ', leaveType: 'ลาป่วย', year: '2570', startDate: '01/10/2569', endDate: '01/10/2569', totalDays: 1, timestamp: '2026-10-01T08:00:00' },
 ];
 
+// เปลี่ยน ผอ. มีผล 26 ต.ค. 2569 (end = วันแรกที่ไม่ได้ดำรงตำแหน่ง)
+// ผอ. คนเดิมเกษียณวันเดียวกัน — ใบลาที่ยื่นวันที่ 25 ต้องขึ้นคนเดิม วันที่ 26 ขึ้นคนใหม่
+const directorChangeUsers: Row[] = [
+  { fullName: 'นายทดสอบ ระบบ', position: 'ครู', academicStanding: 'ชำนาญการ' },
+  {
+    fullName: 'นายผอ. คนเดิม',
+    ตำแหน่งงานบริหาร: '',
+    employment_status: 'retired',
+    left_date: '2026-10-26',
+    adminPositionHistory: [{ id: 1, role: 'ผู้อำนวยการโรงเรียน', start: null, end: '2026-10-26', note: '' }],
+  },
+  {
+    fullName: 'นายผอ. คนใหม่',
+    ตำแหน่งงานบริหาร: 'ผู้อำนวยการโรงเรียน',
+    adminPositionHistory: [{ id: 2, role: 'ผู้อำนวยการโรงเรียน', start: '2026-10-26', end: null, note: '' }],
+  },
+  {
+    fullName: 'นายรอง ผอ.',
+    ตำแหน่งงานบริหาร: 'รองผู้อำนวยการกลุ่มบริหารงานบุคคล',
+    adminPositionHistory: [{ id: 3, role: 'รองผู้อำนวยการกลุ่มบริหารงานบุคคล', start: null, end: null, note: '' }],
+  },
+];
+
 export function leaveContextCases(): LeaveContextCase[] {
   const school = { namePart1: 'โรงเรียนทดสอบ', namePart2: 'วิทยา', province: 'บุรีรัมย์', district: 'เมือง', affiliation: 'สังกัด สพม.' };
   return [
+    {
+      name: 'เปลี่ยน ผอ. — ยื่นวันสุดท้ายของคนเดิม (25 ต.ค.)',
+      leaf: {
+        requestId: 'd1', fullName: 'นายทดสอบ ระบบ', leaveType: 'ลาป่วย', reason: 'ไข้', year: '2570',
+        startDate: '27/10/2569', endDate: '27/10/2569', totalDays: 1, timestamp: '2026-10-25T16:00:00',
+      },
+      allUsers: directorChangeUsers,
+      allLeaveRequests: [],
+      leaveTypeNames: ['ลาป่วย', 'ลากิจส่วนตัว', 'ลาคลอดบุตร'],
+      schoolRow: school,
+    },
+    {
+      name: 'เปลี่ยน ผอ. — ยื่นวันแรกของคนใหม่ (26 ต.ค.)',
+      leaf: {
+        requestId: 'd2', fullName: 'นายทดสอบ ระบบ', leaveType: 'ลาป่วย', reason: 'ไข้', year: '2570',
+        startDate: '27/10/2569', endDate: '27/10/2569', totalDays: 1, timestamp: '2026-10-26T08:00:00',
+      },
+      allUsers: directorChangeUsers,
+      allLeaveRequests: [],
+      leaveTypeNames: ['ลาป่วย', 'ลากิจส่วนตัว', 'ลาคลอดบุตร'],
+      schoolRow: school,
+    },
     {
       name: 'ใบลาที่ยื่นแล้ว + ประวัติ + ผู้บริหาร',
       leaf: {
@@ -427,6 +472,16 @@ export function tripContextCases(): TripContextCase[] {
         note: 'หมายเหตุ', status: 'อนุมัติ', reportSummary: 'สรุปผล', createdAt: '2026-10-08T10:30:00',
       },
       users: tripUsers,
+      schoolRow: school,
+    },
+    {
+      name: 'ยื่นก่อนเปลี่ยน ผอ. — ผู้อำนวยการคือคนเดิม',
+      trip: {
+        id_trip: 3, id_user: 1, members: [1], title: 'ประชุม', tripType: 'ประชุม', province: 'บุรีรัมย์',
+        startDate: '2026-11-02', endDate: '2026-11-02', isHalfDay: false, totalDays: 1, status: 'รอพิจารณา',
+        createdAt: '2026-10-20T10:00:00',
+      },
+      users: [{ id_user: 1, fullName: 'นายทดสอบ ระบบ', position: 'ครู' }, ...directorChangeUsers.slice(1)],
       schoolRow: school,
     },
     {

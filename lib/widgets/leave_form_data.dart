@@ -10,6 +10,7 @@ library;
 import 'package:flutter/foundation.dart';
 
 import '../services/firebase_service.dart';
+import '../utils/admin_position.dart';
 
 /// หนึ่งแถวของตาราง "สถิติวันลาในปีงบประมาณนี้"
 class LeaveStatRow {
@@ -225,33 +226,20 @@ class LeaveFormData {
 
   static const String blankSignature = '(................................)';
 
-  /// หาชื่อผู้บริหารจากตำแหน่งงานบริหารในทะเบียนบุคลากร
+  /// วันที่ใช้เลือกผู้ลงนาม = วันที่ส่งใบลา (ยังไม่ส่ง = วันนี้)
+  ///
+  /// ผู้ลงนามคือคนที่ดำรงตำแหน่งตอนเขียนใบลา — เปลี่ยน ผอ. ไปแล้ว
+  /// พิมพ์ใบลาเก่าซ้ำก็ยังต้องขึ้นชื่อ ผอ. คนที่ดำรงตำแหน่งตอนนั้น
+  DateTime get signingDate => parseDate(leaf['timestamp']) ?? DateTime.now();
+
+  /// หาชื่อผู้บริหารที่ดำรงตำแหน่ง [adminTitle] ในวันที่ส่งใบลา
   ///
   /// เทียบแบบไม่สนช่องว่าง และยอมให้ชื่อในฐานยาวกว่า/สั้นกว่าได้
   /// เช่น 'ผู้อำนวยการโรงเรียน' กับ 'ผู้อำนวยการโรงเรียนรมย์บุรีพิทยาคม'
   String managerName(String adminTitle) {
     if (allUsers.isEmpty) return blankSignature;
-
-    String norm(String v) => v.replaceAll(RegExp(r'\s+'), '').trim();
-    final target = norm(adminTitle);
-
-    Map<String, dynamic> find(bool Function(String) match) {
-      return allUsers.firstWhere(
-        (u) {
-          final value = u['ตำแหน่งงานบริหาร']?.toString() ?? '';
-          if (value.isEmpty) return false;
-          return match(norm(value));
-        },
-        orElse: () => <String, dynamic>{},
-      );
-    }
-
-    var manager = find((v) => v == target);
-    if (manager.isEmpty) {
-      manager = find((v) => v.contains(target) || target.contains(v));
-    }
-
-    final name = manager['fullName']?.toString().trim() ?? '';
+    final manager = AdminPosition.holderOn(allUsers, adminTitle, signingDate);
+    final name = manager?['fullName']?.toString().trim() ?? '';
     return name.isNotEmpty ? '($name)' : blankSignature;
   }
 

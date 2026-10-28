@@ -8,7 +8,7 @@
  */
 import { supabase } from '../supabase';
 import { LeaveFormData, THAI_MONTHS, schoolRecordFromRow, type Row, type SchoolRecord } from '../leaveForm/leaveFormData';
-import { mapTeachers } from '../leaveForm/leaveFormSource';
+import { loadAdminHistory, mapTeachers } from '../leaveForm/leaveFormSource';
 import type { RenderContext } from './render';
 import {
   ALWAYS_UNCHECKED,
@@ -203,7 +203,7 @@ export interface TripSource {
 const text = (v: unknown) => (v === null || v === undefined ? '' : String(v));
 
 export async function loadTripSource(schoolId: number): Promise<TripSource> {
-  const [school, trips, teachers, positions, academics, adminRoles] = await Promise.all([
+  const [school, trips, teachers, positions, academics, adminRoles, history] = await Promise.all([
     supabase.from('Schools').select('*').eq('id_school', schoolId).maybeSingle(),
     supabase
       .from('OfficialTrips')
@@ -215,6 +215,7 @@ export async function loadTripSource(schoolId: number): Promise<TripSource> {
     supabase.from('positions').select('*'),
     supabase.from('academics').select('*'),
     supabase.from('adminroles').select('*').eq('id_school', schoolId),
+    loadAdminHistory(schoolId),
   ]);
   const failed = [school, trips, teachers, positions, academics, adminRoles].map((r) => r.error).find(Boolean);
   if (failed) throw new Error(failed.message);
@@ -229,6 +230,7 @@ export async function loadTripSource(schoolId: number): Promise<TripSource> {
       (positions.data ?? []) as Row[],
       (academics.data ?? []) as Row[],
       (adminRoles.data ?? []) as Row[],
+      history,
     ),
   };
 }
@@ -293,7 +295,13 @@ export function tripContext(trip: Row, source: TripSource): RenderContext {
     const u = byId.get(id);
     return { name: text(u?.fullName) || '-', position: positionWithStanding(u) };
   });
-  const director = new LeaveFormData({ leaf: {}, allUsers: source.users, allLeaveRequests: [], school: source.school }).directorName;
+  // ผู้อำนวยการ ณ วันที่ยื่นเรื่อง (ยังไม่ยื่น = วันนี้) — trip_render_context.dart
+  const director = new LeaveFormData({
+    leaf: { timestamp: trip.createdAt },
+    allUsers: source.users,
+    allLeaveRequests: [],
+    school: source.school,
+  }).directorName;
   const start = thaiDate(trip.startDate);
   const end = thaiDate(trip.endDate);
   const half = trip.isHalfDay === true;
