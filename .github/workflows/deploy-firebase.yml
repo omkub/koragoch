@@ -114,6 +114,10 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_RBP_CHANIKARNN }}
           projectId: rbp-chanikarnn
           channelId: live
+          # ล็อกเวอร์ชัน — ค่าเริ่มต้นคือ latest ซึ่ง 15.34.1 (28 ต.ค. 2569) เพิ่มการเช็ก
+          # serviceusage.services.get ที่ service account นี้ไม่มีสิทธิ์ → deploy 403
+          # จะอัปเวอร์ชัน: ให้สิทธิ์ "Service Usage Consumer" กับ service account ก่อน
+          firebaseToolsVersion: 15.34.0
 
       - name: เว็บจริง
         if: steps.preview.outcome == 'success'
