@@ -13,6 +13,7 @@ import {
   IconMenu,
   IconSchool,
   IconShield,
+  IconStar,
   IconUserCheck,
   IconUsers,
 } from './icons';
@@ -33,6 +34,7 @@ const NAV: { group: string | null; items: NavItem[] }[] = [
       { to: '/schools', label: 'โรงเรียน', icon: <IconSchool />, superOnly: true },
       { to: '/admins', label: 'ผู้ดูแลโรงเรียน', icon: <IconUserCheck />, superOnly: true },
       { to: '/staff', label: 'บุคลากร', icon: <IconUsers />, superOnly: true },
+      { to: '/admin-positions', label: 'ตำแหน่งบริหาร', icon: <IconStar />, superOnly: true },
     ],
   },
   {
