@@ -297,6 +297,21 @@ function sequenceDate(leave: Row): DartDate | null {
   return parseDate(leave.startDateValue) ?? parseDate(leave.startDate) ?? parseDate(leave.timestamp);
 }
 
+/**
+ * ปีงบประมาณ (พ.ศ.) ของใบลา คิดจากวันเริ่มลา — ตรงกับ LeaveFormData.fiscalYearOfLeave ในแอป
+ *
+ * ไม่เชื่อช่อง year ก่อน: ฟอร์มรุ่นเก่าใส่ปี พ.ศ. ของวันที่ยื่น ใบลาช่วง ต.ค.–ธ.ค.
+ * จึงได้ปีงบก่อนหน้า ตารางสถิติเลยนับใบลาปีงบเก่ารวมเข้ามา
+ */
+export function fiscalYearOfLeave(leave: Row): string {
+  const start = parseDate(leave.startDateValue) ?? parseDate(leave.startDate);
+  if (start) {
+    const y = dYear(start);
+    return String((dMonth(start) >= 10 ? y + 1 : y) + 543);
+  }
+  return s(leave.year).trim();
+}
+
 export class LeaveFormData {
   readonly leaf: Row;
   readonly allUsers: Row[];
@@ -389,13 +404,13 @@ export class LeaveFormData {
     if (this.latestComputed) return this.latestCache;
     this.latestComputed = true;
     const name = this.fullName.trim();
-    const fiscalYear = s(this.leaf.year).trim();
+    const fiscalYear = fiscalYearOfLeave(this.leaf);
     if (!name || !fiscalYear) return null;
     const candidates = this.allLeaveRequests
       .filter(
         (leave) =>
           s(leave.fullName).trim() === name &&
-          s(leave.year).trim() === fiscalYear &&
+          fiscalYearOfLeave(leave) === fiscalYear &&
           this.isBeforeCurrent(leave),
       )
       .sort(compareLeaveRecency);
@@ -450,12 +465,13 @@ export class LeaveFormData {
   }
 
   private statRow(label: string, keyword: string): LeaveStatRow {
-    const currentYear = s(this.leaf.year);
+    const currentYear = fiscalYearOfLeave(this.leaf);
     const history = this.allLeaveRequests.filter(
       (req) =>
         s(req.fullName) === this.fullName &&
         s(req.leaveType).includes(keyword) &&
-        s(req.year) === currentYear &&
+        currentYear !== '' &&
+        fiscalYearOfLeave(req) === currentYear &&
         this.isBeforeCurrent(req),
     );
     const prevTimes = history.length;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ADMIN_ROLE_ID, schoolName, supabase, type School } from '../supabase';
+import { isWorkingToday } from '../staffStatus';
 import { EmptyState, PageHeader, StatCard } from '../ui/components';
 import { IconAlert, IconChat, IconDoc, IconSchool, IconUsers, IconClock } from '../ui/icons';
 import SchoolLogo from '../ui/SchoolLogo';
@@ -25,7 +26,7 @@ export default function DashboardPage() {
     (async () => {
       const [schools, teachers, leaves, line] = await Promise.all([
         supabase.from('Schools').select('*').order('id_school'),
-        supabase.from('Teachers').select('id_school, id_role, is_super_admin, employment_status'),
+        supabase.from('Teachers').select('id_school, id_role, is_super_admin, employment_status, left_date'),
         supabase.from('Leaves').select('id_school, status'),
         supabase.from('SchoolLineSettings').select('id_school, enabled, groupId'),
       ]);
@@ -40,7 +41,7 @@ export default function DashboardPage() {
             (x) =>
               x.id_school === school.id_school &&
               !x.is_super_admin &&
-              (x.employment_status ?? 'active') === 'active',
+              isWorkingToday(x.employment_status, x.left_date),
           );
           const l = (leaves.data ?? []).filter((x) => x.id_school === school.id_school);
           const ln = line.error ? null : (line.data ?? []).find((x) => x.id_school === school.id_school);

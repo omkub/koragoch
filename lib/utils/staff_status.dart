@@ -33,8 +33,19 @@ class StaffStatus {
     return labels.containsKey(s) ? s : active;
   }
 
-  /// ยังปฏิบัติงานอยู่ (ไม่มีคอลัมน์ / ค่าแปลก = ปฏิบัติงาน)
-  static bool isActive(Map<String, dynamic> row) => statusOf(row) == active;
+  /// ยังปฏิบัติงานอยู่ ณ วันที่ [on] (ไม่ส่ง = วันนี้)
+  ///
+  /// สถานะพ้นสภาพมีผลตั้งแต่ left_date — ตั้ง "ย้าย มีผล 26 ต.ค." ไว้ล่วงหน้า
+  /// วันที่ 25 ยังปฏิบัติงานอยู่ วันที่ 26 จึงหายจากรายชื่อ
+  /// (ตรงกับ staff_is_working() ใน supabase/staff_status_effective_date.sql)
+  /// ไม่มีคอลัมน์ / ค่าแปลก = ปฏิบัติงาน · ไม่ใส่วันที่ = พ้นสภาพทันที
+  static bool isActive(Map<String, dynamic> row, {DateTime? on}) {
+    if (statusOf(row) == active) return true;
+    final left = leftDateOf(row);
+    if (left == null) return false;
+    final now = on ?? DateTime.now();
+    return left.isAfter(DateTime(now.year, now.month, now.day));
+  }
 
   /// บัญชีผู้ดูแลส่วนกลาง — ไม่ใช่บุคลากรของโรงเรียน ไม่แสดงในรายชื่อ
   static bool isSuperAdmin(Map<String, dynamic> row) {
@@ -61,7 +72,9 @@ class StaffStatus {
   /// เกษียณ 1 ต.ค. 2569 อยู่ในรายงานปีงบ 2569 (1 ต.ค. 68 – 30 ก.ย. 69)
   /// แต่ไม่อยู่ในปีงบ 2570 ไม่มีวันที่พ้นสภาพ = ไม่นับแล้ว (ไม่รู้ว่าออกเมื่อไร)
   static bool activeDuring(Map<String, dynamic> row, DateTime periodStart) {
-    if (isActive(row)) return true;
+    // ดูสถานะที่บันทึกไว้ ไม่ใช่ "วันนี้ยังทำงานไหม" — คนที่ตั้งย้ายล่วงหน้า
+    // วันนี้ยังทำงานอยู่ แต่ต้องไม่ถูกนับในปีงบที่เริ่มหลังวันที่ย้าย
+    if (statusOf(row) == active) return true;
     final left = leftDateOf(row);
     if (left == null) return false;
     final start =

@@ -5421,7 +5421,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 padding: const EdgeInsets.only(top: 4),
                 child: Wrap(spacing: 6, runSpacing: 4, children: [
                   if (!active)
-                    _userBadge(_employmentStatusText(user), Colors.blueGrey),
+                    _userBadge(_employmentStatusText(user), Colors.blueGrey)
+                  else if (_leaveScheduled(user))
+                    _userBadge(_employmentStatusText(user), Colors.orange),
                   if (waiting)
                     _userBadge('ขอรีเซ็ตรหัสผ่าน', Colors.orange.shade800),
                   if (revealed != null)
@@ -5552,7 +5554,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         _userTableCell((user['id_user'] ?? user['id'] ?? '').toString(), 1),
         SizedBox(width: 72, child: Center(child: _buildUserProfilePhoto(user))),
         _userTableCell(
-            active ? name : '$name  · ${_employmentStatusText(user)}', 3),
+            active && !_leaveScheduled(user)
+                ? name
+                : '$name  · ${_employmentStatusText(user)}',
+            3),
         _userTableCell((user['username'] ?? '').toString(), 2),
         Expanded(flex: 2, child: _buildPasswordCell(user)),
         _userTableCell(
@@ -5570,7 +5575,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   color: Colors.blue,
                   icon: const Icon(Icons.edit_outlined, size: 20)),
               IconButton(
-                  tooltip: active
+                  tooltip: active && !_leaveScheduled(user)
                       ? 'พ้นสภาพ (ลาออก / เกษียณ / ย้าย)'
                       : 'สถานะ: ${_employmentStatusText(user)}',
                   onPressed: () => _editEmploymentStatus(user),
@@ -6984,13 +6989,22 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
   // 🔥 ฟังก์ชันสำหรับสร้างหัวตารางให้ตรงแนวครับ
   /// "เกษียณ 1 ต.ค. 2569" — สถานะ + วันที่พ้นสภาพมีผล (ถ้ามี)
+  /// ยังไม่ถึงวันที่ = "ย้าย มีผล 26 ต.ค. 2569" ให้รู้ว่าตอนนี้ยังทำงานอยู่
   String _employmentStatusText(Map<String, dynamic> user) {
     final label = StaffStatus.label(StaffStatus.statusOf(user));
     final left = StaffStatus.leftDateOf(user);
-    return left == null
-        ? label
-        : '$label ${FirebaseService.formatThaiDate(left)}';
+    if (left == null) return label;
+    final when = FirebaseService.formatThaiDate(left);
+    return _leaveScheduled(user) ? '$label มีผล $when' : '$label $when';
   }
+
+  /// ตั้งพ้นสภาพไว้ล่วงหน้า วันนี้ยังปฏิบัติงานอยู่
+  ///
+  /// ต้องแสดงให้แอดมินเห็น — คนกลุ่มนี้ยังอยู่ในรายชื่อปกติ ถ้าไม่มีป้าย
+  /// แอดมินจะนึกว่าบันทึกสถานะไม่ติด แล้วกดตั้งซ้ำ
+  bool _leaveScheduled(Map<String, dynamic> user) =>
+      StaffStatus.statusOf(user) != StaffStatus.active &&
+      StaffStatus.isActive(user);
 
   /// ตั้งสถานะบุคลากร: ปฏิบัติงาน / ลาออก / เกษียณ / ย้าย + วันที่พ้นสภาพ
   ///
@@ -7013,6 +7027,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialog) {
           final leaving = status != StaffStatus.active;
+          // วันที่มีผลยังไม่ถึง = วันนี้ยังปฏิบัติงานอยู่ (กฎเดียวกับ StaffStatus.isActive)
+          final effectiveLater = leaving &&
+              StaffStatus.isActive({
+                'employment_status': status,
+                'left_date': FirebaseService.toIsoDate(leftDate),
+              });
           return AlertDialog(
             title: Text('สถานะบุคลากร: $name',
                 style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
@@ -7056,7 +7076,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                        'เข้าระบบไม่ได้ และไม่ขึ้นในรายชื่อที่ใช้ทำงาน '
+                        effectiveLater
+                            ? 'ก่อนวันที่ ${FirebaseService.formatThaiDate(leftDate)} '
+                                'ยังเข้าระบบและอยู่ในรายชื่อได้ตามปกติ '
+                                'ตั้งแต่วันนั้นจึงเข้าระบบไม่ได้และไม่ขึ้นในรายชื่อ'
+                            : 'เข้าระบบไม่ได้ และไม่ขึ้นในรายชื่อที่ใช้ทำงาน',
+                        style: GoogleFonts.sarabun(
+                            fontSize: 12, color: Colors.blueGrey)),
+                    const SizedBox(height: 4),
+                    Text(
                         'ใบลาเก่ายังอยู่ครบ รายงานนับเฉพาะปีงบประมาณที่ยังปฏิบัติงาน',
                         style: GoogleFonts.sarabun(
                             fontSize: 12, color: Colors.blueGrey)),
@@ -7064,7 +7092,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
-                            '⚠️ นี่คือบัญชีของคุณเอง — บันทึกแล้วจะเข้าระบบไม่ได้ทันที',
+                            effectiveLater
+                                ? '⚠️ นี่คือบัญชีของคุณเอง — ตั้งแต่วันที่ '
+                                    '${FirebaseService.formatThaiDate(leftDate)} '
+                                    'จะเข้าระบบไม่ได้'
+                                : '⚠️ นี่คือบัญชีของคุณเอง — บันทึกแล้วจะเข้าระบบไม่ได้ทันที',
                             style: GoogleFonts.sarabun(
                                 fontSize: 12, color: Colors.red.shade700)),
                       ),
@@ -7087,16 +7119,22 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     if (ok != true) return;
 
     final active = status == StaffStatus.active;
+    final leftIso = active ? null : FirebaseService.toIsoDate(leftDate);
+    final later = !active &&
+        StaffStatus.isActive({'employment_status': status, 'left_date': leftIso});
     try {
       await client.from('Teachers').update({
         'employment_status': status,
-        'left_date': active ? null : FirebaseService.toIsoDate(leftDate),
+        'left_date': leftIso,
       }).eq('id_user', idUser);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(active
               ? 'คืนสถานะปฏิบัติงานให้ $name แล้ว'
-              : 'ตั้ง $name เป็น ${StaffStatus.label(status)} แล้ว')));
+              : later
+                  ? '$name จะเป็น ${StaffStatus.label(status)} '
+                      'ตั้งแต่วันที่ ${FirebaseService.formatThaiDate(leftDate)}'
+                  : 'ตั้ง $name เป็น ${StaffStatus.label(status)} แล้ว')));
       _refreshUsers();
     } catch (e) {
       if (!mounted) return;

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { schoolName, supabase, type Role, type School } from '../supabase';
 import { EmptyState, Field, Notice, PageHeader } from '../ui/components';
 import { IconSearch } from '../ui/icons';
+import { isWorkingToday, todayTh } from '../staffStatus';
 
 type EmploymentStatus = 'active' | 'resigned' | 'retired' | 'transferred';
 
@@ -23,8 +24,6 @@ interface StaffRow {
 }
 
 const BASE_COLUMNS = 'id_user, fullName, username, id_role, is_super_admin';
-
-const today = () => new Date().toISOString().slice(0, 10);
 
 /** 2026-09-30 → 30 ก.ย. 2569 */
 function thaiDate(iso: string | null | undefined) {
@@ -97,14 +96,18 @@ export default function StaffPage() {
   }, [schoolId]);
 
   const statusOf = (t: StaffRow): EmploymentStatus => t.employment_status ?? 'active';
-  const inactiveCount = staff.filter((t) => statusOf(t) !== 'active').length;
+  /** ยังปฏิบัติงานวันนี้ — ตั้งพ้นสภาพล่วงหน้าไว้ ยังนับว่าทำงานจนถึงวันที่มีผล */
+  const working = (t: StaffRow) => isWorkingToday(t.employment_status, t.left_date);
+  /** ตั้งพ้นสภาพไว้ล่วงหน้า ยังไม่ถึงวันที่มีผล — ต้องมีป้ายบอก ไม่งั้นนึกว่าบันทึกไม่ติด */
+  const scheduled = (t: StaffRow) => statusOf(t) !== 'active' && working(t);
+  const inactiveCount = staff.filter((t) => !working(t)).length;
   const roleName = (id: number | null) => roles.find((r) => r.ID_Roles === id)?.Accessrights ?? '-';
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return staff.filter(
       (t) =>
-        (showInactive || statusOf(t) === 'active') &&
+        (showInactive || working(t)) &&
         (!q || `${t.fullName ?? ''} ${t.username ?? ''}`.toLowerCase().includes(q)),
     );
   }, [staff, showInactive, search]);
@@ -113,9 +116,10 @@ export default function StaffPage() {
     if (!editing) return;
     setBusy(true);
     const active = editing.status === 'active';
+    const left = active ? null : editing.left || todayTh();
     const { error } = await supabase
       .from('Teachers')
-      .update({ employment_status: editing.status, left_date: active ? null : editing.left || today() })
+      .update({ employment_status: editing.status, left_date: left })
       .eq('id_user', editing.row.id_user);
     setBusy(false);
     if (error) {
@@ -125,7 +129,9 @@ export default function StaffPage() {
     setMessage({
       text: active
         ? `คืนสถานะปฏิบัติงานให้ ${editing.row.fullName} แล้ว`
-        : `ตั้ง ${editing.row.fullName} เป็น ${STATUS_LABEL[editing.status]} แล้ว`,
+        : isWorkingToday(editing.status, left)
+          ? `${editing.row.fullName} จะเป็น ${STATUS_LABEL[editing.status]} ตั้งแต่ ${thaiDate(left)}`
+          : `ตั้ง ${editing.row.fullName} เป็น ${STATUS_LABEL[editing.status]} แล้ว`,
     });
     setEditing(null);
     if (schoolId !== null) load(schoolId);
@@ -133,9 +139,15 @@ export default function StaffPage() {
 
   const statusBadge = (t: StaffRow) => {
     const status = statusOf(t);
-    return status === 'active' ? (
-      <span className="badge-green">ปฏิบัติงาน</span>
-    ) : (
+    if (status === 'active') return <span className="badge-green">ปฏิบัติงาน</span>;
+    if (scheduled(t)) {
+      return (
+        <span className="badge-amber">
+          {STATUS_LABEL[status]} มีผล {thaiDate(t.left_date)}
+        </span>
+      );
+    }
+    return (
       <span className="badge-slate">
         {STATUS_LABEL[status]} {thaiDate(t.left_date)}
       </span>
@@ -147,7 +159,7 @@ export default function StaffPage() {
       <button
         className="btn-secondary btn-sm"
         disabled={!hasStatus}
-        onClick={() => setEditing({ row: t, status, left: t.left_date ?? today() })}
+        onClick={() => setEditing({ row: t, status, left: t.left_date ?? todayTh() })}
       >
         {status === 'active' ? 'พ้นสภาพ' : 'แก้สถานะ'}
       </button>
@@ -195,7 +207,10 @@ export default function StaffPage() {
               </select>
             </Field>
             {editing.status !== 'active' && (
-              <Field label="พ้นสภาพตั้งแต่วันที่" hint="วันแรกที่ไม่ได้ปฏิบัติงาน เช่น เกษียณ 1 ต.ค.">
+              <Field
+                label="พ้นสภาพตั้งแต่วันที่"
+                hint="วันแรกที่ไม่ได้ปฏิบัติงาน เช่น เกษียณ 1 ต.ค. — ก่อนวันนั้นยังเข้าระบบได้ตามปกติ"
+              >
                 <input
                   className="input"
                   type="date"
@@ -255,7 +270,7 @@ export default function StaffPage() {
                 </thead>
                 <tbody>
                   {visible.map((t) => (
-                    <tr key={t.id_user} className={statusOf(t) === 'active' ? '' : 'text-slate-400'}>
+                    <tr key={t.id_user} className={working(t) ? '' : 'text-slate-400'}>
                       <td className="font-medium">{t.fullName || '-'}</td>
                       <td>{t.username || '-'}</td>
                       <td>{roleName(t.id_role)}</td>
@@ -270,7 +285,7 @@ export default function StaffPage() {
               {visible.map((t) => (
                 <li key={t.id_user} className="flex items-center gap-3 px-4 py-3">
                   <div className="min-w-0 flex-1">
-                    <div className={`truncate font-medium ${statusOf(t) === 'active' ? '' : 'text-slate-400'}`}>
+                    <div className={`truncate font-medium ${working(t) ? '' : 'text-slate-400'}`}>
                       {t.fullName || '-'}
                     </div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">

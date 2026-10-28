@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/firebase_service.dart';
+import '../../services/official_trip_service.dart';
 import '../../widgets/thai_buddhist_calendar_widget.dart';
 import '../../utils/profile_image.dart';
 import '../../utils/staff_status.dart';
@@ -34,8 +35,13 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
   final TextEditingController _reasonController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _medicalLinkController = TextEditingController();
-  final TextEditingController _yearController =
-      TextEditingController(text: (DateTime.now().year + 543).toString());
+
+  /// ปีงบประมาณ (พ.ศ.) ของใบลา — คิดจากวันเริ่มลาเสมอ
+  ///
+  /// เดิมใช้ปี พ.ศ. ของวันนี้ ใบลาที่ยื่นช่วง ต.ค.–ธ.ค. จึงได้ปีงบเก่า
+  /// แล้วตาราง "สถิติวันลาในปีงบประมาณนี้" ดึงใบลาของปีงบก่อนมานับด้วย
+  String get _fiscalYearText =>
+      OfficialTripService.fiscalYearOf(_startDate).toString();
 
   // State
   Map<String, dynamic>? _selectedUser;
@@ -64,7 +70,6 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
     _selectedLeaveType = data['leaveType'];
     _reasonController.text = data['reason'] ?? '';
     _phoneController.text = data['phone'] ?? '';
-    _yearController.text = data['year']?.toString() ?? '';
 
     final medicalLink = data['medicalCertificate']?.toString() ?? '';
     if (medicalLink.isNotEmpty) {
@@ -194,7 +199,6 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
     _reasonController.dispose();
     _phoneController.dispose();
     _medicalLinkController.dispose();
-    _yearController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -476,7 +480,7 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
         'reason': _reasonController.text,
         'phone': _phoneController.text,
         'medicalCertificate': finalMedicalUrl,
-        'year': _yearController.text,
+        'year': _fiscalYearText,
       };
 
       if (_editRequestId != null) {
@@ -1054,7 +1058,7 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
       'endDate': _formatDate(_endDate),
       'totalDays': _calculatedTotalDays(),
       'phone': _phoneController.text,
-      'year': _yearController.text,
+      'year': _fiscalYearText,
       // วันที่เขียนใบลา = วันนี้ (หรือวันที่ยื่นเดิมถ้าแก้ใบเดิม)
       'timestamp': widget.initialData?['timestamp'] ??
           DateTime.now().toIso8601String(),

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
+import '../services/official_trip_service.dart';
 import '../utils/staff_status.dart';
 import '../widgets/leave_form_data.dart';
 import '../widgets/leave_template_document.dart';
@@ -27,8 +28,6 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
   // Controllers
   final TextEditingController _reasonController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _yearController =
-      TextEditingController(text: (DateTime.now().year + 543).toString());
   final TextEditingController _medicalLinkController = TextEditingController();
 
   List<Map<String, dynamic>> _allUsers = [];
@@ -67,7 +66,6 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
     _selectedLeaveType = data['leaveType'];
     _reasonController.text = data['reason'] ?? '';
     _phoneController.text = data['phone'] ?? '';
-    _yearController.text = data['year']?.toString() ?? '';
 
     final medicalLink = data['medicalCertificate']?.toString() ?? '';
     if (medicalLink.isNotEmpty) {
@@ -241,6 +239,13 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
 
   String _formatLeaveDays(num value) =>
       FirebaseService.formatLeaveDayCount(value);
+
+  /// ปีงบประมาณ (พ.ศ.) ของใบลา — คิดจากวันเริ่มลาเสมอ
+  ///
+  /// เดิมใช้ปี พ.ศ. ของวันนี้ ใบลาที่ยื่นช่วง ต.ค.–ธ.ค. จึงได้ปีงบเก่า
+  /// แล้วตาราง "สถิติวันลาในปีงบประมาณนี้" ดึงใบลาของปีงบก่อนมานับด้วย
+  String get _fiscalYearText =>
+      OfficialTripService.fiscalYearOf(_startDate).toString();
 
   void _setStartDate(DateTime date) {
     setState(() {
@@ -436,7 +441,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
         'isHalfDay': _isHalfDayActive,
         'halfDayPeriod': _isHalfDayActive ? _halfDayPeriod : '',
         'phone': _phoneController.text,
-        'year': _yearController.text,
+        'year': _fiscalYearText,
         'medicalCertificate': finalMedicalUrl,
       };
 
@@ -743,9 +748,29 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                                 _phoneController, Icons.phone_android_outlined,
                                 hint: "เบอร์โทรศัพท์ที่ติดต่อได้ระหว่างลา"),
                             const SizedBox(height: 16),
-                            _buildTextField(
-                                _yearController, Icons.calendar_month_outlined,
-                                hint: "ปีงบประมาณ พ.ศ."),
+                            // แสดงอย่างเดียว — ปีงบตามวันเริ่มลา ให้รู้ว่าใบนี้นับปีไหน
+                            InputDecorator(
+                              decoration: InputDecoration(
+                                labelText: 'ปีงบประมาณ (ตามวันเริ่มลา)',
+                                prefixIcon: const Icon(
+                                    Icons.calendar_month_outlined,
+                                    size: 20,
+                                    color: Color(0xFF94A3B8)),
+                                filled: true,
+                                fillColor: const Color(0xFFF8FAFC),
+                                border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFFE2E8F0))),
+                                enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFFE2E8F0))),
+                                contentPadding: const EdgeInsets.all(16),
+                              ),
+                              child: Text(_fiscalYearText,
+                                  style: GoogleFonts.sarabun(fontSize: 14)),
+                            ),
                             const SizedBox(height: 16),
                             Row(
                               children: [
@@ -900,7 +925,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
         'endDate': _formatDate(_endDate),
         'totalDays': totalDays,
         'phone': _phoneController.text,
-        'year': _yearController.text,
+        'year': _fiscalYearText,
       },
       allUsers: _allUsers,
       allLeaveRequests: _userHistory,
