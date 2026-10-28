@@ -40,6 +40,11 @@ export const IconUserCheck = (p: P) => (
     <path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 11l2 2 4-4" />
   </Icon>
 );
+export const IconStar = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z" />
+  </Icon>
+);
 export const IconUsers = (p: P) => (
   <Icon {...p}>
     <circle cx="9" cy="8" r="4" />
