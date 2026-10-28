@@ -321,7 +321,8 @@
         registerInstallWorker();
       }
 
-      // ทำให้ "ติดตั้งได้" ในทุกเบราว์เซอร์ที่รองรับ — web/sw.js ไม่แคชอะไร
+      // ทำให้ "ติดตั้งได้" ในทุกเบราว์เซอร์ที่รองรับ + เก็บ main.dart.js ไว้ในเครื่อง
+      // ตามรหัส build (หน้า Login ไม่ต้องโหลดตัวแอปใหม่ทุกครั้ง) — ดู web/sw.js
       function registerInstallWorker() {
         if (!('serviceWorker' in navigator)) return;
         navigator.serviceWorker.register('sw.js', { scope: './' }).catch(function() {});
