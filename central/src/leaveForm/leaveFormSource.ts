@@ -10,7 +10,9 @@
  */
 import { supabase } from '../supabase';
 import {
+  adminPositionOn,
   compareLeaveRecency,
+  dartNow,
   formatToThaiSlashDate,
   formatToThaiTime,
   schoolRecordFromRow,
@@ -70,8 +72,18 @@ function fromSupabaseLeave(r: Row): Row {
   };
 }
 
-/** getUsersFromSupabase (เฉพาะช่องที่ใบลาใช้: ชื่อ ตำแหน่ง วิทยฐานะ ตำแหน่งบริหาร) */
-export function mapTeachers(rows: Row[], positions: Row[], academics: Row[], adminRoles: Row[]): Row[] {
+/**
+ * getUsersFromSupabase (เฉพาะช่องที่ใบลาใช้: ชื่อ ตำแหน่ง วิทยฐานะ ตำแหน่งบริหาร)
+ *
+ * [history] = แถว AdminPositionHistory ของโรงเรียน (ว่าง = ยังไม่ได้รัน SQL → ใช้ค่าในทะเบียน)
+ */
+export function mapTeachers(
+  rows: Row[],
+  positions: Row[],
+  academics: Row[],
+  adminRoles: Row[],
+  history: Row[] = [],
+): Row[] {
   const posMap = new Map<string, string>();
   for (const p of positions) {
     const id = text(coalesce(p.ID_Positions, p.id));
@@ -91,13 +103,35 @@ export function mapTeachers(rows: Row[], positions: Row[], academics: Row[], adm
     if (id && name) adminRoleMap.set(id, name);
   }
 
+  // ประวัติตำแหน่งบริหารของแต่ละคน — รูปเดียวกับ AdminPositionPeriod.toMap ของ app
+  const historyByUser = new Map<string, Row[]>();
+  for (const h of history) {
+    const role = adminRoleMap.get(text(h.id_adminrole)) ?? '';
+    if (!role) continue;
+    const key = text(h.id_user);
+    const list = historyByUser.get(key) ?? [];
+    list.push({
+      id: h.id_history ?? null,
+      role,
+      start: h.start_date ? text(h.start_date).slice(0, 10) : null,
+      end: h.end_date ? text(h.end_date).slice(0, 10) : null,
+      note: text(h.note),
+    });
+    historyByUser.set(key, list);
+  }
+
   const list = rows.map((r) => {
     const posId = text(r.id_position);
     const academicId = text(coalesce(r.ID_Academics, r.id_academic, r.id_academics));
     const adminRoleId = text(pickIgnoreCase(r, ['id_adminrole', 'id_adminroles', 'id_admin_role']));
     const resolvedPos = text(coalesce(r.position, posMap.get(posId), ''));
     const resolvedAcademic = text(coalesce(r.academicStanding, r.academicstanding, academicMap.get(academicId), ''));
-    const resolvedAdminRole = text(coalesce(r['ตำแหน่งงานบริหาร'], adminRoleMap.get(adminRoleId), '')).trim();
+    const userHistory = historyByUser.get(text(r.id_user)) ?? [];
+    const registered = text(coalesce(r['ตำแหน่งงานบริหาร'], adminRoleMap.get(adminRoleId), '')).trim();
+    // มีประวัติ = ตำแหน่ง "วันนี้" ตามประวัติ (ตำแหน่งที่ตั้งล่วงหน้าสลับตรงวันที่มีผล)
+    const resolvedAdminRole = userHistory.length
+      ? adminPositionOn({ ...r, adminPositionHistory: userHistory }, dartNow())
+      : registered;
     const academic = resolvedAcademic || (academicMap.get(academicId) ?? '');
     return {
       ...r,
@@ -106,6 +140,7 @@ export function mapTeachers(rows: Row[], positions: Row[], academics: Row[], adm
       academicStanding: academic,
       'วิทยฐานะ': academic,
       'ตำแหน่งงานบริหาร': resolvedAdminRole,
+      adminPositionHistory: userHistory,
     } as Row;
   });
   // Dart String.compareTo — เทียบรหัสตัวอักษร ไม่ใช่ localeCompare
@@ -116,8 +151,17 @@ export function mapTeachers(rows: Row[], positions: Row[], academics: Row[], adm
   });
 }
 
+/** ประวัติตำแหน่งบริหารของโรงเรียน — ยังไม่ได้รัน admin_position_history.sql (ไม่มีตาราง) = ว่าง */
+export async function loadAdminHistory(schoolId: number): Promise<Row[]> {
+  const { data, error } = await supabase
+    .from('AdminPositionHistory')
+    .select('id_history, id_user, id_adminrole, start_date, end_date, note')
+    .eq('id_school', schoolId);
+  return error ? [] : ((data ?? []) as Row[]);
+}
+
 export async function loadLeaveFormSource(schoolId: number): Promise<LeaveFormSource> {
-  const [school, leaves, teachers, teachersFull, positions, academics, adminRoles, leaveTypes, rounds] =
+  const [school, leaves, teachers, teachersFull, positions, academics, adminRoles, leaveTypes, rounds, history] =
     await Promise.all([
       supabase.from('Schools').select('*').eq('id_school', schoolId).maybeSingle(),
       supabase.from('Leaves').select('*').eq('id_school', schoolId),
@@ -128,6 +172,7 @@ export async function loadLeaveFormSource(schoolId: number): Promise<LeaveFormSo
       supabase.from('adminroles').select('*').eq('id_school', schoolId),
       supabase.from('LeaveTypes').select('*'),
       supabase.from('FiscalRounds').select('*').order('year', { ascending: false }),
+      loadAdminHistory(schoolId),
     ]);
   const failed = [school, leaves, teachers, teachersFull, positions, academics, adminRoles, leaveTypes, rounds]
     .map((r) => r.error)
@@ -184,6 +229,7 @@ export async function loadLeaveFormSource(schoolId: number): Promise<LeaveFormSo
       (positions.data ?? []) as Row[],
       (academics.data ?? []) as Row[],
       (adminRoles.data ?? []) as Row[],
+      history,
     ),
     leaveTypeNames,
     fiscalYears: ((rounds.data ?? []) as Row[]).map((r) => r.year),

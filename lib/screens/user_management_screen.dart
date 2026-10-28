@@ -17,6 +17,7 @@ import 'line_settings_screen.dart';
 import 'calendar_settings_tab.dart';
 import 'school_settings_tab.dart';
 import 'attendance_import_tab.dart';
+import '../utils/admin_position.dart';
 import '../utils/profile_image.dart';
 import '../utils/school_info.dart';
 import '../utils/staff_status.dart';
@@ -160,6 +161,31 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   List<String> _ranks = ['---เลือก---'];
   List<String> _roles = ['ครู'];
   List<String> _adminPositions = ['ไม่มีตำแหน่งบริหาร'];
+
+  // ── เปลี่ยนตำแหน่งบริหารในฟอร์ม (supabase/admin_position_history.sql) ──
+  /// รายชื่อล่าสุดที่หน้าจอได้มา — ใช้บอกว่าใครดำรงตำแหน่งที่จะตั้งอยู่
+  List<Map<String, dynamic>> _latestUsers = [];
+
+  /// ตำแหน่งตอนเปิดฟอร์ม — เปลี่ยนจากค่านี้เท่านั้นจึงบันทึกเป็นประวัติ
+  String _originalAdminPos = '';
+
+  /// วันที่ตำแหน่งใหม่มีผล
+  DateTime _adminPosEffective = DateTime.now();
+
+  /// คนเดิมที่ดำรงตำแหน่งนี้พ้นตำแหน่งตั้งแต่วันเดียวกัน
+  bool _adminPosReplace = true;
+
+  /// id_user ของคนที่กำลังแก้ (user['id'] บางแถวเป็นรหัสจาก Firebase)
+  int? _editingIdUser;
+
+  /// ประวัติตำแหน่งของคนที่กำลังแก้ — แสดงในฟอร์ม ลบรายการที่บันทึกผิดได้
+  List<AdminPositionPeriod> _editingAdminHistory = [];
+
+  bool get _adminPosChanged =>
+      _normAdminPos(_adminPosController.text) != _normAdminPos(_originalAdminPos);
+
+  static String _normAdminPos(String v) =>
+      AdminPosition.isNone(v) ? '' : v.trim();
   List<String> _leaveTypes = []; // 🔥 ตัวแปรสำหรับประเภทการลาครับ 🥇🏆
   List<String> _leaveReasons = []; // 📝 เหตุผลการลาที่ใช้เป็นตัวเลือกด่วน
   bool _isLoadingDropdowns = true;
@@ -538,6 +564,22 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
         final updateData = Map<String, dynamic>.from(data);
         updateData.remove('password');
+        if (_adminPosChanged && _editingIdUser != null) {
+          // บันทึกเป็นประวัติก่อนแก้ทะเบียน — ฐานข้อมูลเก็บตำแหน่งเดิมเป็นประวัติ
+          // ช่วงก่อนหน้าให้ก่อน ถ้าแก้ทะเบียนก่อน ตำแหน่งเดิมจะหายไปจากประวัติ
+          final recorded = await _firebaseService.assignAdminPosition(
+            idUser: _editingIdUser!,
+            roleName: _adminPosController.text,
+            start: _adminPosEffective,
+            replace: _adminPosReplace,
+          );
+          // บันทึกประวัติแล้ว ฐานข้อมูลตั้งตำแหน่ง "วันนี้" ให้เอง — ถ้าเขียนทับ
+          // ตำแหน่งที่ตั้งล่วงหน้าจะมีผลทันทีแทนที่จะรอวันที่มีผล
+          if (recorded) updateData.remove('ตำแหน่งงานบริหาร');
+        } else if (!_adminPosChanged) {
+          // ไม่ได้เปลี่ยนตำแหน่ง — ไม่ต้องเขียน (กันทับตำแหน่งที่ตั้งล่วงหน้าไว้)
+          updateData.remove('ตำแหน่งงานบริหาร');
+        }
         await _firebaseService.updateUser(_editingId!, updateData);
 
         if (mounted) {
@@ -545,8 +587,29 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               const SnackBar(content: Text('แก้ไขข้อมูลเรียบร้อยแล้ว')));
         }
       } else {
-        await _firebaseService
-            .addUser({...data, 'timestamp': DateTime.now().toIso8601String()});
+        // คนใหม่ที่มีตำแหน่งบริหาร: สร้างก่อนแบบไม่มีตำแหน่ง แล้วบันทึกตำแหน่ง
+        // เป็นประวัติตามวันที่มีผล — ถ้าใส่ตำแหน่งไปตอนสร้าง ระบบจะถือว่า
+        // ดำรงตำแหน่งมาตั้งแต่ก่อนเริ่มบันทึก ใบลาเก่าจะขึ้นชื่อคนใหม่
+        final wantsPosition = !AdminPosition.isNone(_adminPosController.text);
+        final insertData = {
+          ...data,
+          'timestamp': DateTime.now().toIso8601String(),
+        };
+        if (wantsPosition) insertData.remove('ตำแหน่งงานบริหาร');
+        final newId = await _firebaseService.addUser(insertData);
+        if (wantsPosition && newId != null) {
+          final recorded = await _firebaseService.assignAdminPosition(
+            idUser: newId,
+            roleName: _adminPosController.text,
+            start: _adminPosEffective,
+            replace: _adminPosReplace,
+          );
+          if (!recorded) {
+            // ฐานข้อมูลยังไม่มีระบบประวัติ — บันทึกลงทะเบียนแบบเดิม
+            await _firebaseService.updateUser(
+                '$newId', {'ตำแหน่งงานบริหาร': _adminPosController.text});
+          }
+        }
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('บันทึกผู้ใช้ใหม่เรียบร้อยแล้ว')));
@@ -584,6 +647,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           user['permission'] ??
           'ครู'; // 🔥 ตรวจสอบทั้งสองฟิลด์ครับ
       _adminPosController.text = user['ตำแหน่งงานบริหาร'] ?? '';
+      _originalAdminPos = _adminPosController.text;
+      _adminPosEffective = DateTime.now();
+      _adminPosReplace = true;
+      _editingIdUser = int.tryParse('${user['id_user'] ?? ''}');
+      _editingAdminHistory = AdminPosition.historyOf(user);
       _emailController.text = user['email']?.toString() ?? '';
       _phoneController.text = user['phone']?.toString() ?? '';
       _photoController.text = user['profileImage'] ?? ''; // 📸 ดึงข้อมูลรูปภาพ
@@ -605,6 +673,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       _selectedRank = '---เลือก---';
       _selectedRole = 'ครู';
       _adminPosController.text = 'ไม่มีตำแหน่งบริหาร';
+      _originalAdminPos = _adminPosController.text;
+      _adminPosEffective = DateTime.now();
+      _adminPosReplace = true;
+      _editingIdUser = null;
+      _editingAdminHistory = [];
       _emailController.clear();
       _phoneController.clear();
       _photoController.clear(); // 📸 ล้างข้อมูลรูปภาพ
@@ -3289,6 +3362,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         stream: _usersStream,
         builder: (context, snapshot) {
           final allUsers = snapshot.data ?? [];
+          // ฟอร์มแก้ไขใช้หาว่าใครดำรงตำแหน่งบริหารที่กำลังจะตั้งให้อยู่ตอนนี้
+          _latestUsers = allUsers;
 
           // บัญชีผู้ดูแลส่วนกลางไม่ใช่บุคลากรของโรงเรียน — เห็นเฉพาะส่วนกลางเอง
           final schoolUsers = allUsers
@@ -5117,10 +5192,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           const SizedBox(height: 4),
           Padding(
             padding: const EdgeInsets.only(left: 12),
-            child: Text('ระบบจะใช้ค่านี้เพื่อแสดงชื่อผู้ลงนามท้ายแบบฟอร์มใบลา',
+            child: Text(
+                'ใช้แสดงชื่อผู้ลงนามท้ายใบลา ตามผู้ที่ดำรงตำแหน่งในวันที่ส่งใบลา',
                 style:
                     GoogleFonts.sarabun(fontSize: 10, color: Colors.black26)),
           ),
+          if (_adminPosChanged) _buildAdminPositionChange(),
+          if (_isEditing && _editingAdminHistory.isNotEmpty)
+            _buildAdminPositionHistory(),
           const SizedBox(height: 40),
           if (_userFormError != null)
             Padding(
@@ -6985,6 +7064,165 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       ),
       child: child,
     );
+  }
+
+  /// คนที่ดำรงตำแหน่ง [role] อยู่ก่อนวันที่ตำแหน่งใหม่มีผล (ไม่นับคนที่กำลังแก้)
+  Map<String, dynamic>? _currentHolderOf(String role) {
+    final others = _latestUsers.where(
+        (u) => '${u['id_user'] ?? ''}' != '${_editingIdUser ?? ''}');
+    return AdminPosition.holderOn(others, role,
+        _adminPosEffective.subtract(const Duration(days: 1)));
+  }
+
+  /// วันที่มีผล + แทนคนเดิม — แสดงเมื่อเปลี่ยนตำแหน่งในฟอร์ม
+  Widget _buildAdminPositionChange() {
+    final newRole = _adminPosController.text;
+    final ending = AdminPosition.isNone(newRole);
+    final holder = ending ? null : _currentHolderOf(newRole);
+    final holderName = (holder?['fullName'] ?? '').toString();
+    final when = FirebaseService.formatThaiDate(_adminPosEffective);
+
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(ending ? 'พ้นตำแหน่งบริหารตั้งแต่วันที่' : 'ตำแหน่งใหม่มีผลตั้งแต่วันที่',
+              style: GoogleFonts.sarabun(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange.shade900)),
+          const SizedBox(height: 6),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.event, size: 18),
+            label: Text(when),
+            onPressed: () => showDialog(
+              context: _formDialogContext ?? context,
+              builder: (_) => Center(
+                child: ThaiBuddhistCalendarWidget(
+                  initialDate: _adminPosEffective,
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime(DateTime.now().year + 2),
+                  onDateSelected: (d) =>
+                      _updateUserForm(() => _adminPosEffective = d),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+              'ก่อนวันนี้ใบลายังขึ้นผู้ลงนามตามตำแหน่งเดิม · ใบลาเก่าที่ส่งไปแล้วไม่เปลี่ยน',
+              style: GoogleFonts.sarabun(fontSize: 11.5, color: Colors.blueGrey)),
+          if (!ending && holderName.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              controlAffinity: ListTileControlAffinity.leading,
+              value: _adminPosReplace,
+              onChanged: (v) =>
+                  _updateUserForm(() => _adminPosReplace = v ?? true),
+              title: Text('แทน $holderName (พ้นตำแหน่งนี้ตั้งแต่ $when)',
+                  style: GoogleFonts.sarabun(fontSize: 13)),
+              subtitle: Text(
+                  'ไม่ติ๊ก = ตำแหน่งนี้มีได้หลายคน ทั้งสองคนดำรงตำแหน่งพร้อมกัน',
+                  style: GoogleFonts.sarabun(
+                      fontSize: 11.5, color: Colors.blueGrey)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// ประวัติตำแหน่งบริหารของคนที่กำลังแก้ — ลบรายการที่บันทึกผิดได้
+  Widget _buildAdminPositionHistory() {
+    String range(AdminPositionPeriod p) {
+      final from = p.start == null
+          ? 'ก่อนเริ่มบันทึก'
+          : FirebaseService.formatThaiDate(p.start!);
+      final to = p.end == null
+          ? 'ปัจจุบัน'
+          : FirebaseService.formatThaiDate(
+              p.end!.subtract(const Duration(days: 1)));
+      return '$from – $to';
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.fromLTRB(14, 10, 6, 6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('ประวัติตำแหน่งบริหาร',
+              style: GoogleFonts.sarabun(
+                  fontSize: 13, fontWeight: FontWeight.bold)),
+          for (final p in _editingAdminHistory.reversed)
+            Row(children: [
+              Expanded(
+                child: Text('${p.role} · ${range(p)}',
+                    style: GoogleFonts.sarabun(fontSize: 12.5)),
+              ),
+              if (p.id != null)
+                IconButton(
+                  tooltip: 'ลบรายการที่บันทึกผิด',
+                  icon: Icon(Icons.delete_outline,
+                      size: 18, color: Colors.red.shade400),
+                  onPressed: () => _deleteAdminPositionPeriod(p),
+                ),
+            ]),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteAdminPositionPeriod(AdminPositionPeriod p) async {
+    final ok = await showDialog<bool>(
+      context: _formDialogContext ?? context,
+      builder: (ctx) => AlertDialog(
+        title: Text('ลบประวัติตำแหน่ง', style: GoogleFonts.sarabun()),
+        content: Text(
+            'ลบ "${p.role}" รายการนี้?\n'
+            'ถ้ารายการนี้ไปแทนคนเดิม คนเดิมจะกลับมาดำรงตำแหน่งต่อจากวันนั้น',
+            style: GoogleFonts.sarabun()),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('ยกเลิก')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('ลบ')),
+        ],
+      ),
+    );
+    if (ok != true || p.id == null) return;
+    try {
+      await _firebaseService.deleteAdminPosition(p.id!);
+      // อ่านใหม่จากฐานข้อมูล — การลบอาจต่อช่วงของรายการอื่นกลับ
+      final fresh = await _firebaseService.getUsersFromSupabase();
+      final me = fresh.firstWhere(
+          (u) => '${u['id_user'] ?? ''}' == '${_editingIdUser ?? ''}',
+          orElse: () => const {});
+      _updateUserForm(() {
+        _editingAdminHistory = AdminPosition.historyOf(me);
+        _adminPosController.text =
+            (me['ตำแหน่งงานบริหาร'] ?? _adminPosController.text).toString();
+        _originalAdminPos = _adminPosController.text;
+      });
+      _refreshUsers();
+    } catch (e) {
+      _updateUserForm(() => _userFormError = 'ลบประวัติไม่สำเร็จ: $e');
+    }
   }
 
   // 🔥 ฟังก์ชันสำหรับสร้างหัวตารางให้ตรงแนวครับ

@@ -93,8 +93,9 @@ RenderContext tripRenderContext(
         position: _positionWithStanding(byId[id]),
       ),
   ];
+  // ผู้อำนวยการ ณ วันที่ยื่นเรื่อง (ยังไม่ยื่น = วันนี้) — เหมือนผู้ลงนามในใบลา
   final director = LeaveFormData(
-    leaf: const {},
+    leaf: {'timestamp': trip['createdAt']},
     allUsers: users,
     allLeaveRequests: const [],
   ).directorName;

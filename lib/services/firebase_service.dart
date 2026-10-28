@@ -1,6 +1,7 @@
 ﻿import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import '../utils/admin_position.dart';
 import '../utils/school_info.dart';
 import '../utils/staff_status.dart';
 import '../utils/web_platform.dart' as platform;
@@ -533,7 +534,8 @@ class FirebaseService {
   //   1) แนบคอลัมน์ 'id' ที่ตาราง Teachers ไม่มี
   //   2) ส่ง position/department/วิทยฐานะ เป็นข้อความ แต่ตารางเก็บเป็น FK ตัวเลข
   // ตอนนี้ใช้ตัวแปลงชุดเดียวกับตอนแก้ไขผู้ใช้ และตัดคอลัมน์ส่วนเกินให้อัตโนมัติ
-  Future<void> addUser(Map<String, dynamic> data) async {
+  /// เพิ่มบุคลากรใหม่ — คืนรหัส id_user ของแถวที่สร้าง (null = อ่านไม่ได้)
+  Future<int?> addUser(Map<String, dynamic> data) async {
     final client = _supabaseIfReady;
     if (client == null) throw Exception('Supabase not initialized');
 
@@ -579,6 +581,7 @@ class FirebaseService {
             'ให้แอดมินกด "รีเซ็ตรหัสผ่าน" ของครูคนนี้อีกครั้งเพื่อสร้างบัญชีครับ');
       }
     }
+    return int.tryParse('${newId ?? ''}');
   }
 
   // แก้ไขข้อมูลครูครับ 🏎️🏆
@@ -1962,6 +1965,78 @@ class FirebaseService {
     return null;
   }
 
+  // ── ประวัติตำแหน่งบริหาร (supabase/admin_position_history.sql) ─────────
+
+  /// แถวประวัติของโรงเรียนนี้ — ยังไม่ได้รัน SQL (ไม่มีตาราง) = ว่าง
+  Future<dynamic> _adminPositionHistoryRows(SupabaseClient client) async {
+    try {
+      return await inSchool(client.from('AdminPositionHistory').select(
+          'id_history, id_user, id_adminrole, start_date, end_date, note'));
+    } catch (e) {
+      debugPrint('ℹ️  ยังไม่มีประวัติตำแหน่งบริหาร: $e');
+      return const [];
+    }
+  }
+
+  /// ฐานข้อมูลยังไม่มีฟังก์ชันนี้ (ยังไม่ได้รัน SQL)
+  static bool _isMissingFunction(Object e) {
+    final s = e.toString();
+    return s.contains('PGRST202') ||
+        s.contains('Could not find the function') ||
+        s.contains('does not exist');
+  }
+
+  /// ตั้ง/เปลี่ยน/พ้นตำแหน่งบริหาร มีผลตั้งแต่ [start]
+  ///
+  /// [roleName] ว่าง หรือ 'ไม่มีตำแหน่งบริหาร' = พ้นตำแหน่ง
+  /// [replace] = คนที่ดำรงตำแหน่งเดียวกันอยู่ พ้นตำแหน่งตั้งแต่วันเดียวกัน
+  ///
+  /// คืน false เมื่อฐานข้อมูลยังไม่มีระบบประวัติ ให้ผู้เรียกบันทึกแบบเดิมแทน
+  Future<bool> assignAdminPosition({
+    required int idUser,
+    required String roleName,
+    required DateTime start,
+    bool replace = true,
+  }) async {
+    final client = _supabaseIfReady;
+    if (client == null) throw Exception('Supabase not initialized');
+
+    int? roleId;
+    final name = roleName.trim();
+    if (!AdminPosition.isNone(name)) {
+      final rows = await inSchool(client
+              .from('adminroles')
+              .select('ID_AdminRoles')
+              .ilike('AdminRolesName', name))
+          .limit(1);
+      if ((rows as List).isEmpty) {
+        throw Exception('ไม่พบตำแหน่งบริหาร "$name" ของโรงเรียนนี้');
+      }
+      roleId = int.tryParse('${rows.first['ID_AdminRoles']}');
+    }
+
+    try {
+      await client.rpc('assign_admin_position', params: {
+        'p_id_user': idUser,
+        'p_id_adminrole': roleId,
+        'p_start': toIsoDate(start),
+        'p_replace': replace,
+      });
+      return true;
+    } catch (e) {
+      if (_isMissingFunction(e)) return false;
+      rethrow;
+    }
+  }
+
+  /// ลบรายการประวัติที่บันทึกผิด — ช่วงที่ถูกปิดเพราะรายการนี้จะต่อกลับให้เอง
+  Future<void> deleteAdminPosition(int idHistory) async {
+    final client = _supabaseIfReady;
+    if (client == null) throw Exception('Supabase not initialized');
+    await client
+        .rpc('delete_admin_position', params: {'p_id_history': idHistory});
+  }
+
   Future<List<Map<String, dynamic>>> getUsersFromSupabase() async {
     final client = _supabaseIfReady;
     if (client == null) {
@@ -1975,6 +2050,8 @@ class FirebaseService {
       final futureRoles = client.from('roles').select();
       final futureAcademics = client.from('academics').select();
       final futureAdminRoles = inSchool(client.from('adminroles').select());
+      // ยังไม่ได้รัน admin_position_history.sql = ไม่มีตาราง → ทำงานแบบเดิม
+      final futureHistory = _adminPositionHistoryRows(client);
 
       final results = await Future.wait([
         futureTeachers,
@@ -1983,6 +2060,7 @@ class FirebaseService {
         futureRoles,
         futureAcademics,
         futureAdminRoles,
+        futureHistory,
       ]);
 
       final rows = results[0] as List;
@@ -1991,6 +2069,7 @@ class FirebaseService {
       final roles = results[3] as List;
       final academics = results[4] as List;
       final adminRoles = results[5] as List;
+      final historyRows = results[6] as List;
 
       final deptMap = <String, String>{};
       for (final d in depts) {
@@ -2036,6 +2115,22 @@ class FirebaseService {
         }
       }
 
+      // ประวัติตำแหน่งบริหารของแต่ละคน (ชื่อตำแหน่งแปลงจากรหัสแล้ว)
+      final historyByUser = <String, List<Map<String, dynamic>>>{};
+      for (final h in historyRows) {
+        final m = Map<String, dynamic>.from(h as Map);
+        final role = adminRoleMap[m['id_adminrole']?.toString() ?? ''] ?? '';
+        if (role.isEmpty) continue;
+        historyByUser.putIfAbsent(m['id_user']?.toString() ?? '', () => []).add(
+            AdminPositionPeriod(
+          id: int.tryParse('${m['id_history']}'),
+          role: role,
+          start: DateTime.tryParse('${m['start_date'] ?? ''}'),
+          end: DateTime.tryParse('${m['end_date'] ?? ''}'),
+          note: (m['note'] ?? '').toString(),
+        ).toMap());
+      }
+
       final list = rows.map((row) {
         final r = Map<String, dynamic>.from(row as Map);
         final deptId = r['id_department']?.toString() ?? '';
@@ -2063,10 +2158,17 @@ class FirebaseService {
                 '')
             .toString();
 
-        final resolvedAdminRole =
+        final history = historyByUser[r['id_user']?.toString() ?? ''] ?? [];
+        final registered =
             (r['ตำแหน่งงานบริหาร'] ?? adminRoleMap[adminRoleId] ?? '')
                 .toString()
                 .trim();
+        // มีประวัติ = ตำแหน่ง "วันนี้" ตามประวัติ ไม่ใช่ค่าในทะเบียน — ตำแหน่งที่
+        // ตั้งล่วงหน้าไว้จะสลับตรงวันที่มีผล โดยไม่ต้องรอให้ใครไปกดบันทึกอีก
+        final resolvedAdminRole = history.isEmpty
+            ? registered
+            : AdminPosition.positionOn(
+                {...r, 'adminPositionHistory': history}, DateTime.now());
 
         return _fromSupabaseTeacher({
           ...r,
@@ -2083,6 +2185,7 @@ class FirebaseService {
               ? resolvedAcademic
               : (academicMap[academicId] ?? ''),
           'ตำแหน่งงานบริหาร': resolvedAdminRole,
+          'adminPositionHistory': history,
         });
       }).toList();
 
