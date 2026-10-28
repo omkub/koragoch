@@ -135,11 +135,23 @@ async function caller(req: Request) {
   if (!data?.user) return null;
   const { data: t } = await admin
     .from('Teachers')
-    .select('id_user, id_role, employment_status')
+    .select('id_user, id_role, employment_status, left_date')
     .eq('auth_uid', data.user.id)
     .maybeSingle();
-  if (!t || (t.employment_status ?? 'active') !== 'active') return null;
+  if (!t || !isWorkingToday(t.employment_status, t.left_date)) return null;
   return t as { id_user: number; id_role: number };
+}
+
+/**
+ * ยังปฏิบัติงานวันนี้ — ตรงกับ staff_is_working() ในฐานข้อมูล
+ * สถานะพ้นสภาพมีผลตั้งแต่ left_date ก่อนวันนั้นยังทำงานตามปกติ
+ */
+function isWorkingToday(status: string | null, leftDate: string | null): boolean {
+  if ((status ?? 'active') === 'active') return true;
+  if (!leftDate) return false;
+  // วันนี้ตามเวลาไทย (YYYY-MM-DD) — เซิร์ฟเวอร์ Edge Function เป็นเวลา UTC
+  const todayTh = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return leftDate.slice(0, 10) > todayTh;
 }
 
 Deno.serve(async (req) => {

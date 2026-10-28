@@ -20,6 +20,49 @@ void main() {
     expect(StaffStatus.isListed({'is_super_admin': 'false'}), isTrue);
   });
 
+  group('มีผลตามวันที่ (ตั้งล่วงหน้าได้)', () {
+    // ตัวอย่างจากผู้ใช้: ย้าย มีผลตั้งแต่ 26/10/69
+    // → วันที่ 25 ยังทำงานอยู่ · วันที่ 26 ต้องไม่แสดงแล้ว
+    final moving = {'employment_status': 'transferred', 'left_date': '2026-10-26'};
+
+    test('ก่อนวันที่มีผล ยังปฏิบัติงานและอยู่ในรายชื่อ', () {
+      expect(StaffStatus.isActive(moving, on: DateTime(2026, 10, 20)), isTrue);
+      expect(StaffStatus.isActive(moving, on: DateTime(2026, 10, 25)), isTrue);
+    });
+
+    test('วันที่มีผล พ้นสภาพทันที (ไม่ใช่วันถัดไป)', () {
+      expect(StaffStatus.isActive(moving, on: DateTime(2026, 10, 26)), isFalse);
+      expect(StaffStatus.isActive(moving, on: DateTime(2026, 10, 27)), isFalse);
+    });
+
+    test('เวลาในวันไม่มีผล — 23:59 ของวันที่ 25 ยังทำงาน · 00:01 ของวันที่ 26 ไม่แล้ว', () {
+      expect(StaffStatus.isActive(moving, on: DateTime(2026, 10, 25, 23, 59)),
+          isTrue);
+      expect(StaffStatus.isActive(moving, on: DateTime(2026, 10, 26, 0, 1)),
+          isFalse);
+    });
+
+    test('ไม่ใส่วันที่ = พ้นสภาพทันที (เหมือนเดิม)', () {
+      expect(
+          StaffStatus.isActive({'employment_status': 'retired'},
+              on: DateTime(2000, 1, 1)),
+          isFalse);
+    });
+
+    test('ตั้งย้ายล่วงหน้า วันนี้ยังทำงาน แต่ไม่ถูกนับในปีงบที่เริ่มหลังวันย้าย', () {
+      // ย้ายมีผล 15 ก.ย. 2570 — ปีงบ 2571 (เริ่ม 1 ต.ค. 70) ต้องไม่มีชื่อ
+      // แม้วันนี้ยังทำงานอยู่ (กันรายงานปีหน้าดึงคนที่กำหนดย้ายแล้ว)
+      final movingNextYear = {
+        'employment_status': 'transferred',
+        'left_date': '2027-09-15',
+      };
+      expect(StaffStatus.activeDuring(movingNextYear, DateTime(2027, 10, 1)),
+          isFalse);
+      expect(StaffStatus.activeDuring(movingNextYear, DateTime(2026, 10, 1)),
+          isTrue);
+    });
+  });
+
   group('นับตามปีงบประมาณ', () {
     final fy2569 = DateTime(2025, 10, 1); // ปีงบ 2569
     final fy2570 = DateTime(2026, 10, 1); // ปีงบ 2570

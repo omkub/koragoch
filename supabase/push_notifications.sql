@@ -3,7 +3,8 @@
 --  เฉพาะผู้ดูแลระบบ (id_role 22) และผู้ดูแลส่วนกลาง
 --
 --  วิธีรัน: Supabase Dashboard > SQL Editor > วางทั้งไฟล์ > Run
---  รันซ้ำได้ ไม่พัง
+--  รันซ้ำได้ ไม่พัง — แต่ต้องรัน staff_status_effective_date.sql ตามด้วยเสมอ
+--  (ไฟล์นั้นแก้ notify_new_leave ให้นับผู้ดูแลระบบตามวันที่มีผลของสถานะ)
 --  ต้องรันก่อนแล้ว: notifications.sql, settings_secrets.sql (AppSecrets),
 --                  staff_status.sql
 --  ต้อง deploy ก่อน: Edge Function push-notify (ดู supabase/functions/README.md)

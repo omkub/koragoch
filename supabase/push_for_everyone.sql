@@ -3,6 +3,8 @@
 --
 --  วิธีรัน: Supabase Dashboard > SQL Editor > วางทั้งไฟล์ > Run
 --  รันซ้ำได้ ไม่พัง  ต้องรันก่อนแล้ว: notifications.sql, push_notifications.sql
+--  รันซ้ำทีหลัง ต้องรัน staff_status_effective_date.sql ตามด้วยเสมอ
+--  (ไฟล์นั้นแก้ notify_leave_status ให้ดูวันที่มีผลของสถานะเจ้าของใบลา)
 --  ต้อง deploy Edge Function push-notify ใหม่ด้วย (ปุ่มทดสอบใช้ได้ทุกคน)
 --
 --  ใครได้อะไร:
