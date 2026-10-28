@@ -175,12 +175,12 @@ class LeaveFormData {
     _latestLeaveComputed = true;
 
     final name = fullName.trim();
-    final fiscalYear = (leaf['year'] ?? '').toString().trim();
+    final fiscalYear = fiscalYearOfLeave(leaf);
     if (name.isEmpty || fiscalYear.isEmpty) return null;
 
     final candidates = allLeaveRequests.where((leave) {
       return (leave['fullName'] ?? '').toString().trim() == name &&
-          (leave['year'] ?? '').toString().trim() == fiscalYear &&
+          fiscalYearOfLeave(leave) == fiscalYear &&
           _isBeforeCurrent(leave);
     }).toList()
       ..sort(FirebaseService.compareLeaveRecency);
@@ -271,14 +271,14 @@ class LeaveFormData {
       ];
 
   LeaveStatRow _statRow(String label, String keyword) {
-    final currentYear = (leaf['year'] ?? '').toString();
+    final currentYear = fiscalYearOfLeave(leaf);
     final history = allLeaveRequests.where((req) {
       final reqName = (req['fullName'] ?? '').toString();
       final reqType = (req['leaveType'] ?? '').toString();
-      final reqYear = (req['year'] ?? '').toString();
       return reqName == fullName &&
           reqType.contains(keyword) &&
-          reqYear == currentYear &&
+          currentYear.isNotEmpty &&
+          fiscalYearOfLeave(req) == currentYear &&
           _isBeforeCurrent(req);
     }).toList();
 
@@ -337,6 +337,22 @@ class LeaveFormData {
             .toString()
             .compareTo((leaf['requestId'] ?? '').toString()) <
         0;
+  }
+
+  /// ปีงบประมาณ (พ.ศ.) ของใบลา คิดจากวันเริ่มลา — ปีงบเริ่ม 1 ต.ค.
+  ///
+  /// ไม่เชื่อช่อง year ที่บันทึกไว้ก่อน: ฟอร์มรุ่นเก่าใส่ปี พ.ศ. ของวันที่ยื่น
+  /// ใบลาที่ยื่นช่วง ต.ค.–ธ.ค. จึงได้ปีงบก่อนหน้า ตาราง "สถิติวันลาใน
+  /// ปีงบประมาณนี้" เลยดึงใบลาปีงบเก่ามานับรวม ใช้ช่อง year เฉพาะใบที่
+  /// อ่านวันเริ่มลาไม่ได้
+  static String fiscalYearOfLeave(Map<String, dynamic> leave) {
+    final start =
+        parseDate(leave['startDateValue']) ?? parseDate(leave['startDate']);
+    if (start != null) {
+      return ((start.month >= 10 ? start.year + 1 : start.year) + 543)
+          .toString();
+    }
+    return (leave['year'] ?? '').toString().trim();
   }
 
   static DateTime? _sequenceDate(Map<String, dynamic> leave) {

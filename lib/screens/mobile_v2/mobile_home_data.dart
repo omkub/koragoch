@@ -134,9 +134,11 @@ class MobileHomeData {
         if (ta == null || tb == null) return ta == null ? 1 : -1;
         return tb.compareTo(ta);
       });
+    // ปีงบของใบลาคิดจากวันเริ่มลา — ช่อง year ของใบลาที่ยื่นช่วง ต.ค.–ธ.ค.
+    // จากฟอร์มรุ่นเก่าเป็นปีงบก่อนหน้า (ดู LeaveFormData.fiscalYearOfLeave)
     num days(String keyword) => mine
         .where((l) =>
-            l['year']?.toString() == fiscalYear &&
+            LeaveFormData.fiscalYearOfLeave(l) == fiscalYear?.trim() &&
             (l['leaveType'] ?? '').toString().contains(keyword) &&
             !_isRejected((l['status'] ?? '').toString()))
         .fold<num>(

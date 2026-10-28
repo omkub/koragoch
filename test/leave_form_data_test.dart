@@ -196,6 +196,51 @@ void main() {
       expect(personal.totalTimes, '1');
     });
 
+    test('ใบลาปีงบก่อนไม่ถูกนับ แม้ช่อง year บันทึกไว้ผิดเป็นปีเดียวกัน', () {
+      // จากใบลาจริง: ลากิจ 30 ต.ค. 2569 (ปีงบ 2570) ฟอร์มรุ่นเก่าใส่ year = ปี พ.ศ.
+      // ของวันที่ยื่น (2569) ซึ่งตรงกับลากิจ 22–24 มิ.ย. 2569 (ปีงบ 2569)
+      // ตารางเลยขึ้น "ลามาแล้ว 1 ครั้ง 3 วัน" ทั้งที่เป็นการลาครั้งแรกของปีงบนี้
+      final current = leave(
+          requestId: 'NEW',
+          leaveType: 'ลากิจส่วนตัว',
+          startDate: '30/10/2569',
+          endDate: '30/10/2569',
+          year: '2569');
+      final data = LeaveFormData(
+        leaf: current,
+        allUsers: const [],
+        allLeaveRequests: [
+          leave(
+              requestId: 'JUNE',
+              leaveType: 'ลากิจส่วนตัว',
+              startDate: '22/06/2569',
+              endDate: '24/06/2569',
+              totalDays: '3',
+              year: '2569'),
+          current,
+        ],
+      );
+
+      final personal =
+          data.statRows.firstWhere((r) => r.label == 'ลากิจส่วนตัว');
+      expect(personal.previousTimes, '-');
+      expect(personal.previousDays, '-');
+      expect(personal.currentTimes, '1');
+      expect(personal.totalTimes, '1');
+      expect(personal.totalDays, '1');
+      // "ครั้งสุดท้าย" ก็ต้องไม่ดึงใบเดือนมิถุนาฯ ของปีงบก่อนมา
+      expect(data.latestLeave, isNull);
+    });
+
+    test('ปีงบเริ่ม 1 ต.ค. — 30 ก.ย. กับ 1 ต.ค. อยู่คนละปีงบ', () {
+      expect(LeaveFormData.fiscalYearOfLeave({'startDate': '30/09/2569'}),
+          '2569');
+      expect(LeaveFormData.fiscalYearOfLeave({'startDate': '01/10/2569'}),
+          '2570');
+      // อ่านวันเริ่มลาไม่ได้ ใช้ช่อง year ที่บันทึกไว้
+      expect(LeaveFormData.fiscalYearOfLeave({'year': '2568'}), '2568');
+    });
+
     test('ไม่มีประวัติเลย แสดงขีดแทนศูนย์', () {
       final current = leave(requestId: 'A', leaveType: 'ลาคลอดบุตร');
       final data = LeaveFormData(
