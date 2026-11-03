@@ -13,6 +13,7 @@ import {
   IconMenu,
   IconSchool,
   IconShield,
+  IconStar,
   IconUserCheck,
   IconUsers,
 } from './icons';
@@ -63,6 +64,13 @@ const NAV: { group: string; badge: string; items: NavItem[] }[] = [
         label: 'บุคลากร',
         desc: 'สถานะปฏิบัติงาน ลาออก เกษียณ ย้าย',
         icon: <IconUsers />,
+        superOnly: true,
+      },
+      {
+        to: '/admin-positions',
+        label: 'ตำแหน่งบริหาร',
+        desc: 'ดำรงตำแหน่งวันนี้ เปลี่ยนตำแหน่ง ทำเนียบตามปีงบ',
+        icon: <IconStar />,
         superOnly: true,
       },
     ],

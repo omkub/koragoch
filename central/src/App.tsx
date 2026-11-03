@@ -8,6 +8,7 @@ import DashboardPage from './pages/DashboardPage';
 import SchoolsPage from './pages/SchoolsPage';
 import SchoolAdminsPage from './pages/SchoolAdminsPage';
 import StaffPage from './pages/StaffPage';
+import AdminPositionsPage from './pages/AdminPositionsPage';
 import LinePage from './pages/LinePage';
 import RolePermissionsPage from './pages/RolePermissionsPage';
 import UserPermissionsPage from './pages/UserPermissionsPage';
@@ -89,6 +90,7 @@ export default function App() {
             <Route path="/schools" element={<SchoolsPage />} />
             <Route path="/admins" element={<SchoolAdminsPage />} />
             <Route path="/staff" element={<StaffPage />} />
+            <Route path="/admin-positions" element={<AdminPositionsPage />} />
             <Route path="/line" element={<LinePage />} />
             <Route path="/role-permissions" element={<RolePermissionsPage />} />
             <Route path="/attendance" element={<AttendancePage />} />
