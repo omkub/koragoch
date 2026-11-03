@@ -1,26 +1,24 @@
 /// หน้าจอมือถือ (จอแคบกว่า 1100px — ดู ResponsiveLayout)
-/// แบบใหม่ — ค่าเริ่มต้นของทุกโรงเรียน; โรงเรียนที่ตั้งเป็นแบบเดิมที่เว็บส่วนกลาง
-/// (Schools.mobile_ui = 'old') จะใช้ MobileMainLayout แทน
-///
-/// โครงแบบแอปมือถือ:
+/// แบบใหม่ — ปรับแต่งประสบการณ์ใช้งานให้เป็น Mobile Application อย่างแท้จริง:
 ///   - แถบล่าง 4 ปุ่ม: หน้าหลัก · ส่งใบลา · ประวัติ · บัญชี
-///   - แถบหัวบนทุกแท็บ (ชื่อหน้า + กระดิ่งแจ้งเตือนของผู้ดูแลระบบ)
-///   - เมนูอื่นเปิดจากทางลัดในหน้าหลัก เลื่อนเข้าจากขวา (mobile_pages.dart)
-///   - ปุ่มย้อนกลับของเครื่อง/เบราว์เซอร์ที่แท็บอื่น = กลับหน้าหลักก่อน
-///   - สลับแท็บแล้วสิ่งที่กรอกค้างไว้ไม่หาย (IndexedStack)
+///   - Badge แสดงตัวเลขอัปเดตแจ้งเตือนและรายการค้างดำเนินการ
+///   - แอนิเมชันเปลี่ยนหน้าแบบลื่นไหล
+///   - Haptic feedback เวลาแตะปุ่มเพื่อประสบการณ์แบบ Native App
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../services/firebase_service.dart';
 import '../../services/push_service.dart';
 import '../../widgets/notification_bell.dart';
-import '../mobile/mobile_leave_form_screen.dart';
-import '../mobile/mobile_profile_screen.dart';
 import 'menu_access.dart';
 import 'mobile_home_screen.dart';
+import 'mobile_leave_form.dart';
 import 'mobile_leave_history.dart';
 import 'mobile_pages.dart';
+import 'mobile_profile.dart';
 
 enum _Tab { home, leave, history, account }
 
@@ -41,15 +39,44 @@ class _MobileShellState extends State<MobileShell> {
   /// เพิ่มเมื่อส่งใบลาเสร็จ ให้หน้าประวัติโหลดใหม่
   int _historyVersion = 0;
 
+  /// จำนวนงานรอพิจารณาสำหรับ Badge บนแท็บประวัติ
+  int _pendingCount = 0;
+  VoidCallback? _stopLive;
+
   @override
   void initState() {
     super.initState();
     MenuAccess.load().then((a) {
       if (!mounted) return;
       setState(() => _access = a);
-      // ถามเปิดแจ้งเตือนครั้งเดียวต่อเครื่อง
       PushService.instance.offerOnce(context, isAdmin: a.isAdmin);
+      _listenPendingCount(a);
     });
+  }
+
+  @override
+  void dispose() {
+    _stopLive?.call();
+    super.dispose();
+  }
+
+  void _listenPendingCount(MenuAccess access) {
+    if (!access.isAdmin && !access.seesSchoolOverview) return;
+    final service = FirebaseService();
+    _fetchPending(service);
+    _stopLive = service.onLeavesChanged(() => _fetchPending(service));
+  }
+
+  Future<void> _fetchPending(FirebaseService service) async {
+    try {
+      final leaves = await service.getLeaveRequestsFromSupabase();
+      if (!mounted) return;
+      final pending = leaves.where((l) {
+        final s = (l['status'] ?? '').toString();
+        return s.contains('รอ') || s.contains('พิจารณา');
+      }).length;
+      setState(() => _pendingCount = pending);
+    } catch (_) {}
   }
 
   List<_Tab> get _tabs => [
@@ -59,25 +86,31 @@ class _MobileShellState extends State<MobileShell> {
         _Tab.account,
       ];
 
-  void _go(_Tab tab) => setState(() => _tab = tab);
+  void _go(_Tab tab) {
+    if (_tab != tab) {
+      HapticFeedback.lightImpact();
+      setState(() => _tab = tab);
+    }
+  }
 
   String _title(_Tab tab) => switch (tab) {
         _Tab.home => 'หน้าหลัก',
         _Tab.leave => _editData == null ? 'ส่งใบลา' : 'แก้ไขใบลา',
-        _Tab.history => 'ประวัติ',
-        _Tab.account => 'บัญชี',
+        _Tab.history => 'ประวัติและรายการลา',
+        _Tab.account => 'โปรไฟล์และตั้งค่า',
       };
 
   Widget _page(_Tab tab) {
     switch (tab) {
       case _Tab.home:
         return MobileHomeScreen(
-            access: _access!, onGoTab: (i) => _go(_Tab.values[i]));
+          access: _access!,
+          onGoTab: (i) => _go(_Tab.values[i]),
+        );
       case _Tab.leave:
-        return MobileLeaveFormScreen(
+        return MobileLeaveFormV2(
           key: ValueKey('leave_${_editData?['requestId'] ?? 'new'}'),
           initialData: _editData,
-          appStyle: true,
           onComplete: () => setState(() {
             _editData = null;
             _historyVersion++;
@@ -94,7 +127,7 @@ class _MobileShellState extends State<MobileShell> {
           }),
         );
       case _Tab.account:
-        return const MobileProfileScreen(appStyle: true);
+        return const MobileProfileV2();
     }
   }
 
@@ -103,66 +136,143 @@ class _MobileShellState extends State<MobileShell> {
     final access = _access;
     if (access == null) {
       return const Scaffold(
-          backgroundColor: mobileBg,
-          body: Center(child: CircularProgressIndicator()));
+        backgroundColor: mobileBg,
+        body: Center(
+          child: CircularProgressIndicator(color: mobileAccent),
+        ),
+      );
     }
     final tabs = _tabs;
     final current = tabs.contains(_tab) ? _tab : _Tab.home;
 
     return PopScope(
-      // ย้อนกลับที่แท็บอื่น = กลับหน้าหลัก (ไม่ใช่ออกจากแอป)
       canPop: current == _Tab.home,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _go(_Tab.home);
       },
       child: Scaffold(
         backgroundColor: mobileBg,
-        appBar: mobileAppBar(_title(current), showLogo: true, actions: [
-          NotificationBell(onOpenLeaves: () => _go(_Tab.history)),
-        ]),
+        appBar: mobileAppBar(
+          _title(current),
+          showLogo: true,
+          actions: [
+            NotificationBell(onOpenLeaves: () => _go(_Tab.history)),
+          ],
+        ),
         body: IndexedStack(
           index: tabs.indexOf(current),
           children: [for (final t in tabs) _page(t)],
         ),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: tabs.indexOf(current),
-          onDestinationSelected: (i) => _go(tabs[i]),
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.white,
-          indicatorColor: const Color(0xFFDBEAFE),
-          height: 68,
-          labelTextStyle: WidgetStateProperty.resolveWith((s) =>
-              GoogleFonts.sarabun(
-                  fontSize: 12,
-                  fontWeight: s.contains(WidgetState.selected)
-                      ? FontWeight.w700
-                      : FontWeight.w500,
-                  color: s.contains(WidgetState.selected)
-                      ? mobileAccent
-                      : mobileMuted)),
-          destinations: [
-            for (final t in tabs)
-              switch (t) {
-                _Tab.home => const NavigationDestination(
-                    icon: Icon(Icons.home_outlined),
-                    selectedIcon: Icon(Icons.home_rounded, color: mobileAccent),
-                    label: 'หน้าหลัก'),
-                _Tab.leave => const NavigationDestination(
-                    icon: Icon(Icons.add_circle_outline_rounded),
-                    selectedIcon:
-                        Icon(Icons.add_circle_rounded, color: mobileAccent),
-                    label: 'ส่งใบลา'),
-                _Tab.history => const NavigationDestination(
-                    icon: Icon(Icons.history_rounded),
-                    selectedIcon:
-                        Icon(Icons.manage_history_rounded, color: mobileAccent),
-                    label: 'ประวัติ'),
-                _Tab.account => const NavigationDestination(
-                    icon: Icon(Icons.person_outline_rounded),
-                    selectedIcon:
-                        Icon(Icons.person_rounded, color: mobileAccent),
-                    label: 'บัญชี'),
-              },
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.06),
+                blurRadius: 16,
+                offset: const Offset(0, -4),
+              ),
+            ],
+            border: const Border(top: BorderSide(color: Color(0xFFEEF2F6))),
+          ),
+          child: SafeArea(
+            top: false,
+            child: SizedBox(
+              height: 66,
+              child: Row(
+                children: [
+                  for (final t in tabs)
+                    Expanded(
+                      child: _buildNavItem(
+                        tab: t,
+                        isSelected: current == t,
+                        onTap: () => _go(t),
+                        badgeCount: t == _Tab.history && _pendingCount > 0 ? _pendingCount : 0,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem({
+    required _Tab tab,
+    required bool isSelected,
+    required VoidCallback onTap,
+    int badgeCount = 0,
+  }) {
+    final (icon, activeIcon, label) = switch (tab) {
+      _Tab.home => (Icons.home_outlined, Icons.home_rounded, 'หน้าหลัก'),
+      _Tab.leave => (Icons.add_circle_outline_rounded, Icons.add_circle_rounded, 'ส่งใบลา'),
+      _Tab.history => (Icons.history_rounded, Icons.manage_history_rounded, 'ประวัติ'),
+      _Tab.account => (Icons.person_outline_rounded, Icons.person_rounded, 'บัญชี'),
+    };
+
+    return InkWell(
+      onTap: onTap,
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isSelected ? const Color(0xFFDBEAFE) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(
+                    isSelected ? activeIcon : icon,
+                    size: 23,
+                    color: isSelected ? mobileAccent : mobileMuted,
+                  ),
+                ),
+                if (badgeCount > 0)
+                  Positioned(
+                    top: -2,
+                    right: 4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      child: Text(
+                        badgeCount > 99 ? '99+' : '$badgeCount',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.sarabun(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: GoogleFonts.sarabun(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? mobileAccent : mobileMuted,
+              ),
+            ),
           ],
         ),
       ),

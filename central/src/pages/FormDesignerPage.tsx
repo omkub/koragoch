@@ -31,7 +31,7 @@ import PaperEditor from '../forms/editor/PaperEditor';
 import BlockEditor from '../forms/editor/BlockEditor';
 import PreviewFrame, { type FitInfo } from '../forms/editor/PreviewFrame';
 import '../forms/editor/designer.css';
-import { EmptyState, Field, Notice, PageHeader } from '../ui/components';
+import { EmptyState, Field, Notice, PageHeader, SectionHeader } from '../ui/components';
 
 type Scope = 'global' | number;
 type Message = { text: string; error?: boolean } | null;
@@ -49,12 +49,6 @@ function thaiDateTime(iso: string) {
 
 /**
  * แบบฟอร์ม — ออกแบบใบลา / ใบขออนุญาตไปราชการ (เฉพาะผู้ดูแลส่วนกลาง)
- *
- *   แม่แบบกลาง: ใช้ทุกโรงเรียนที่ไม่มีแม่แบบของตัวเอง
- *   แม่แบบเฉพาะโรงเรียน: บันทึกเมื่อแก้ในขอบเขตของโรงเรียนนั้น
- *   ทุกการบันทึก = เวอร์ชันใหม่ ดูประวัติ / ย้อนกลับได้
- *
- * ตัวอย่างวาดด้วยข้อมูลจริงของโรงเรียน (ใบลา / รายการไปราชการ) หรือข้อมูลตัวอย่าง
  */
 export default function FormDesignerPage() {
   const [formType, setFormType] = useState<FormType>('leave');
@@ -124,7 +118,6 @@ export default function FormDesignerPage() {
     loadTemplate();
   }, [loadTemplate]);
 
-  // ขอบเขตโรงเรียน → ใช้ข้อมูลของโรงเรียนนั้นในตัวอย่าง
   useEffect(() => {
     if (scope !== 'global') setDataSchoolId(scope);
   }, [scope]);
@@ -166,7 +159,6 @@ export default function FormDesignerPage() {
     return tripContext(trip, tripSource);
   }, [formType, leaveSource, tripSource, recordId]);
 
-  // ตัวอย่างวาดใหม่หลังหยุดพิมพ์ 250 มส. (ไม่ให้ iframe โหลดใหม่ทุกตัวอักษร)
   const [html, setHtml] = useState('');
   useEffect(() => {
     if (!context) return;
@@ -220,7 +212,7 @@ export default function FormDesignerPage() {
       setNote('');
       await loadTemplate();
       setMessage({
-        text: `บันทึกเป็นเวอร์ชัน ${v.version} แล้ว — ${FORM_TYPE_LABEL[formType]}ใน app ใช้แม่แบบนี้ภายใน 5 นาที (หรือทันทีเมื่อเข้าระบบใหม่)`,
+        text: `บันทึกเป็นเวอร์ชัน ${v.version} แล้ว — ${FORM_TYPE_LABEL[formType]}ในแอปจะใช้แม่แบบนี้ภายใน 5 นาที (หรือทันทีเมื่อเข้าสู่ระบบใหม่)`,
       });
     } catch (e) {
       setMessage({ text: `บันทึกไม่สำเร็จ: ${e instanceof Error ? e.message : e}`, error: true });
@@ -302,8 +294,9 @@ export default function FormDesignerPage() {
   return (
     <>
       <PageHeader
-        title="แบบฟอร์ม"
-        description="ออกแบบใบลา / บันทึกไปราชการ ที่แอปใช้พิมพ์ — แก้แม่แบบกลาง หรือแม่แบบเฉพาะโรงเรียน"
+        category="4. ระบบเชื่อมต่อและเอกสาร"
+        title="ออกแบบฟอร์มเอกสารราชการ"
+        description="ออกแบบโครงสร้างใบลาและบันทึกขออนุญาตไปราชการที่แอปใช้พิมพ์ — รองรับทั้งแม่แบบกลางและแม่แบบเฉพาะโรงเรียน"
         actions={
           <div className="seg">
             {(Object.keys(FORM_TYPE_LABEL) as FormType[]).map((t) => (
@@ -321,44 +314,48 @@ export default function FormDesignerPage() {
         }
       />
 
-      {/* มือถือ: ใช้ดูตัวอย่างได้ แต่ออกแบบบนจอคอมจะสะดวกกว่ามาก */}
       <div className="alert-info mb-4 text-[13px] lg:hidden">
-        หน้านี้ออกแบบบนจอคอมจะสะดวกที่สุด — บนมือถือใช้ดูตัวอย่าง / ทดลองพิมพ์ได้
+        💡 แนะนำให้ออกแบบฟอร์มบนหน้าจอคอมพิวเตอร์เพื่อความสะดวก — บนมือถือสามารถดูตัวอย่างและทดลองพิมพ์ได้
       </div>
 
-      {/* แถบเครื่องมือ */}
-      <section className="card mb-4 p-4 sm:px-5">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
+      {/* แถบจัดการขอบเขตแม่แบบและการบันทึก */}
+      <section className="card mb-5 p-4 sm:p-5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <Field label="แก้แม่แบบของ" className="sm:w-64">
+            <Field label="ขอบเขตแม่แบบที่กำลังแก้ไข" className="sm:w-64">
               <select
-                className="input"
+                className="input font-semibold"
                 value={scope === 'global' ? 'global' : String(scope)}
                 onChange={(e) => {
                   if (!confirmDiscard()) return;
                   setScope(e.target.value === 'global' ? 'global' : Number(e.target.value));
                 }}
               >
-                <option value="global">แม่แบบกลาง (ทุกโรงเรียน)</option>
+                <option value="global">🌐 แม่แบบกลาง (ใช้ร่วมทุกโรงเรียน)</option>
                 {schools.map((s) => (
                   <option key={s.id_school} value={s.id_school}>
-                    {schoolName(s)}
+                    🏫 {schoolName(s)}
                   </option>
                 ))}
               </select>
             </Field>
             <div className="flex flex-wrap items-center gap-2 pb-1.5">
-              <span className={source === 'school' ? 'badge-green' : 'badge-slate'}>
+              <span className={source === 'school' ? 'badge-green' : 'badge-brand'}>
                 {scope === 'global' ? (source === 'builtin' ? SOURCE_LABEL.builtin : 'แม่แบบกลาง') : SOURCE_LABEL[source]}
                 {activeVersion !== null && ` · เวอร์ชัน ${activeVersion}`}
               </span>
-              {dirty && <span className="badge-amber">● ยังไม่ได้บันทึก</span>}
+              {dirty && <span className="badge-amber">● มีการแก้ไขที่ยังไม่บันทึก</span>}
             </div>
           </div>
 
           <div className="flex flex-1 flex-wrap items-end justify-end gap-2">
-            <select className="input w-auto" value="" onChange={(e) => copyFrom(e.target.value)} aria-label="คัดลอกแม่แบบ">
-              <option value="">คัดลอกแม่แบบจาก...</option>
+            <select
+              className="input w-auto text-[13px]"
+              value=""
+              onChange={(e) => copyFrom(e.target.value)}
+              aria-label="คัดลอกแม่แบบ"
+            >
+              <option value="">คัดลอกโครงสร้างจาก...</option>
               <option value="builtin">ค่าเริ่มต้นของระบบ</option>
               {scope !== 'global' && <option value="global">แม่แบบกลาง</option>}
               {schools
@@ -370,15 +367,15 @@ export default function FormDesignerPage() {
                 ))}
             </select>
             <button className="btn-secondary" onClick={() => setShowHistory(!showHistory)}>
-              ประวัติ ({versions.length})
+              ประวัติเวอร์ชัน ({versions.length})
             </button>
             {scope !== 'global' && source === 'school' && (
               <button className="btn-secondary" disabled={busy} onClick={revertToGlobal}>
-                ใช้แม่แบบกลาง
+                กลับไปใช้แม่แบบกลาง
               </button>
             )}
             <input
-              className="input w-full sm:w-56"
+              className="input w-full sm:w-52"
               placeholder="หมายเหตุการบันทึก (ไม่บังคับ)"
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -388,7 +385,7 @@ export default function FormDesignerPage() {
               disabled={busy || (!dirty && source !== 'builtin' && !(scope !== 'global' && source === 'global'))}
               onClick={save}
             >
-              {scope === 'global' ? 'บันทึกแม่แบบกลาง' : 'บันทึกสำหรับโรงเรียนนี้'}
+              {scope === 'global' ? 'บันทึกแม่แบบกลาง' : 'บันทึกเฉพาะโรงเรียนนี้'}
             </button>
           </div>
         </div>
@@ -396,28 +393,33 @@ export default function FormDesignerPage() {
 
       {scope !== 'global' && source === 'global' && (
         <div className="alert-info mb-4">
-          โรงเรียนนี้ใช้แม่แบบกลางอยู่ — แก้แล้วกดบันทึก จะกลายเป็นแม่แบบเฉพาะโรงเรียนนี้ (โรงเรียนอื่นไม่เปลี่ยน)
+          โรงเรียนนี้กำลังใช้แม่แบบกลางอยู่ — หากแก้ไขแล้วกดบันทึก ระบบจะสร้างแม่แบบเฉพาะของโรงเรียนนี้ให้โดยไม่กระทบโรงเรียนอื่น
         </div>
       )}
       {scope === 'global' && source === 'builtin' && (
         <div className="alert-info mb-4">
-          ยังไม่เคยบันทึกแม่แบบกลางลงฐานข้อมูล — กด "บันทึกแม่แบบกลาง" หนึ่งครั้ง เพื่อให้ app ดึงไปใช้ได้
+          ยังไม่เคยบันทึกแม่แบบกลางลงฐานข้อมูล — กด "บันทึกแม่แบบกลาง" 1 ครั้ง เพื่อให้แอปดึงไปใช้ได้
         </div>
       )}
       <Notice message={message} />
 
       {showHistory && (
-        <section className="card mb-4 overflow-hidden">
-          <div className="card-title">ประวัติเวอร์ชัน — {scope === 'global' ? 'แม่แบบกลาง' : 'โรงเรียนนี้'}</div>
+        <section className="card mb-5 overflow-hidden">
+          <div className="card-title">
+            <span>ประวัติเวอร์ชัน — {scope === 'global' ? 'แม่แบบกลาง' : 'เฉพาะโรงเรียนนี้'}</span>
+            <button className="btn-ghost btn-sm" onClick={() => setShowHistory(false)}>
+              ปิด ✕
+            </button>
+          </div>
           {versions.length === 0 ? (
-            <EmptyState>ยังไม่มีการบันทึก</EmptyState>
+            <EmptyState>ยังไม่มีประวัติการบันทึก</EmptyState>
           ) : (
             <div className="overflow-x-auto">
               <table className="table">
                 <thead>
                   <tr>
                     <th>เวอร์ชัน</th>
-                    <th>เมื่อ</th>
+                    <th>วันที่บันทึก</th>
                     <th>หมายเหตุ</th>
                     <th />
                   </tr>
@@ -426,15 +428,15 @@ export default function FormDesignerPage() {
                   {versions.map((v) => (
                     <tr key={v.id_template}>
                       <td className="whitespace-nowrap">
-                        <b>{v.version}</b>
-                        {v.version === versions[0].version && <span className="badge-green ml-1.5">ล่าสุด</span>}
+                        <b>v.{v.version}</b>
+                        {v.version === versions[0].version && <span className="badge-green ml-1.5">ใช้งานอยู่</span>}
                       </td>
-                      <td className="whitespace-nowrap">{thaiDateTime(v.createdAt)}</td>
+                      <td className="whitespace-nowrap text-xs text-slate-500">{thaiDateTime(v.createdAt)}</td>
                       <td>{v.uses_default ? <i>กลับไปใช้แม่แบบกลาง</i> : v.note ?? '-'}</td>
                       <td className="text-right">
                         {!v.uses_default && (
                           <button className="btn-secondary btn-sm" onClick={() => openVersion(v)}>
-                            เปิดเวอร์ชันนี้
+                            โหลดเวอร์ชันนี้มาแก้
                           </button>
                         )}
                       </td>
@@ -447,28 +449,43 @@ export default function FormDesignerPage() {
         </section>
       )}
 
-      <div className="grid items-start gap-4 lg:grid-cols-[400px_minmax(0,1fr)] xl:grid-cols-[430px_minmax(0,1fr)]">
-        {/* ซ้าย: กระดาษ / รายการบรรทัด / ตัวแก้ */}
+      <div className="grid items-start gap-5 lg:grid-cols-[400px_minmax(0,1fr)] xl:grid-cols-[430px_minmax(0,1fr)]">
+        {/* ซ้าย: กระดาษ / โครงสร้างบรรทัด / แก้ไขบรรทัด */}
         <div className="flex min-w-0 flex-col gap-4">
+          {/* หมวดย่อย 1: ตั้งค่ากระดาษ */}
           <section className="card p-4">
             <button
-              className="flex w-full items-center gap-2 text-left text-[13.5px] font-semibold hover:text-brand-700"
+              className="flex w-full items-center justify-between gap-2 text-left text-[13.5px] font-bold text-ink hover:text-brand-700"
               onClick={() => setShowPaper(!showPaper)}
             >
-              <span className="text-slate-400">{showPaper ? '▾' : '▸'}</span>
-              กระดาษ — {draft.paper.size === 'custom' ? 'กำหนดเอง' : draft.paper.size}{' '}
-              {draft.paper.orientation === 'portrait' ? 'แนวตั้ง' : 'แนวนอน'} · {draft.paper.fontSizePt} pt
+              <span className="flex items-center gap-2">
+                <span className="grid h-5 w-5 place-items-center rounded-md bg-brand-600 text-[11px] font-bold text-white">
+                  1
+                </span>
+                <span>ตั้งค่าหน้ากระดาษ</span>
+              </span>
+              <span className="badge-slate">
+                {draft.paper.size === 'custom' ? 'กำหนดเอง' : draft.paper.size}{' '}
+                {draft.paper.orientation === 'portrait' ? 'แนวตั้ง' : 'แนวนอน'} · {draft.paper.fontSizePt} pt{' '}
+                {showPaper ? '▴' : '▾'}
+              </span>
             </button>
             {showPaper && (
-              <div className="mt-3">
+              <div className="mt-3 border-t border-slate-100 pt-3">
                 <PaperEditor paper={draft.paper} onChange={(paper) => setDraft((d) => ({ ...d, paper }))} />
               </div>
             )}
           </section>
 
+          {/* หมวดย่อย 2: โครงสร้างบรรทัด */}
           <section className="card overflow-hidden">
             <div className="card-title">
-              บรรทัด ({draft.blocks.length})
+              <div className="flex items-center gap-2">
+                <span className="grid h-5 w-5 place-items-center rounded-md bg-brand-600 text-[11px] font-bold text-white">
+                  2
+                </span>
+                <span>โครงสร้างบรรทัด ({draft.blocks.length})</span>
+              </div>
               <select
                 className="input w-auto py-1.5 text-[13px]"
                 value=""
@@ -483,24 +500,26 @@ export default function FormDesignerPage() {
                 ))}
               </select>
             </div>
-            <ol className="flex max-h-[46vh] flex-col gap-0.5 overflow-y-auto px-2 pb-2">
+            <ol className="flex max-h-[44vh] flex-col gap-0.5 overflow-y-auto p-2">
               {draft.blocks.map((b, i) => {
                 const active = b.id === selectedId;
                 return (
                   <li
                     key={b.id}
-                    className={`flex items-center gap-0.5 rounded-lg pr-1 ${active ? 'bg-brand-50' : 'hover:bg-slate-50'}`}
+                    className={`flex items-center gap-0.5 rounded-xl pr-1 transition-colors ${
+                      active ? 'bg-brand-50 ring-1 ring-inset ring-brand-500/20' : 'hover:bg-slate-50'
+                    }`}
                   >
                     <button
-                      className="flex min-w-0 flex-1 flex-col items-start px-2.5 py-1.5 text-left"
+                      className="flex min-w-0 flex-1 flex-col items-start px-2.5 py-2 text-left"
                       onClick={() => setSelectedId(active ? null : b.id)}
                     >
                       <span
-                        className={`truncate text-[13px] font-semibold ${active ? 'text-brand-700' : ''} ${
+                        className={`truncate text-[13px] font-semibold ${active ? 'text-brand-700' : 'text-ink'} ${
                           b.visible ? '' : 'text-slate-400 line-through'
                         }`}
                       >
-                        <span className="mr-1 font-normal text-slate-400">{i + 1}.</span>
+                        <span className="mr-1.5 font-normal text-slate-400">{i + 1}.</span>
                         {b.name}
                       </span>
                       <span className="text-xs text-slate-500">
@@ -520,7 +539,7 @@ export default function FormDesignerPage() {
                         key={a.t}
                         title={a.t}
                         aria-label={a.t}
-                        className="rounded-md px-1.5 py-1 text-sm text-slate-500 hover:bg-slate-200 hover:text-ink"
+                        className="rounded-lg px-1.5 py-1 text-sm text-slate-500 hover:bg-slate-200 hover:text-ink"
                         onClick={a.f}
                       >
                         {a.s}
@@ -532,8 +551,10 @@ export default function FormDesignerPage() {
             </ol>
           </section>
 
+          {/* หมวดย่อย 3: แก้ไขบรรทัดที่เลือก */}
           {selected && (
             <section className="card p-4">
+              <SectionHeader step="3" title={`แก้ไขบรรทัด: ${selected.name}`} />
               <BlockEditor
                 key={selected.id}
                 block={selected}
@@ -543,7 +564,7 @@ export default function FormDesignerPage() {
                 flags={flags}
               />
               {selected.builtIn && (
-                <p className="field-hint mt-2">บรรทัดของแม่แบบเริ่มต้น ลบไม่ได้ แต่ซ่อนได้ (ปุ่ม 👁)</p>
+                <p className="field-hint mt-2">บรรทัดของแม่แบบเริ่มต้น ลบไม่ได้ แต่กดซ่อนได้ด้วยปุ่ม 👁</p>
               )}
             </section>
           )}
@@ -552,8 +573,12 @@ export default function FormDesignerPage() {
         {/* ขวา: ตัวอย่างเอกสาร */}
         <div className="min-w-0 lg:sticky lg:top-[72px]">
           <section className="card mb-3 p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-              <Field label="ข้อมูลตัวอย่างจาก" className="sm:w-56">
+            <SectionHeader
+              title="ข้อมูลจำลองแสดงตัวอย่างและทดลองพิมพ์"
+              subtitle="เลือกโรงเรียนและรายการใบลาจริงเพื่อตรวจสอบการจัดวางหน้ากระดาษ"
+            />
+            <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end">
+              <Field label="ดึงข้อมูลตัวอย่างจากโรงเรียน" className="sm:w-56">
                 <select
                   className="input"
                   value={dataSchoolId ?? ''}
@@ -567,9 +592,9 @@ export default function FormDesignerPage() {
                   ))}
                 </select>
               </Field>
-              <Field label={formType === 'leave' ? 'ใบลา' : 'รายการไปราชการ'} className="min-w-0 flex-1">
+              <Field label={formType === 'leave' ? 'เลือกรายการใบลา' : 'เลือกรายการไปราชการ'} className="min-w-0 flex-1">
                 <select className="input" value={recordId} onChange={(e) => setRecordId(e.target.value)}>
-                  <option value={SAMPLE}>ข้อมูลตัวอย่าง (สมมติ)</option>
+                  <option value={SAMPLE}>ข้อมูลตัวอย่างมาตรฐาน (สมมติ)</option>
                   {records.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.label}
@@ -578,7 +603,7 @@ export default function FormDesignerPage() {
                 </select>
               </Field>
               <button className="btn-secondary" disabled={!context} onClick={printTest}>
-                ทดลองพิมพ์ / PDF
+                🖨️ ทดลองพิมพ์ / PDF
               </button>
             </div>
           </section>
@@ -603,7 +628,7 @@ export default function FormDesignerPage() {
               <EmptyState>กำลังโหลดข้อมูลตัวอย่าง...</EmptyState>
             </div>
           )}
-          <p className="field-hint mt-2">กดที่บรรทัดบนเอกสารเพื่อเลือกมาแก้</p>
+          <p className="field-hint mt-2">💡 คลิกที่บรรทัดใดก็ได้บนหน้ากระดาษตัวอย่างเพื่อเลือกขึ้นมาแก้ไข</p>
         </div>
       </div>
     </>

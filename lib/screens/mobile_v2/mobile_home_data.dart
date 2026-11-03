@@ -19,6 +19,7 @@ import 'menu_access.dart';
 class MobileHomeData {
   final String fullName;
   final String subtitle;
+  final String profileImage;
 
   /// ปีงบที่ใช้นับ (เช่น "2570") — null = หารอบงบประมาณไม่เจอ
   final String? fiscalYear;
@@ -35,6 +36,7 @@ class MobileHomeData {
   const MobileHomeData({
     required this.fullName,
     required this.subtitle,
+    this.profileImage = '',
     required this.fiscalYear,
     required this.myDays,
     required this.latestLeave,
@@ -54,12 +56,14 @@ class MobileHomeData {
     final prefs = await SharedPreferences.getInstance();
     var fullName = access.currentUser;
     var subtitle = access.userRole;
+    var profileImage = '';
     try {
       final cached = prefs.getString('userFullDataJson');
       if (cached != null && cached.isNotEmpty) {
         final u = jsonDecode(cached) as Map<String, dynamic>;
         final name = (u['fullName'] ?? u['name'] ?? '').toString().trim();
         if (name.isNotEmpty) fullName = name;
+        profileImage = (u['profileImage'] ?? '').toString().trim();
         final pos = (u['position'] ?? '').toString().trim();
         final rank = (u['academicStanding'] ?? '').toString().trim();
         final parts = [
@@ -168,6 +172,7 @@ class MobileHomeData {
     return MobileHomeData(
       fullName: fullName,
       subtitle: subtitle,
+      profileImage: profileImage,
       fiscalYear: fiscalYear,
       myDays: (
         sick: days('ป่วย'),

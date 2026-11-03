@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { schoolName, supabase, type School } from '../supabase';
-import { EmptyState, Field, Notice, PageHeader } from '../ui/components';
-import { IconPlus, IconSearch } from '../ui/icons';
+import { EmptyState, Field, Notice, PageHeader, SectionHeader, StatCard } from '../ui/components';
+import { IconClock, IconPlus, IconSearch, IconUsers } from '../ui/icons';
 import { SaveBar } from '../ui/PermMatrix';
 
 interface Settings {
@@ -11,7 +11,6 @@ interface Settings {
   late_after: string;
   work_end: string;
   require_checkout: boolean;
-  // attendance_daily.sql
   start_date?: string | null;
   line_summary_enabled?: boolean;
   line_summary_time?: string;
@@ -40,6 +39,7 @@ interface TeacherRow {
 }
 
 type Message = { text: string; error?: boolean } | null;
+type AttendanceTab = 'time' | 'devices' | 'codes';
 
 const NEW_DEVICE: Omit<Device, 'id_device' | 'id_school'> = {
   name: '',
@@ -51,10 +51,8 @@ const NEW_DEVICE: Omit<Device, 'id_device' | 'id_school'> = {
   last_seen_at: null,
 };
 
-/** '08:00:00' → '08:00' (ช่อง <input type="time"> ต้องการแบบนี้) */
 const hhmm = (t: string | null | undefined) => (t ?? '').slice(0, 5);
 
-/** รหัสลับเครื่อง: สุ่ม 32 ไบต์ เข้ารหัส base64url (ยาว 43 ตัว) */
 function randomDeviceKey(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return btoa(String.fromCharCode(...bytes))
@@ -63,7 +61,6 @@ function randomDeviceKey(): string {
     .replace(/=+$/, '');
 }
 
-/** sha256 เป็นเลขฐาน 16 — ต้องตรงกับที่ Edge Function attendance-ingest คำนวณ */
 async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -79,24 +76,21 @@ function thaiDateTime(iso: string | null): string {
 }
 
 /**
- * ลงเวลา (สแกนหน้า) — ตั้งค่าต่อโรงเรียน (เฉพาะผู้ดูแลส่วนกลาง)
- *
- *   1) เวลาเข้างาน / เกณฑ์สาย / เปิด-ปิดระบบ   → AttendanceSettings
- *   2) ทะเบียนเครื่องสแกน + ออกรหัสลับ           → AttendanceDevices
- *   3) จับคู่ครูกับรหัสในเครื่อง                   → Teachers.device_code
- *
- * สิทธิ์จริงคุมด้วย RLS (ดู supabase/attendance.sql)
- * รหัสลับเครื่องเก็บเป็น sha256 เท่านั้น แสดงรหัสจริงครั้งเดียวตอนออก
+ * ลงเวลา (สแกนหน้า) — แยกหมวดหมู่เป็น 3 แท็บชัดเจนเพื่อไม่ให้หน้ายาวเกินไป:
+ *   1) เวลาปฏิบัติราชการ & สรุป LINE
+ *   2) เครื่องสแกนใบหน้า
+ *   3) รหัสบุคลากรในเครื่องสแกน
  */
 export default function AttendancePage() {
+  const [tab, setTab] = useState<AttendanceTab>('time');
   const [schools, setSchools] = useState<School[]>([]);
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
-  const [codes, setCodes] = useState<Record<number, string>>({}); // id_user → รหัสที่กำลังแก้
-  const [exempt, setExempt] = useState<Record<number, boolean>>({}); // id_user → ไม่ต้องสแกน
-  const [unmatched, setUnmatched] = useState<Record<string, number>>({}); // รหัส → จำนวนสแกน
+  const [codes, setCodes] = useState<Record<number, string>>({});
+  const [exempt, setExempt] = useState<Record<number, boolean>>({});
+  const [unmatched, setUnmatched] = useState<Record<string, number>>({});
   const [editingDevice, setEditingDevice] = useState<Partial<Device> | null>(null);
   const [newKey, setNewKey] = useState<{ device: string; key: string } | null>(null);
   const [search, setSearch] = useState('');
@@ -119,11 +113,7 @@ export default function AttendancePage() {
     const [s, d, t, u] = await Promise.all([
       supabase.from('AttendanceSettings').select('*').eq('id_school', id).maybeSingle(),
       supabase.from('AttendanceDevices').select('*').eq('id_school', id).order('id_device'),
-      supabase
-        .from('Teachers')
-        .select('*')
-        .eq('id_school', id)
-        .order('fullName'),
+      supabase.from('Teachers').select('*').eq('id_school', id).order('fullName'),
       supabase
         .from('AttendanceLogs')
         .select('device_code')
@@ -176,7 +166,6 @@ export default function AttendancePage() {
       return;
     }
     setBusy(true);
-    // line_summary_sent_on ระบบเขียนเอง — ไม่ส่งทับ
     const values: Partial<Settings> = { ...settings };
     delete values.line_summary_sent_on;
     const { error } = await supabase.from('AttendanceSettings').upsert({
@@ -185,10 +174,9 @@ export default function AttendancePage() {
       updatedAt: new Date().toISOString(),
     });
     setBusy(false);
-    setMessage(error ? { text: `บันทึกไม่สำเร็จ: ${error.message}`, error: true } : { text: 'บันทึกการตั้งค่าแล้ว' });
+    setMessage(error ? { text: `บันทึกไม่สำเร็จ: ${error.message}`, error: true } : { text: 'บันทึกการตั้งค่าเวลาและ LINE แล้ว' });
   }
 
-  /** ส่งสรุปของวันนี้เข้ากลุ่ม LINE ทันที (ไม่สนเวลาที่ตั้งไว้ / ไม่นับเป็นการส่งประจำวัน) */
   async function sendLineTest() {
     if (schoolId === null) return;
     setBusy(true);
@@ -238,9 +226,8 @@ export default function AttendancePage() {
     }
     setEditingDevice(null);
     await load(schoolId);
-    // เครื่องใหม่ออกรหัสให้เลย จะได้ไม่ลืม
     if (isNew) await issueKey(data as Device);
-    else setMessage({ text: 'บันทึกข้อมูลเครื่องแล้ว' });
+    else setMessage({ text: 'บันทึกข้อมูลเครื่องสแกนแล้ว' });
   }
 
   async function issueKey(device: Device) {
@@ -273,7 +260,7 @@ export default function AttendancePage() {
       return;
     }
     const { error } = await supabase.from('AttendanceDevices').delete().eq('id_device', device.id_device);
-    setMessage(error ? { text: `ลบไม่สำเร็จ: ${error.message}`, error: true } : { text: 'ลบเครื่องแล้ว' });
+    setMessage(error ? { text: `ลบไม่สำเร็จ: ${error.message}`, error: true } : { text: 'ลบเครื่องสแกนแล้ว' });
     if (!error && schoolId !== null) load(schoolId);
   }
 
@@ -308,7 +295,6 @@ export default function AttendancePage() {
       return;
     }
     setBusy(true);
-    // ล้างรหัสที่ถูกย้าย/ลบก่อน แล้วค่อยใส่ใหม่ — กันชน unique ตอนสลับรหัสกันสองคน
     const cleared = changed.filter((t) => t.device_code);
     for (const t of cleared) {
       const { error } = await supabase.from('Teachers').update({ device_code: null }).eq('id_user', t.id_user);
@@ -325,7 +311,10 @@ export default function AttendancePage() {
         .eq('id_user', t.id_user);
       if (error) {
         setBusy(false);
-        setMessage({ text: `บันทึก ${t.fullName} ไม่สำเร็จ: ${error.message} (รัน attendance_daily.sql แล้วหรือยัง?)`, error: true });
+        setMessage({
+          text: `บันทึก ${t.fullName} ไม่สำเร็จ: ${error.message} (รัน attendance_daily.sql แล้วหรือยัง?)`,
+          error: true,
+        });
         return;
       }
     }
@@ -352,20 +341,23 @@ export default function AttendancePage() {
   });
 
   const pendingCodes = Object.entries(unmatched).filter(([code]) => !assignedCodes.has(code));
-
+  const matchedCount = teachers.filter((t) => t.device_code).length;
   const dirtyCount = changed.length + exemptChanged.length;
+
   const check = (checked: boolean, onChange: (v: boolean) => void, label: string) => (
-    <label className="flex items-start gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[13px] font-medium">
+    <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[13px] font-medium hover:border-slate-300">
       <input type="checkbox" className="checkbox mt-0.5" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       <span>{label}</span>
     </label>
   );
+
   const deviceBadges = (d: Device) => (
     <>
-      {d.device_key_hash ? <span className="badge-green">มีรหัสแล้ว</span> : <span className="badge-amber">ยังไม่มีรหัส</span>}
-      {d.is_active ? <span className="badge-green">ใช้งาน</span> : <span className="badge-slate">ปิด</span>}
+      {d.device_key_hash ? <span className="badge-green">มีรหัสลับแล้ว</span> : <span className="badge-amber">ยังไม่มีรหัส</span>}
+      {d.is_active ? <span className="badge-green">เปิดรับข้อมูล</span> : <span className="badge-slate">ปิด</span>}
     </>
   );
+
   const deviceActions = (d: Device) => (
     <div className="flex flex-wrap justify-end gap-1.5">
       <button
@@ -389,11 +381,83 @@ export default function AttendancePage() {
   return (
     <>
       <PageHeader
-        title="ลงเวลา (สแกนหน้า)"
-        description={'ระบบเก็บแค่ "ใคร สแกนเมื่อไร ที่เครื่องไหน" — ไม่เก็บภาพหรือข้อมูลใบหน้า (อยู่ในเครื่องสแกนเท่านั้น)'}
-        actions={
+        category="4. ระบบเชื่อมต่อและเอกสาร"
+        title="ระบบลงเวลาปฏิบัติราชการ (สแกนใบหน้า)"
+        description="เก็บเฉพาะเวลาและรหัสผู้สแกนจากเครื่องสแกนใบหน้า (ไม่เก็บภาพใบหน้าไว้บนคลาวด์) แยกเป็น 3 หมวดหมู่"
+      />
+      <Notice message={message} />
+
+      {/* แสดงรหัสลับเครื่องเมื่อเพิ่งออกรหัสใหม่ */}
+      {newKey && (
+        <section className="card mb-6 border-2 border-brand-500 bg-brand-50/20">
+          <div className="card-title bg-brand-50/60">
+            <span>🔑 รหัสลับของเครื่อง "{newKey.device}"</span>
+            <span className="badge-amber">แสดงครั้งเดียว</span>
+          </div>
+          <div className="flex flex-col gap-3 p-4 sm:p-5">
+            <p className="text-[13px] text-slate-600">
+              กรุณาคัดลอกเก็บไว้ตอนนี้ — <b>รหัสนี้จะแสดงเพียงครั้งเดียว</b> เพราะระบบเก็บเฉพาะค่า Hash ทางเดียว
+              หากทำหายสามารถกด "ออกรหัสใหม่" ได้ตลอดเวลา
+            </p>
+            <code className="select-all break-all rounded-xl border border-slate-200 bg-white px-3.5 py-3 font-mono text-[15px] font-semibold text-ink shadow-sm">
+              {newKey.key}
+            </code>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                className="btn-secondary"
+                onClick={() =>
+                  navigator.clipboard.writeText(newKey.key).then(() => setMessage({ text: 'คัดลอกรหัสลับแล้ว' }))
+                }
+              >
+                คัดลอกรหัส
+              </button>
+              <button className="btn-primary" onClick={() => setNewKey(null)}>
+                คัดลอกเก็บแล้ว (ปิดกล่องนี้)
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* แถบสรุปสถานะของโรงเรียนที่เลือก */}
+      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3 lg:gap-4">
+        <StatCard
+          icon={<IconClock className="h-4 w-4" />}
+          label="สถานะระบบลงเวลา"
+          value={settings?.enabled ? 'เปิดใช้งาน' : 'ปิดไว้ (โหมดทดสอบ)'}
+          hint={
+            settings
+              ? `เข้า ${hhmm(settings.work_start)} · สายหลัง ${hhmm(settings.late_after)} · เลิก ${hhmm(settings.work_end)}`
+              : undefined
+          }
+          tone={settings?.enabled ? 'green' : 'slate'}
+        />
+        <StatCard
+          icon={<IconClock className="h-4 w-4" />}
+          label="เครื่องสแกนที่ลงทะเบียน"
+          value={`${devices.length} เครื่อง`}
+          hint={`เปิดรับข้อมูล ${devices.filter((d) => d.is_active).length} เครื่อง`}
+          tone="brand"
+        />
+        <StatCard
+          icon={<IconUsers className="h-4 w-4" />}
+          label="จับคู่รหัสบุคลากรแล้ว"
+          value={`${matchedCount}/${teachers.length} คน`}
+          hint={
+            pendingCodes.length > 0
+              ? `มีรหัสสแกนค้างจับคู่ ${pendingCodes.length} รหัส`
+              : 'ไม่มีรหัสสแกนตกค้าง'
+          }
+          tone={pendingCodes.length > 0 ? 'amber' : 'green'}
+        />
+      </div>
+
+      {/* แถบเลือกโรงเรียน + สลับหมวดหมู่ 3 แท็บ */}
+      <section className="card mb-6 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <span className="text-[13px] font-semibold text-slate-600">โรงเรียนที่กำลังตั้งค่า:</span>
           <select
-            className="input w-auto max-w-full"
+            className="input w-auto max-w-full font-semibold"
             value={schoolId ?? ''}
             onChange={(e) => setSchoolId(Number(e.target.value))}
             aria-label="เลือกโรงเรียน"
@@ -404,314 +468,335 @@ export default function AttendancePage() {
               </option>
             ))}
           </select>
-        }
-      />
-      <Notice message={message} />
+        </div>
 
-      {newKey && (
-        <section className="card mb-5 border-2 border-brand-500">
-          <div className="card-title">รหัสลับของเครื่อง "{newKey.device}"</div>
-          <div className="flex flex-col gap-3 px-4 pb-4 sm:px-5">
-            <p className="text-[13px] text-slate-600">
-              คัดลอกเก็บไว้ตอนนี้ — <b>รหัสนี้แสดงครั้งเดียว</b> ระบบเก็บแบบเข้ารหัสทางเดียว ดูย้อนหลังไม่ได้
-              ถ้าทำหายให้กด "ออกรหัสใหม่"
-            </p>
-            <code className="select-all break-all rounded-lg bg-slate-100 px-3 py-2.5 font-mono text-[15px]">
-              {newKey.key}
-            </code>
-            <div className="flex flex-wrap justify-end gap-2">
-              <button
-                className="btn-secondary"
-                onClick={() =>
-                  navigator.clipboard.writeText(newKey.key).then(() => setMessage({ text: 'คัดลอกรหัสแล้ว' }))
-                }
-              >
-                คัดลอก
-              </button>
-              <button className="btn-primary" onClick={() => setNewKey(null)}>
-                เก็บแล้ว ปิด
-              </button>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* 1) ตั้งค่าเวลา + สรุป LINE */}
-      {settings && (
-        <section className="card mb-5">
-          <div className="card-title">เวลาปฏิบัติราชการ</div>
-          <div className="flex flex-col gap-4 px-4 pb-4 sm:px-5">
-            {check(settings.enabled, (v) => setSettings({ ...settings, enabled: v }), 'เปิดใช้ระบบลงเวลาของโรงเรียนนี้')}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Field label="เวลาเข้างาน">
-                <input
-                  className="input"
-                  type="time"
-                  value={hhmm(settings.work_start)}
-                  onChange={(e) => setSettings({ ...settings, work_start: e.target.value })}
-                />
-              </Field>
-              <Field label="สแกนหลังเวลานี้ = สาย">
-                <input
-                  className="input"
-                  type="time"
-                  value={hhmm(settings.late_after)}
-                  onChange={(e) => setSettings({ ...settings, late_after: e.target.value })}
-                />
-              </Field>
-              <Field label="เวลาเลิกงาน">
-                <input
-                  className="input"
-                  type="time"
-                  value={hhmm(settings.work_end)}
-                  onChange={(e) => setSettings({ ...settings, work_end: e.target.value })}
-                />
-              </Field>
-              <Field label="วันเริ่มใช้ระบบจริง">
-                <input
-                  className="input"
-                  type="date"
-                  value={settings.start_date ?? ''}
-                  onChange={(e) => setSettings({ ...settings, start_date: e.target.value || null })}
-                />
-              </Field>
-            </div>
-            {check(settings.require_checkout, (v) => setSettings({ ...settings, require_checkout: v }), 'ต้องสแกนออกด้วย')}
-            <p className="field-hint">
-              ปิดไว้ = ครูยังไม่เห็นเมนูลงเวลาใน app แต่เครื่องยังส่งข้อมูลเข้ามาเก็บได้ (ใช้ทดลองก่อนเปิดจริง) ·
-              วันเริ่มใช้: ก่อนวันนี้ไม่นับว่า "ขาด" — เว้นว่าง = นับจากวันที่มีการสแกนครั้งแรก
-            </p>
-
-            <h4 className="mt-2 text-[13px] font-semibold text-slate-500">สรุปประจำวันทาง LINE</h4>
-            <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_200px]">
-              {check(
-                !!settings.line_summary_enabled,
-                (v) => setSettings({ ...settings, line_summary_enabled: v }),
-                'ส่งสรุปเข้ากลุ่ม LINE ของโรงเรียนทุกวันทำการ',
-              )}
-              <Field label="เวลาที่ส่ง">
-                <input
-                  className="input"
-                  type="time"
-                  value={hhmm(settings.line_summary_time ?? '09:00')}
-                  onChange={(e) => setSettings({ ...settings, line_summary_time: e.target.value })}
-                />
-              </Field>
-            </div>
-            {check(
-              settings.line_list_missing ?? true,
-              (v) => setSettings({ ...settings, line_list_missing: v }),
-              'แนบรายชื่อคนที่ยังไม่สแกน',
+        <div className="seg">
+          <button className={tab === 'time' ? 'active' : ''} onClick={() => setTab('time')}>
+            1. เวลาทำงาน & สรุป LINE
+          </button>
+          <button className={tab === 'devices' ? 'active' : ''} onClick={() => setTab('devices')}>
+            2. เครื่องสแกน ({devices.length})
+          </button>
+          <button className={tab === 'codes' ? 'active' : ''} onClick={() => setTab('codes')}>
+            3. รหัสบุคลากร ({matchedCount}/{teachers.length})
+            {pendingCodes.length > 0 && (
+              <span className="ml-1 rounded-full bg-amber-500 px-1.5 py-0.2 text-[10px] font-bold text-white">
+                {pendingCodes.length}
+              </span>
             )}
-            <p className="field-hint">
-              ส่งเข้ากลุ่มที่ตั้งไว้ในหน้า "LINE แจ้งเตือน" เช่น "มา 45 · สาย 3 · ลา 2 · ไปราชการ 1 · ยังไม่สแกน 4" ·
-              การส่งอัตโนมัติต้องรัน <code className="rounded bg-slate-100 px-1">attendance_line_cron.sql</code> ครั้งเดียว
-              {settings.line_summary_sent_on ? ` · ส่งล่าสุด ${settings.line_summary_sent_on}` : ''}
-            </p>
-          </div>
-          <div className="flex flex-wrap justify-end gap-2 border-t border-line px-4 py-3 sm:px-5">
-            <button className="btn-secondary" disabled={busy} onClick={sendLineTest}>
-              ทดลองส่งสรุปวันนี้
-            </button>
-            <button className="btn-primary" disabled={busy} onClick={saveSettings}>
-              บันทึกการตั้งค่า
-            </button>
-          </div>
-        </section>
-      )}
-
-      {/* 2) เครื่องสแกน */}
-      <section className="card mb-5 overflow-hidden">
-        <div className="card-title">
-          เครื่องสแกน ({devices.length})
-          <button
-            className="btn-secondary btn-sm"
-            onClick={() => {
-              setMessage(null);
-              setEditingDevice({ ...NEW_DEVICE });
-            }}
-          >
-            <IconPlus className="h-3.5 w-3.5" /> ลงทะเบียนเครื่อง
           </button>
         </div>
+      </section>
 
-        {editingDevice && (
-          <div className="mx-4 mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:mx-5">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="ชื่อเครื่อง *">
-                <input
-                  className="input"
-                  value={editingDevice.name ?? ''}
-                  placeholder="เช่น หน้าอาคาร 1"
-                  onChange={(e) => setEditingDevice({ ...editingDevice, name: e.target.value })}
-                />
-              </Field>
-              <Field label="ตำแหน่งที่ติดตั้ง">
-                <input
-                  className="input"
-                  value={editingDevice.location ?? ''}
-                  onChange={(e) => setEditingDevice({ ...editingDevice, location: e.target.value })}
-                />
-              </Field>
-              <Field label="ยี่ห้อ / รุ่น">
-                <input
-                  className="input"
-                  value={editingDevice.brand ?? ''}
-                  placeholder="เช่น ZKTeco SpeedFace"
-                  onChange={(e) => setEditingDevice({ ...editingDevice, brand: e.target.value })}
-                />
-              </Field>
-              <Field label="Serial No.">
-                <input
-                  className="input"
-                  value={editingDevice.serial_no ?? ''}
-                  onChange={(e) => setEditingDevice({ ...editingDevice, serial_no: e.target.value })}
-                />
-              </Field>
-            </div>
-            <div className="mt-4">
+      {/* ─── แท็บที่ 1: ตั้งค่าเวลา + สรุป LINE ───────────────────── */}
+      {tab === 'time' && settings && (
+        <section className="card overflow-hidden">
+          <div className="card-title">
+            <span>หมวดที่ 1: เวลาปฏิบัติราชการ และการส่งสรุปประจำวันทาง LINE</span>
+          </div>
+          <div className="flex flex-col gap-5 p-4 sm:p-5">
+            <div className="subcard flex flex-col gap-4">
+              <SectionHeader
+                step="1.1"
+                title="เวลาปฏิบัติราชการและเกณฑ์การนับสาย"
+                subtitle="ปิดไว้ = ครูยังไม่เห็นเมนูลงเวลาในแอป แต่เครื่องสแกนยังส่งข้อมูลเข้ามาเก็บเพื่อทดสอบได้"
+              />
               {check(
-                editingDevice.is_active ?? true,
-                (v) => setEditingDevice({ ...editingDevice, is_active: v }),
-                'ใช้งานอยู่ (ปิด = ไม่รับข้อมูลจากเครื่องนี้)',
+                settings.enabled,
+                (v) => setSettings({ ...settings, enabled: v }),
+                'เปิดใช้ระบบลงเวลาให้บุคลากรในโรงเรียนนี้เห็นในแอป',
+              )}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Field label="เวลาเข้างาน">
+                  <input
+                    className="input"
+                    type="time"
+                    value={hhmm(settings.work_start)}
+                    onChange={(e) => setSettings({ ...settings, work_start: e.target.value })}
+                  />
+                </Field>
+                <Field label="สแกนหลังเวลานี้ = สาย">
+                  <input
+                    className="input"
+                    type="time"
+                    value={hhmm(settings.late_after)}
+                    onChange={(e) => setSettings({ ...settings, late_after: e.target.value })}
+                  />
+                </Field>
+                <Field label="เวลาเลิกงาน">
+                  <input
+                    className="input"
+                    type="time"
+                    value={hhmm(settings.work_end)}
+                    onChange={(e) => setSettings({ ...settings, work_end: e.target.value })}
+                  />
+                </Field>
+                <Field label="วันเริ่มใช้ระบบจริง" hint="ก่อนวันนี้ไม่นับว่าขาดงาน">
+                  <input
+                    className="input"
+                    type="date"
+                    value={settings.start_date ?? ''}
+                    onChange={(e) => setSettings({ ...settings, start_date: e.target.value || null })}
+                  />
+                </Field>
+              </div>
+              {check(
+                settings.require_checkout,
+                (v) => setSettings({ ...settings, require_checkout: v }),
+                'กำหนดให้ต้องสแกนออกเมื่อเลิกงานด้วย',
               )}
             </div>
-            <div className="mt-4 flex justify-end gap-2">
-              <button className="btn-secondary" onClick={() => setEditingDevice(null)}>
-                ยกเลิก
-              </button>
-              <button className="btn-primary" disabled={busy} onClick={saveDevice}>
-                {editingDevice.id_device ? 'บันทึก' : 'ลงทะเบียน + ออกรหัส'}
-              </button>
+
+            <div className="subcard flex flex-col gap-4">
+              <SectionHeader
+                step="1.2"
+                title="สรุปการลงเวลาประจำวันทาง LINE"
+                subtitle="ส่งเข้ากลุ่มที่ตั้งไว้ในเมนู LINE แจ้งเตือน เช่น มา 45 · สาย 3 · ลา 2 · ไปราชการ 1 · ยังไม่สแกน 4"
+              />
+              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_220px]">
+                {check(
+                  !!settings.line_summary_enabled,
+                  (v) => setSettings({ ...settings, line_summary_enabled: v }),
+                  'ส่งสรุปเข้ากลุ่ม LINE ของโรงเรียนทุกวันทำการอัตโนมัติ',
+                )}
+                <Field label="เวลาที่ส่งสรุปประจำวัน">
+                  <input
+                    className="input"
+                    type="time"
+                    value={hhmm(settings.line_summary_time ?? '09:00')}
+                    onChange={(e) => setSettings({ ...settings, line_summary_time: e.target.value })}
+                  />
+                </Field>
+              </div>
+              {check(
+                settings.line_list_missing ?? true,
+                (v) => setSettings({ ...settings, line_list_missing: v }),
+                'แนบรายชื่อผู้ที่ยังไม่ได้สแกนเข้างานในข้อความสรุป',
+              )}
+              <p className="field-hint">
+                การส่งอัตโนมัติต้องรัน <code className="rounded bg-white px-1.5 py-0.5">attendance_line_cron.sql</code> ครั้งเดียว
+                {settings.line_summary_sent_on ? ` · ส่งอัตโนมัติล่าสุดเมื่อ ${settings.line_summary_sent_on}` : ''}
+              </p>
             </div>
           </div>
-        )}
 
-        {devices.length === 0 ? (
-          <EmptyState>ยังไม่มีเครื่อง — ระหว่างนี้ใช้ "นำเข้าไฟล์" จาก app ได้</EmptyState>
-        ) : (
-          <>
-            <div className="hidden overflow-x-auto lg:block">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>ชื่อเครื่อง</th>
-                    <th>ตำแหน่ง</th>
-                    <th>ยี่ห้อ</th>
-                    <th>สถานะ</th>
-                    <th>ส่งข้อมูลล่าสุด</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {devices.map((d) => (
-                    <tr key={d.id_device}>
-                      <td className="font-semibold">{d.name}</td>
-                      <td>{d.location ?? '-'}</td>
-                      <td>{d.brand ?? '-'}</td>
-                      <td>
-                        <div className="flex flex-wrap gap-1">{deviceBadges(d)}</div>
-                      </td>
-                      <td className="whitespace-nowrap">{thaiDateTime(d.last_seen_at)}</td>
-                      <td>{deviceActions(d)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <ul className="divide-y divide-slate-100 lg:hidden">
-              {devices.map((d) => (
-                <li key={d.id_device} className="flex flex-col gap-2 px-4 py-3.5">
-                  <div>
-                    <div className="font-semibold">{d.name}</div>
-                    <div className="text-xs text-slate-500">
-                      {[d.location, d.brand].filter(Boolean).join(' · ') || '-'} · ล่าสุด {thaiDateTime(d.last_seen_at)}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-1">{deviceBadges(d)}</div>
-                  {deviceActions(d)}
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-      </section>
+          <div className="flex flex-wrap justify-end gap-2 border-t border-line bg-slate-50/70 px-4 py-3.5 sm:px-5">
+            <button className="btn-secondary" disabled={busy} onClick={sendLineTest}>
+              ทดลองส่งสรุปวันนี้เข้า LINE
+            </button>
+            <button className="btn-primary" disabled={busy} onClick={saveSettings}>
+              บันทึกการตั้งค่าเวลาและ LINE
+            </button>
+          </div>
+        </section>
+      )}
 
-      {/* 3) จับคู่ครูกับรหัสในเครื่อง */}
-      <section className="card overflow-hidden">
-        <div className="card-title flex-wrap">
-          รหัสในเครื่องสแกน ({teachers.filter((t) => t.device_code).length}/{teachers.length} คน)
-        </div>
-        <div className="flex flex-col gap-3 px-4 pb-3 sm:px-5">
-          <p className="field-hint">
-            ใส่ "รหัสพนักงาน / User ID" ที่ตั้งไว้ในเครื่องสแกนให้ตรงกับครูแต่ละคน · ติ๊ก "ไม่ต้องสแกน"
-            ให้บัญชีที่ไม่ใช่บุคลากรจริง (เช่น บัญชีกลาง) จะไม่ถูกนับในรายงาน
-          </p>
-          {pendingCodes.length > 0 && (
-            <div className="alert-error text-[13px]">
-              มีสแกนจากรหัสที่ยังไม่จับคู่: {pendingCodes.map(([code, n]) => `${code} (${n} ครั้ง)`).join(', ')} —
-              ใส่รหัสให้ครูแล้วบันทึก ระบบจะผูกสแกนเหล่านี้ให้อัตโนมัติ
+      {/* ─── แท็บที่ 2: เครื่องสแกนใบหน้า ───────────────────────── */}
+      {tab === 'devices' && (
+        <section className="card overflow-hidden">
+          <div className="card-title">
+            <span>หมวดที่ 2: ทะเบียนเครื่องสแกนใบหน้า ({devices.length} เครื่อง)</span>
+            <button
+              className="btn-primary btn-sm"
+              onClick={() => {
+                setMessage(null);
+                setEditingDevice({ ...NEW_DEVICE });
+              }}
+            >
+              <IconPlus className="h-3.5 w-3.5" /> ลงทะเบียนเครื่องใหม่
+            </button>
+          </div>
+
+          {editingDevice && (
+            <div className="subcard mx-4 my-4 sm:mx-5">
+              <SectionHeader
+                title={editingDevice.id_device ? 'แก้ไขข้อมูลเครื่องสแกน' : 'ลงทะเบียนเครื่องสแกนใหม่'}
+                subtitle="เมื่อบันทึกเครื่องใหม่ ระบบจะสร้างรหัสลับ (Device Key) ให้โดยอัตโนมัติ"
+              />
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                <Field label="ชื่อจุดติดตั้ง / ชื่อเครื่อง *">
+                  <input
+                    className="input"
+                    value={editingDevice.name ?? ''}
+                    placeholder="เช่น หน้าอาคาร 1"
+                    onChange={(e) => setEditingDevice({ ...editingDevice, name: e.target.value })}
+                  />
+                </Field>
+                <Field label="สถานที่ติดตั้ง">
+                  <input
+                    className="input"
+                    value={editingDevice.location ?? ''}
+                    placeholder="เช่น โถงชั้น 1 อาคารอำนวยการ"
+                    onChange={(e) => setEditingDevice({ ...editingDevice, location: e.target.value })}
+                  />
+                </Field>
+                <Field label="ยี่ห้อ / รุ่นเครื่อง">
+                  <input
+                    className="input"
+                    value={editingDevice.brand ?? ''}
+                    placeholder="เช่น ZKTeco SpeedFace"
+                    onChange={(e) => setEditingDevice({ ...editingDevice, brand: e.target.value })}
+                  />
+                </Field>
+                <Field label="หมายเลขเครื่อง (Serial No.)">
+                  <input
+                    className="input"
+                    value={editingDevice.serial_no ?? ''}
+                    onChange={(e) => setEditingDevice({ ...editingDevice, serial_no: e.target.value })}
+                  />
+                </Field>
+              </div>
+              <div className="mt-4">
+                {check(
+                  editingDevice.is_active ?? true,
+                  (v) => setEditingDevice({ ...editingDevice, is_active: v }),
+                  'เปิดรับข้อมูลจากเครื่องนี้ (หากปิด ระบบจะปฏิเสธข้อมูลที่ส่งมาจากเครื่องนี้)',
+                )}
+              </div>
+              <div className="mt-4 flex justify-end gap-2">
+                <button className="btn-secondary" onClick={() => setEditingDevice(null)}>
+                  ยกเลิก
+                </button>
+                <button className="btn-primary" disabled={busy} onClick={saveDevice}>
+                  {editingDevice.id_device ? 'บันทึกการแก้ไข' : 'ลงทะเบียน + ออกรหัสลับ'}
+                </button>
+              </div>
             </div>
           )}
-          <div className="relative sm:w-72">
-            <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              className="input pl-9"
-              placeholder="ค้นหาชื่อ / รหัส"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-        </div>
 
-        <div className="overflow-x-auto">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>ชื่อ - สกุล</th>
-                <th className="hidden sm:table-cell">ชื่อผู้ใช้</th>
-                <th className="w-[140px] sm:w-[200px]">รหัสในเครื่อง</th>
-                <th className="w-[90px] text-center">ไม่ต้องสแกน</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleTeachers.map((t) => {
-                const code = codes[t.id_user] ?? '';
-                const dirty = code.trim() !== (t.device_code ?? '') || !!exempt[t.id_user] !== !!t.attendance_exempt;
-                const dup = duplicateCodes.has(code.trim());
-                return (
-                  <tr key={t.id_user} className={dirty ? '[&>td]:!bg-amber-50' : undefined}>
-                    <td className="min-w-[140px]">{t.fullName ?? '-'}</td>
-                    <td className="hidden text-slate-500 sm:table-cell">{t.username ?? '-'}</td>
-                    <td>
-                      <input
-                        className={`input py-1.5 ${dup ? '!border-red-400 !bg-red-50' : ''}`}
-                        value={code}
-                        placeholder="-"
-                        onChange={(e) => setCodes({ ...codes, [t.id_user]: e.target.value })}
-                      />
-                    </td>
-                    <td className="text-center">
-                      <input
-                        type="checkbox"
-                        className="checkbox"
-                        checked={!!exempt[t.id_user]}
-                        onChange={(e) => setExempt({ ...exempt, [t.id_user]: e.target.checked })}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <SaveBar
-          changed={dirtyCount}
-          busy={busy}
-          onReset={() => schoolId !== null && load(schoolId)}
-          onSave={saveCodes}
-        />
-      </section>
+          {devices.length === 0 ? (
+            <EmptyState>ยังไม่มีเครื่องสแกนที่ลงทะเบียน — ระหว่างนี้สามารถใช้ปุ่ม "นำเข้าไฟล์" จากในแอปได้</EmptyState>
+          ) : (
+            <>
+              <div className="hidden overflow-x-auto lg:block">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>ชื่อเครื่อง</th>
+                      <th>ตำแหน่งติดตั้ง</th>
+                      <th>ยี่ห้อ / รุ่น</th>
+                      <th>สถานะ</th>
+                      <th>ส่งข้อมูลล่าสุด</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {devices.map((d) => (
+                      <tr key={d.id_device}>
+                        <td className="font-semibold text-ink">{d.name}</td>
+                        <td>{d.location ?? '-'}</td>
+                        <td>{d.brand ?? '-'}</td>
+                        <td>
+                          <div className="flex flex-wrap gap-1">{deviceBadges(d)}</div>
+                        </td>
+                        <td className="whitespace-nowrap text-xs text-slate-500">{thaiDateTime(d.last_seen_at)}</td>
+                        <td>{deviceActions(d)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <ul className="divide-y divide-slate-100 lg:hidden">
+                {devices.map((d) => (
+                  <li key={d.id_device} className="flex flex-col gap-2.5 px-4 py-3.5">
+                    <div>
+                      <div className="font-semibold text-ink">{d.name}</div>
+                      <div className="text-xs text-slate-500">
+                        {[d.location, d.brand].filter(Boolean).join(' · ') || '-'} · ล่าสุด {thaiDateTime(d.last_seen_at)}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1">{deviceBadges(d)}</div>
+                    {deviceActions(d)}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </section>
+      )}
+
+      {/* ─── แท็บที่ 3: รหัสบุคลากรในเครื่องสแกน ────────────────── */}
+      {tab === 'codes' && (
+        <section className="card overflow-hidden">
+          <div className="card-title flex-wrap">
+            <span>
+              หมวดที่ 3: จับคู่รหัสบุคลากรในเครื่องสแกน ({matchedCount}/{teachers.length} คน)
+            </span>
+            {dirtyCount > 0 && <span className="badge-amber">แก้ไข {dirtyCount} รายการ ยังไม่บันทึก</span>}
+          </div>
+          <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3.5 sm:px-5">
+            <p className="field-hint">
+              ใส่ <b>"รหัสพนักงาน / User ID"</b> ที่ตั้งไว้ในเครื่องสแกนให้ตรงกับบุคลากรแต่ละคน · ติ๊ก{' '}
+              <b>"ไม่ต้องสแกน"</b> ให้บัญชีที่ไม่ใช่บุคลากรปฏิบัติงานจริง (เช่น บัญชีทดสอบ/บัญชีกลาง) เพื่อไม่ให้นับในรายงานขาดงาน
+            </p>
+            {pendingCodes.length > 0 && (
+              <div className="alert-error text-[13px]">
+                <b>พบรหัสสแกนที่ยังไม่ได้จับคู่กับบุคลากร:</b>{' '}
+                {pendingCodes.map(([code, n]) => `${code} (${n} ครั้ง)`).join(', ')} —
+                เมื่อกรอกรหัสเหล่านี้ให้บุคลากรแล้วกดบันทึก ระบบจะผูกประวัติการสแกนย้อนหลังให้อัตโนมัติ
+              </div>
+            )}
+            <div className="relative sm:w-80">
+              <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                className="input py-1.5 pl-9 text-[13px]"
+                placeholder="ค้นหาชื่อ-สกุล / username / รหัสในเครื่อง..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>ชื่อ - นามสกุล</th>
+                  <th className="hidden sm:table-cell">ชื่อผู้ใช้ (Username)</th>
+                  <th className="w-[160px] sm:w-[220px]">รหัสในเครื่องสแกน</th>
+                  <th className="w-[110px] text-center">ไม่ต้องสแกน</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleTeachers.map((t) => {
+                  const code = codes[t.id_user] ?? '';
+                  const dirty =
+                    code.trim() !== (t.device_code ?? '') || !!exempt[t.id_user] !== !!t.attendance_exempt;
+                  const dup = duplicateCodes.has(code.trim());
+                  return (
+                    <tr key={t.id_user} className={dirty ? '[&>td]:!bg-amber-50/80' : undefined}>
+                      <td className="min-w-[150px] font-medium text-ink">{t.fullName ?? '-'}</td>
+                      <td className="hidden font-mono text-xs text-slate-500 sm:table-cell">{t.username ?? '-'}</td>
+                      <td>
+                        <input
+                          className={`input py-1.5 font-mono ${dup ? '!border-red-400 !bg-red-50' : ''}`}
+                          value={code}
+                          placeholder="ยังไม่ได้ระบุ"
+                          onChange={(e) => setCodes({ ...codes, [t.id_user]: e.target.value })}
+                        />
+                      </td>
+                      <td className="text-center">
+                        <input
+                          type="checkbox"
+                          className="checkbox"
+                          checked={!!exempt[t.id_user]}
+                          onChange={(e) => setExempt({ ...exempt, [t.id_user]: e.target.checked })}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <SaveBar
+            changed={dirtyCount}
+            busy={busy}
+            onReset={() => schoolId !== null && load(schoolId)}
+            onSave={saveCodes}
+          />
+        </section>
+      )}
     </>
   );
 }
