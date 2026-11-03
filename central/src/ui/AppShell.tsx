@@ -20,71 +20,139 @@ import {
 interface NavItem {
   to: string;
   label: string;
+  desc: string;
   icon: ReactNode;
   superOnly?: boolean;
 }
 
-/** เมนูจัดกลุ่ม — ชื่อหน้าบนแถบบนอ่านจากรายการนี้ */
-const NAV: { group: string | null; items: NavItem[] }[] = [
-  { group: null, items: [{ to: '/', label: 'ภาพรวม', icon: <IconDashboard />, superOnly: true }] },
+/** เมนูจัดกลุ่มเป็น 4 หมวดหมู่ชัดเจน — ชื่อหมวดและชื่อหน้าบนแถบบนอ่านจากรายการนี้ */
+const NAV: { group: string; badge: string; items: NavItem[] }[] = [
   {
-    group: 'โรงเรียน',
+    group: '1. ภาพรวมและสถานะระบบ',
+    badge: 'ภาพรวม',
     items: [
-      { to: '/schools', label: 'โรงเรียน', icon: <IconSchool />, superOnly: true },
-      { to: '/admins', label: 'ผู้ดูแลโรงเรียน', icon: <IconUserCheck />, superOnly: true },
-      { to: '/staff', label: 'บุคลากร', icon: <IconUsers />, superOnly: true },
+      {
+        to: '/',
+        label: 'ภาพรวมระบบ',
+        desc: 'สถิติและสิ่งที่ต้องจัดการ',
+        icon: <IconDashboard />,
+        superOnly: true,
+      },
     ],
   },
   {
-    group: 'สิทธิ์',
+    group: '2. องค์กรและบุคลากร',
+    badge: 'องค์กรและบุคลากร',
     items: [
-      { to: '/role-permissions', label: 'เพดานสิทธิ์', icon: <IconShield />, superOnly: true },
-      { to: '/user-permissions', label: 'สิทธิ์ผู้ใช้', icon: <IconLock /> },
+      {
+        to: '/schools',
+        label: 'โรงเรียน',
+        desc: 'ข้อมูลหัวใบลา โลโก้ และหน้าจอมือถือ',
+        icon: <IconSchool />,
+        superOnly: true,
+      },
+      {
+        to: '/admins',
+        label: 'ผู้ดูแลโรงเรียน',
+        desc: 'บัญชีแอดมินประจำโรงเรียน',
+        icon: <IconUserCheck />,
+        superOnly: true,
+      },
+      {
+        to: '/staff',
+        label: 'บุคลากร',
+        desc: 'สถานะปฏิบัติงาน ลาออก เกษียณ ย้าย',
+        icon: <IconUsers />,
+        superOnly: true,
+      },
     ],
   },
   {
-    group: 'ระบบ',
+    group: '3. สิทธิ์และการเข้าถึง',
+    badge: 'สิทธิ์และการเข้าถึง',
     items: [
-      { to: '/line', label: 'LINE แจ้งเตือน', icon: <IconChat />, superOnly: true },
-      { to: '/attendance', label: 'ลงเวลา (สแกนหน้า)', icon: <IconClock />, superOnly: true },
-      { to: '/forms', label: 'แบบฟอร์ม', icon: <IconDoc />, superOnly: true },
+      {
+        to: '/role-permissions',
+        label: 'เพดานสิทธิ์และเมนู',
+        desc: 'เพดานสิทธิ์ การมองเห็นเมนู รายชื่อสิทธิ์',
+        icon: <IconShield />,
+        superOnly: true,
+      },
+      {
+        to: '/user-permissions',
+        label: 'สิทธิ์รายบุคคล',
+        desc: 'เปิด/ปิดสิทธิ์รายคนภายใต้เพดาน',
+        icon: <IconLock />,
+      },
+    ],
+  },
+  {
+    group: '4. ระบบเชื่อมต่อและเอกสาร',
+    badge: 'ระบบเชื่อมต่อและเอกสาร',
+    items: [
+      {
+        to: '/line',
+        label: 'LINE แจ้งเตือน',
+        desc: 'สะพานเชื่อมและกลุ่ม LINE รายโรงเรียน',
+        icon: <IconChat />,
+        superOnly: true,
+      },
+      {
+        to: '/attendance',
+        label: 'ลงเวลา (สแกนหน้า)',
+        desc: 'เวลาทำงาน เครื่องสแกน และรหัสบุคลากร',
+        icon: <IconClock />,
+        superOnly: true,
+      },
+      {
+        to: '/forms',
+        label: 'ออกแบบฟอร์มเอกสาร',
+        desc: 'แม่แบบใบลาและบันทึกไปราชการ',
+        icon: <IconDoc />,
+        superOnly: true,
+      },
     ],
   },
 ];
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
-  `flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] font-medium transition-colors ${
-    isActive ? 'bg-slate-100 font-semibold text-ink' : 'text-slate-600 hover:bg-slate-50 hover:text-ink'
+  `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13.5px] font-medium transition-all ${
+    isActive
+      ? 'bg-brand-50 font-semibold text-brand-700 shadow-[inset_3px_0_0_0_#4f46e5]'
+      : 'text-slate-600 hover:bg-slate-50 hover:text-ink'
   }`;
 
 function Sidebar({ isSuper, onNavigate }: { isSuper: boolean; onNavigate?: () => void }) {
   return (
-    <div className="flex h-full flex-col gap-0.5 px-3.5 py-4">
-      <div className="flex items-center gap-2.5 px-2 pb-4">
-        <div className="grid h-9 w-9 place-items-center rounded-[10px] bg-ink text-[15px] font-bold text-white">ลา</div>
-        <div className="min-w-0">
-          <div className="text-[15px] font-bold leading-tight">ระบบวันลา</div>
-          <div className="truncate text-xs text-slate-500">
+    <div className="flex h-full flex-col justify-between px-3.5 py-4">
+      {/* ส่วนหัวแบรนด์ */}
+      <div className="mb-3 flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-3">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-600 text-[15px] font-bold text-white shadow-sm">
+          ลา
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[14.5px] font-bold leading-tight text-ink">ระบบบริหารการลา</div>
+          <div className="mt-0.5 inline-flex items-center gap-1 text-[11.5px] font-medium text-brand-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-brand-600" />
             {isSuper ? 'ผู้ดูแลระบบส่วนกลาง' : 'ผู้ดูแลระบบโรงเรียน'}
           </div>
         </div>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto">
+      {/* รายการเมนูแยกตามหมวดหมู่ */}
+      <nav className="flex flex-1 flex-col gap-3 overflow-y-auto pr-0.5">
         {NAV.map(({ group, items }) => {
           const visible = items.filter((i) => isSuper || !i.superOnly);
           if (!visible.length) return null;
           return (
-            <div key={group ?? 'main'} className="flex flex-col gap-0.5">
-              {group && (
-                <div className="px-2.5 pb-1.5 pt-4 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                  {group}
-                </div>
-              )}
+            <div key={group} className="flex flex-col gap-0.5">
+              <div className="px-2.5 pb-1 pt-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                {group}
+              </div>
               {visible.map((i) => (
                 <NavLink key={i.to} to={i.to} end={i.to === '/'} className={navClass} onClick={onNavigate}>
-                  {i.icon}
-                  {i.label}
+                  <span className="shrink-0">{i.icon}</span>
+                  <span className="min-w-0 flex-1 truncate">{i.label}</span>
                 </NavLink>
               ))}
             </div>
@@ -92,18 +160,22 @@ function Sidebar({ isSuper, onNavigate }: { isSuper: boolean; onNavigate?: () =>
         })}
       </nav>
 
-      <div className="mt-3 flex flex-col gap-0.5 border-t border-line pt-3">
-        <a href="../" className={navClass({ isActive: false })}>
+      {/* ส่วนท้ายเมนู */}
+      <div className="mt-3 flex flex-col gap-1 border-t border-line pt-3">
+        <a
+          href="../"
+          className="flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-ink"
+        >
           <IconExternal />
-          เปิดแอปครู
+          <span>สลับไปหน้าแอปสำหรับครู</span>
         </a>
         <button
           type="button"
-          className={`${navClass({ isActive: false })} text-left`}
+          className="flex items-center gap-3 rounded-xl px-3 py-2 text-left text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50"
           onClick={() => supabase.auth.signOut()}
         >
           <IconLogout />
-          ออกจากระบบ
+          <span>ออกจากระบบ</span>
         </button>
       </div>
     </div>
@@ -111,7 +183,7 @@ function Sidebar({ isSuper, onNavigate }: { isSuper: boolean; onNavigate?: () =>
 }
 
 /**
- * โครงหน้าเว็บส่วนกลาง — จอกว้าง: เมนูซ้ายติดจอ / มือถือ: เมนูเลื่อนออกจากซ้ายด้วยปุ่ม ☰
+ * โครงหน้าเว็บส่วนกลาง — จอกว้าง: เมนูซ้ายติดจอแยกหมวดหมู่ / มือถือ: เมนูเลื่อนออกจากซ้ายด้วยปุ่ม ☰
  */
 export default function AppShell({ isSuper, children }: { isSuper: boolean; children: ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -123,12 +195,15 @@ export default function AppShell({ isSuper, children }: { isSuper: boolean; chil
     window.scrollTo(0, 0);
   }, [location.pathname]);
 
-  const current =
-    NAV.flatMap((g) => g.items).find((i) => (i.to === '/' ? location.pathname === '/' : location.pathname.startsWith(i.to)))
-      ?.label ?? '';
+  const activeGroup = NAV.find((g) =>
+    g.items.some((i) => (i.to === '/' ? location.pathname === '/' : location.pathname.startsWith(i.to))),
+  );
+  const activeItem = activeGroup?.items.find((i) =>
+    i.to === '/' ? location.pathname === '/' : location.pathname.startsWith(i.to),
+  );
 
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
+    <div className="min-h-screen lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
       {/* เมนูจอกว้าง */}
       <aside className="sticky top-0 hidden h-screen border-r border-line bg-white lg:block">
         <Sidebar isSuper={isSuper} />
@@ -140,14 +215,14 @@ export default function AppShell({ isSuper, children }: { isSuper: boolean; chil
           <button
             type="button"
             aria-label="ปิดเมนู"
-            className="absolute inset-0 bg-slate-900/30"
+            className="absolute inset-0 bg-slate-900/35 backdrop-blur-[1px]"
             onClick={() => setOpen(false)}
           />
-          <aside className="absolute inset-y-0 left-0 w-[272px] max-w-[85vw] bg-white shadow-xl">
+          <aside className="absolute inset-y-0 left-0 w-[280px] max-w-[85vw] bg-white shadow-2xl">
             <button
               type="button"
               aria-label="ปิดเมนู"
-              className="absolute right-3 top-4 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"
+              className="absolute right-3 top-4 z-10 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"
               onClick={() => setOpen(false)}
             >
               <IconClose />
@@ -158,21 +233,40 @@ export default function AppShell({ isSuper, children }: { isSuper: boolean; chil
       )}
 
       <div className="flex min-w-0 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-canvas/90 px-4 backdrop-blur sm:px-7 lg:h-[60px] lg:border-b-0">
-          <button
-            type="button"
-            aria-label="เปิดเมนู"
-            className="-ml-1.5 rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 lg:hidden"
-            onClick={() => setOpen(true)}
-          >
-            <IconMenu />
-          </button>
-          <div className="min-w-0 flex-1 truncate text-[13px] text-slate-500">
-            <span className="hidden sm:inline">{isSuper ? 'ผู้ดูแลส่วนกลาง' : 'ผู้ดูแลโรงเรียน'} / </span>
-            <b className="font-semibold text-ink">{current}</b>
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-line bg-white/90 px-4 backdrop-blur sm:px-7 lg:h-[60px]">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <button
+              type="button"
+              aria-label="เปิดเมนู"
+              className="-ml-1.5 rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 lg:hidden"
+              onClick={() => setOpen(true)}
+            >
+              <IconMenu />
+            </button>
+            <div className="flex min-w-0 items-center gap-2 text-[13px] text-slate-500">
+              {activeGroup && (
+                <>
+                  <span className="hidden rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 sm:inline">
+                    {activeGroup.badge}
+                  </span>
+                  <span className="hidden text-slate-300 sm:inline">/</span>
+                </>
+              )}
+              <b className="truncate font-semibold text-ink">{activeItem?.label ?? ''}</b>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="hidden rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700 sm:inline-flex">
+              {isSuper ? 'ส่วนกลาง (Super Admin)' : 'ผู้ดูแลโรงเรียน'}
+            </span>
+            <a href="../" className="btn-secondary btn-sm">
+              <IconExternal className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">เปิดแอปครู</span>
+            </a>
           </div>
         </header>
-        <main className="min-w-0 flex-1 px-4 pb-10 pt-3 sm:px-7">{children}</main>
+        <main className="mx-auto w-full max-w-[1440px] min-w-0 flex-1 px-4 pb-12 pt-5 sm:px-7">{children}</main>
       </div>
     </div>
   );

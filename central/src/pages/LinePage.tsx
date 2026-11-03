@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { functionError, schoolName, supabase, type School } from '../supabase';
-import { Field, Notice, PageHeader } from '../ui/components';
+import { Field, Notice, PageHeader, SectionHeader } from '../ui/components';
 
 interface LineRow {
   id_school: number;
@@ -17,8 +17,9 @@ const TEMPLATE_HINT = '{name} {type} {startDate} {endDate} {days} {reason}';
 const isLineTarget = (v: string) => /^[CUR][0-9a-fA-F]{32,}$/.test(v.trim());
 
 /**
- * ตั้งค่า LINE ของแต่ละโรงเรียน (ตาราง SchoolLineSettings — แก้ได้เฉพาะส่วนกลาง)
- * channel เดียวกันทั้งระบบ แต่แต่ละโรงเรียนส่งเข้ากลุ่มของตัวเอง
+ * ตั้งค่า LINE ของแต่ละโรงเรียน — แยกหมวดหมู่เป็น 2 ส่วน:
+ * 1. สะพานเชื่อมระบบกลาง (Apps Script & ค้นหา Group ID)
+ * 2. ตั้งค่ากลุ่ม LINE แยกตามโรงเรียน
  */
 export default function LinePage() {
   const [schools, setSchools] = useState<School[]>([]);
@@ -46,7 +47,6 @@ export default function LinePage() {
     for (const r of (l.data ?? []) as LineRow[]) byId[r.id_school] = r;
     setRows(byId);
 
-    // URL ของ Apps Script เก็บใน Settings (แถวที่มี webhookUrl) ใช้ร่วมทุกโรงเรียน
     const withUrl = (settings.data ?? []).find((r) => r.webhookUrl) ?? null;
     setBridgeRowId(withUrl ? withUrl.id_Settings : null);
     setBridgeUrl(withUrl?.webhookUrl ?? '');
@@ -67,7 +67,7 @@ export default function LinePage() {
     const { error } = bridgeRowId
       ? await supabase.from('Settings').update(payload).eq('id_Settings', bridgeRowId)
       : await supabase.from('Settings').insert(payload);
-    setMessage(error ? { text: `บันทึกไม่สำเร็จ: ${error.message}`, error: true } : { text: 'บันทึก URL แล้ว' });
+    setMessage(error ? { text: `บันทึกไม่สำเร็จ: ${error.message}`, error: true } : { text: 'บันทึก URL สะพานเชื่อมแล้ว' });
     if (!error) load();
   }
 
@@ -111,7 +111,7 @@ export default function LinePage() {
       setMessage({ text: `บันทึกไม่สำเร็จ: ${error.message}`, error: true });
       return;
     }
-    setMessage({ text: 'บันทึกแล้ว' });
+    setMessage({ text: 'บันทึกการตั้งค่า LINE ของโรงเรียนแล้ว' });
     setEditing(null);
     load();
   }
@@ -144,114 +144,158 @@ export default function LinePage() {
   const rowOf = (s: School): LineRow =>
     rows[s.id_school] ?? { id_school: s.id_school, groupId: null, template: null, enabled: false };
   const statusBadge = (row: LineRow) =>
-    row.enabled ? <span className="badge-green">เปิด</span> : <span className="badge-slate">ปิด</span>;
+    row.enabled ? <span className="badge-green">เปิดใช้งาน</span> : <span className="badge-slate">ปิด</span>;
   const openEdit = (row: LineRow) => {
     setMessage(null);
     setEditing({ ...row });
   };
 
+  const enabledCount = schools.filter((s) => rowOf(s).enabled).length;
+
   return (
     <>
       <PageHeader
-        title="LINE แจ้งเตือน"
-        description="LINE Official Account เดียวกันทั้งระบบ แต่แต่ละโรงเรียนส่งเข้ากลุ่มของตัวเอง · โรงเรียนที่ปิดไว้หรือยังไม่มี Group ID จะไม่ส่งแจ้งเตือน"
+        category="4. ระบบเชื่อมต่อและเอกสาร"
+        title="ตั้งค่า LINE แจ้งเตือน"
+        description="ใช้ LINE Official Account เดียวกันทั้งระบบ แต่ส่งแยกเข้ากลุ่มของแต่ละโรงเรียน"
       />
       <Notice message={message} />
 
-      <section className="card mb-5">
-        <div className="card-title">สะพาน Apps Script (ใช้ร่วมทุกโรงเรียน)</div>
-        <div className="flex flex-col gap-3 px-4 pb-4 sm:px-5">
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <input
-              className="input font-mono text-[13px]"
-              value={bridgeUrl}
-              placeholder="https://script.google.com/macros/s/.../exec"
-              onChange={(e) => setBridgeUrl(e.target.value)}
-            />
-            <button className="btn-primary sm:shrink-0" onClick={saveBridgeUrl}>
-              บันทึก URL
-            </button>
-          </div>
-          <div className="flex flex-col gap-2 rounded-xl bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
-            <span className="text-[13px] text-slate-600">
-              หา Group ID: เชิญบอทเข้ากลุ่ม แล้วพิมพ์อะไรก็ได้ในกลุ่ม จากนั้นกดปุ่มนี้
-            </span>
-            <button className="btn-secondary sm:shrink-0" onClick={fetchLatestId}>
-              ดึง Group ID ล่าสุด
-            </button>
-          </div>
-          {latest && (
-            <p className="text-[13px]">
-              ไอดีล่าสุด:{' '}
-              <code className="select-all break-all rounded bg-slate-100 px-1.5 py-0.5 text-xs">{latest}</code>
-            </p>
-          )}
-        </div>
-      </section>
+      {/* หมวดที่ 1: สะพานเชื่อมระบบกลาง */}
+      <div className="mb-6">
+        <SectionHeader
+          step="1"
+          title="ตั้งค่าสะพานเชื่อมระบบกลาง (ใช้ร่วมกันทุกโรงเรียน)"
+          subtitle="เชื่อมต่อกับ Google Apps Script และค้นหา Group ID ล่าสุดที่บอทถูกเชิญเข้ากลุ่ม"
+        />
+        <section className="card p-4 sm:p-5">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="subcard flex flex-col justify-between gap-3">
+              <div>
+                <div className="text-[13.5px] font-bold text-ink">1.1 URL ของ Google Apps Script</div>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Web App URL ที่ลงท้ายด้วย <code>/exec</code> สำหรับส่งข้อความ LINE และอัปโหลดไฟล์
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  className="input font-mono text-[13px]"
+                  value={bridgeUrl}
+                  placeholder="https://script.google.com/macros/s/.../exec"
+                  onChange={(e) => setBridgeUrl(e.target.value)}
+                />
+                <button className="btn-primary sm:shrink-0" onClick={saveBridgeUrl}>
+                  บันทึก URL
+                </button>
+              </div>
+            </div>
 
-      {editing && (
-        <section className="card mb-5">
-          <div className="card-title">
-            ตั้งค่า LINE —{' '}
-            {schoolName(
-              schools.find((s) => s.id_school === editing.id_school) ?? {
-                namePart1: null,
-                namePart2: null,
-                fullName: `#${editing.id_school}`,
-              },
-            )}
+            <div className="subcard flex flex-col justify-between gap-3">
+              <div>
+                <div className="text-[13.5px] font-bold text-ink">1.2 เครื่องมือดึง Group ID ล่าสุด</div>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  วิธีใช้: เชิญบอทเข้ากลุ่ม LINE ของโรงเรียน แล้วพิมพ์ข้อความอะไรก็ได้ในกลุ่ม 1 ครั้ง จากนั้นกดปุ่มดึงไอดี
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                {latest ? (
+                  <code className="select-all break-all rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1.5 font-mono text-xs font-semibold text-brand-700">
+                    {latest}
+                  </code>
+                ) : (
+                  <span className="text-xs text-slate-400">กดปุ่มเพื่อตรวจสอบ Group ID ล่าสุด</span>
+                )}
+                <button className="btn-secondary shrink-0" onClick={fetchLatestId}>
+                  ดึง Group ID ล่าสุด
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-col gap-4 px-4 pb-4 sm:px-5">
+        </section>
+      </div>
+
+      {/* กล่องแก้ไขของโรงเรียนที่เลือก */}
+      {editing && (
+        <section className="card mb-6 overflow-hidden border-brand-200">
+          <div className="card-title bg-brand-50/40">
+            <div className="flex items-center gap-2">
+              <span className="badge-brand">ตั้งค่ารายโรงเรียน</span>
+              <span>
+                {schoolName(
+                  schools.find((s) => s.id_school === editing.id_school) ?? {
+                    namePart1: null,
+                    namePart2: null,
+                    fullName: `#${editing.id_school}`,
+                  },
+                )}
+              </span>
+            </div>
+            <button type="button" className="btn-ghost btn-sm" onClick={() => setEditing(null)}>
+              ปิด ✕
+            </button>
+          </div>
+          <div className="flex flex-col gap-4 p-4 sm:p-5">
             <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-              <Field label="Group ID" hint="ขึ้นต้นด้วย C (กลุ่ม), U (คน) หรือ R (ห้อง)">
+              <Field label="LINE Group ID ของโรงเรียน" hint="รหัสกลุ่มขึ้นต้นด้วย C (กลุ่ม), U (บุคคล) หรือ R (ห้อง)">
                 <input
                   className="input font-mono text-[13px]"
                   value={editing.groupId ?? ''}
-                  placeholder="C1234..."
+                  placeholder="C1234567890abcdef..."
                   onChange={(e) => setEditing({ ...editing, groupId: e.target.value })}
                 />
               </Field>
-              <label className="flex items-center gap-2 pb-2 text-[13px] font-medium">
+              <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-[13px] font-semibold text-ink">
                 <input
                   type="checkbox"
                   className="checkbox"
                   checked={editing.enabled}
                   onChange={(e) => setEditing({ ...editing, enabled: e.target.checked })}
                 />
-                เปิดแจ้งเตือนใบลาใหม่
+                เปิดแจ้งเตือนเมื่อมีใบลาใหม่
               </label>
             </div>
-            <Field label="ข้อความ (เว้นว่าง = ใช้แบบมาตรฐาน)" hint={`ใช้ได้: ${TEMPLATE_HINT}`}>
+            <Field
+              label="รูปแบบข้อความแจ้งเตือน (เว้นว่าง = ใช้ข้อความมาตรฐานของระบบ)"
+              hint={`ตัวแปรที่ใช้แทนค่าได้: ${TEMPLATE_HINT}`}
+            >
               <textarea
-                className="input min-h-[140px] resize-y"
+                className="input min-h-[130px] resize-y"
                 value={editing.template ?? ''}
+                placeholder="เว้นว่างไว้เพื่อใช้รูปแบบมาตรฐาน..."
                 onChange={(e) => setEditing({ ...editing, template: e.target.value })}
               />
             </Field>
           </div>
-          <div className="flex flex-wrap justify-end gap-2 border-t border-line px-4 py-3 sm:px-5">
+          <div className="flex flex-wrap justify-end gap-2 border-t border-line bg-slate-50/70 px-4 py-3 sm:px-5">
             <button type="button" className="btn-secondary" onClick={() => setEditing(null)}>
               ยกเลิก
             </button>
             <button type="button" className="btn-secondary" disabled={busy} onClick={() => sendTest(editing)}>
-              ทดสอบส่ง
+              ส่งข้อความทดสอบ
             </button>
             <button type="button" className="btn-primary" disabled={busy} onClick={save}>
-              บันทึก
+              บันทึกการตั้งค่า
             </button>
           </div>
         </section>
       )}
 
+      {/* หมวดที่ 2: ตารางกลุ่ม LINE รายโรงเรียน */}
+      <SectionHeader
+        step="2"
+        title="กลุ่ม LINE แจ้งเตือนแยกตามโรงเรียน"
+        subtitle="กำหนด Group ID และสถานะการเปิดแจ้งเตือนของแต่ละโรงเรียน"
+        badge={<span className="badge-green">เปิดใช้งาน {enabledCount}/{schools.length} โรงเรียน</span>}
+      />
       <section className="card overflow-hidden">
-        <div className="card-title">กลุ่ม LINE ของแต่ละโรงเรียน</div>
         <div className="hidden overflow-x-auto md:block">
           <table className="table">
             <thead>
               <tr>
                 <th>โรงเรียน</th>
                 <th>Group ID</th>
-                <th>แจ้งเตือน</th>
+                <th>รูปแบบข้อความ</th>
+                <th>สถานะแจ้งเตือน</th>
                 <th />
               </tr>
             </thead>
@@ -260,14 +304,23 @@ export default function LinePage() {
                 const row = rowOf(s);
                 return (
                   <tr key={s.id_school}>
-                    <td className="font-medium">{schoolName(s)}</td>
+                    <td className="font-semibold text-ink">{schoolName(s)}</td>
                     <td>
-                      <code className="text-xs text-slate-600">{row.groupId ? `${row.groupId.slice(0, 10)}…` : '-'}</code>
+                      {row.groupId ? (
+                        <code className="rounded bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-700">
+                          {row.groupId.slice(0, 12)}…
+                        </code>
+                      ) : (
+                        <span className="text-xs text-slate-400">ยังไม่ได้ระบุ</span>
+                      )}
+                    </td>
+                    <td className="text-xs text-slate-500">
+                      {row.template?.trim() ? 'กำหนดเอง' : 'ค่ามาตรฐาน'}
                     </td>
                     <td>{statusBadge(row)}</td>
                     <td className="text-right">
                       <button className="btn-secondary btn-sm" onClick={() => openEdit(row)}>
-                        ตั้งค่า
+                        ตั้งค่ากลุ่ม
                       </button>
                     </td>
                   </tr>
@@ -282,7 +335,7 @@ export default function LinePage() {
             return (
               <li key={s.id_school} className="flex items-center gap-3 px-4 py-3.5">
                 <div className="min-w-0 flex-1">
-                  <div className="truncate font-medium">{schoolName(s)}</div>
+                  <div className="truncate font-semibold text-ink">{schoolName(s)}</div>
                   <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
                     {statusBadge(row)}
                     <code className="truncate">{row.groupId ? `${row.groupId.slice(0, 10)}…` : 'ยังไม่มี Group ID'}</code>

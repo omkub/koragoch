@@ -1,13 +1,15 @@
-/// ประวัติการลาบนมือถือ (หน้าตาใหม่)
+/// ประวัติการลาบนมือถือ (mobile_v2) — สไตล์ Native Mobile Application
 ///
-/// - การ์ดสั้น: ประเภท · จำนวนวัน · วันที่ · ป้ายสถานะ — แตะเพื่อดูรายละเอียด
-/// - ตัวกรองสถานะ / รอบงบประมาณ / ค้นหาชื่อ (ดูทั้งโรงเรียน)
-/// - ผู้ที่ฐานข้อมูลให้ดูทั้งโรงเรียนได้: สลับ "ของฉัน / ทั้งโรงเรียน"
-/// - ดึงลงเพื่อโหลดใหม่ · ใบลาเปลี่ยนจากเครื่องไหนก็ตาม โหลดใหม่เอง (realtime)
+/// ปรับปรุงประสบการณ์แบบแอปพลิเคชันมือถือแท้:
+///   - สลับขอบเขต "ใบลาของฉัน" vs "ทั้งโรงเรียน" ด้วย Segmented Pill Slider
+///   - BottomSheet กรองรอบปีงบประมาณและตัวกรองสถานะแบบ Native Mobile Sheet
+///   - ป้ายสถานะแยกสีพร้อมจำนวนกำกับ
+///   - การ์ดใบลาแสดงข้อมูลครบถ้วน แตะเพื่อดูรายละเอียด / อนุมัติทันใจ
 library;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../services/firebase_service.dart';
@@ -16,16 +18,15 @@ import 'menu_access.dart';
 import 'mobile_leave_detail.dart';
 import 'mobile_pages.dart';
 
-const _line = Color(0xFFE2E8F0);
-
 class MobileLeaveHistory extends StatefulWidget {
   final MenuAccess access;
-
-  /// แก้ใบลา → สลับไปแท็บส่งใบลาพร้อมข้อมูลเดิม
   final ValueChanged<Map<String, dynamic>> onEdit;
 
-  const MobileLeaveHistory(
-      {super.key, required this.access, required this.onEdit});
+  const MobileLeaveHistory({
+    super.key,
+    required this.access,
+    required this.onEdit,
+  });
 
   @override
   State<MobileLeaveHistory> createState() => _MobileLeaveHistoryState();
@@ -48,7 +49,6 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
   String? _error;
 
   String get _myName => widget.access.currentUser.trim();
-
   VoidCallback? _stopLive;
 
   @override
@@ -76,20 +76,20 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
     final active = results[2] as Map<String, dynamic>?;
     setState(() {
       _canViewAll = results[0] as bool;
-      // ผู้ดูแลระบบเปิดมาเห็นทั้งโรงเรียน (งานอนุมัติ) / คนอื่นเห็นของตัวเองก่อน
       _showAll = _canViewAll && widget.access.isAdmin;
       _rounds = rounds;
       _round = active == null
           ? (rounds.isNotEmpty ? rounds.first : null)
-          : rounds.firstWhere((r) => r['id'] == active['id'],
-              orElse: () => rounds.isNotEmpty ? rounds.first : {});
+          : rounds.firstWhere(
+              (r) => r['id'] == active['id'],
+              orElse: () => rounds.isNotEmpty ? rounds.first : {},
+            );
       if (_round?.isEmpty ?? false) _round = null;
       _users = (results[3] as List).cast<Map<String, dynamic>>();
     });
     await _load();
   }
 
-  /// [quiet] = โหลดเบื้องหลังจาก realtime ไม่ขึ้นวงหมุนทับรายการเดิม
   Future<void> _load({bool quiet = false}) async {
     if (!mounted) return;
     if (!quiet) {
@@ -138,6 +138,7 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
   }
 
   Future<void> _openDetail(Map<String, dynamic> leave) async {
+    HapticFeedback.lightImpact();
     final changed = await Navigator.of(context).push<bool>(CupertinoPageRoute(
       builder: (_) => MobileLeaveDetail(
         leave: leave,
@@ -150,9 +151,110 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
     if (changed == true) await _load();
   }
 
+  void _showFilterBottomSheet() {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setModalState) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'เลือกรอบปีงบประมาณ',
+                      style: GoogleFonts.sarabun(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: mobileInk,
+                      ),
+                    ),
+                    if (_round != null)
+                      TextButton(
+                        onPressed: () {
+                          HapticFeedback.selectionClick();
+                          setState(() => _round = null);
+                          Navigator.pop(ctx);
+                        },
+                        child: Text(
+                          'ดูทั้งหมด',
+                          style: GoogleFonts.sarabun(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: mobileAccent,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 260),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: _rounds.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (_, i) {
+                      final r = _rounds[i];
+                      final isSelected = _round?['id'] == r['id'];
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(
+                          isSelected
+                              ? Icons.radio_button_checked_rounded
+                              : Icons.radio_button_off_rounded,
+                          color: isSelected ? mobileAccent : mobileMuted,
+                          size: 20,
+                        ),
+                        title: Text(
+                          (r['roundName'] ?? '').toString(),
+                          style: GoogleFonts.sarabun(
+                            fontSize: 14,
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            color: isSelected ? mobileAccent : mobileInk,
+                          ),
+                        ),
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(() => _round = r);
+                          Navigator.pop(ctx);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        });
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final visible = _visible;
+
     int count(LeaveStatusGroup? g) {
       final scoped = _leaves.where((l) {
         final round = _round;
@@ -162,166 +264,367 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
                 (round['startDate'] ?? '').toString(),
                 (round['endDate'] ?? '').toString());
       });
-      return g == null
-          ? scoped.length
-          : scoped.where((l) => LeaveStatus.group(LeaveStatus.of(l)) == g).length;
+      if (g == null) return scoped.length;
+      return scoped.where((l) => LeaveStatus.group(LeaveStatus.of(l)) == g).length;
     }
 
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Column(
+      children: [
+        // ── แถบควบคุมด้านบนแบบ Native Mobile Control Card ──
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // แถวที่ 1: สลับ "ของฉัน / ทั้งโรงเรียน" และ "ปีงบ"
+              Row(
                 children: [
-                  if (_canViewAll) ...[
-                    SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment(value: false, label: Text('ของฉัน')),
-                        ButtonSegment(value: true, label: Text('ทั้งโรงเรียน')),
-                      ],
-                      selected: {_showAll},
-                      showSelectedIcon: false,
-                      onSelectionChanged: (s) {
-                        setState(() => _showAll = s.first);
-                        _load();
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-                  if (_rounds.isNotEmpty) _roundPicker(),
-                  if (_showAll) ...[
-                    const SizedBox(height: 10),
-                    TextField(
-                      onChanged: (v) => setState(() => _search = v),
-                      decoration: InputDecoration(
-                        hintText: 'ค้นหาชื่อ / ประเภท / เหตุผล',
-                        hintStyle: GoogleFonts.sarabun(fontSize: 14),
-                        prefixIcon: const Icon(Icons.search_rounded),
-                        isDense: true,
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: _line)),
-                        enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: _line)),
+                  if (_canViewAll)
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _scopeSegmentButton(
+                                label: 'ใบลาของฉัน',
+                                isSelected: !_showAll,
+                                onTap: () {
+                                  if (_showAll) {
+                                    HapticFeedback.selectionClick();
+                                    setState(() => _showAll = false);
+                                    _load();
+                                  }
+                                },
+                              ),
+                            ),
+                            Expanded(
+                              child: _scopeSegmentButton(
+                                label: 'ทั้งโรงเรียน',
+                                isSelected: _showAll,
+                                onTap: () {
+                                  if (!_showAll) {
+                                    HapticFeedback.selectionClick();
+                                    setState(() => _showAll = true);
+                                    _load();
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: Text(
+                        'ประวัติการลาของฉัน',
+                        style: GoogleFonts.sarabun(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: mobileInk,
+                        ),
                       ),
                     ),
-                  ],
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 36,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        for (final (g, label) in [
-                          (null, 'ทั้งหมด'),
-                          (LeaveStatusGroup.pending, 'รอพิจารณา'),
-                          (LeaveStatusGroup.approved, 'อนุมัติ'),
-                          (LeaveStatusGroup.returned, 'ส่งกลับ / ไม่อนุมัติ'),
-                        ])
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                              label: Text('$label (${count(g)})',
-                                  style: GoogleFonts.sarabun(fontSize: 13)),
-                              selected: _filter == g,
-                              showCheckmark: false,
-                              onSelected: (_) => setState(() => _filter = g),
+                  const SizedBox(width: 8),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: _showFilterBottomSheet,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: mobileLine),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.calendar_month_rounded, size: 15, color: mobileAccent),
+                          const SizedBox(width: 5),
+                          Text(
+                            _round == null
+                                ? 'ทุกรอบปีงบ'
+                                : (_round!['roundName'] ?? '').toString().replaceFirst('รอบที่ ', ''),
+                            style: GoogleFonts.sarabun(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: mobileInk,
                             ),
                           ),
-                      ],
+                          const SizedBox(width: 4),
+                          const Icon(Icons.arrow_drop_down_rounded, size: 16, color: mobileMuted),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
-            ),
+              const SizedBox(height: 10),
+
+              // แถวที่ 2: ช่องค้นหาข้อความ
+              SizedBox(
+                height: 38,
+                child: TextField(
+                  style: GoogleFonts.sarabun(fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: _showAll ? 'ค้นหาชื่อผู้ลา ประเภท หรือเหตุผล...' : 'ค้นหาประเภท หรือเหตุผล...',
+                    hintStyle: GoogleFonts.sarabun(fontSize: 12.5, color: mobileMuted),
+                    prefixIcon: const Icon(Icons.search_rounded, size: 18, color: mobileMuted),
+                    suffixIcon: _search.isNotEmpty
+                        ? GestureDetector(
+                            onTap: () => setState(() => _search = ''),
+                            child: const Icon(Icons.cancel_rounded, size: 16, color: mobileMuted),
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: mobileLine),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: mobileLine),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: mobileAccent),
+                    ),
+                  ),
+                  onChanged: (v) => setState(() => _search = v),
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // แถวที่ 3: แถบฟิลเตอร์ชิปสถานะ
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _filterChip(
+                      label: 'ทั้งหมด',
+                      count: count(null),
+                      isSelected: _filter == null,
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _filter = null);
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                    _filterChip(
+                      label: 'รอพิจารณา',
+                      count: count(LeaveStatusGroup.pending),
+                      isSelected: _filter == LeaveStatusGroup.pending,
+                      color: const Color(0xFFD97706),
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _filter = LeaveStatusGroup.pending);
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                    _filterChip(
+                      label: 'ส่งใบแล้ว',
+                      count: count(LeaveStatusGroup.approved),
+                      isSelected: _filter == LeaveStatusGroup.approved,
+                      color: const Color(0xFF059669),
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _filter = LeaveStatusGroup.approved);
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                    _filterChip(
+                      label: 'ยังไม่ส่ง',
+                      count: count(LeaveStatusGroup.returned),
+                      isSelected: _filter == LeaveStatusGroup.returned,
+                      color: const Color(0xFFDC2626),
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _filter = LeaveStatusGroup.returned);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          if (_loading)
-            const SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(child: CircularProgressIndicator()))
-          else if (_error != null)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Text('โหลดข้อมูลไม่สำเร็จ',
-                      style: GoogleFonts.sarabun(color: Colors.red)),
-                  TextButton(onPressed: _load, child: const Text('ลองใหม่')),
-                ]),
-              ),
-            )
-          else if (visible.isEmpty)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(
-                child: Text(
-                    _leaves.isEmpty ? 'ยังไม่มีใบลา' : 'ไม่พบใบลาที่ตรงกับตัวกรอง',
-                    style:
-                        GoogleFonts.sarabun(fontSize: 15, color: mobileMuted)),
-              ),
-            )
-          else
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
-              sliver: SliverList.separated(
-                itemCount: visible.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (_, i) => _card(visible[i]),
-              ),
-            ),
-        ],
-      ),
+        ),
+        const Divider(height: 1, color: mobileLine),
+
+        // ── รายการการ์ดใบลา ──
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator(color: mobileAccent))
+              : _error != null
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.error_outline_rounded, size: 36, color: Colors.red),
+                          const SizedBox(height: 8),
+                          Text('โหลดไม่สำเร็จ: $_error', style: GoogleFonts.sarabun(fontSize: 13)),
+                          const SizedBox(height: 8),
+                          ElevatedButton(onPressed: _load, child: const Text('ลองใหม่')),
+                        ],
+                      ),
+                    )
+                  : visible.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 64,
+                                  height: 64,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: const Icon(Icons.description_outlined, size: 30, color: mobileMuted),
+                                ),
+                                const SizedBox(height: 14),
+                                Text(
+                                  'ไม่พบรายการใบลา',
+                                  style: GoogleFonts.sarabun(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: mobileInk,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'ไม่มีข้อมูลตามตัวกรองที่เลือกในขณะนี้',
+                                  style: GoogleFonts.sarabun(fontSize: 12.5, color: mobileMuted),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: () => _load(quiet: false),
+                          color: mobileAccent,
+                          child: ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
+                            itemCount: visible.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 10),
+                            itemBuilder: (_, i) => _buildLeaveCard(visible[i]),
+                          ),
+                        ),
+        ),
+      ],
     );
   }
 
-  Widget _roundPicker() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _line),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<Map<String, dynamic>>(
-          value: _round,
-          isExpanded: true,
+  Widget _scopeSegmentButton({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 6.5),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  )
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
           style: GoogleFonts.sarabun(
-              fontSize: 14, color: mobileInk, fontWeight: FontWeight.w600),
-          items: [
-            for (final r in _rounds)
-              DropdownMenuItem(
-                  value: r,
-                  child: Text('ปีงบ ${r['year']} · รอบที่ ${r['round']}')),
-          ],
-          onChanged: (r) => setState(() => _round = r),
+            fontSize: 12.5,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? mobileAccent : mobileMuted,
+          ),
         ),
       ),
     );
   }
 
-  Widget _card(Map<String, dynamic> l) {
+  Widget _filterChip({
+    required String label,
+    required int count,
+    required bool isSelected,
+    required VoidCallback onTap,
+    Color color = mobileAccent,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withValues(alpha: 0.12) : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isSelected ? color : mobileLine),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.sarabun(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? color : mobileMuted,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 0.5),
+              decoration: BoxDecoration(
+                color: isSelected ? color : Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '$count',
+                style: GoogleFonts.sarabun(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: isSelected ? Colors.white : mobileInk,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// การ์ดแสดงข้อมูลใบลาแต่ละใบแบบ Modern Card
+  Widget _buildLeaveCard(Map<String, dynamic> l) {
     final status = LeaveStatus.of(l);
     final (bg, fg) = LeaveStatus.colors(status);
     final type = (l['leaveType'] ?? '').toString();
-    final icon = type.contains('ป่วย')
-        ? Icons.healing_rounded
-        : type.contains('คลอด')
-            ? Icons.child_friendly_rounded
-            : Icons.work_outline_rounded;
-    final start = FirebaseService.formatThaiDate(l['startDate']);
-    final end = FirebaseService.formatThaiDate(l['endDate']);
-    final dates = start == end ? start : '$start – $end';
-    final days = FirebaseService.formatLeaveDayCount(l['totalDays']);
-    final isMine = (l['fullName'] ?? '').toString().trim() == _myName;
+    final name = (l['fullName'] ?? '').toString();
+    final days = l['days']?.toString() ?? '1';
+    final reason = (l['reason'] ?? '').toString().trim();
+
+    final (icon, iconColor, iconBg) = switch (type) {
+      'ลาป่วย' => (Icons.healing_rounded, const Color(0xFF0284C7), const Color(0xFFE0F2FE)),
+      'ลากิจ' || 'ลากิจส่วนตัว' => (Icons.work_outline_rounded, const Color(0xFF4F46E5), const Color(0xFFEEF2FF)),
+      'ลาคลอด' || 'ลาคลอดบุตร' => (Icons.child_friendly_rounded, const Color(0xFFDB2777), const Color(0xFFFDF2F8)),
+      _ => (Icons.description_rounded, const Color(0xFF059669), const Color(0xFFD1FAE5)),
+    };
 
     return Material(
       color: Colors.white,
@@ -330,57 +633,127 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
         borderRadius: BorderRadius.circular(16),
         onTap: () => _openDetail(l),
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _line),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                    color: const Color(0xFFDBEAFE),
-                    borderRadius: BorderRadius.circular(12)),
-                child: Icon(icon, color: mobileAccent),
+            border: Border.all(color: mobileLine),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.02),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: iconBg,
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: Icon(icon, color: iconColor, size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              type,
+                              style: GoogleFonts.sarabun(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w700,
+                                color: mobileInk,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '$days วัน',
+                                style: GoogleFonts.sarabun(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: mobileAccent,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_showAll && name.isNotEmpty)
+                          Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.sarabun(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: mobileMuted,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
+                    decoration: BoxDecoration(
+                      color: bg,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      status,
+                      style: GoogleFonts.sarabun(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: fg,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
                   children: [
-                    if (_showAll && !isMine)
-                      Text((l['fullName'] ?? '-').toString(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.sarabun(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: mobileInk)),
-                    Text('$type · $days วัน',
-                        style: GoogleFonts.sarabun(
-                            fontSize: _showAll && !isMine ? 13 : 15,
-                            fontWeight: _showAll && !isMine
-                                ? FontWeight.w500
-                                : FontWeight.w700,
-                            color: mobileInk)),
-                    Text(dates,
-                        style: GoogleFonts.sarabun(
-                            fontSize: 12, color: mobileMuted)),
+                    const Icon(Icons.date_range_rounded, size: 14, color: mobileMuted),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        l['startDate'] == l['endDate']
+                            ? FirebaseService.formatThaiDate(l['startDate'])
+                            : '${FirebaseService.formatThaiDate(l['startDate'])} - ${FirebaseService.formatThaiDate(l['endDate'])}',
+                        style: GoogleFonts.sarabun(fontSize: 12, color: mobileInk),
+                      ),
+                    ),
                   ],
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                    color: bg, borderRadius: BorderRadius.circular(999)),
-                child: Text(status,
-                    style: GoogleFonts.sarabun(
-                        fontSize: 12, fontWeight: FontWeight.w700, color: fg)),
-              ),
-              const Icon(Icons.chevron_right_rounded, color: mobileMuted),
+              if (reason.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'เหตุผล: $reason',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.sarabun(fontSize: 12, color: mobileMuted),
+                ),
+              ],
             ],
           ),
         ),

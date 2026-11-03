@@ -1,8 +1,10 @@
-/// รายละเอียดใบลา (มือถือ) — เปิดจากการ์ดในหน้าประวัติ
+/// รายละเอียดใบลา (มือถือ mobile_v2) — จัดหมวดหมู่ให้ชัดเจนและสบายตา
 ///
-/// ทุกคน: ดูรายละเอียด / ดูใบลา + พิมพ์ (แม่แบบจาก web) / แก้ไข (ตามสิทธิ์)
-/// ผู้ดูแลระบบ: อนุมัติ / ไม่อนุมัติ (ส่งกลับ) / ลบ — ผู้บริหารไม่มีสิทธิ์อนุมัติ
-/// ปิดหน้านี้คืน true เมื่อข้อมูลเปลี่ยน ให้หน้าประวัติโหลดใหม่
+/// หมวดหมู่ในหน้านี้:
+///   1) การ์ดสรุปสถานะและผู้ยื่นใบลา
+///   2) หมวดรายละเอียดวันลาและเหตุผล
+///   3) หมวดเอกสารและการจัดการ (ดู/พิมพ์ใบลา · แก้ไขใบลา)
+///   4) หมวดการพิจารณาสำหรับผู้ดูแลระบบ (อนุมัติ / ส่งกลับ / ลบ)
 library;
 
 import 'package:flutter/material.dart';
@@ -68,6 +70,7 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
     final ok = await showModalBottomSheet<bool>(
       context: context,
       showDragHandle: true,
+      backgroundColor: Colors.white,
       builder: (ctx) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
@@ -77,7 +80,7 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
             children: [
               Text(title,
                   style: GoogleFonts.sarabun(
-                      fontSize: 18, fontWeight: FontWeight.w700)),
+                      fontSize: 18, fontWeight: FontWeight.w800)),
               const SizedBox(height: 6),
               Text(message,
                   style: GoogleFonts.sarabun(fontSize: 15, color: mobileMuted)),
@@ -85,7 +88,9 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
               FilledButton(
                 style: FilledButton.styleFrom(
                     backgroundColor: color,
-                    minimumSize: const Size.fromHeight(48)),
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14))),
                 onPressed: () => Navigator.pop(ctx, true),
                 child: Text(action,
                     style: GoogleFonts.sarabun(
@@ -177,8 +182,6 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
     final status = LeaveStatus.of(_leave);
     final (bg, fg) = LeaveStatus.colors(status);
     final group = LeaveStatus.group(status);
-    // สิทธิ์อื่นแก้ได้เฉพาะใบของตัวเองที่ยังไม่อนุมัติ (ผู้บริหารเห็นทุกใบ
-    // แต่แก้ของคนอื่นไม่ได้)
     final canEdit = _isAdmin ||
         LeavePermissions.canModify(_leave,
             role: widget.access.userRole, myName: widget.access.currentUser);
@@ -188,19 +191,21 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
     final halfDay = _leave['isHalfDay'] == true
         ? (_leave['halfDayPeriod'] == 'afternoon' ? 'ครึ่งวันบ่าย' : 'ครึ่งวันเช้า')
         : 'เต็มวัน';
+    final receiveNumber = (_leave['receiveNumber'] ?? '').toString().trim();
 
-    final rows = <(String, String)>[
-      ('ผู้ลา', (_leave['fullName'] ?? '-').toString()),
-      ('ประเภท', (_leave['leaveType'] ?? '-').toString()),
-      ('วันที่', start == end ? start : '$start ถึง $end'),
+    final rows = <(IconData, String, String)>[
+      (Icons.person_outline_rounded, 'ผู้ยื่นใบลา', (_leave['fullName'] ?? '-').toString()),
+      (Icons.category_outlined, 'ประเภทการลา', (_leave['leaveType'] ?? '-').toString()),
+      (Icons.calendar_month_rounded, 'ช่วงวันที่ลา', start == end ? start : '$start ถึง $end'),
       (
-        'จำนวน',
+        Icons.schedule_rounded,
+        'จำนวนวันลา',
         '${FirebaseService.formatLeaveDayCount(_leave['totalDays'])} วัน ($halfDay)'
       ),
-      ('เหตุผล', (_leave['reason'] ?? '').toString()),
-      ('เบอร์ติดต่อ', (_leave['phone'] ?? '').toString()),
-      if ((_leave['receiveNumber'] ?? '').toString().isNotEmpty)
-        ('เลขรับ', _leave['receiveNumber'].toString()),
+      (Icons.notes_rounded, 'เหตุผลการลา', (_leave['reason'] ?? '').toString()),
+      (Icons.phone_outlined, 'เบอร์ติดต่อ', (_leave['phone'] ?? '').toString()),
+      if (receiveNumber.isNotEmpty)
+        (Icons.verified_outlined, 'เลขรับใบลา', receiveNumber),
     ];
 
     return PopScope(
@@ -212,123 +217,188 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
         backgroundColor: mobileBg,
         appBar: mobileAppBar('รายละเอียดใบลา'),
         body: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
           children: [
+            // ── หมวดที่ 1: ข้อมูลใบลา ──
+            const MobileSectionHeader(
+              icon: Icons.assignment_outlined,
+              title: 'ข้อมูลการลา',
+            ),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: mobileLine),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                        color: bg, borderRadius: BorderRadius.circular(999)),
-                    child: Text(status,
-                        style: GoogleFonts.sarabun(
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 5),
+                        decoration: BoxDecoration(
+                            color: bg,
+                            borderRadius: BorderRadius.circular(999)),
+                        child: Text(status,
+                            style: GoogleFonts.sarabun(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: fg)),
+                      ),
+                      const Spacer(),
+                      if (receiveNumber.isNotEmpty)
+                        Text(
+                          'เลขรับที่ $receiveNumber',
+                          style: GoogleFonts.sarabun(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
-                            color: fg)),
+                            color: mobileMuted,
+                          ),
+                        ),
+                    ],
                   ),
+                  const SizedBox(height: 12),
+                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
                   const SizedBox(height: 8),
-                  for (final (label, value) in rows)
+                  for (final (icon, label, value) in rows)
                     if (value.trim().isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        padding: const EdgeInsets.symmetric(vertical: 7),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            Icon(icon, size: 17, color: mobileMuted),
+                            const SizedBox(width: 8),
                             SizedBox(
                               width: 96,
                               child: Text(label,
                                   style: GoogleFonts.sarabun(
-                                      fontSize: 14, color: mobileMuted)),
+                                      fontSize: 13.5, color: mobileMuted)),
                             ),
                             Expanded(
                               child: Text(value,
                                   style: GoogleFonts.sarabun(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14.5,
+                                      fontWeight: FontWeight.w700,
                                       color: mobileInk)),
                             ),
                           ],
                         ),
                       ),
-                  if (medical.isNotEmpty)
-                    TextButton.icon(
-                      onPressed: () => launchUrl(Uri.parse(medical),
-                          mode: LaunchMode.externalApplication),
-                      icon: const Icon(Icons.attach_file_rounded),
-                      label: const Text('ดูใบรับรองแพทย์'),
+                  if (medical.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: mobileAccent,
+                          side: const BorderSide(color: Color(0xFFBFDBFE)),
+                          backgroundColor: const Color(0xFFF8FAFC),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () => launchUrl(Uri.parse(medical),
+                            mode: LaunchMode.externalApplication),
+                        icon: const Icon(Icons.attach_file_rounded, size: 18),
+                        label: Text('เปิดดูไฟล์ใบรับรองแพทย์ที่แนบ',
+                            style: GoogleFonts.sarabun(
+                                fontWeight: FontWeight.w700)),
+                      ),
                     ),
+                  ],
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-            _action(Icons.description_outlined, 'ดูใบลา / พิมพ์',
-                _busy ? null : _openDocument),
-            if (canEdit)
-              _action(Icons.edit_outlined, 'แก้ไขใบลา', _busy ? null : _edit),
 
-            // อนุมัติได้เฉพาะผู้ดูแลระบบ (ผู้บริหารไม่มีสิทธิ์อนุมัติ)
-            if (_isAdmin && group != LeaveStatusGroup.approved) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFFDC2626),
-                        side: const BorderSide(color: Color(0xFFFCA5A5)),
-                        minimumSize: const Size.fromHeight(50),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                      ),
-                      onPressed: _busy || group == LeaveStatusGroup.returned
-                          ? null
-                          : _return,
-                      child: Text('ไม่อนุมัติ',
-                          style: GoogleFonts.sarabun(
-                              fontSize: 16, fontWeight: FontWeight.w700)),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF16A34A),
-                        minimumSize: const Size.fromHeight(50),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                      ),
-                      onPressed: _busy ? null : _approve,
-                      child: _busy
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2.5, color: Colors.white))
-                          : Text('อนุมัติ',
-                              style: GoogleFonts.sarabun(
-                                  fontSize: 16, fontWeight: FontWeight.w700)),
-                    ),
-                  ),
-                ],
+            // ── หมวดที่ 2: เอกสารและการจัดการ ──
+            const SizedBox(height: 20),
+            const MobileSectionHeader(
+              icon: Icons.description_outlined,
+              title: 'เอกสารและการจัดการ',
+              iconColor: Color(0xFF0284C7),
+            ),
+            _action(
+              Icons.print_rounded,
+              'ดูใบลา / พิมพ์เอกสาร (PDF)',
+              'แสดงหน้าใบลาตามแม่แบบของโรงเรียน',
+              _busy ? null : _openDocument,
+            ),
+            if (canEdit)
+              _action(
+                Icons.edit_note_rounded,
+                'แก้ไขข้อมูลใบลา',
+                'ปรับปรุงวันที่ เหตุผล หรือเอกสารแนบ',
+                _busy ? null : _edit,
               ),
-            ],
+
+            // ── หมวดที่ 3: การอนุมัติสำหรับผู้ดูแลระบบ ──
             if (_isAdmin) ...[
               const SizedBox(height: 16),
-              TextButton.icon(
-                style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFFDC2626)),
-                onPressed: _busy ? null : _delete,
-                icon: const Icon(Icons.delete_outline_rounded),
-                label: const Text('ลบใบลานี้'),
+              const MobileSectionHeader(
+                icon: Icons.gavel_rounded,
+                title: 'การพิจารณาสำหรับผู้ดูแลระบบ',
+                iconColor: Color(0xFFD97706),
+              ),
+              if (group != LeaveStatusGroup.approved)
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFDC2626),
+                          backgroundColor: Colors.white,
+                          side: const BorderSide(color: Color(0xFFFCA5A5)),
+                          minimumSize: const Size.fromHeight(50),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                        ),
+                        onPressed: _busy || group == LeaveStatusGroup.returned
+                            ? null
+                            : _return,
+                        icon: const Icon(Icons.reply_rounded, size: 18),
+                        label: Text('ไม่อนุมัติ',
+                            style: GoogleFonts.sarabun(
+                                fontSize: 15.5, fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF16A34A),
+                          minimumSize: const Size.fromHeight(50),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                        ),
+                        onPressed: _busy ? null : _approve,
+                        icon: _busy
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2.5, color: Colors.white))
+                            : const Icon(Icons.check_circle_outline_rounded,
+                                size: 19),
+                        label: Text('อนุมัติใบลา',
+                            style: GoogleFonts.sarabun(
+                                fontSize: 15.5, fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ],
+                ),
+              const SizedBox(height: 10),
+              Center(
+                child: TextButton.icon(
+                  style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFDC2626)),
+                  onPressed: _busy ? null : _delete,
+                  icon: const Icon(Icons.delete_outline_rounded, size: 19),
+                  label: Text('ลบใบลานี้ถาวร',
+                      style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
+                ),
               ),
             ],
           ],
@@ -337,22 +407,53 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
     );
   }
 
-  Widget _action(IconData icon, String label, VoidCallback? onTap) {
+  Widget _action(
+      IconData icon, String label, String subtitle, VoidCallback? onTap) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Material(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        child: ListTile(
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-              side: const BorderSide(color: Color(0xFFE2E8F0))),
-          leading: Icon(icon, color: mobileAccent),
-          title: Text(label,
-              style: GoogleFonts.sarabun(
-                  fontSize: 15, fontWeight: FontWeight.w600)),
-          trailing: const Icon(Icons.chevron_right_rounded),
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
           onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: mobileLine),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Icon(icon, color: mobileAccent, size: 21),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(label,
+                          style: GoogleFonts.sarabun(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w700,
+                              color: mobileInk)),
+                      Text(subtitle,
+                          style: GoogleFonts.sarabun(
+                              fontSize: 12, color: mobileMuted)),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: mobileMuted),
+              ],
+            ),
+          ),
         ),
       ),
     );

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { schoolName, supabase, type Role, type School } from '../supabase';
-import { EmptyState, Field, Notice, PageHeader } from '../ui/components';
-import { IconSearch } from '../ui/icons';
+import { EmptyState, Field, Notice, PageHeader, SectionHeader, StatCard } from '../ui/components';
+import { IconClock, IconSearch, IconUserCheck, IconUsers } from '../ui/icons';
 import { isWorkingToday, todayTh } from '../staffStatus';
 
 type EmploymentStatus = 'active' | 'resigned' | 'retired' | 'transferred';
@@ -36,9 +36,6 @@ function thaiDate(iso: string | null | undefined) {
 
 /**
  * บุคลากรของแต่ละโรงเรียน — ตั้งสถานะ ลาออก / เกษียณ / ย้าย (supabase/staff_status.sql)
- *
- * ไม่ลบรายชื่อ ใบลาเก่ายังอยู่ครบ คนพ้นสภาพเข้าระบบไม่ได้ ไม่ขึ้นในรายชื่อที่ใช้ทำงาน
- * และรายงานนับเฉพาะปีงบประมาณที่ยังปฏิบัติงาน — แอดมินโรงเรียนตั้งได้จากแอปเช่นกัน
  */
 export default function StaffPage() {
   const [schools, setSchools] = useState<School[]>([]);
@@ -75,7 +72,6 @@ export default function StaffPage() {
     let res = await fetchStaff(id, `${BASE_COLUMNS}, employment_status, left_date`);
     let statusColumns = true;
     if (res.error && res.error.message.includes('employment_status')) {
-      // ยังไม่ได้รัน staff_status.sql — แสดงรายชื่อได้ แต่ตั้งสถานะไม่ได้
       statusColumns = false;
       res = await fetchStaff(id, BASE_COLUMNS);
     }
@@ -96,10 +92,10 @@ export default function StaffPage() {
   }, [schoolId]);
 
   const statusOf = (t: StaffRow): EmploymentStatus => t.employment_status ?? 'active';
-  /** ยังปฏิบัติงานวันนี้ — ตั้งพ้นสภาพล่วงหน้าไว้ ยังนับว่าทำงานจนถึงวันที่มีผล */
   const working = (t: StaffRow) => isWorkingToday(t.employment_status, t.left_date);
-  /** ตั้งพ้นสภาพไว้ล่วงหน้า ยังไม่ถึงวันที่มีผล — ต้องมีป้ายบอก ไม่งั้นนึกว่าบันทึกไม่ติด */
   const scheduled = (t: StaffRow) => statusOf(t) !== 'active' && working(t);
+  const workingCount = staff.filter((t) => working(t)).length;
+  const scheduledCount = staff.filter((t) => scheduled(t)).length;
   const inactiveCount = staff.filter((t) => !working(t)).length;
   const roleName = (id: number | null) => roles.find((r) => r.ID_Roles === id)?.Accessrights ?? '-';
 
@@ -110,6 +106,7 @@ export default function StaffPage() {
         (showInactive || working(t)) &&
         (!q || `${t.fullName ?? ''} ${t.username ?? ''}`.toLowerCase().includes(q)),
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [staff, showInactive, search]);
 
   async function save() {
@@ -143,7 +140,7 @@ export default function StaffPage() {
     if (scheduled(t)) {
       return (
         <span className="badge-amber">
-          {STATUS_LABEL[status]} มีผล {thaiDate(t.left_date)}
+          {STATUS_LABEL[status]} (มีผล {thaiDate(t.left_date)})
         </span>
       );
     }
@@ -153,15 +150,19 @@ export default function StaffPage() {
       </span>
     );
   };
+
   const editButton = (t: StaffRow) => {
     const status = statusOf(t);
     return (
       <button
         className="btn-secondary btn-sm"
         disabled={!hasStatus}
-        onClick={() => setEditing({ row: t, status, left: t.left_date ?? todayTh() })}
+        onClick={() => {
+          setEditing({ row: t, status, left: t.left_date ?? todayTh() });
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
       >
-        {status === 'active' ? 'พ้นสภาพ' : 'แก้สถานะ'}
+        {status === 'active' ? 'ตั้งพ้นสภาพ' : 'แก้ไขสถานะ'}
       </button>
     );
   };
@@ -169,31 +170,69 @@ export default function StaffPage() {
   return (
     <>
       <PageHeader
-        title="บุคลากร"
-        description="ตั้งสถานะ ลาออก / เกษียณ / ย้าย — ไม่ลบรายชื่อ ใบลาเก่ายังอยู่ครบ · คนพ้นสภาพเข้าระบบไม่ได้ และรายงานนับเฉพาะปีงบประมาณที่ยังปฏิบัติงาน"
+        category="2. องค์กรและบุคลากร"
+        title="จัดการสถานะบุคลากร"
+        description="ตั้งสถานะ ปฏิบัติงาน / ลาออก / เกษียณ / ย้าย โดยไม่ลบรายชื่อ (ประวัติใบลาเดิมอยู่ครบ แต่ผู้พ้นสภาพจะเข้าแอปไม่ได้)"
         actions={
-          <select
-            className="input w-auto max-w-full"
-            value={schoolId ?? ''}
-            onChange={(e) => setSchoolId(Number(e.target.value))}
-            aria-label="เลือกโรงเรียน"
-          >
-            {schools.map((s) => (
-              <option key={s.id_school} value={s.id_school}>
-                {schoolName(s)}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-500">โรงเรียน:</span>
+            <select
+              className="input w-auto max-w-full font-medium"
+              value={schoolId ?? ''}
+              onChange={(e) => setSchoolId(Number(e.target.value))}
+              aria-label="เลือกโรงเรียน"
+            >
+              {schools.map((s) => (
+                <option key={s.id_school} value={s.id_school}>
+                  {schoolName(s)}
+                </option>
+              ))}
+            </select>
+          </div>
         }
       />
       {!hasStatus && <div className="alert-error mb-4">ยังตั้งสถานะไม่ได้ — ต้องรัน supabase/staff_status.sql ก่อน</div>}
       <Notice message={message} />
 
+      {/* สรุปจำนวนบุคลากรในโรงเรียนที่เลือก */}
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3 lg:gap-4">
+        <StatCard
+          icon={<IconUserCheck className="h-4 w-4" />}
+          label="กำลังปฏิบัติงานวันนี้"
+          value={workingCount}
+          hint="เข้าระบบและนับในรายงานปกติ"
+          tone="green"
+        />
+        <StatCard
+          icon={<IconClock className="h-4 w-4" />}
+          label="ตั้งพ้นสภาพล่วงหน้า"
+          value={scheduledCount}
+          hint="ยังปฏิบัติงานจนถึงวันที่มีผล"
+          tone={scheduledCount > 0 ? 'amber' : 'slate'}
+        />
+        <StatCard
+          icon={<IconUsers className="h-4 w-4" />}
+          label="พ้นสภาพแล้ว (ลาออก/เกษียณ/ย้าย)"
+          value={inactiveCount}
+          hint="เก็บประวัติใบลาไว้ แต่เข้าระบบไม่ได้"
+          tone="slate"
+        />
+      </div>
+
+      {/* กล่องแก้ไขสถานะ */}
       {editing && (
-        <div className="card mb-5">
-          <div className="card-title">สถานะ: {editing.row.fullName}</div>
-          <div className="grid gap-4 px-4 pb-4 sm:grid-cols-2 sm:px-5">
-            <Field label="สถานะ">
+        <div className="card mb-6 overflow-hidden border-brand-200">
+          <div className="card-title bg-brand-50/40">
+            <div className="flex items-center gap-2">
+              <span className="badge-brand">แก้ไขสถานะ</span>
+              <span>{editing.row.fullName}</span>
+            </div>
+            <button className="btn-ghost btn-sm" onClick={() => setEditing(null)}>
+              ปิด ✕
+            </button>
+          </div>
+          <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5">
+            <Field label="สถานะการปฏิบัติงาน">
               <select
                 className="input"
                 value={editing.status}
@@ -208,8 +247,8 @@ export default function StaffPage() {
             </Field>
             {editing.status !== 'active' && (
               <Field
-                label="พ้นสภาพตั้งแต่วันที่"
-                hint="วันแรกที่ไม่ได้ปฏิบัติงาน เช่น เกษียณ 1 ต.ค. — ก่อนวันนั้นยังเข้าระบบได้ตามปกติ"
+                label="วันที่มีผลพ้นสภาพ"
+                hint="วันแรกที่ไม่ได้ปฏิบัติงาน เช่น เกษียณ 1 ต.ค. — ก่อนถึงวันนั้นยังเข้าระบบได้ตามปกติ"
               >
                 <input
                   className="input"
@@ -220,60 +259,74 @@ export default function StaffPage() {
               </Field>
             )}
           </div>
-          <div className="flex justify-end gap-2 border-t border-line px-4 py-3 sm:px-5">
+          <div className="flex justify-end gap-2 border-t border-line bg-slate-50/70 px-4 py-3 sm:px-5">
             <button className="btn-secondary" onClick={() => setEditing(null)}>
               ยกเลิก
             </button>
             <button className="btn-primary" disabled={busy} onClick={save}>
-              {busy ? 'กำลังบันทึก...' : 'บันทึก'}
+              {busy ? 'กำลังบันทึก...' : 'บันทึกสถานะ'}
             </button>
           </div>
         </div>
       )}
 
+      {/* ตารางรายชื่อบุคลากร */}
+      <SectionHeader
+        title="รายชื่อบุคลากรในโรงเรียน"
+        subtitle="ค้นหาตามชื่อ หรือสลับดูรายชื่อผู้ที่พ้นสภาพไปแล้ว"
+      />
       <section className="card overflow-hidden">
-        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <div className="relative sm:w-72">
             <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
-              className="input pl-9"
-              placeholder="ค้นหาชื่อ หรือ username"
+              className="input py-1.5 pl-9 text-[13px]"
+              placeholder="ค้นหาชื่อ-สกุล หรือ username..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <label className="flex items-center gap-2 text-[13px] font-medium text-slate-600">
-            <input
-              type="checkbox"
-              className="checkbox"
-              checked={showInactive}
-              onChange={(e) => setShowInactive(e.target.checked)}
-            />
-            แสดงคนพ้นสภาพ ({inactiveCount})
-          </label>
+          <div className="seg">
+            <button
+              type="button"
+              className={!showInactive ? 'active' : ''}
+              onClick={() => setShowInactive(false)}
+            >
+              เฉพาะปฏิบัติงาน ({workingCount})
+            </button>
+            <button
+              type="button"
+              className={showInactive ? 'active' : ''}
+              onClick={() => setShowInactive(true)}
+            >
+              รวมคนพ้นสภาพ ({staff.length})
+            </button>
+          </div>
         </div>
 
         {visible.length === 0 ? (
-          <EmptyState>ไม่พบบุคลากร</EmptyState>
+          <EmptyState>ไม่พบบุคลากรตามเงื่อนไขที่เลือก</EmptyState>
         ) : (
           <>
             <div className="hidden overflow-x-auto md:block">
               <table className="table">
                 <thead>
                   <tr>
-                    <th>ชื่อ-นามสกุล</th>
-                    <th>Username</th>
-                    <th>สิทธิ์</th>
-                    <th>สถานะ</th>
+                    <th>ชื่อ - นามสกุล</th>
+                    <th>ชื่อผู้ใช้ (Username)</th>
+                    <th>สิทธิ์ในระบบ</th>
+                    <th>สถานะการทำงาน</th>
                     <th />
                   </tr>
                 </thead>
                 <tbody>
                   {visible.map((t) => (
                     <tr key={t.id_user} className={working(t) ? '' : 'text-slate-400'}>
-                      <td className="font-medium">{t.fullName || '-'}</td>
-                      <td>{t.username || '-'}</td>
-                      <td>{roleName(t.id_role)}</td>
+                      <td className="font-semibold">{t.fullName || '-'}</td>
+                      <td className="font-mono text-xs">{t.username || '-'}</td>
+                      <td>
+                        <span className="badge-slate">{roleName(t.id_role)}</span>
+                      </td>
                       <td>{statusBadge(t)}</td>
                       <td className="text-right">{editButton(t)}</td>
                     </tr>
@@ -283,13 +336,14 @@ export default function StaffPage() {
             </div>
             <ul className="divide-y divide-slate-100 md:hidden">
               {visible.map((t) => (
-                <li key={t.id_user} className="flex items-center gap-3 px-4 py-3">
+                <li key={t.id_user} className="flex items-center gap-3 px-4 py-3.5">
                   <div className="min-w-0 flex-1">
-                    <div className={`truncate font-medium ${working(t) ? '' : 'text-slate-400'}`}>
+                    <div className={`truncate font-semibold ${working(t) ? 'text-ink' : 'text-slate-400'}`}>
                       {t.fullName || '-'}
                     </div>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
-                      {roleName(t.id_role)} {statusOf(t) !== 'active' && statusBadge(t)}
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                      <span className="badge-slate">{roleName(t.id_role)}</span>
+                      {statusBadge(t)}
                     </div>
                   </div>
                   {editButton(t)}

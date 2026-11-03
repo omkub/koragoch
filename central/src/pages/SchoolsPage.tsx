@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   functionError,
   rolesForSchool,
@@ -9,8 +9,8 @@ import {
   type School,
 } from '../supabase';
 import LeaveHeaderPreview from './LeaveHeaderPreview';
-import { EmptyState, Field, Notice, PageHeader } from '../ui/components';
-import { IconPlus } from '../ui/icons';
+import { EmptyState, Field, Notice, PageHeader, SectionHeader } from '../ui/components';
+import { IconPlus, IconSearch } from '../ui/icons';
 import SchoolLogo, { driveFileId, logoSrc } from '../ui/SchoolLogo';
 
 type SchoolForm = Omit<School, 'id_school' | 'fullName' | 'mobile_ui' | 'mobile_ui_by_role' | 'logo'>;
@@ -62,7 +62,7 @@ async function uploadLogo(dataUrl: string, schoolLabel: string): Promise<string>
 type ByRole = Record<string, MobileUi>;
 
 const MOBILE_UI_LABEL: Record<MobileUi, string> = {
-  new: 'แบบใหม่ (แถบล่าง 4 ปุ่ม)',
+  new: 'แบบใหม่ (จัดหมวดหมู่ สบายตา · แถบล่าง 4 ปุ่ม)',
   old: 'แบบเดิม (แถบล่าง 9 ปุ่ม)',
 };
 
@@ -77,21 +77,24 @@ const EMPTY: SchoolForm = {
   subdistrict: '',
 };
 
-const FIELDS: { key: keyof SchoolForm; label: string; hint?: string }[] = [
-  { key: 'namePart1', label: 'ชื่อโรงเรียน (ส่วนแรก)', hint: 'เช่น โรงเรียนรมย์บุรีพิทยาคม' },
+const IDENTITY_FIELDS: { key: keyof SchoolForm; label: string; hint?: string }[] = [
+  { key: 'namePart1', label: 'ชื่อโรงเรียน (ส่วนแรก) *', hint: 'เช่น โรงเรียนรมย์บุรีพิทยาคม' },
   { key: 'namePart2', label: 'ชื่อโรงเรียน (ส่วนหลัง)', hint: 'เช่น รัชมังคลาภิเษก — ไม่มีเว้นว่าง' },
-  { key: 'address', label: 'ที่อยู่ (หัวใบลา)', hint: 'เว้นว่าง = ใช้ ตำบล/อำเภอ/จังหวัด ด้านล่าง' },
-  { key: 'affiliation', label: 'สังกัด' },
-  { key: 'province', label: 'จังหวัด' },
-  { key: 'district', label: 'อำเภอ' },
-  { key: 'subdistrict', label: 'ตำบล' },
-  { key: 'localCode', label: 'รหัสโรงเรียน' },
+  { key: 'affiliation', label: 'สังกัด', hint: 'เช่น สำนักงานเขตพื้นที่การศึกษามัธยมศึกษา...' },
+  { key: 'localCode', label: 'รหัสโรงเรียน', hint: 'รหัสประจำสถานศึกษา (ถ้ามี)' },
 ];
 
+const LOCATION_FIELDS: { key: keyof SchoolForm; label: string; hint?: string }[] = [
+  { key: 'address', label: 'ที่อยู่เต็ม (แสดงบนหัวใบลา)', hint: 'เว้นว่าง = ระบบประกอบจาก ตำบล/อำเภอ/จังหวัด ให้' },
+  { key: 'province', label: 'จังหวัด' },
+  { key: 'district', label: 'อำเภอ / เขต' },
+  { key: 'subdistrict', label: 'ตำบล / แขวง' },
+];
+
+const ALL_FIELDS = [...IDENTITY_FIELDS, ...LOCATION_FIELDS];
+
 /**
- * เพิ่ม/แก้ข้อมูลโรงเรียน
- * fullName ฐานข้อมูลคำนวณจาก namePart1 + namePart2 เอง (ส่งไปไม่ได้)
- * เพิ่มโรงเรียนได้เฉพาะผู้ดูแลส่วนกลาง (policy schools_insert)
+ * เพิ่ม/แก้ข้อมูลโรงเรียน — แยกหมวดหมู่เป็น 3 ส่วนชัดเจนคู่กับตัวอย่างหัวใบลาสด
  */
 export default function SchoolsPage() {
   const [schools, setSchools] = useState<School[]>([]);
@@ -101,12 +104,11 @@ export default function SchoolsPage() {
   const [byRole, setByRole] = useState<ByRole>({});
   const [logo, setLogo] = useState<string | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [search, setSearch] = useState('');
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  // ยังไม่รัน school_mobile_ui.sql / school_mobile_ui_by_role.sql = ไม่มีคอลัมน์
-  // ส่งค่าไปจะบันทึกไม่ผ่านทั้งแถว
   const hasMobileUi = schools.some((s) => 'mobile_ui' in s);
   const hasByRole = schools.some((s) => 'mobile_ui_by_role' in s);
   const hasLogo = schools.some((s) => 'logo' in s);
@@ -133,7 +135,6 @@ export default function SchoolsPage() {
 
   const roleName = (id: string) => roles.find((r) => String(r.ID_Roles) === id)?.Accessrights ?? `สิทธิ์ ${id}`;
 
-  /** สรุปในตาราง เช่น "แบบเดิม · ผู้ดูแลระบบ: แบบใหม่" */
   function mobileUiSummary(s: School) {
     const base = s.mobile_ui === 'old' ? 'แบบเดิม' : 'แบบใหม่';
     const overrides = Object.entries(s.mobile_ui_by_role ?? {}).map(
@@ -154,15 +155,17 @@ export default function SchoolsPage() {
       setMobileUi('new');
       setByRole({});
       setLogo(null);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
     setEditing(school.id_school);
     const next = { ...EMPTY };
-    for (const f of FIELDS) next[f.key] = school[f.key] ?? '';
+    for (const f of ALL_FIELDS) next[f.key] = school[f.key] ?? '';
     setForm(next);
     setMobileUi(school.mobile_ui === 'old' ? 'old' : 'new');
     setByRole({ ...(school.mobile_ui_by_role ?? {}) });
     setLogo(school.logo ?? null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function setRoleUi(id: number, value: MobileUi | '') {
@@ -180,11 +183,10 @@ export default function SchoolsPage() {
     }
     setBusy(true);
     const record: Record<string, string | ByRole | null> = { updatedAt: new Date().toISOString() };
-    for (const f of FIELDS) record[f.key] = form[f.key]?.trim() || null;
+    for (const f of ALL_FIELDS) record[f.key] = form[f.key]?.trim() || null;
     if (hasMobileUi) record.mobile_ui = mobileUi;
     if (hasByRole) record.mobile_ui_by_role = byRole;
 
-    // โลโก้: รูปที่เพิ่งเลือก → อัปโหลดไป Drive (LogoRPB) แล้วเก็บแค่ลิงก์
     const previous = editing === 'new' ? null : schools.find((s) => s.id_school === editing)?.logo ?? null;
     if (hasLogo) {
       let next = logo;
@@ -212,12 +214,11 @@ export default function SchoolsPage() {
       return;
     }
 
-    // เปลี่ยน/ลบโลโก้ → ย้ายไฟล์เดิมใน Drive ลงถังขยะ (ไม่สำเร็จก็ไม่เป็นไร)
     const oldFile = driveFileId(previous);
     if (hasLogo && oldFile && previous !== record.logo) {
       supabase.functions.invoke(BRIDGE_FUNCTION, { body: { action: 'drive_delete', fileId: oldFile } }).catch(() => {});
     }
-    setMessage({ text: editing === 'new' ? 'เพิ่มโรงเรียนแล้ว' : 'บันทึกแล้ว' });
+    setMessage({ text: editing === 'new' ? 'เพิ่มโรงเรียนใหม่เรียบร้อยแล้ว' : 'บันทึกข้อมูลโรงเรียนเรียบร้อยแล้ว' });
     setEditing(null);
     load();
   }
@@ -228,73 +229,116 @@ export default function SchoolsPage() {
     </option>
   ));
 
+  const visibleSchools = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return schools;
+    return schools.filter((s) =>
+      `${schoolName(s)} ${s.affiliation ?? ''} ${s.province ?? ''} ${s.district ?? ''} ${s.localCode ?? ''}`
+        .toLowerCase()
+        .includes(q),
+    );
+  }, [schools, search]);
+
   return (
     <>
       <PageHeader
-        title="โรงเรียน"
-        description="ข้อมูลโรงเรียนบนหัวใบลา โลโก้ และหน้าจอแอปบนมือถือ"
+        category="2. องค์กรและบุคลากร"
+        title="จัดการข้อมูลโรงเรียน"
+        description="ตั้งค่าตราประจำโรงเรียน ข้อมูลที่แสดงบนหัวใบลา และรูปแบบหน้าจอแอปมือถือแยกตามสิทธิ์"
         actions={
           <button className="btn-primary" onClick={() => startEdit(null)}>
-            <IconPlus className="h-4 w-4" /> เพิ่มโรงเรียน
+            <IconPlus className="h-4 w-4" /> เพิ่มโรงเรียนใหม่
           </button>
         }
       />
       <Notice message={message} />
 
       {editing !== null && (
-        <form className="card mb-5" onSubmit={save}>
-          <div className="card-title">{editing === 'new' ? 'เพิ่มโรงเรียนใหม่' : 'แก้ไขข้อมูลโรงเรียน'}</div>
-          <div className="grid gap-6 px-4 pb-5 sm:px-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,500px)]">
-            <div className="flex min-w-0 flex-col gap-6">
-              {/* โลโก้ */}
-              <section>
-                <h4 className="mb-3 text-[13px] font-semibold text-slate-500">โลโก้โรงเรียน</h4>
-                <div className="flex flex-wrap items-center gap-4">
+        <form className="card mb-6 overflow-hidden border-brand-200" onSubmit={save}>
+          <div className="card-title bg-brand-50/40">
+            <div className="flex items-center gap-2">
+              <span className="badge-brand">{editing === 'new' ? 'สร้างใหม่' : `รหัส #${editing}`}</span>
+              <span>{editing === 'new' ? 'เพิ่มโรงเรียนใหม่' : `แก้ไขข้อมูล: ${form.namePart1 || 'โรงเรียน'}`}</span>
+            </div>
+            <button type="button" className="btn-ghost btn-sm" onClick={() => setEditing(null)}>
+              ปิดฟอร์ม ✕
+            </button>
+          </div>
+
+          <div className="grid gap-6 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,480px)]">
+            <div className="flex min-w-0 flex-col gap-5">
+              {/* หมวดย่อย 1: โลโก้ */}
+              <section className="subcard">
+                <SectionHeader
+                  step="1"
+                  title="โลโก้และตราประจำโรงเรียน"
+                  subtitle="แสดงในแอปหลังเข้าสู่ระบบ และหน้าล็อกอินของเครื่องที่จำบัญชีไว้"
+                />
+                <div className="mt-3 flex flex-wrap items-center gap-4">
                   {logo ? (
                     <img
                       src={logoSrc(logo) ?? undefined}
                       alt="โลโก้"
-                      className="h-16 w-16 rounded-xl border border-slate-200 bg-white object-contain"
+                      className="h-16 w-16 rounded-2xl border border-slate-200 bg-white p-1 object-contain shadow-sm"
                     />
                   ) : (
-                    <span className="grid h-16 w-16 place-items-center rounded-xl border border-dashed border-slate-300 text-[11px] text-slate-400">
+                    <span className="grid h-16 w-16 place-items-center rounded-2xl border border-dashed border-slate-300 bg-white text-[11px] text-slate-400">
                       ไม่มีโลโก้
                     </span>
                   )}
-                  <div className="flex flex-wrap gap-2">
-                    <label className={`btn-secondary ${hasLogo ? 'cursor-pointer' : 'pointer-events-none opacity-50'}`}>
-                      เลือกรูป
-                      <input
-                        type="file"
-                        className="sr-only"
-                        accept="image/png,image/jpeg,image/webp"
-                        disabled={!hasLogo}
-                        onChange={(e) => {
-                          pickLogo(e.target.files?.[0]);
-                          e.target.value = '';
-                        }}
-                      />
-                    </label>
-                    {logo && (
-                      <button type="button" className="btn-ghost" onClick={() => setLogo(null)}>
-                        ลบโลโก้
-                      </button>
-                    )}
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex flex-wrap gap-2">
+                      <label className={`btn-secondary ${hasLogo ? 'cursor-pointer' : 'pointer-events-none opacity-50'}`}>
+                        เลือกรูปโลโก้
+                        <input
+                          type="file"
+                          className="sr-only"
+                          accept="image/png,image/jpeg,image/webp"
+                          disabled={!hasLogo}
+                          onChange={(e) => {
+                            pickLogo(e.target.files?.[0]);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                      {logo && (
+                        <button type="button" className="btn-danger btn-sm" onClick={() => setLogo(null)}>
+                          ลบโลโก้
+                        </button>
+                      )}
+                    </div>
+                    <p className="field-hint">
+                      {hasLogo
+                        ? 'รองรับ PNG / JPG / WebP · ระบบย่อขนาดเหลือไม่เกิน 256px และเก็บที่ Google Drive (LogoRPB)'
+                        : 'ต้องรัน supabase/school_logo.sql ก่อนจึงจะอัปโหลดโลโก้ได้'}
+                    </p>
                   </div>
                 </div>
-                <p className="field-hint mt-2">
-                  {hasLogo
-                    ? 'แสดงในแอปหลังล็อกอิน และหน้าล็อกอินของเครื่องที่จำการเข้าระบบไว้ · เก็บที่ Google Drive (LogoRPB) · ย่อเหลือ 256px อัตโนมัติ'
-                    : 'ต้องรัน supabase/school_logo.sql ก่อน'}
-                </p>
               </section>
 
-              {/* ข้อมูลหัวใบลา */}
-              <section>
-                <h4 className="mb-3 text-[13px] font-semibold text-slate-500">ข้อมูลโรงเรียน (หัวใบลา)</h4>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {FIELDS.map((f) => (
+              {/* หมวดย่อย 2: ข้อมูลชื่อและที่อยู่หัวใบลา */}
+              <section className="subcard">
+                <SectionHeader
+                  step="2"
+                  title="ข้อมูลพื้นฐานและที่อยู่บนหัวใบลา"
+                  subtitle="ข้อมูลชุดนี้จะถูกนำไปวางบนหัวเอกสารใบลาและบันทึกไปราชการโดยอัตโนมัติ"
+                />
+                <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                  {IDENTITY_FIELDS.map((f) => (
                     <Field key={f.key} label={f.label}>
+                      <input
+                        className="input"
+                        value={form[f.key] ?? ''}
+                        placeholder={f.hint}
+                        onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                      />
+                    </Field>
+                  ))}
+                </div>
+                <div className="my-4 border-t border-slate-200/70" />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {LOCATION_FIELDS.map((f) => (
+                    <Field key={f.key} label={f.label} className={f.key === 'address' ? 'sm:col-span-2' : ''}>
                       <input
                         className="input"
                         value={form[f.key] ?? ''}
@@ -306,15 +350,20 @@ export default function SchoolsPage() {
                 </div>
               </section>
 
-              {/* หน้าจอมือถือ */}
-              <section>
-                <h4 className="mb-3 text-[13px] font-semibold text-slate-500">หน้าจอแอปบนมือถือ</h4>
-                <div className="grid gap-4 sm:grid-cols-2">
+              {/* หมวดย่อย 3: หน้าจอแอปบนมือถือ */}
+              <section className="subcard">
+                <SectionHeader
+                  step="3"
+                  title="รูปแบบหน้าจอแอปบนมือถือ"
+                  subtitle="กำหนดค่าเริ่มต้นของโรงเรียน หรือแยกตามสิทธิ์การใช้งาน"
+                />
+                <div className="mt-3 grid gap-4 sm:grid-cols-2">
                   <Field
-                    label="ค่าของโรงเรียน"
+                    label="ค่าเริ่มต้นของโรงเรียน"
+                    className="sm:col-span-2"
                     hint={
                       hasMobileUi
-                        ? 'ครูเห็นหน้าจอที่เปลี่ยนเมื่อเปิดแอปครั้งถัดไป · จอคอมไม่เปลี่ยน'
+                        ? 'มีผลเมื่อครูเปิดแอปครั้งถัดไป · หน้าจอบนคอมพิวเตอร์ไม่เปลี่ยนแปลง'
                         : 'ต้องรัน supabase/school_mobile_ui.sql ก่อน (ตอนนี้ทุกโรงเรียนใช้แบบใหม่)'
                     }
                   >
@@ -330,7 +379,7 @@ export default function SchoolsPage() {
                   {rolesForSchool(roles, typeof editing === 'number' ? editing : null).map((r) => (
                     <Field
                       key={r.ID_Roles}
-                      label={`เฉพาะ ${r.Accessrights}`}
+                      label={`สิทธิ์: ${r.Accessrights}`}
                       hint={hasByRole ? undefined : 'ต้องรัน supabase/school_mobile_ui_by_role.sql ก่อน'}
                     >
                       <select
@@ -339,7 +388,7 @@ export default function SchoolsPage() {
                         disabled={!hasByRole}
                         onChange={(e) => setRoleUi(r.ID_Roles, e.target.value as MobileUi | '')}
                       >
-                        <option value="">ตามโรงเรียน ({mobileUi === 'old' ? 'แบบเดิม' : 'แบบใหม่'})</option>
+                        <option value="">ตามค่าโรงเรียน ({mobileUi === 'old' ? 'แบบเดิม' : 'แบบใหม่'})</option>
                         {uiOptions}
                       </select>
                     </Field>
@@ -348,29 +397,49 @@ export default function SchoolsPage() {
               </section>
             </div>
 
-            {/* อัปเดตทันทีที่พิมพ์ — เห็นก่อนบันทึกว่าหัวใบลาจะออกมาหน้าตาแบบไหน */}
-            <LeaveHeaderPreview school={{ ...form, fullName: null }} />
+            {/* ตัวอย่างหัวใบลาสด */}
+            <div className="xl:sticky xl:top-[76px] xl:h-fit">
+              <div className="subcard">
+                <SectionHeader
+                  title="ตัวอย่างเอกสารหัวใบลา"
+                  subtitle="อัปเดตทันทีตามข้อมูลที่พิมพ์ด้านซ้าย"
+                />
+                <LeaveHeaderPreview school={{ ...form, fullName: null }} />
+              </div>
+            </div>
           </div>
-          <div className="flex justify-end gap-2 border-t border-line px-4 py-3 sm:px-5">
+
+          <div className="flex items-center justify-end gap-2 border-t border-line bg-slate-50/70 px-4 py-3.5 sm:px-5">
             <button type="button" className="btn-secondary" onClick={() => setEditing(null)}>
               ยกเลิก
             </button>
             <button type="submit" className="btn-primary" disabled={busy}>
-              {busy ? 'กำลังบันทึก...' : 'บันทึก'}
+              {busy ? 'กำลังบันทึก...' : editing === 'new' ? 'เพิ่มโรงเรียน' : 'บันทึกการแก้ไข'}
             </button>
           </div>
         </form>
       )}
 
       <section className="card overflow-hidden">
-        <div className="card-title">
-          โรงเรียนทั้งหมด
-          <span className="text-xs font-medium text-slate-500">{loaded ? `${schools.length} แห่ง` : ''}</span>
+        <div className="card-title flex-wrap">
+          <div className="flex items-center gap-2">
+            <span>รายชื่อโรงเรียนทั้งหมด</span>
+            <span className="badge-slate">{loaded ? `${visibleSchools.length} แห่ง` : 'กำลังโหลด'}</span>
+          </div>
+          <div className="relative w-full sm:w-64">
+            <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              className="input py-1.5 pl-9 text-[13px]"
+              placeholder="ค้นหาชื่อโรงเรียน / จังหวัด..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
         {!loaded ? (
-          <EmptyState>กำลังโหลด...</EmptyState>
-        ) : schools.length === 0 ? (
-          <EmptyState>ยังไม่มีโรงเรียน</EmptyState>
+          <EmptyState>กำลังโหลดรายชื่อโรงเรียน...</EmptyState>
+        ) : visibleSchools.length === 0 ? (
+          <EmptyState>ไม่พบข้อมูลโรงเรียน</EmptyState>
         ) : (
           <>
             <div className="hidden overflow-x-auto md:block">
@@ -380,18 +449,18 @@ export default function SchoolsPage() {
                     <th>โรงเรียน</th>
                     <th>สังกัด</th>
                     <th>จังหวัด / อำเภอ / ตำบล</th>
-                    <th>หน้าจอมือถือ</th>
+                    <th>หน้าจอแอปมือถือ</th>
                     <th />
                   </tr>
                 </thead>
                 <tbody>
-                  {schools.map((s) => (
+                  {visibleSchools.map((s) => (
                     <tr key={s.id_school}>
                       <td>
                         <div className="flex items-center gap-3">
-                          <SchoolLogo logo={s.logo} name={schoolName(s)} size={30} />
+                          <SchoolLogo logo={s.logo} name={schoolName(s)} size={34} />
                           <div>
-                            <div className="font-medium">{schoolName(s)}</div>
+                            <div className="font-semibold text-ink">{schoolName(s)}</div>
                             <div className="text-xs text-slate-500">
                               #{s.id_school}
                               {s.localCode ? ` · รหัส ${s.localCode}` : ''}
@@ -399,14 +468,20 @@ export default function SchoolsPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="max-w-[260px] truncate" title={s.affiliation ?? ''}>
+                      <td className="max-w-[260px] truncate text-slate-600" title={s.affiliation ?? ''}>
                         {s.affiliation || '-'}
                       </td>
-                      <td>{[s.province, s.district, s.subdistrict].filter(Boolean).join(' / ') || '-'}</td>
-                      <td className="text-[13px]">{mobileUiSummary(s)}</td>
+                      <td className="text-slate-600">
+                        {[s.province, s.district, s.subdistrict].filter(Boolean).join(' / ') || '-'}
+                      </td>
+                      <td className="text-[13px]">
+                        <span className={s.mobile_ui === 'old' ? 'badge-slate' : 'badge-brand'}>
+                          {mobileUiSummary(s)}
+                        </span>
+                      </td>
                       <td className="text-right">
                         <button className="btn-secondary btn-sm" onClick={() => startEdit(s)}>
-                          แก้ไข
+                          แก้ไขข้อมูล
                         </button>
                       </td>
                     </tr>
@@ -416,11 +491,11 @@ export default function SchoolsPage() {
             </div>
 
             <ul className="divide-y divide-slate-100 md:hidden">
-              {schools.map((s) => (
+              {visibleSchools.map((s) => (
                 <li key={s.id_school} className="flex items-center gap-3 px-4 py-3.5">
-                  <SchoolLogo logo={s.logo} name={schoolName(s)} size={36} />
+                  <SchoolLogo logo={s.logo} name={schoolName(s)} size={38} />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{schoolName(s)}</div>
+                    <div className="truncate font-semibold text-ink">{schoolName(s)}</div>
                     <div className="truncate text-xs text-slate-500">
                       {[s.province, s.district].filter(Boolean).join(' / ') || '-'} · มือถือ{' '}
                       {s.mobile_ui === 'old' ? 'แบบเดิม' : 'แบบใหม่'}

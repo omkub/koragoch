@@ -8,7 +8,7 @@ import {
   type Role,
   type School,
 } from '../supabase';
-import { EmptyState, Notice, PageHeader } from '../ui/components';
+import { EmptyState, Notice, PageHeader, SectionHeader } from '../ui/components';
 import { IconSearch } from '../ui/icons';
 import PermMatrix, { SaveBar } from '../ui/PermMatrix';
 
@@ -24,11 +24,6 @@ type Flags = Record<string, boolean>; // item_key → เปิด/ปิด
 
 /**
  * สิทธิ์รายคน (UserPermissions) — เปิด/ปิดทีละรายการ ไม่เกินเพดานของสิทธิ์
- *
- *   ผู้ดูแลส่วนกลาง: เลือกได้ทุกโรงเรียน
- *   แอดมินโรงเรียน: เฉพาะโรงเรียนตัวเอง (RLS + trigger guard_user_permission)
- *
- * เก็บเฉพาะรายการที่ "ปิด" ไว้ในตาราง — รายการที่เปิดตามเพดานไม่ต้องมีแถว
  */
 export default function UserPermissionsPage({ access }: { access: Access }) {
   const isSuper = access.level === 'super';
@@ -37,7 +32,7 @@ export default function UserPermissionsPage({ access }: { access: Access }) {
   const [roles, setRoles] = useState<Role[]>([]);
   const [items, setItems] = useState<PermissionItem[]>([]);
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
-  const [ceiling, setCeiling] = useState<Record<string, boolean>>({}); // `${role}:${key}`
+  const [ceiling, setCeiling] = useState<Record<string, boolean>>({});
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<TeacherRow | null>(null);
   const [saved, setSaved] = useState<Flags>({});
@@ -104,7 +99,6 @@ export default function UserPermissionsPage({ access }: { access: Access }) {
     }
     const overrides: Flags = {};
     for (const row of data ?? []) overrides[row.item_key] = row.allowed;
-    // ค่าที่แสดง = เพดาน AND รายคน (ไม่มีแถวรายคน = ตามเพดาน)
     const effective: Flags = {};
     for (const item of items) {
       effective[item.key] = inCeiling(t, item.key) && (overrides[item.key] ?? true);
@@ -121,7 +115,6 @@ export default function UserPermissionsPage({ access }: { access: Access }) {
   async function save() {
     if (!selected || changed.length === 0) return;
     setBusy(true);
-    // ปิด → เก็บแถว allowed=false / เปิด → ลบแถว (กลับไปตามเพดาน)
     const toDisable = changed.filter((k) => !flags[k]);
     const toEnable = changed.filter((k) => flags[k]);
     const results = await Promise.all([
@@ -148,8 +141,7 @@ export default function UserPermissionsPage({ access }: { access: Access }) {
     openTeacher(selected);
   }
 
-  const roleName = (id: number | null) =>
-    roles.find((r) => r.ID_Roles === id)?.Accessrights ?? '-';
+  const roleName = (id: number | null) => roles.find((r) => r.ID_Roles === id)?.Accessrights ?? '-';
 
   const visible = teachers.filter((t) => {
     const q = search.trim().toLowerCase();
@@ -161,7 +153,6 @@ export default function UserPermissionsPage({ access }: { access: Access }) {
 
   function pick(t: TeacherRow) {
     openTeacher(t);
-    // มือถือ: รายละเอียดอยู่ใต้รายชื่อ — เลื่อนลงไปให้เห็นทันที
     if (window.matchMedia('(max-width: 1023px)').matches) {
       setTimeout(() => detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
     }
@@ -170,108 +161,139 @@ export default function UserPermissionsPage({ access }: { access: Access }) {
   return (
     <>
       <PageHeader
-        title="สิทธิ์ผู้ใช้"
-        description="เปิด/ปิดรายการให้แต่ละคนได้ ไม่เกินเพดานของสิทธิ์ที่ผู้ดูแลส่วนกลางกำหนด · รายการสีเทา = อยู่นอกเพดาน"
+        category="3. สิทธิ์และการเข้าถึง"
+        title="กำหนดสิทธิ์รายบุคคล"
+        description="เปิด/ปิดสิทธิ์ให้บุคลากรแต่ละคนภายใต้เพดานของสิทธิ์ที่สังกัด · รายการสีเทาคืออยู่นอกเพดานของสิทธิ์"
         actions={
           isSuper ? (
-            <select
-              className="input w-auto max-w-full"
-              value={schoolId ?? ''}
-              onChange={(e) => setSchoolId(Number(e.target.value))}
-              aria-label="เลือกโรงเรียน"
-            >
-              {schools.map((s) => (
-                <option key={s.id_school} value={s.id_school}>
-                  {schoolName(s)}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-500">โรงเรียน:</span>
+              <select
+                className="input w-auto max-w-full font-semibold"
+                value={schoolId ?? ''}
+                onChange={(e) => setSchoolId(Number(e.target.value))}
+                aria-label="เลือกโรงเรียน"
+              >
+                {schools.map((s) => (
+                  <option key={s.id_school} value={s.id_school}>
+                    {schoolName(s)}
+                  </option>
+                ))}
+              </select>
+            </div>
           ) : currentSchool ? (
-            <span className="badge-slate">{schoolName(currentSchool)}</span>
+            <span className="badge-brand">{schoolName(currentSchool)}</span>
           ) : null
         }
       />
       <Notice message={message} />
 
-      <div className="grid items-start gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-        <section className="card overflow-hidden">
-          <div className="relative p-3">
-            <IconSearch className="pointer-events-none absolute left-6 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              className="input pl-9"
-              placeholder="ค้นหาชื่อ / username"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <div className="max-h-[260px] overflow-y-auto border-t border-line p-2 lg:max-h-[70vh]">
-            {visible.map((t) => {
-              const active = selected?.id_user === t.id_user;
-              return (
-                <button
-                  key={t.id_user}
-                  className={`flex w-full flex-col items-start rounded-lg px-3 py-2 text-left transition-colors ${
-                    active ? 'bg-brand-50 text-brand-700' : 'hover:bg-slate-50'
-                  }`}
-                  onClick={() => pick(t)}
-                >
-                  <span className="text-[13.5px] font-medium">{t.fullName || t.username}</span>
-                  <span className="text-xs text-slate-500">
-                    {t.is_super_admin ? 'ส่วนกลาง' : roleName(t.id_role)} · {ceilingCount(t)} รายการ
-                  </span>
-                </button>
-              );
-            })}
-            {visible.length === 0 && <EmptyState>ไม่พบรายชื่อ</EmptyState>}
-          </div>
-        </section>
+      <div className="grid items-start gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
+        {/* คอลัมน์ซ้าย: เลือกบุคลากร */}
+        <div>
+          <SectionHeader step="1" title="เลือกบุคลากร" subtitle={`ทั้งหมด ${visible.length} คน`} />
+          <section className="card overflow-hidden">
+            <div className="relative border-b border-line p-3">
+              <IconSearch className="pointer-events-none absolute left-6 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                className="input py-1.5 pl-9 text-[13px]"
+                placeholder="ค้นหาชื่อ หรือ username..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <div className="max-h-[280px] overflow-y-auto p-2 lg:max-h-[68vh]">
+              {visible.map((t) => {
+                const active = selected?.id_user === t.id_user;
+                return (
+                  <button
+                    key={t.id_user}
+                    className={`mb-0.5 flex w-full flex-col items-start rounded-xl px-3 py-2.5 text-left transition-colors ${
+                      active
+                        ? 'bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-500/20'
+                        : 'hover:bg-slate-50'
+                    }`}
+                    onClick={() => pick(t)}
+                  >
+                    <span className="text-[13.5px] font-semibold">{t.fullName || t.username}</span>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                      <span className={active ? 'badge-brand' : 'badge-slate'}>
+                        {t.is_super_admin ? 'ส่วนกลาง' : roleName(t.id_role)}
+                      </span>
+                      <span>เพดาน {ceilingCount(t)} รายการ</span>
+                    </div>
+                  </button>
+                );
+              })}
+              {visible.length === 0 && <EmptyState>ไม่พบรายชื่อบุคลากร</EmptyState>}
+            </div>
+          </section>
+        </div>
 
-        <section ref={detailRef} className="card scroll-mt-20 overflow-hidden">
-          {!selected ? (
-            <EmptyState>เลือกรายชื่อเพื่อตั้งค่าสิทธิ์</EmptyState>
-          ) : (
-            <>
-              <div className="card-title flex-wrap">
-                <span>{selected.fullName || selected.username}</span>
-                <span className="text-xs font-medium text-slate-500">
-                  {selected.is_super_admin ? 'ผู้ดูแลส่วนกลาง' : roleName(selected.id_role)} · ใช้ได้{' '}
-                  {items.filter((i) => flags[i.key]).length}/{ceilingCount(selected)}
-                </span>
-              </div>
-              {selected.is_super_admin ? (
-                <EmptyState>ผู้ดูแลระบบส่วนกลางได้ทุกรายการเสมอ ปรับไม่ได้</EmptyState>
-              ) : (
-                <>
-                  <PermMatrix
-                    firstHeader="รายการ"
-                    groups={groupItems(items).map(([group, list]) => ({
-                      group,
-                      rows: list.map((item) => {
-                        const allowedByRole = inCeiling(selected, item.key);
-                        return {
-                          key: item.key,
-                          label: item.label,
-                          note: allowedByRole ? undefined : 'นอกเพดาน',
-                          muted: !allowedByRole,
-                          cells: [
-                            {
-                              key: item.key,
-                              checked: flags[item.key] ?? false,
-                              dirty: flags[item.key] !== saved[item.key],
-                              disabled: !allowedByRole,
-                              onChange: () => setFlags({ ...flags, [item.key]: !flags[item.key] }),
-                            },
-                          ],
-                        };
-                      }),
-                    }))}
-                  />
-                  <SaveBar changed={changed.length} busy={busy} onReset={() => setFlags(saved)} onSave={save} />
-                </>
-              )}
-            </>
-          )}
-        </section>
+        {/* คอลัมน์ขวา: ตารางสิทธิ์รายคน */}
+        <div>
+          <SectionHeader
+            step="2"
+            title={selected ? `รายการสิทธิ์ของ: ${selected.fullName || selected.username}` : 'ตั้งค่าสิทธิ์รายบุคคล'}
+            subtitle={
+              selected
+                ? `สิทธิ์หลัก: ${selected.is_super_admin ? 'ผู้ดูแลส่วนกลาง' : roleName(selected.id_role)}`
+                : 'คลิกเลือกรายชื่อบุคลากรทางด้านซ้ายเพื่อดูและแก้ไขสิทธิ์'
+            }
+          />
+          <section ref={detailRef} className="card scroll-mt-20 overflow-hidden">
+            {!selected ? (
+              <EmptyState>👈 กรุณาเลือกรายชื่อบุคลากรทางซ้ายเพื่อตั้งค่าสิทธิ์</EmptyState>
+            ) : (
+              <>
+                <div className="card-title flex-wrap bg-slate-50/50">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-ink">{selected.fullName || selected.username}</span>
+                    <span className="badge-brand">
+                      {selected.is_super_admin ? 'ผู้ดูแลส่วนกลาง' : roleName(selected.id_role)}
+                    </span>
+                  </div>
+                  {!selected.is_super_admin && (
+                    <span className="badge-green">
+                      เปิดใช้งาน {items.filter((i) => flags[i.key]).length} / เพดาน {ceilingCount(selected)} รายการ
+                    </span>
+                  )}
+                </div>
+                {selected.is_super_admin ? (
+                  <EmptyState>ผู้ดูแลระบบส่วนกลางได้รับสิทธิ์ทุกรายการโดยอัตโนมัติ (ไม่สามารถปิดรายรายการได้)</EmptyState>
+                ) : (
+                  <>
+                    <PermMatrix
+                      firstHeader="หมวดหมู่และรายการสิทธิ์"
+                      groups={groupItems(items).map(([group, list]) => ({
+                        group,
+                        rows: list.map((item) => {
+                          const allowedByRole = inCeiling(selected, item.key);
+                          return {
+                            key: item.key,
+                            label: item.label,
+                            note: allowedByRole ? undefined : 'อยู่นอกเพดานสิทธิ์',
+                            muted: !allowedByRole,
+                            cells: [
+                              {
+                                key: item.key,
+                                checked: flags[item.key] ?? false,
+                                dirty: flags[item.key] !== saved[item.key],
+                                disabled: !allowedByRole,
+                                onChange: () => setFlags({ ...flags, [item.key]: !flags[item.key] }),
+                              },
+                            ],
+                          };
+                        }),
+                      }))}
+                    />
+                    <SaveBar changed={changed.length} busy={busy} onReset={() => setFlags(saved)} onSave={save} />
+                  </>
+                )}
+              </>
+            )}
+          </section>
+        </div>
       </div>
     </>
   );
