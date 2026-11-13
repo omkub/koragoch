@@ -228,7 +228,7 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('บันทึกข้อมูลสำเร็จแล้วครับ! 🎉'),
+          content: Text('บันทึกข้อมูลสำเร็จแล้ว'),
           backgroundColor: Color(0xFF10B981),
           behavior: SnackBarBehavior.floating,
         ));
@@ -275,7 +275,7 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
                     child: CircularProgressIndicator(
                         strokeWidth: 2, color: Colors.white)),
                 SizedBox(width: 16),
-                Text('กำลังส่งรูปโปรไฟล์ขึ้นระบบ... ✅'),
+                Text('กำลังส่งรูปโปรไฟล์ขึ้นระบบ...'),
               ],
             ),
             duration: Duration(minutes: 1),
@@ -316,7 +316,7 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
         await _loadUserAndData();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('อัปเดตรูปโปรไฟล์สำเร็จแล้วครับ! ✨'),
+              content: Text('อัปเดตรูปโปรไฟล์สำเร็จแล้ว'),
               backgroundColor: Color(0xFF10B981)));
         }
       }
@@ -818,7 +818,7 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
             if (ctx.mounted) Navigator.pop(ctx);
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                content: Text('✅ เปลี่ยนรหัสผ่านเรียบร้อยแล้วครับ',
+                content: Text('เปลี่ยนรหัสผ่านเรียบร้อยแล้ว',
                     style: GoogleFonts.sarabun()),
                 backgroundColor: Colors.green,
                 behavior: SnackBarBehavior.floating,

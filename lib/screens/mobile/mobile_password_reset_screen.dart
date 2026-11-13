@@ -104,7 +104,7 @@ class _MobilePasswordResetScreenState extends State<MobilePasswordResetScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('❌ เกิดข้อผิดพลาด: $e', style: GoogleFonts.sarabun()),
+          content: Text('เกิดข้อผิดพลาด: $e', style: GoogleFonts.sarabun()),
           backgroundColor: Colors.red,
         ));
       }
