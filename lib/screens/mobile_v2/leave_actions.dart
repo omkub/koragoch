@@ -8,6 +8,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../services/firebase_service.dart';
+import '../../theme/app_tokens.dart';
 
 enum LeaveStatusGroup { pending, approved, returned }
 
@@ -35,21 +36,16 @@ class LeaveStatus {
     return LeaveStatusGroup.returned;
   }
 
-  /// สีพื้น / สีตัวอักษรของป้ายสถานะ
-  static (Color, Color) colors(String s) => switch (group(s)) {
-        LeaveStatusGroup.approved => (
-            const Color(0xFFDCFCE7),
-            const Color(0xFF166534)
-          ),
-        LeaveStatusGroup.pending => (
-            const Color(0xFFFEF3C7),
-            const Color(0xFF92400E)
-          ),
-        LeaveStatusGroup.returned => (
-            const Color(0xFFFEE2E2),
-            const Color(0xFF991B1B)
-          ),
+  /// โทนหมึกของตรายางสถานะ
+  static StampTone tone(String s) => switch (group(s)) {
+        LeaveStatusGroup.approved => StampTone.approved,
+        LeaveStatusGroup.pending => StampTone.pending,
+        LeaveStatusGroup.returned => StampTone.returned,
       };
+
+  /// ตรายางสถานะของใบลา (ลายเซ็นของระบบ)
+  static Widget stamp(String s, {bool large = false}) =>
+      StatusStamp(s.isEmpty ? '-' : s, tone: tone(s), large: large);
 }
 
 class LeaveActions {

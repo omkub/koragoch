@@ -17,6 +17,7 @@ import 'leave_actions.dart';
 import 'menu_access.dart';
 import 'mobile_leave_detail.dart';
 import 'mobile_pages.dart';
+import '../../theme/app_tokens.dart';
 
 class MobileLeaveHistory extends StatefulWidget {
   final MenuAccess access;
@@ -185,7 +186,7 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
                       'เลือกรอบปีงบประมาณ',
                       style: GoogleFonts.sarabun(
                         fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                         color: mobileInk,
                       ),
                     ),
@@ -230,7 +231,7 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
                           (r['roundName'] ?? '').toString(),
                           style: GoogleFonts.sarabun(
                             fontSize: 14,
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                             color: isSelected ? mobileAccent : mobileInk,
                           ),
                         ),
@@ -285,7 +286,7 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
                       child: Container(
                         padding: const EdgeInsets.all(3),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
+                          color: AppColors.raised,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Row(
@@ -326,7 +327,7 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
                         'ประวัติการลาของฉัน',
                         style: GoogleFonts.sarabun(
                           fontSize: 16,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w600,
                           color: mobileInk,
                         ),
                       ),
@@ -338,7 +339,7 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
+                        color: AppColors.page,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: mobileLine),
                       ),
@@ -352,7 +353,7 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
                                 : (_round!['roundName'] ?? '').toString().replaceFirst('รอบที่ ', ''),
                             style: GoogleFonts.sarabun(
                               fontSize: 12,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w600,
                               color: mobileInk,
                             ),
                           ),
@@ -373,7 +374,7 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
                   style: GoogleFonts.sarabun(fontSize: 13),
                   decoration: InputDecoration(
                     hintText: _showAll ? 'ค้นหาชื่อผู้ลา ประเภท หรือเหตุผล...' : 'ค้นหาประเภท หรือเหตุผล...',
-                    hintStyle: GoogleFonts.sarabun(fontSize: 12.5, color: mobileMuted),
+                    hintStyle: GoogleFonts.sarabun(fontSize: 12, color: mobileMuted),
                     prefixIcon: const Icon(Icons.search_rounded, size: 18, color: mobileMuted),
                     suffixIcon: _search.isNotEmpty
                         ? GestureDetector(
@@ -382,7 +383,7 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
                           )
                         : null,
                     filled: true,
-                    fillColor: const Color(0xFFF8FAFC),
+                    fillColor: AppColors.page,
                     contentPadding: const EdgeInsets.symmetric(vertical: 0),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -421,7 +422,7 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
                       label: 'รอพิจารณา',
                       count: count(LeaveStatusGroup.pending),
                       isSelected: _filter == LeaveStatusGroup.pending,
-                      color: const Color(0xFFD97706),
+                      color: AppColors.pending,
                       onTap: () {
                         HapticFeedback.selectionClick();
                         setState(() => _filter = LeaveStatusGroup.pending);
@@ -432,7 +433,7 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
                       label: 'ส่งใบแล้ว',
                       count: count(LeaveStatusGroup.approved),
                       isSelected: _filter == LeaveStatusGroup.approved,
-                      color: const Color(0xFF059669),
+                      color: AppColors.positive,
                       onTap: () {
                         HapticFeedback.selectionClick();
                         setState(() => _filter = LeaveStatusGroup.approved);
@@ -443,7 +444,7 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
                       label: 'ยังไม่ส่ง',
                       count: count(LeaveStatusGroup.returned),
                       isSelected: _filter == LeaveStatusGroup.returned,
-                      color: const Color(0xFFDC2626),
+                      color: AppColors.negative,
                       onTap: () {
                         HapticFeedback.selectionClick();
                         setState(() => _filter = LeaveStatusGroup.returned);
@@ -466,7 +467,7 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.error_outline_rounded, size: 36, color: Colors.red),
+                          const Icon(Icons.error_outline_rounded, size: 36, color: AppColors.negative),
                           const SizedBox(height: 8),
                           Text('โหลดไม่สำเร็จ: $_error', style: GoogleFonts.sarabun(fontSize: 13)),
                           const SizedBox(height: 8),
@@ -485,7 +486,7 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
                                   width: 64,
                                   height: 64,
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFF1F5F9),
+                                    color: AppColors.raised,
                                     borderRadius: BorderRadius.circular(20),
                                   ),
                                   child: const Icon(Icons.description_outlined, size: 30, color: mobileMuted),
@@ -494,15 +495,15 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
                                 Text(
                                   'ไม่พบรายการใบลา',
                                   style: GoogleFonts.sarabun(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
                                     color: mobileInk,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   'ไม่มีข้อมูลตามตัวกรองที่เลือกในขณะนี้',
-                                  style: GoogleFonts.sarabun(fontSize: 12.5, color: mobileMuted),
+                                  style: GoogleFonts.sarabun(fontSize: 12, color: mobileMuted),
                                 ),
                               ],
                             ),
@@ -539,7 +540,7 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                    color: AppColors.text.withValues(alpha: 0.05),
                     blurRadius: 4,
                     offset: const Offset(0, 1),
                   )
@@ -550,8 +551,8 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
           label,
           textAlign: TextAlign.center,
           style: GoogleFonts.sarabun(
-            fontSize: 12.5,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
             color: isSelected ? mobileAccent : mobileMuted,
           ),
         ),
@@ -573,7 +574,7 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: isSelected ? color.withValues(alpha: 0.12) : const Color(0xFFF8FAFC),
+          color: isSelected ? color.withValues(alpha: 0.12) : AppColors.page,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: isSelected ? color : mobileLine),
         ),
@@ -584,7 +585,7 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
               label,
               style: GoogleFonts.sarabun(
                 fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                 color: isSelected ? color : mobileMuted,
               ),
             ),
@@ -598,8 +599,8 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
               child: Text(
                 '$count',
                 style: GoogleFonts.sarabun(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
                   color: isSelected ? Colors.white : mobileInk,
                 ),
               ),
@@ -610,149 +611,76 @@ class _MobileLeaveHistoryState extends State<MobileLeaveHistory> {
     );
   }
 
-  /// การ์ดแสดงข้อมูลใบลาแต่ละใบแบบ Modern Card
+  /// การ์ดใบลาหนึ่งใบ: ประเภท + จำนวนวัน · ช่วงวันที่ · ตรายางสถานะ
   Widget _buildLeaveCard(Map<String, dynamic> l) {
     final status = LeaveStatus.of(l);
-    final (bg, fg) = LeaveStatus.colors(status);
     final type = (l['leaveType'] ?? '').toString();
     final name = (l['fullName'] ?? '').toString();
-    final days = l['days']?.toString() ?? '1';
+    final days =
+        FirebaseService.formatLeaveDayCount(l['totalDays'] ?? l['days'] ?? 1);
     final reason = (l['reason'] ?? '').toString().trim();
-
-    final (icon, iconColor, iconBg) = switch (type) {
-      'ลาป่วย' => (Icons.healing_rounded, const Color(0xFF0284C7), const Color(0xFFE0F2FE)),
-      'ลากิจ' || 'ลากิจส่วนตัว' => (Icons.work_outline_rounded, const Color(0xFF4F46E5), const Color(0xFFEEF2FF)),
-      'ลาคลอด' || 'ลาคลอดบุตร' => (Icons.child_friendly_rounded, const Color(0xFFDB2777), const Color(0xFFFDF2F8)),
-      _ => (Icons.description_rounded, const Color(0xFF059669), const Color(0xFFD1FAE5)),
-    };
+    final range = l['startDate'] == l['endDate']
+        ? FirebaseService.formatThaiDate(l['startDate'])
+        : '${FirebaseService.formatThaiDate(l['startDate'])} – ${FirebaseService.formatThaiDate(l['endDate'])}';
 
     return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
+      color: AppColors.card,
+      borderRadius: BorderRadius.circular(AppRadius.card),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.card),
         onTap: () => _openDetail(l),
         child: Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: mobileLine),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.02),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(AppRadius.card),
+            border: Border.all(color: AppColors.line),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: iconBg,
-                      borderRadius: BorderRadius.circular(11),
-                    ),
-                    child: Icon(icon, color: iconColor, size: 20),
-                  ),
-                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Text(
-                              type,
-                              style: GoogleFonts.sarabun(
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w700,
-                                color: mobileInk,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                '$days วัน',
-                                style: GoogleFonts.sarabun(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: mobileAccent,
-                                ),
-                              ),
-                            ),
-                          ],
+                        Text.rich(
+                          TextSpan(children: [
+                            TextSpan(
+                                text: type,
+                                style: AppText.label.copyWith(fontSize: 14)),
+                            TextSpan(
+                                text: '  $days วัน',
+                                style: AppText.figure(13,
+                                    color: AppColors.textSecondary,
+                                    weight: FontWeight.w400)),
+                          ]),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        if (_showAll && name.isNotEmpty)
-                          Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.sarabun(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: mobileMuted,
-                            ),
-                          ),
+                        const SizedBox(height: 4),
+                        Text(range, style: AppText.secondary),
+                        if (_showAll && name.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppText.meta),
+                        ],
                       ],
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
-                    decoration: BoxDecoration(
-                      color: bg,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      status,
-                      style: GoogleFonts.sarabun(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: fg,
-                      ),
-                    ),
-                  ),
+                  const SizedBox(width: 12),
+                  LeaveStatus.stamp(status),
                 ],
-              ),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.date_range_rounded, size: 14, color: mobileMuted),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        l['startDate'] == l['endDate']
-                            ? FirebaseService.formatThaiDate(l['startDate'])
-                            : '${FirebaseService.formatThaiDate(l['startDate'])} - ${FirebaseService.formatThaiDate(l['endDate'])}',
-                        style: GoogleFonts.sarabun(fontSize: 12, color: mobileInk),
-                      ),
-                    ),
-                  ],
-                ),
               ),
               if (reason.isNotEmpty) ...[
                 const SizedBox(height: 8),
-                Text(
-                  'เหตุผล: $reason',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.sarabun(fontSize: 12, color: mobileMuted),
-                ),
+                Text(reason,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.meta),
               ],
             ],
           ),

@@ -16,12 +16,13 @@ import '../report_overview_screen.dart';
 import '../user_management_screen.dart';
 import '../../utils/school_info.dart';
 import '../../widgets/school_logo.dart';
+import '../../theme/app_tokens.dart';
 
-const mobileInk = Color(0xFF0F172A);
-const mobileMuted = Color(0xFF64748B);
-const mobileAccent = Color(0xFF2563EB);
-const mobileBg = Color(0xFFF4F7FC);
-const mobileLine = Color(0xFFE2E8F0);
+const mobileInk = AppColors.text;
+const mobileMuted = AppColors.textMuted;
+const mobileAccent = AppColors.accent;
+const mobileBg = AppColors.page;
+const mobileLine = AppColors.line;
 
 /// หมวดหมู่ของทางลัดในหน้าหลัก
 enum MobileShortcutGroup {
@@ -33,14 +34,13 @@ enum MobileShortcutGroup {
 }
 
 /// ทางลัดหนึ่งปุ่ม = เมนูหนึ่งเมนู (รหัสตาม MenuAccess)
+/// ไอคอนทุกปุ่มสีเดียวกัน (ตัวอักษรรอง) — แยกหมวดด้วยหัวข้อ ไม่ใช่ด้วยสี
 class MobileShortcut {
   final int menu;
   final String label;
   final String subtitle;
   final IconData icon;
   final MobileShortcutGroup group;
-  final Color iconColor;
-  final Color iconBg;
 
   const MobileShortcut(
     this.menu,
@@ -48,148 +48,55 @@ class MobileShortcut {
     this.icon, {
     this.subtitle = '',
     this.group = MobileShortcutGroup.work,
-    this.iconColor = mobileAccent,
-    this.iconBg = const Color(0xFFDBEAFE),
   });
 }
 
-/// ลำดับทางลัดในหน้าหลัก — แยกหมวดหมู่และสีไอคอนให้กวาดตาดูง่าย
+/// ลำดับทางลัดในหน้าหลัก
 const mobileShortcuts = [
   // ── หมวดที่ 1: บริการและการทำงาน ──
-  MobileShortcut(
-    9,
-    'ไปราชการ',
-    Icons.business_center_rounded,
-    subtitle: 'บันทึก / ประวัติ',
-    group: MobileShortcutGroup.work,
-    iconColor: Color(0xFF0284C7),
-    iconBg: Color(0xFFE0F2FE),
-  ),
-  MobileShortcut(
-    10,
-    'ลงเวลา',
-    Icons.fingerprint_rounded,
-    subtitle: 'สแกนเข้า-ออกงาน',
-    group: MobileShortcutGroup.work,
-    iconColor: Color(0xFF0D9488),
-    iconBg: Color(0xFFCCFBF1),
-  ),
-  MobileShortcut(
-    8,
-    'ปฏิทิน',
-    Icons.calendar_month_rounded,
-    subtitle: 'วันหยุด / กิจกรรม',
-    group: MobileShortcutGroup.work,
-    iconColor: Color(0xFF7C3AED),
-    iconBg: Color(0xFFEDE9FE),
-  ),
+  MobileShortcut(9, 'ไปราชการ', Icons.business_center_outlined,
+      subtitle: 'บันทึก / ประวัติ'),
+  MobileShortcut(10, 'ลงเวลา', Icons.fingerprint_rounded,
+      subtitle: 'เข้า-ออกงาน'),
+  MobileShortcut(8, 'ปฏิทิน', Icons.calendar_month_outlined,
+      subtitle: 'วันหยุด / กิจกรรม'),
 
   // ── หมวดที่ 2: การบริหารและดูแลระบบ ──
-  MobileShortcut(
-    0,
-    'สรุปผล',
-    Icons.pie_chart_rounded,
-    subtitle: 'แดชบอร์ดภาพรวม',
-    group: MobileShortcutGroup.management,
-    iconColor: Color(0xFF2563EB),
-    iconBg: Color(0xFFDBEAFE),
-  ),
-  MobileShortcut(
-    1,
-    'รายงาน',
-    Icons.assessment_rounded,
-    subtitle: 'สถิติการลารายคน',
-    group: MobileShortcutGroup.management,
-    iconColor: Color(0xFF4F46E5),
-    iconBg: Color(0xFFE0E7FF),
-  ),
-  MobileShortcut(
-    5,
-    'บุคลากร',
-    Icons.groups_rounded,
-    subtitle: 'ทำเนียบกลุ่มสาระ',
-    group: MobileShortcutGroup.management,
-    iconColor: Color(0xFF059669),
-    iconBg: Color(0xFFD1FAE5),
-  ),
-  MobileShortcut(
-    4,
-    'จัดการระบบ',
-    Icons.admin_panel_settings_rounded,
-    subtitle: 'ผู้ใช้ / ตั้งค่า',
-    group: MobileShortcutGroup.management,
-    iconColor: Color(0xFFD97706),
-    iconBg: Color(0xFFFEF3C7),
-  ),
-  MobileShortcut(
-    7,
-    'เข้าใช้งาน',
-    Icons.verified_user_rounded,
-    subtitle: 'ประวัติการล็อกอิน',
-    group: MobileShortcutGroup.management,
-    iconColor: Color(0xFF475569),
-    iconBg: Color(0xFFF1F5F9),
-  ),
+  MobileShortcut(0, 'สรุปผล', Icons.pie_chart_outline_rounded,
+      subtitle: 'ภาพรวม', group: MobileShortcutGroup.management),
+  MobileShortcut(1, 'รายงาน', Icons.assessment_outlined,
+      subtitle: 'สถิติรายคน', group: MobileShortcutGroup.management),
+  MobileShortcut(5, 'บุคลากร', Icons.groups_outlined,
+      subtitle: 'กลุ่มสาระ', group: MobileShortcutGroup.management),
+  MobileShortcut(4, 'จัดการระบบ', Icons.admin_panel_settings_outlined,
+      subtitle: 'ผู้ใช้ / ตั้งค่า', group: MobileShortcutGroup.management),
+  MobileShortcut(7, 'เข้าใช้งาน', Icons.verified_user_outlined,
+      subtitle: 'ประวัติล็อกอิน', group: MobileShortcutGroup.management),
 ];
 
-/// หัวข้อหมวดหมู่พร้อมไอคอนนำสายตา ใช้จัดระเบียบทุกหน้าใน mobile_v2
+/// หัวข้อหมวดหมู่ของทุกหน้าใน mobile_v2 — ข้อความล้วน ข้อมูลประกอบเป็นตัวอักษรจาง
+/// ([icon] เก็บไว้เพื่อความเข้ากันได้ของโค้ดเดิม แต่ไม่แสดงแล้ว)
 class MobileSectionHeader extends StatelessWidget {
-  final IconData icon;
+  final IconData? icon;
   final String title;
   final String? trailingText;
-  final Color iconColor;
 
   const MobileSectionHeader({
     super.key,
-    required this.icon,
+    this.icon,
     required this.title,
     this.trailingText,
-    this.iconColor = mobileAccent,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(left: 4, right: 4, bottom: 8),
       child: Row(
         children: [
-          Container(
-            width: 26,
-            height: 26,
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 15, color: iconColor),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              title,
-              style: GoogleFonts.sarabun(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: mobileInk,
-                letterSpacing: 0.1,
-              ),
-            ),
-          ),
+          Expanded(child: Text(title, style: AppText.section)),
           if (trailingText != null && trailingText!.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE2E8F0).withValues(alpha: 0.7),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                trailingText!,
-                style: GoogleFonts.sarabun(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
-                  color: mobileMuted,
-                ),
-              ),
-            ),
+            Text(trailingText!, style: AppText.figure(12, color: AppColors.textMuted, weight: FontWeight.w400)),
         ],
       ),
     );
@@ -252,7 +159,7 @@ AppBar mobileAppBar(String title,
     {List<Widget> actions = const [], bool showLogo = false}) {
   final text = Text(title,
       style: GoogleFonts.sarabun(
-          fontSize: 19, fontWeight: FontWeight.w800, color: mobileInk));
+          fontSize: 18, fontWeight: FontWeight.w600, color: mobileInk));
   return AppBar(
     backgroundColor: Colors.white,
     surfaceTintColor: Colors.white,
@@ -268,8 +175,8 @@ AppBar mobileAppBar(String title,
               height: 32,
               padding: const EdgeInsets.all(2),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(9),
+                color: AppColors.page,
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: mobileLine),
               ),
               child: SchoolLogo(dataUrl: SchoolInfo.logo, size: 26),
@@ -279,6 +186,6 @@ AppBar mobileAppBar(String title,
           ])
         : text,
     actions: [...actions, const SizedBox(width: 4)],
-    shape: const Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+    shape: const Border(bottom: BorderSide(color: AppColors.line)),
   );
 }

@@ -17,6 +17,7 @@ import 'leave_actions.dart';
 import 'menu_access.dart';
 import 'mobile_pages.dart';
 import '../../utils/leave_permissions.dart';
+import '../../theme/app_tokens.dart';
 
 class MobileLeaveDetail extends StatefulWidget {
   final Map<String, dynamic> leave;
@@ -55,11 +56,11 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
       if (!mounted) return;
       _changed = true;
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), backgroundColor: Colors.green));
+          SnackBar(content: Text(message), backgroundColor: AppColors.text));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('ทำรายการไม่สำเร็จ: $e'), backgroundColor: Colors.red));
+          content: Text('ทำรายการไม่สำเร็จ: $e'), backgroundColor: AppColors.negative));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -80,21 +81,21 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
             children: [
               Text(title,
                   style: GoogleFonts.sarabun(
-                      fontSize: 18, fontWeight: FontWeight.w800)),
+                      fontSize: 18, fontWeight: FontWeight.w600)),
               const SizedBox(height: 6),
               Text(message,
-                  style: GoogleFonts.sarabun(fontSize: 15, color: mobileMuted)),
+                  style: GoogleFonts.sarabun(fontSize: 14, color: mobileMuted)),
               const SizedBox(height: 16),
               FilledButton(
                 style: FilledButton.styleFrom(
                     backgroundColor: color,
                     minimumSize: const Size.fromHeight(48),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14))),
+                        borderRadius: BorderRadius.circular(12))),
                 onPressed: () => Navigator.pop(ctx, true),
                 child: Text(action,
                     style: GoogleFonts.sarabun(
-                        fontSize: 16, fontWeight: FontWeight.w700)),
+                        fontSize: 16, fontWeight: FontWeight.w600)),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
@@ -111,7 +112,7 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
   Future<void> _approve() async {
     if (!await _confirm('อนุมัติใบลา',
         'อนุมัติใบลาของ ${_leave['fullName']} และออกเลขรับ', 'อนุมัติ',
-        color: const Color(0xFF16A34A))) {
+        color: AppColors.accent)) {
       return;
     }
     await _run(() async {
@@ -130,7 +131,7 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
         'ไม่อนุมัติ',
         'ส่งใบลากลับเป็น "ยังไม่ส่ง" ให้ ${_leave['fullName']} แก้ไขแล้วส่งใหม่',
         'ไม่อนุมัติ',
-        color: const Color(0xFFDC2626))) {
+        color: AppColors.negative)) {
       return;
     }
     await _run(() async {
@@ -143,7 +144,7 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
   Future<void> _delete() async {
     if (!await _confirm('ลบใบลา',
         'ลบใบลาของ ${_leave['fullName']} ถาวร กู้คืนไม่ได้', 'ลบ',
-        color: const Color(0xFFDC2626))) {
+        color: AppColors.negative)) {
       return;
     }
     setState(() => _busy = true);
@@ -151,14 +152,14 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
       await LeaveActions.delete(_leave);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('ลบใบลาแล้ว'), backgroundColor: Colors.black));
+          content: Text('ลบใบลาแล้ว'), backgroundColor: AppColors.text));
       _changed = true;
       _close();
     } catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('ลบไม่สำเร็จ: $e'), backgroundColor: Colors.red));
+          content: Text('ลบไม่สำเร็จ: $e'), backgroundColor: AppColors.negative));
     }
   }
 
@@ -180,7 +181,6 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
   @override
   Widget build(BuildContext context) {
     final status = LeaveStatus.of(_leave);
-    final (bg, fg) = LeaveStatus.colors(status);
     final group = LeaveStatus.group(status);
     final canEdit = _isAdmin ||
         LeavePermissions.canModify(_leave,
@@ -228,7 +228,7 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: mobileLine),
               ),
               child: Column(
@@ -236,32 +236,17 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
                 children: [
                   Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 5),
-                        decoration: BoxDecoration(
-                            color: bg,
-                            borderRadius: BorderRadius.circular(999)),
-                        child: Text(status,
-                            style: GoogleFonts.sarabun(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: fg)),
-                      ),
+                      LeaveStatus.stamp(status, large: true),
                       const Spacer(),
                       if (receiveNumber.isNotEmpty)
-                        Text(
-                          'เลขรับที่ $receiveNumber',
-                          style: GoogleFonts.sarabun(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: mobileMuted,
-                          ),
-                        ),
+                        Text('เลขรับที่ $receiveNumber',
+                            style: AppText.figure(13,
+                                color: AppColors.textMuted,
+                                weight: FontWeight.w400)),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                  const Divider(height: 1, color: AppColors.raised),
                   const SizedBox(height: 8),
                   for (final (icon, label, value) in rows)
                     if (value.trim().isNotEmpty)
@@ -276,13 +261,13 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
                               width: 96,
                               child: Text(label,
                                   style: GoogleFonts.sarabun(
-                                      fontSize: 13.5, color: mobileMuted)),
+                                      fontSize: 13, color: mobileMuted)),
                             ),
                             Expanded(
                               child: Text(value,
                                   style: GoogleFonts.sarabun(
-                                      fontSize: 14.5,
-                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
                                       color: mobileInk)),
                             ),
                           ],
@@ -295,8 +280,8 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
                       child: OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
                           foregroundColor: mobileAccent,
-                          side: const BorderSide(color: Color(0xFFBFDBFE)),
-                          backgroundColor: const Color(0xFFF8FAFC),
+                          side: const BorderSide(color: AppColors.line),
+                          backgroundColor: AppColors.page,
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
                         ),
@@ -305,7 +290,7 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
                         icon: const Icon(Icons.attach_file_rounded, size: 18),
                         label: Text('เปิดดูไฟล์ใบรับรองแพทย์ที่แนบ',
                             style: GoogleFonts.sarabun(
-                                fontWeight: FontWeight.w700)),
+                                fontWeight: FontWeight.w600)),
                       ),
                     ),
                   ],
@@ -318,7 +303,6 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
             const MobileSectionHeader(
               icon: Icons.description_outlined,
               title: 'เอกสารและการจัดการ',
-              iconColor: Color(0xFF0284C7),
             ),
             _action(
               Icons.print_rounded,
@@ -340,7 +324,6 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
               const MobileSectionHeader(
                 icon: Icons.gavel_rounded,
                 title: 'การพิจารณาสำหรับผู้ดูแลระบบ',
-                iconColor: Color(0xFFD97706),
               ),
               if (group != LeaveStatusGroup.approved)
                 Row(
@@ -348,12 +331,12 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
                     Expanded(
                       child: OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFFDC2626),
+                          foregroundColor: AppColors.negative,
                           backgroundColor: Colors.white,
-                          side: const BorderSide(color: Color(0xFFFCA5A5)),
+                          side: const BorderSide(color: AppColors.negativeSoft),
                           minimumSize: const Size.fromHeight(50),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14)),
+                              borderRadius: BorderRadius.circular(12)),
                         ),
                         onPressed: _busy || group == LeaveStatusGroup.returned
                             ? null
@@ -361,17 +344,17 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
                         icon: const Icon(Icons.reply_rounded, size: 18),
                         label: Text('ไม่อนุมัติ',
                             style: GoogleFonts.sarabun(
-                                fontSize: 15.5, fontWeight: FontWeight.w700)),
+                                fontSize: 16, fontWeight: FontWeight.w600)),
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: FilledButton.icon(
                         style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF16A34A),
+                          backgroundColor: AppColors.accent,
                           minimumSize: const Size.fromHeight(50),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14)),
+                              borderRadius: BorderRadius.circular(12)),
                         ),
                         onPressed: _busy ? null : _approve,
                         icon: _busy
@@ -384,7 +367,7 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
                                 size: 19),
                         label: Text('อนุมัติใบลา',
                             style: GoogleFonts.sarabun(
-                                fontSize: 15.5, fontWeight: FontWeight.w700)),
+                                fontSize: 16, fontWeight: FontWeight.w600)),
                       ),
                     ),
                   ],
@@ -393,7 +376,7 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
               Center(
                 child: TextButton.icon(
                   style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFFDC2626)),
+                      foregroundColor: AppColors.negative),
                   onPressed: _busy ? null : _delete,
                   icon: const Icon(Icons.delete_outline_rounded, size: 19),
                   label: Text('ลบใบลานี้ถาวร',
@@ -429,10 +412,10 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEFF6FF),
-                    borderRadius: BorderRadius.circular(11),
+                    color: AppColors.raised,
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(icon, color: mobileAccent, size: 21),
+                  child: Icon(icon, color: AppColors.textSecondary, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -441,8 +424,8 @@ class _MobileLeaveDetailState extends State<MobileLeaveDetail> {
                     children: [
                       Text(label,
                           style: GoogleFonts.sarabun(
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
                               color: mobileInk)),
                       Text(subtitle,
                           style: GoogleFonts.sarabun(

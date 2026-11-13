@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';  // ← เพิ่ม
 import 'firebase_options.dart';
 import 'screens/login_screen.dart';
 import 'screens/responsive_layout.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'theme/app_theme.dart';
 import 'dart:ui';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:thai_buddhist_date/thai_buddhist_date.dart' as tbd;
@@ -131,11 +131,7 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       title: 'ระบบวันลา',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1E293B)),
-        useMaterial3: true,
-        textTheme: GoogleFonts.sarabunTextTheme(),
-      ),
+      theme: buildAppTheme(),
       // 🇹🇭 เปิดโหมดภาษาไทยให้แอปครับ 🥇🏆
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
