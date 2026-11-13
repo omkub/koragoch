@@ -25,6 +25,7 @@ import '../../utils/staff_status.dart';
 import '../../widgets/leave_form_page.dart';
 import '../../utils/leave_permissions.dart';
 import 'mobile_pages.dart';
+import '../../theme/app_tokens.dart';
 
 class MobileLeaveFormV2 extends StatefulWidget {
   final Map<String, dynamic>? initialData;
@@ -514,8 +515,8 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
       if (mounted) {
         _resetForm();
         _showSuccess(_editRequestId != null
-            ? "อัปเดตข้อมูลใบลาสำเร็จเรียบร้อยแล้วครับ"
-            : "ส่งใบลาสำเร็จเรียบร้อยแล้วครับ");
+            ? "แก้ไขใบลาแล้ว"
+            : "ส่งใบลาแล้ว รอผู้บริหารพิจารณา");
         _scrollController.animateTo(0,
             duration: const Duration(milliseconds: 500), curve: Curves.easeOut);
 
@@ -574,7 +575,7 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
         const SizedBox(width: 8),
         Expanded(child: Text(msg, style: GoogleFonts.sarabun()))
       ]),
-      backgroundColor: const Color(0xFFEF4444),
+      backgroundColor: AppColors.negative,
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: const EdgeInsets.all(16),
@@ -585,25 +586,25 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
             const Icon(Icons.check_circle_rounded,
-                color: Color(0xFF10B981), size: 28),
+                color: AppColors.positive, size: 28),
             const SizedBox(width: 12),
-            Text("สำเร็จ!",
-                style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+            Text("บันทึกแล้ว",
+                style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
           ],
         ),
         content: Text(msg,
             style: GoogleFonts.sarabun(
-                fontSize: 16, color: const Color(0xFF475569))),
+                fontSize: 16, color: AppColors.textSecondary)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text("ตกลง",
                 style: GoogleFonts.sarabun(
-                    fontWeight: FontWeight.bold, color: mobileAccent)),
+                    fontWeight: FontWeight.w600, color: mobileAccent)),
           )
         ],
       ),
@@ -749,7 +750,6 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
                     icon: Icons.date_range_rounded,
                     title: '2. ช่วงเวลาและจำนวนวันลา',
                     trailingText: 'ปีงบ $_fiscalYearText',
-                    iconColor: const Color(0xFF0284C7),
                   ),
                   _categoryCard(
                     children: [
@@ -792,9 +792,9 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 14, vertical: 12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF0FDF4),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xFFBBF7D0)),
+                          color: AppColors.positiveSoft,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.positiveSoft),
                         ),
                         child: Row(
                           children: [
@@ -802,11 +802,11 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
                               width: 34,
                               height: 34,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFDCFCE7),
+                                color: AppColors.positiveSoft,
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: const Icon(Icons.event_available_rounded,
-                                  color: Color(0xFF15803D), size: 19),
+                                  color: AppColors.positive, size: 19),
                             ),
                             const SizedBox(width: 10),
                             Expanded(
@@ -814,17 +814,17 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
                                 "รวมจำนวนวันที่ลา",
                                 style: GoogleFonts.sarabun(
                                   fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF15803D),
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.positive,
                                 ),
                               ),
                             ),
                             Text(
                               "${_formatLeaveDays(_calculatedTotalDays())} วัน",
                               style: GoogleFonts.sarabun(
-                                fontSize: 19,
-                                fontWeight: FontWeight.w800,
-                                color: const Color(0xFF16A34A),
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.positive,
                               ),
                             ),
                           ],
@@ -839,7 +839,6 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
                   const MobileSectionHeader(
                     icon: Icons.edit_note_rounded,
                     title: '3. เหตุผลและเอกสารแนบ',
-                    iconColor: Color(0xFF7C3AED),
                   ),
                   _categoryCard(
                     children: [
@@ -871,16 +870,16 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
                           const SizedBox(width: 10),
                           InkWell(
                             onTap: _pickAndUploadMedicalCertificate,
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(12),
                             child: Container(
                               height: 50,
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 14),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFEFF6FF),
-                                borderRadius: BorderRadius.circular(14),
+                                color: AppColors.accentSoft,
+                                borderRadius: BorderRadius.circular(12),
                                 border:
-                                    Border.all(color: const Color(0xFFBFDBFE)),
+                                    Border.all(color: AppColors.line),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -891,8 +890,8 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
                                   Text(
                                     'แนบไฟล์',
                                     style: GoogleFonts.sarabun(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
                                       color: mobileAccent,
                                     ),
                                   ),
@@ -909,21 +908,21 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF0FDF4),
+                              color: AppColors.positiveSoft,
                               borderRadius: BorderRadius.circular(12),
                               border:
-                                  Border.all(color: const Color(0xFFBBF7D0)),
+                                  Border.all(color: AppColors.positiveSoft),
                             ),
                             child: Row(
                               children: [
                                 const Icon(Icons.check_circle_rounded,
-                                    color: Color(0xFF16A34A), size: 16),
+                                    color: AppColors.positive, size: 16),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     "ไฟล์แนบ: $_attachedFileName",
                                     style: GoogleFonts.sarabun(
-                                      color: const Color(0xFF15803D),
+                                      color: AppColors.positive,
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
                                     ),
@@ -935,7 +934,7 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
                                   onTap: () =>
                                       setState(() => _attachedFileName = null),
                                   child: const Icon(Icons.close_rounded,
-                                      color: Color(0xFF16A34A), size: 18),
+                                      color: AppColors.positive, size: 18),
                                 ),
                               ],
                             ),
@@ -964,16 +963,16 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
                     child: OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: mobileAccent,
-                        side: const BorderSide(color: Color(0xFFBFDBFE)),
+                        side: const BorderSide(color: AppColors.line),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: _openingPreview ? null : _openPreview,
                       icon: const Icon(Icons.description_outlined, size: 19),
                       label: Text(
                         'ดูตัวอย่าง',
                         style: GoogleFonts.sarabun(
-                            fontSize: 14.5, fontWeight: FontWeight.w700),
+                            fontSize: 14, fontWeight: FontWeight.w600),
                       ),
                     ),
                   ),
@@ -987,7 +986,7 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
                       style: FilledButton.styleFrom(
                         backgroundColor: mobileAccent,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: _isSubmitting ? null : _submitForm,
                       icon: _isSubmitting
@@ -1004,7 +1003,7 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
                       label: Text(
                         _editRequestId != null ? 'บันทึกการแก้ไข' : 'ส่งใบลา',
                         style: GoogleFonts.sarabun(
-                            fontSize: 16, fontWeight: FontWeight.w700),
+                            fontSize: 16, fontWeight: FontWeight.w600),
                       ),
                     ),
                   ),
@@ -1022,7 +1021,7 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: mobileLine),
       ),
       child: Column(
@@ -1037,8 +1036,8 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
       return Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(14),
+          color: AppColors.page,
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: mobileLine),
         ),
         child: Row(
@@ -1057,8 +1056,8 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(14),
+        color: AppColors.page,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: mobileLine),
       ),
       child: Row(
@@ -1067,7 +1066,7 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
             imageUrl: _selectedUser?['profileImage'],
             size: 42,
             name: (_selectedUser?['fullName'] ?? '?').toString(),
-            backgroundColor: const Color(0xFFDBEAFE),
+            backgroundColor: AppColors.accentSoft,
             foregroundColor: mobileAccent,
           ),
           const SizedBox(width: 12),
@@ -1078,15 +1077,15 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
                 Text(
                   _selectedUser?['fullName'] ?? '-',
                   style: GoogleFonts.sarabun(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
                     color: mobileInk,
                   ),
                 ),
                 Text(
                   _selectedUserSummary,
                   style: GoogleFonts.sarabun(
-                    fontSize: 12.5,
+                    fontSize: 12,
                     color: mobileMuted,
                   ),
                 ),
@@ -1107,7 +1106,7 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
         Container(
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: const Color(0xFFF1F5F9),
+            color: AppColors.raised,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
@@ -1149,7 +1148,7 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: selected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(9),
+            borderRadius: BorderRadius.circular(8),
             boxShadow: selected
                 ? [
                     BoxShadow(
@@ -1166,7 +1165,7 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
             overflow: TextOverflow.ellipsis,
             style: GoogleFonts.sarabun(
               fontSize: 13,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w600,
               color: selected ? mobileAccent : mobileMuted,
             ),
           ),
@@ -1179,7 +1178,7 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFEFF6FF),
+        color: AppColors.accentSoft,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -1190,8 +1189,8 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
             child: Text(
               _selectedUserSummary,
               style: GoogleFonts.sarabun(
-                fontSize: 12.5,
-                color: const Color(0xFF1E40AF),
+                fontSize: 12,
+                color: AppColors.accent,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1207,7 +1206,7 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
           label,
           style: GoogleFonts.sarabun(
             fontSize: 13,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
             color: mobileMuted,
           ),
         ),
@@ -1228,29 +1227,29 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
         focusNode: focusNode,
         enabled: enabled,
         style: GoogleFonts.sarabun(
-            fontSize: 14.5,
+            fontSize: 14,
             color: enabled ? mobileInk : Colors.black54,
             fontWeight: FontWeight.w500),
         decoration: InputDecoration(
           hintText: hint,
           hintStyle:
-              GoogleFonts.sarabun(color: const Color(0xFF94A3B8), fontSize: 14),
-          prefixIcon: Icon(icon, size: 20, color: const Color(0xFF94A3B8)),
+              GoogleFonts.sarabun(color: AppColors.textMuted, fontSize: 14),
+          prefixIcon: Icon(icon, size: 20, color: AppColors.textMuted),
           suffixIcon: suffixIcon,
           filled: true,
           fillColor:
-              enabled ? const Color(0xFFF8FAFC) : const Color(0xFFF1F5F9),
+              enabled ? AppColors.page : AppColors.raised,
           border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: mobileLine)),
           enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: mobileLine)),
           disabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: mobileLine)),
           focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: mobileAccent, width: 1.5)),
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
@@ -1262,8 +1261,8 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
         decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(14),
+          color: AppColors.page,
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: mobileLine),
         ),
         child: DropdownButtonHideUnderline(
@@ -1273,11 +1272,11 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
             icon: const Icon(Icons.keyboard_arrow_down_rounded,
                 color: mobileMuted),
             style: GoogleFonts.sarabun(
-                fontSize: 14.5,
+                fontSize: 14,
                 color: mobileInk,
                 fontWeight: FontWeight.w600),
             dropdownColor: Colors.white,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
             items: items
                 .map((i) => DropdownMenuItem(value: i, child: Text(i)))
                 .toList(),
@@ -1288,13 +1287,13 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
 
   Widget _buildDatePickerField(String value, VoidCallback onTap) => InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
           decoration: BoxDecoration(
-            color: const Color(0xFFF8FAFC),
-            borderRadius: BorderRadius.circular(14),
+            color: AppColors.page,
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(color: mobileLine),
           ),
           child: Row(
@@ -1308,7 +1307,7 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
                   style: GoogleFonts.sarabun(
                     fontSize: 14,
                     color: mobileInk,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),

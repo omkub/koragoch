@@ -19,6 +19,7 @@ import 'mobile_leave_form.dart';
 import 'mobile_leave_history.dart';
 import 'mobile_pages.dart';
 import 'mobile_profile.dart';
+import '../../theme/app_tokens.dart';
 
 enum _Tab { home, leave, history, account }
 
@@ -164,16 +165,9 @@ class _MobileShellState extends State<MobileShell> {
           children: [for (final t in tabs) _page(t)],
         ),
         bottomNavigationBar: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.06),
-                blurRadius: 16,
-                offset: const Offset(0, -4),
-              ),
-            ],
-            border: const Border(top: BorderSide(color: Color(0xFFEEF2F6))),
+          decoration: const BoxDecoration(
+            color: AppColors.card,
+            border: Border(top: BorderSide(color: AppColors.line)),
           ),
           child: SafeArea(
             top: false,
@@ -216,26 +210,19 @@ class _MobileShellState extends State<MobileShell> {
       onTap: onTap,
       splashColor: Colors.transparent,
       highlightColor: Colors.transparent,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
+      child: SizedBox(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Stack(
               clipBehavior: Clip.none,
               children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xFFDBEAFE) : Colors.transparent,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   child: Icon(
                     isSelected ? activeIcon : icon,
-                    size: 23,
-                    color: isSelected ? mobileAccent : mobileMuted,
+                    size: 22,
+                    color: isSelected ? AppColors.accent : AppColors.textMuted,
                   ),
                 ),
                 if (badgeCount > 0)
@@ -245,7 +232,7 @@ class _MobileShellState extends State<MobileShell> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEF4444),
+                        color: AppColors.negative,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: Colors.white, width: 1.5),
                       ),
@@ -254,8 +241,8 @@ class _MobileShellState extends State<MobileShell> {
                         badgeCount > 99 ? '99+' : '$badgeCount',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.sarabun(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
                           color: Colors.white,
                           height: 1,
                         ),
@@ -269,8 +256,8 @@ class _MobileShellState extends State<MobileShell> {
               label,
               style: GoogleFonts.sarabun(
                 fontSize: 11,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                color: isSelected ? mobileAccent : mobileMuted,
+                fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
+                color: isSelected ? AppColors.accent : AppColors.textMuted,
               ),
             ),
           ],

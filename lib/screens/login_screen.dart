@@ -9,6 +9,7 @@ import '../utils/school_info.dart';
 import '../utils/staff_status.dart';
 import '../widgets/install_app_button.dart';
 import '../widgets/school_logo.dart';
+import '../theme/app_tokens.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -129,7 +130,7 @@ class _LoginScreenState extends State<LoginScreen> {
       Map<String, dynamic>? userData;
 
       if (username.isEmpty || password.isEmpty) {
-        _showError('กรุณากรอกชื่อผู้ใช้และรหัสผ่านครับ');
+        _showError('กรอกชื่อผู้ใช้และรหัสผ่าน');
         return;
       }
 
@@ -148,7 +149,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       } on AuthException catch (e) {
         debugPrint('ℹ️  Supabase Auth ปฏิเสธ: ${e.message}');
-        _showError('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้องครับ 🔐\n'
+        _showError('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง\n'
             'ถ้าเพิ่งกดแจ้งลืมรหัสผ่าน กรุณารอรหัสชั่วคราวจากแอดมินก่อนนะครับ');
         return;
       }
@@ -163,7 +164,7 @@ class _LoginScreenState extends State<LoginScreen> {
           employmentStatus != StaffStatus.active) {
         await supabase.auth.signOut();
         _showError('บัญชีนี้พ้นสภาพแล้ว '
-            '(${StaffStatus.label(employmentStatus)}) จึงเข้าระบบไม่ได้ครับ\n'
+            '(${StaffStatus.label(employmentStatus)}) จึงเข้าระบบไม่ได้\n'
             'ถ้าไม่ถูกต้อง กรุณาแจ้งผู้ดูแลระบบของโรงเรียน');
         return;
       }
@@ -180,7 +181,7 @@ class _LoginScreenState extends State<LoginScreen> {
           .limit(1);
       if (rows.isEmpty) {
         await supabase.auth.signOut();
-        _showError('บัญชีนี้ยังไม่ได้ผูกกับข้อมูลบุคลากรครับ\n'
+        _showError('บัญชีนี้ยังไม่ได้ผูกกับข้อมูลบุคลากร\n'
             'กรุณาแจ้งผู้ดูแลระบบให้ตรวจสอบให้อีกครั้ง');
         return;
       }
@@ -303,7 +304,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(msg, style: GoogleFonts.sarabun()),
-        backgroundColor: const Color(0xFF0F172A)));
+        backgroundColor: AppColors.text));
   }
 
   // 🔥 ฟังก์ชันแสดงหน้าจอ "ตรวจสอบตัวตน" (Forgot Password Dialog) ฉบับอัปเกรดพรีเมียม 100% 🕵️‍♂️🥇🏆
@@ -338,7 +339,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     final username = recoverUserCtrl.text.trim();
                     if (username.isEmpty) {
                       setDialogState(
-                          () => errorText = 'กรุณากรอกชื่อผู้ใช้งานครับ');
+                          () => errorText = 'กรอกชื่อผู้ใช้งาน');
                       return;
                     }
                     setDialogState(() {
@@ -355,8 +356,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         _passwordController.clear();
                       });
                       _showSuccessDialog(
-                          'ส่งคำขอเรียบร้อยแล้ว!',
-                          'แจ้งแอดมินให้ทราบแล้วครับ\nเมื่อได้รหัสชั่วคราวจากแอดมิน\nให้นำมากรอกในช่องรหัสผ่านที่หน้าเข้าสู่ระบบได้เลย');
+                          'ส่งคำขอแล้ว',
+                          'แจ้งผู้ดูแลระบบแล้ว\nเมื่อได้รหัสชั่วคราวจากแอดมิน\nให้นำมากรอกในช่องรหัสผ่านที่หน้าเข้าสู่ระบบได้เลย');
                     } catch (e) {
                       setDialogState(() {
                         isProcessing = false;
@@ -367,10 +368,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   }
 
                   return AlertDialog(
-                    backgroundColor: Colors.white,
-                    surfaceTintColor: Colors.white,
+                    backgroundColor: AppColors.card,
+                    surfaceTintColor: AppColors.card,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(36)),
+                        borderRadius: BorderRadius.circular(16)),
                     contentPadding: EdgeInsets.zero,
                     clipBehavior: Clip.antiAlias,
                     content: SizedBox(
@@ -390,7 +391,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   textAlign: TextAlign.center,
                                   style: GoogleFonts.sarabun(
                                       fontSize: 14,
-                                      color: const Color(0xFF64748B)),
+                                      color: AppColors.textMuted),
                                 ),
                                 const SizedBox(height: 20),
                                 _buildDialogFieldLabel(
@@ -401,16 +402,16 @@ class _LoginScreenState extends State<LoginScreen> {
                                   enabled: !isProcessing,
                                   autofocus: true,
                                   onSubmitted: (_) => submit(),
-                                  style: GoogleFonts.sarabun(fontSize: 15),
+                                  style: GoogleFonts.sarabun(fontSize: 14),
                                   decoration: InputDecoration(
                                     hintText: 'ระบุชื่อผู้ใช้งาน',
                                     prefixIcon: const Icon(
                                         Icons.person_outline_rounded,
                                         size: 20),
                                     filled: true,
-                                    fillColor: const Color(0xFFF8FAFC),
+                                    fillColor: AppColors.page,
                                     border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(14),
+                                      borderRadius: BorderRadius.circular(12),
                                       borderSide: BorderSide.none,
                                     ),
                                   ),
@@ -420,7 +421,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   Text(errorText!,
                                       style: GoogleFonts.sarabun(
                                           fontSize: 12,
-                                          color: Colors.red.shade700)),
+                                          color: AppColors.negative)),
                                 ],
                                 const SizedBox(height: 24),
                                 SizedBox(
@@ -429,11 +430,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                   child: ElevatedButton(
                                     onPressed: isProcessing ? null : submit,
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF0F172A),
+                                      backgroundColor: AppColors.text,
                                       foregroundColor: Colors.white,
                                       shape: RoundedRectangleBorder(
                                           borderRadius:
-                                              BorderRadius.circular(14)),
+                                              BorderRadius.circular(12)),
                                     ),
                                     child: isProcessing
                                         ? const SizedBox(
@@ -445,7 +446,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                         : Text('แจ้งแอดมิน',
                                             style: GoogleFonts.sarabun(
                                                 fontSize: 16,
-                                                fontWeight: FontWeight.bold)),
+                                                fontWeight: FontWeight.w600)),
                                   ),
                                 ),
                               ],
@@ -459,8 +460,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                   : () => Navigator.pop(ctx),
                               child: Text('ยกเลิกและกลับหน้าเดิม',
                                   style: GoogleFonts.sarabun(
-                                      color: const Color(0xFF94A3B8),
-                                      fontWeight: FontWeight.bold)),
+                                      color: AppColors.textMuted,
+                                      fontWeight: FontWeight.w600)),
                             ),
                           ),
                         ],
@@ -525,13 +526,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
           return AlertDialog(
             shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: Row(children: [
-              const Icon(Icons.lock_reset_rounded, color: Color(0xFF0F172A)),
+              const Icon(Icons.lock_reset_rounded, color: AppColors.text),
               const SizedBox(width: 10),
               Expanded(
                 child: Text('ตั้งรหัสผ่านใหม่',
-                    style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                    style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
               ),
             ]),
             content: SizedBox(
@@ -543,14 +544,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   Text(
                       'คุณครูเข้าระบบด้วยรหัสชั่วคราว\nกรุณาตั้งรหัสผ่านใหม่เพื่อใช้งานครั้งต่อไปครับ',
                       style: GoogleFonts.sarabun(
-                          fontSize: 13, color: Colors.blueGrey)),
+                          fontSize: 13, color: AppColors.textSecondary)),
                   const SizedBox(height: 18),
                   field('รหัสผ่านใหม่', newCtrl, autofocus: true),
                   field('ยืนยันรหัสผ่านใหม่', confirmCtrl),
                   if (errorText != null)
                     Text(errorText!,
                         style: GoogleFonts.sarabun(
-                            fontSize: 12, color: Colors.red.shade700)),
+                            fontSize: 12, color: AppColors.negative)),
                 ],
               ),
             ),
@@ -558,18 +559,18 @@ class _LoginScreenState extends State<LoginScreen> {
               TextButton(
                 onPressed: () => Navigator.pop(ctx, null),
                 child: Text('ยกเลิก',
-                    style: GoogleFonts.sarabun(color: Colors.grey.shade600)),
+                    style: GoogleFonts.sarabun(color: AppColors.textSecondary)),
               ),
               ElevatedButton(
                 onPressed: submit,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F172A),
+                  backgroundColor: AppColors.text,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
                 ),
                 child: Text('บันทึกและเข้าสู่ระบบ',
-                    style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                    style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
               ),
             ],
           );
@@ -581,59 +582,45 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildDialogHeader(String title) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 36),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
-        ),
+        border: Border(bottom: BorderSide(color: AppColors.line)),
       ),
-      child: Column(
+      child: Row(
         children: [
-          const Icon(Icons.shield_rounded, size: 48, color: Colors.white),
-          const SizedBox(height: 16),
-          Text(title,
-              style: GoogleFonts.sarabun(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white)),
+          const Icon(Icons.lock_reset_rounded,
+              size: 20, color: AppColors.textSecondary),
+          const SizedBox(width: 8),
+          Expanded(child: Text(title, style: AppText.title)),
         ],
       ),
     );
   }
 
-  // 🏆 แสดงผลสำเร็จพรีเมียม
   void _showSuccessDialog(String title, String msg) {
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        backgroundColor: AppColors.card,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.panel)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.check_circle_rounded,
-                size: 72, color: Colors.green),
+            const Icon(Icons.check_circle_outline_rounded,
+                size: 28, color: AppColors.positive),
+            const SizedBox(height: 16),
+            Text(title, style: AppText.title),
+            const SizedBox(height: 8),
+            Text(msg, style: AppText.body.copyWith(color: AppColors.textSecondary)),
             const SizedBox(height: 24),
-            Text(title,
-                style: GoogleFonts.sarabun(
-                    fontSize: 22, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            Text(msg,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.sarabun(color: Colors.blueGrey)),
-            const SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(c),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0F172A),
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 54),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(c),
+                child: const Text('ตกลง'),
               ),
-              child: const Text('ตกลง'),
             ),
           ],
         ),
@@ -644,14 +631,9 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildDialogFieldLabel(String t) {
     return Align(
       alignment: Alignment.centerLeft,
-      child: Text(
-        t,
-        style: GoogleFonts.sarabun(
-          fontWeight: FontWeight.w600,
-          fontSize: 13,
-          color: const Color(0xFF64748B),
-        ),
-      ),
+      child: Text(t,
+          style: AppText.style(13,
+              weight: FontWeight.w500, color: AppColors.textSecondary)),
     );
   }
 
@@ -661,30 +643,21 @@ class _LoginScreenState extends State<LoginScreen> {
     final bool isMobile = screenWidth < 900;
 
     return Scaffold(
-      backgroundColor:
-          isMobile ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+      backgroundColor: isMobile ? AppColors.card : AppColors.page,
       body: Center(
         child: SingleChildScrollView(
           child: Container(
-            // 📱 ในมือถือกางให้เต็มจอ 100% เลยครับ 🥇🏆
-            width: isMobile ? screenWidth : 1000,
+            width: isMobile ? screenWidth : 960,
             height: isMobile ? null : 600,
             constraints: isMobile
                 ? BoxConstraints(minHeight: MediaQuery.of(context).size.height)
                 : null,
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius:
-                  isMobile ? BorderRadius.zero : BorderRadius.circular(24),
-              boxShadow: isMobile
-                  ? []
-                  : [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      )
-                    ],
+              color: AppColors.card,
+              borderRadius: isMobile
+                  ? BorderRadius.zero
+                  : BorderRadius.circular(AppRadius.panel),
+              border: isMobile ? null : Border.all(color: AppColors.line),
             ),
             clipBehavior: Clip.antiAlias,
             child: isMobile
@@ -700,89 +673,47 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  /// แผงซ้าย: พื้นหมึกน้ำเงินกรมท่า + ตราโรงเรียน + ชื่อระบบ
   Widget _buildLeftPanel(bool isMobile) {
+    final schoolName = SchoolInfo.fullName.trim();
     return Container(
-      height: isMobile ? 300 : double.infinity,
-      color: const Color(0xFF0F172A),
-      child: Stack(
+      height: isMobile ? 240 : double.infinity,
+      width: double.infinity,
+      color: AppColors.accent,
+      padding: EdgeInsets.all(isMobile ? 24 : 40),
+      child: Column(
+        mainAxisAlignment:
+            isMobile ? MainAxisAlignment.end : MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CustomPaint(
-            size: Size.infinite,
-            painter: DotPainter(),
-          ),
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: isMobile ? 100 : 140,
-                  height: isMobile ? 100 : 140,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.2), width: 1),
-                  ),
-                  child: ClipOval(
-                    child: Center(
-                      child: SchoolLogo(
-                        dataUrl: _savedLogo,
-                        size: isMobile ? 76 : 116,
-                        iconColor: Colors.white70,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 32),
-                Text(
-                  'ระบบวันลา',
-                  style: GoogleFonts.sarabun(
-                    color: Colors.white,
-                    fontSize: isMobile ? 28 : 36,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  width: 40,
-                  height: 3,
-                  decoration: BoxDecoration(
-                    color: Colors.orangeAccent,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 40),
-                  child: Text(
-                    'และข้อมูลบุคลากรออนไลน์\nเพื่อครูและบุคลากรทางการศึกษา',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.sarabun(
-                      color: Colors.white60,
-                      fontSize: 12,
-                      height: 1.5,
-                    ),
-                  ),
-                ),
-              ],
+          Container(
+            width: isMobile ? 64 : 88,
+            height: isMobile ? 64 : 88,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppRadius.card),
+            ),
+            child: SchoolLogo(
+              dataUrl: _savedLogo,
+              size: isMobile ? 48 : 72,
+              iconColor: AppColors.textMuted,
             ),
           ),
-          if (!isMobile)
-            Positioned(
-              bottom: 20,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Text(
-                  'ระบบบริหารจัดการโรงเรียน v2.0',
-                  style: GoogleFonts.sarabun(
-                    color: Colors.white24,
-                    fontSize: 10,
-                  ),
-                ),
-              ),
-            ),
+          SizedBox(height: isMobile ? 16 : 24),
+          Text(
+            'ระบบวันลา',
+            style: AppText.style(isMobile ? 28 : 32,
+                weight: FontWeight.w600, color: Colors.white),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            schoolName.isEmpty
+                ? 'ยื่นใบลา ขอไปราชการ และพิมพ์แบบฟอร์มของครูและบุคลากร'
+                : 'ใบลาและไปราชการของครูและบุคลากร\n$schoolName',
+            style: AppText.style(14,
+                color: Colors.white.withValues(alpha: 0.78), height: 1.5),
+          ),
         ],
       ),
     );
@@ -791,72 +722,42 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildRightPanel(bool isMobile) {
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 20 : 60,
-        vertical:
-            isMobile ? 30 : 40, // 📏 ลด Padding แนวตั้งลงเพื่อกันล้นครับ 🥇
+        horizontal: isMobile ? 24 : 56,
+        vertical: isMobile ? 32 : 40,
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!isMobile) ...[
-            Text(
-              'เข้าสู่ระบบ',
-              style: GoogleFonts.sarabun(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF1E293B),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'ยินดีต้อนรับกลับ! กรุณากรอกข้อมูลเพื่อล็อกอิน',
-              style: GoogleFonts.sarabun(
-                color: const Color(0xFF94A3B8),
-                fontSize: 14,
-              ),
-            ),
-            const SizedBox(height: 32), // 📏 ลดช่องว่างลงครับ
-          ] else
-            const SizedBox(height: 10),
+          Text('เข้าสู่ระบบ', style: AppText.style(isMobile ? 22 : 28, weight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          Text('ใช้ชื่อผู้ใช้และรหัสผ่านที่ได้จากผู้ดูแลระบบของโรงเรียน',
+              style: AppText.secondary),
+          const SizedBox(height: 32),
           _buildFieldLabel('ชื่อผู้ใช้งาน'),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           TextField(
             controller: _usernameController,
-            decoration: InputDecoration(
-              hintText: 'Username / ID',
-              prefixIcon: const Icon(Icons.person_outline,
-                  size: 20, color: Color(0xFF94A3B8)),
-              filled: true,
-              fillColor: const Color(0xFFF8FAFC),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: const InputDecoration(
+              hintText: 'ชื่อผู้ใช้',
+              prefixIcon: Icon(Icons.person_outline,
+                  size: 18, color: AppColors.textMuted),
             ),
-            style: GoogleFonts.sarabun(color: Colors.black),
+            style: AppText.body,
           ),
-          const SizedBox(height: 20), // 📏 ลดช่องว่างลงครับ
+          const SizedBox(height: 16),
           _buildFieldLabel('รหัสผ่าน'),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           TextField(
             controller: _passwordController,
             obscureText: true,
             onSubmitted: (_) => _login(),
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               hintText: '••••••••',
-              prefixIcon: const Icon(Icons.lock_outline,
-                  size: 20, color: Color(0xFF94A3B8)),
-              filled: true,
-              fillColor: const Color(0xFFF8FAFC),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              prefixIcon: Icon(Icons.lock_outline,
+                  size: 18, color: AppColors.textMuted),
             ),
-            style: GoogleFonts.sarabun(color: Colors.black),
+            style: AppText.body,
           ),
           const SizedBox(height: 12),
           Row(
@@ -873,59 +774,37 @@ class _LoginScreenState extends State<LoginScreen> {
                           setState(() => _rememberMe = v ?? false),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(4)),
-                      activeColor: const Color(0xFF0F172A),
+                      activeColor: AppColors.accent,
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    'จำการเข้าสู่ระบบ',
-                    style: GoogleFonts.sarabun(
-                        color: const Color(0xFF64748B), fontSize: 13),
-                  ),
+                  Text('จำการเข้าสู่ระบบ', style: AppText.secondary),
                 ],
               ),
               TextButton(
                 onPressed: _showForgotPasswordDialog,
-                child: Text(
-                  'แจ้งลืมรหัสผ่าน',
-                  style: GoogleFonts.sarabun(
-                    color: const Color(0xFF1E293B),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
+                child: Text('ลืมรหัสผ่าน',
+                    style: AppText.style(13,
+                        weight: FontWeight.w500, color: AppColors.accent)),
               ),
             ],
           ),
-          const SizedBox(height: 32), // 📏 ลดช่องว่างลงครับ
-          ElevatedButton(
-            onPressed: _isLoading ? null : _login,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0F172A),
-              foregroundColor: Colors.white,
-              minimumSize: const Size(double.infinity, 56),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              elevation: 0,
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: FilledButton(
+              onPressed: _isLoading ? null : _login,
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2))
+                  : Text('เข้าสู่ระบบ',
+                      style: AppText.style(14,
+                          weight: FontWeight.w500, color: Colors.white)),
             ),
-            child: _isLoading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                        color: Colors.white, strokeWidth: 2))
-                : Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'เข้าสู่ระบบ',
-                        style: GoogleFonts.sarabun(
-                            fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(width: 10),
-                      const Icon(Icons.arrow_forward, size: 18),
-                    ],
-                  ),
           ),
           // ติดตั้งลงเครื่อง (ซ่อนเองถ้าเปิดจากแอปที่ติดตั้งแล้ว)
           const SizedBox(height: 12),
@@ -936,32 +815,8 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildFieldLabel(String t) {
-    return Text(
-      t,
-      style: GoogleFonts.sarabun(
-        fontWeight: FontWeight.w600,
-        fontSize: 13,
-        color: const Color(0xFF64748B),
-      ),
-    );
+    return Text(t,
+        style: AppText.style(13,
+            weight: FontWeight.w500, color: AppColors.textSecondary));
   }
-}
-
-class DotPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.05)
-      ..strokeWidth = 1.0;
-
-    const spacing = 15.0;
-    for (double x = 0; x < size.width; x += spacing) {
-      for (double y = 0; y < size.height; y += spacing) {
-        canvas.drawCircle(Offset(x, y), 0.8, paint);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }

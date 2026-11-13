@@ -26,6 +26,7 @@ import '../../utils/school_info.dart';
 import '../../widgets/install_app_button.dart';
 import '../../widgets/push_toggle_tile.dart';
 import 'mobile_pages.dart';
+import '../../theme/app_tokens.dart';
 
 class MobileProfileV2 extends StatefulWidget {
   const MobileProfileV2({super.key});
@@ -192,7 +193,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
 
     try {
       final docId = _teacherData!['docId'] ?? _teacherData!['id'];
-      if (docId == null) throw "ไม่พบ ID ของข้อมูลครับ";
+      if (docId == null) throw "ไม่พบรหัสข้อมูล";
 
       final newData = {
         'phone': _phoneController.text.trim(),
@@ -221,8 +222,8 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('บันทึกข้อมูลสำเร็จแล้วครับ'),
-          backgroundColor: Color(0xFF10B981),
+          content: Text('บันทึกข้อมูลแล้ว'),
+          backgroundColor: AppColors.positive,
           behavior: SnackBarBehavior.floating,
         ));
       }
@@ -230,7 +231,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text('เกิดข้อผิดพลาด: $e'),
-            backgroundColor: Colors.redAccent));
+            backgroundColor: AppColors.negative));
       }
     }
   }
@@ -303,8 +304,8 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
         await _loadUserAndData();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('อัปเดตรูปโปรไฟล์สำเร็จแล้วครับ'),
-              backgroundColor: Color(0xFF10B981)));
+              content: Text('เปลี่ยนรูปโปรไฟล์แล้ว'),
+              backgroundColor: AppColors.positive));
         }
       }
     } catch (e) {
@@ -331,11 +332,11 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
     bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text("ออกจากระบบ",
-            style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+            style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
         content: Text("คุณแน่ใจหรือไม่ว่าต้องการออกจากระบบบัญชีของคุณ?",
-            style: GoogleFonts.sarabun(fontSize: 15)),
+            style: GoogleFonts.sarabun(fontSize: 14)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -343,13 +344,13 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
                   Text("ยกเลิก", style: GoogleFonts.sarabun(color: Colors.grey))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEF4444),
+                backgroundColor: AppColors.negative,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12))),
             onPressed: () => Navigator.pop(context, true),
             child: Text("ยืนยัน",
                 style: GoogleFonts.sarabun(
-                    color: Colors.white, fontWeight: FontWeight.bold)),
+                    color: Colors.white, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -411,7 +412,6 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
             const MobileSectionHeader(
               icon: Icons.admin_panel_settings_outlined,
               title: 'เครื่องมือผู้ดูแลระบบ',
-              iconColor: Color(0xFFD97706),
             ),
             _buildAdminSection(),
             const SizedBox(height: 22),
@@ -421,7 +421,6 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
           const MobileSectionHeader(
             icon: Icons.tune_rounded,
             title: 'การตั้งค่าแอปและบัญชี',
-            iconColor: Color(0xFF475569),
           ),
           const InstallAppButton(tile: true),
           const SizedBox(height: 8),
@@ -443,7 +442,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: mobileLine),
       ),
       child: Column(
@@ -454,7 +453,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
                 width: 96,
                 height: 96,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: AppColors.raised,
                   shape: BoxShape.circle,
                   border: Border.all(color: mobileLine, width: 2),
                 ),
@@ -467,7 +466,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
                           name: _currentUserName.isNotEmpty
                               ? _currentUserName
                               : '?',
-                          backgroundColor: const Color(0xFFDBEAFE),
+                          backgroundColor: AppColors.accentSoft,
                           foregroundColor: mobileAccent,
                         ),
                 ),
@@ -496,8 +495,8 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
             _currentUserName,
             textAlign: TextAlign.center,
             style: GoogleFonts.sarabun(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
               color: mobileInk,
             ),
           ),
@@ -506,7 +505,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
             dept,
             textAlign: TextAlign.center,
             style: GoogleFonts.sarabun(
-              fontSize: 13.5,
+              fontSize: 13,
               color: mobileMuted,
               fontWeight: FontWeight.w500,
             ),
@@ -531,7 +530,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: AppColors.page,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: mobileLine),
       ),
@@ -543,8 +542,8 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
           Text(
             label,
             style: GoogleFonts.sarabun(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
               color: mobileInk,
             ),
           ),
@@ -558,7 +557,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: mobileLine),
       ),
       child: Column(
@@ -570,18 +569,18 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
               Text(
                 "รายละเอียดบุคลากร",
                 style: GoogleFonts.sarabun(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
                   color: mobileInk,
                 ),
               ),
               FilledButton.tonalIcon(
                 style: FilledButton.styleFrom(
                   backgroundColor: _isEditing
-                      ? const Color(0xFFDCFCE7)
-                      : const Color(0xFFEFF6FF),
+                      ? AppColors.positiveSoft
+                      : AppColors.accentSoft,
                   foregroundColor:
-                      _isEditing ? const Color(0xFF15803D) : mobileAccent,
+                      _isEditing ? AppColors.positive : mobileAccent,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   minimumSize: Size.zero,
@@ -601,7 +600,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
                 label: Text(
                   _isEditing ? "บันทึกข้อมูล" : "แก้ไขข้อมูล",
                   style: GoogleFonts.sarabun(
-                      fontSize: 13, fontWeight: FontWeight.w700),
+                      fontSize: 13, fontWeight: FontWeight.w600),
                 ),
               ),
             ],
@@ -666,7 +665,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
         Row(
           children: [
             const Icon(Icons.lock_outline_rounded,
-                size: 14, color: Color(0xFF94A3B8)),
+                size: 14, color: AppColors.textMuted),
             const SizedBox(width: 6),
             Text(
               'รหัสผ่าน',
@@ -685,7 +684,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
+              color: AppColors.page,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: mobileLine),
             ),
@@ -698,7 +697,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.sarabun(
                       fontSize: 13,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                       color: mobileAccent,
                     ),
                   ),
@@ -731,7 +730,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
             final confirm = confirmCtrl.text.trim();
 
             if (current.isEmpty || next.isEmpty) {
-              setLocal(() => errorText = 'กรุณากรอกให้ครบทุกช่องครับ');
+              setLocal(() => errorText = 'กรอกให้ครบทุกช่อง');
               return;
             }
             if (next.length < 6) {
@@ -761,9 +760,9 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
             if (ctx.mounted) Navigator.pop(ctx);
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                content: Text('เปลี่ยนรหัสผ่านเรียบร้อยแล้วครับ',
+                content: Text('เปลี่ยนรหัสผ่านแล้ว',
                     style: GoogleFonts.sarabun()),
-                backgroundColor: Colors.green,
+                backgroundColor: AppColors.text,
                 behavior: SnackBarBehavior.floating,
               ));
             }
@@ -790,7 +789,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             title: Text('เปลี่ยนรหัสผ่าน',
-                style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -802,7 +801,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
                     alignment: Alignment.centerLeft,
                     child: Text(errorText!,
                         style: GoogleFonts.sarabun(
-                            fontSize: 12, color: Colors.red.shade700)),
+                            fontSize: 12, color: AppColors.negative)),
                   ),
               ],
             ),
@@ -828,7 +827,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
                             strokeWidth: 2, color: Colors.white))
                     : Text('บันทึก',
                         style:
-                            GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                            GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
               ),
             ],
           );
@@ -839,7 +838,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
 
   Future<String?> _changePassword(String current, String next) async {
     final username = (_teacherData?['username'] ?? '').toString().trim();
-    if (username.isEmpty) return 'ไม่พบชื่อผู้ใช้ของคุณครูครับ';
+    if (username.isEmpty) return 'ไม่พบชื่อผู้ใช้';
 
     final supabase = Supabase.instance.client;
     final email = FirebaseService.authEmailForUsername(username);
@@ -847,7 +846,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
     try {
       await supabase.auth.signInWithPassword(email: email, password: current);
     } on AuthException {
-      return 'รหัสผ่านปัจจุบันไม่ถูกต้องครับ';
+      return 'รหัสผ่านปัจจุบันไม่ถูกต้อง';
     } catch (e) {
       return 'เชื่อมต่อระบบยืนยันตัวตนไม่สำเร็จ: $e';
     }
@@ -886,7 +885,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
       children: [
         Row(
           children: [
-            Icon(icon, size: 14, color: const Color(0xFF94A3B8)),
+            Icon(icon, size: 14, color: AppColors.textMuted),
             const SizedBox(width: 6),
             Text(label,
                 style: GoogleFonts.sarabun(
@@ -901,12 +900,12 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
                 controller: ctrl,
                 keyboardType: keyboardType,
                 style: GoogleFonts.sarabun(
-                    fontSize: 14.5,
+                    fontSize: 14,
                     color: mobileInk,
                     fontWeight: FontWeight.w600),
                 decoration: InputDecoration(
                   filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
+                  fillColor: AppColors.page,
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: mobileLine)),
@@ -921,8 +920,8 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
                 padding: const EdgeInsets.only(left: 20),
                 child: Text(ctrl.text.isEmpty ? "-" : ctrl.text,
                     style: GoogleFonts.sarabun(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
                         color: mobileInk)),
               ),
       ],
@@ -936,7 +935,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
         Row(
           children: [
             const Icon(Icons.military_tech_outlined,
-                size: 14, color: Color(0xFF94A3B8)),
+                size: 14, color: AppColors.textMuted),
             const SizedBox(width: 6),
             Text("วิทยฐานะ",
                 style: GoogleFonts.sarabun(
@@ -950,7 +949,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
             ? Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
+                    color: AppColors.page,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: mobileLine)),
                 child: DropdownButtonHideUnderline(
@@ -960,7 +959,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
                         : _academicsList.first,
                     isExpanded: true,
                     style: GoogleFonts.sarabun(
-                        fontSize: 14.5,
+                        fontSize: 14,
                         color: mobileInk,
                         fontWeight: FontWeight.w600),
                     items: _academicsList
@@ -975,8 +974,8 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
                 padding: const EdgeInsets.only(left: 20),
                 child: Text(_selectedAcademicStanding ?? "-",
                     style: GoogleFonts.sarabun(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
                         color: mobileInk)),
               ),
       ],
@@ -990,7 +989,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
       children: [
         Row(
           children: [
-            Icon(icon, size: 14, color: const Color(0xFF94A3B8)),
+            Icon(icon, size: 14, color: AppColors.textMuted),
             const SizedBox(width: 6),
             Text(label,
                 style: GoogleFonts.sarabun(
@@ -1004,7 +1003,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
             ? Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
+                    color: AppColors.page,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: mobileLine)),
                 child: DropdownButtonHideUnderline(
@@ -1015,7 +1014,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
                             fontSize: 14, color: Colors.grey)),
                     isExpanded: true,
                     style: GoogleFonts.sarabun(
-                        fontSize: 14.5,
+                        fontSize: 14,
                         color: mobileInk,
                         fontWeight: FontWeight.w600),
                     items: items
@@ -1029,8 +1028,8 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
                 padding: const EdgeInsets.only(left: 20),
                 child: Text((value != null && value.isNotEmpty) ? value : "-",
                     style: GoogleFonts.sarabun(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
                         color: mobileInk)),
               ),
       ],
@@ -1041,15 +1040,15 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: mobileLine),
       ),
       child: Column(
         children: [
           _buildAdminTile(
             icon: Icons.lock_reset_rounded,
-            iconColor: const Color(0xFFDC2626),
-            iconBg: const Color(0xFFFEE2E2),
+            iconColor: AppColors.textSecondary,
+            iconBg: AppColors.negativeSoft,
             title: "อนุมัติรีเซ็ตรหัสผ่าน",
             subtitle: "ตรวจสอบและออกรหัสชั่วคราวให้บุคลากร",
             onTap: () => _openSubPage(
@@ -1057,11 +1056,11 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
               const MobilePasswordResetScreen(),
             ),
           ),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          const Divider(height: 1, color: AppColors.raised),
           _buildAdminTile(
             icon: Icons.manage_accounts_rounded,
-            iconColor: const Color(0xFFD97706),
-            iconBg: const Color(0xFFFEF3C7),
+            iconColor: AppColors.textSecondary,
+            iconBg: AppColors.pendingSoft,
             title: "จัดการระบบและผู้ใช้งาน",
             subtitle: "เพิ่ม/แก้ไขบุคลากร สิทธิ์เมนู และตั้งค่า",
             onTap: () => _openSubPage(
@@ -1069,11 +1068,11 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
               const UserManagementScreen(),
             ),
           ),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          const Divider(height: 1, color: AppColors.raised),
           _buildAdminTile(
             icon: Icons.groups_rounded,
-            iconColor: const Color(0xFF059669),
-            iconBg: const Color(0xFFD1FAE5),
+            iconColor: AppColors.textSecondary,
+            iconBg: AppColors.positiveSoft,
             title: "ทำเนียบบุคลากร",
             subtitle: "ดูรายชื่อแยกตามกลุ่มสาระการเรียนรู้",
             onTap: () => _openSubPage(
@@ -1096,7 +1095,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(16),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
@@ -1106,7 +1105,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
               height: 40,
               decoration: BoxDecoration(
                 color: iconBg,
-                borderRadius: BorderRadius.circular(11),
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon, color: iconColor, size: 21),
             ),
@@ -1118,8 +1117,8 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
                   Text(
                     title,
                     style: GoogleFonts.sarabun(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                       color: mobileInk,
                     ),
                   ),
@@ -1145,7 +1144,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFECACA)),
+        border: Border.all(color: AppColors.negativeSoft),
       ),
       child: ListTile(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1153,22 +1152,22 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: const Color(0xFFFEE2E2),
+            color: AppColors.negativeSoft,
             borderRadius: BorderRadius.circular(10),
           ),
           child: const Icon(Icons.logout_rounded,
-              color: Color(0xFFDC2626), size: 19),
+              color: AppColors.negative, size: 19),
         ),
         title: Text(
           'ออกจากระบบ',
           style: GoogleFonts.sarabun(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            color: const Color(0xFFDC2626),
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.negative,
           ),
         ),
         trailing:
-            const Icon(Icons.chevron_right_rounded, color: Color(0xFFF87171)),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.negative),
         onTap: _logout,
       ),
     );
