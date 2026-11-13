@@ -4,6 +4,7 @@ import '../services/firebase_service.dart';
 import '../utils/leave_days.dart';
 import '../utils/school_info.dart';
 import '../widgets/thai_buddhist_calendar_widget.dart';
+import '../theme/app_tokens.dart';
 
 class CalendarSettingsTab extends StatefulWidget {
   final int tabIndex; // 0: Budget, 1: Holiday, 2: Special Working Day
@@ -16,7 +17,7 @@ class CalendarSettingsTab extends StatefulWidget {
 class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
   final FirebaseService _firebaseService = FirebaseService();
 
-  final Color primaryColor = const Color(0xFF0F172A);
+  final Color primaryColor = AppColors.text;
   final Color accentColor = const Color(0xFF3B82F6);
 
   final _yearController = TextEditingController();
@@ -158,7 +159,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
 
   Widget _buildFieldLabel(String t) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
-    child: Text(t, style: GoogleFonts.sarabun(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.blueGrey.shade700)),
+    child: Text(t, style: GoogleFonts.sarabun(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.textSecondary)),
   );
 
   Widget _buildTextField(TextEditingController ctrl, String hint, {IconData? icon}) {
@@ -167,12 +168,12 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
       style: GoogleFonts.sarabun(fontSize: 14),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: GoogleFonts.sarabun(color: Colors.grey.shade400, fontSize: 13),
-        prefixIcon: icon != null ? Icon(icon, size: 18, color: Colors.blueGrey) : null,
+        hintStyle: GoogleFonts.sarabun(color: AppColors.textMuted, fontSize: 13),
+        prefixIcon: icon != null ? Icon(icon, size: 18, color: AppColors.textSecondary) : null,
         filled: true,
-        fillColor: const Color(0xFFF8FAFC),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
+        fillColor: AppColors.page,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.raised)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.raised)),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 1.5)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
@@ -185,15 +186,15 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
+          color: AppColors.page,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: AppColors.raised),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(text, style: const TextStyle(fontSize: 13, color: Colors.black87)),
-            const Icon(Icons.calendar_month_outlined, size: 18, color: Colors.blueGrey),
+            const Icon(Icons.calendar_month_outlined, size: 18, color: AppColors.textSecondary),
           ],
         ),
       ),
@@ -209,15 +210,15 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: AppColors.page,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: AppColors.raised),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: val,
           isExpanded: true,
-          icon: Icon(icon, size: 18, color: Colors.blueGrey),
+          icon: Icon(icon, size: 18, color: AppColors.textSecondary),
           items: items.map((e) => DropdownMenuItem(value: e, child: Text(e, style: GoogleFonts.sarabun(fontSize: 14)))).toList(),
           onChanged: onC,
         ),
@@ -255,9 +256,9 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text("ตั้งค่ารอบงบประมาณ",
-                    style: GoogleFonts.sarabun(fontSize: 22, fontWeight: FontWeight.bold, color: primaryColor)),
+                    style: GoogleFonts.sarabun(fontSize: 22, fontWeight: FontWeight.w600, color: primaryColor)),
                 Text("กำหนดช่วงเวลาของแต่ละรอบงบประมาณเพื่อใช้ในการสรุปสถิติการลา",
-                    style: GoogleFonts.sarabun(color: Colors.blueGrey, fontSize: 13)),
+                    style: GoogleFonts.sarabun(color: AppColors.textSecondary, fontSize: 13)),
               ],
             ),
           ],
@@ -273,7 +274,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text("เพิ่มรอบงบประมาณ",
-                        style: GoogleFonts.sarabun(fontWeight: FontWeight.bold, fontSize: 16)),
+                        style: GoogleFonts.sarabun(fontWeight: FontWeight.w600, fontSize: 16)),
                     const SizedBox(height: 24),
                     _buildFieldLabel("ปีงบประมาณ (พ.ศ.)"),
                     _buildTextField(_yearController, "เช่น 2569", icon: Icons.calendar_today_rounded),
@@ -309,12 +310,12 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
 
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('เพิ่มรอบงบประมาณเรียบร้อยแล้วครับ')));
+                                const SnackBar(content: Text('เพิ่มรอบงบประมาณเรียบร้อยแล้ว')));
                           }
                         }
                       },
                       icon: const Icon(Icons.save_outlined, size: 18),
-                      label: Text("เพิ่มข้อมูล", style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                      label: Text("เพิ่มข้อมูล", style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryColor,
                         foregroundColor: Colors.white,
@@ -350,16 +351,16 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                                   color: Colors.blue.withValues(alpha: 0.08),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
-                                child: const Icon(Icons.table_chart_outlined, size: 20, color: Colors.blue),
+                                child: const Icon(Icons.table_chart_outlined, size: 20, color: AppColors.accent),
                               ),
                               const SizedBox(width: 12),
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text("รายชื่อรอบงบประมาณทั้งหมด",
-                                      style: GoogleFonts.sarabun(fontWeight: FontWeight.bold, fontSize: 16, color: primaryColor)),
+                                      style: GoogleFonts.sarabun(fontWeight: FontWeight.w600, fontSize: 16, color: primaryColor)),
                                   Text("ข้อมูลช่วงเวลาที่บันทึกไว้ในระบบ",
-                                      style: GoogleFonts.sarabun(fontSize: 12, color: Colors.blueGrey)),
+                                      style: GoogleFonts.sarabun(fontSize: 12, color: AppColors.textSecondary)),
                                 ],
                               ),
                             ],
@@ -369,7 +370,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                         if (rounds.isEmpty)
                           Padding(
                             padding: const EdgeInsets.all(40),
-                            child: Center(child: Text("ยังไม่มีข้อมูลรอบงบประมาณในระบบ", style: GoogleFonts.sarabun(color: Colors.grey))),
+                            child: Center(child: Text("ยังไม่มีข้อมูลรอบงบประมาณในระบบ", style: GoogleFonts.sarabun(color: AppColors.textMuted))),
                           )
                         else
                           ListView.separated(
@@ -387,7 +388,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                                 title: Row(
                                   children: [
-                                    Text("ปี ${r['year']} รอบที่ ${r['round']}", style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                                    Text("ปี ${r['year']} รอบที่ ${r['round']}", style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
                                     if (isCurrentCalendar)
                                       Container(
                                         margin: const EdgeInsets.only(left: 12),
@@ -399,10 +400,10 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                                         ),
                                         child: Row(
                                           children: [
-                                            const Icon(Icons.auto_awesome, size: 10, color: Colors.blue),
+                                            const Icon(Icons.auto_awesome, size: 10, color: AppColors.accent),
                                             const SizedBox(width: 4),
                                             Text("ปัจจุบัน (ตามปฏิทิน)",
-                                                style: GoogleFonts.sarabun(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue)),
+                                                style: GoogleFonts.sarabun(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.accent)),
                                           ],
                                         ),
                                       ),
@@ -416,10 +417,10 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                                         style: GoogleFonts.sarabun(fontSize: 12)),
                                     if (isCurrentCalendar)
                                       Text("สถานะ: กำลังใช้งานสรุปผล (อัตโนมัติ)",
-                                          style: GoogleFonts.sarabun(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.bold))
+                                          style: GoogleFonts.sarabun(fontSize: 12, color: AppColors.accent, fontWeight: FontWeight.w600))
                                     else
                                       Text("สถานะ: พร้อมใช้งาน (ตามช่วงเวลา)",
-                                          style: GoogleFonts.sarabun(fontSize: 12, color: Colors.grey)),
+                                          style: GoogleFonts.sarabun(fontSize: 12, color: AppColors.textMuted)),
                                   ],
                                 ),
                                 leading: Container(
@@ -430,7 +431,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                                   ),
                                   child: Icon(
                                     isCurrentCalendar ? Icons.auto_awesome_rounded : Icons.calendar_today_rounded,
-                                    color: isCurrentCalendar ? Colors.blue : Colors.blueGrey,
+                                    color: isCurrentCalendar ? AppColors.accent : AppColors.textSecondary,
                                     size: 24,
                                   ),
                                 ),
@@ -439,10 +440,10 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                                     _firebaseService.deleteFiscalRound(r['id']);
                                     if (mounted) {
                                       ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('ลบข้อมูลรอบงบประมาณเรียบร้อยแล้วครับ')));
+                                          const SnackBar(content: Text('ลบข้อมูลรอบงบประมาณเรียบร้อยแล้ว')));
                                     }
                                   },
-                                  icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                                  icon: const Icon(Icons.delete_outline, color: AppColors.negative, size: 20),
                                 ),
                               );
                             },
@@ -508,9 +509,9 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
             value
                 ? 'ใช้กับทุกโรงเรียน (วันหยุดตามปฏิทิน)'
                 : 'เฉพาะ${SchoolInfo.fullName}',
-            style: GoogleFonts.sarabun(fontWeight: FontWeight.bold, color: primaryColor)),
+            style: GoogleFonts.sarabun(fontWeight: FontWeight.w600, color: primaryColor)),
         subtitle: Text('ปิดสวิตช์เพื่อบันทึกเป็นของโรงเรียนนี้เท่านั้น',
-            style: GoogleFonts.sarabun(color: Colors.blueGrey, fontSize: 12)),
+            style: GoogleFonts.sarabun(color: AppColors.textSecondary, fontSize: 12)),
       ),
     );
   }
@@ -532,14 +533,14 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('บันทึกวันหยุดไม่สำเร็จ: $e'), backgroundColor: Colors.red));
+          content: Text('บันทึกวันหยุดไม่สำเร็จ: $e'), backgroundColor: AppColors.negative));
       return;
     }
 
     _holidayTitleController.clear();
     if (!mounted) return;
     setState(() {}); // โหลดรายการใหม่
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึกวันหยุดเรียบร้อยแล้วครับ')));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึกวันหยุดเรียบร้อยแล้ว')));
   }
 
   Future<Set<String>> _loadSpecialDateKeys(String collection) async {
@@ -604,7 +605,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('คำนวณวันลาย้อนหลังใหม่แล้ว $updated รายการ')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('คำนวณวันลาย้อนหลังไม่สำเร็จ: $e'), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('คำนวณวันลาย้อนหลังไม่สำเร็จ: $e'), backgroundColor: AppColors.negative));
     } finally {
       if (mounted) setState(() => _isRecalculatingLeaves = false);
     }
@@ -659,13 +660,13 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
       setState(() {}); // โหลดรายการใหม่
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(toAdd.isEmpty
-            ? 'วันหยุดราชการหลักปี ${year + 543} มีครบอยู่แล้วครับ'
+            ? 'วันหยุดราชการหลักปี ${year + 543} มีครบอยู่แล้ว'
             : 'ติดตั้งวันหยุดราชการหลักปี ${year + 543} เพิ่ม ${toAdd.length} วัน')),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('ติดตั้งวันหยุดราชการหลักไม่สำเร็จ: $e'), backgroundColor: Colors.red),
+        SnackBar(content: Text('ติดตั้งวันหยุดราชการหลักไม่สำเร็จ: $e'), backgroundColor: AppColors.negative),
       );
     } finally {
       if (mounted) setState(() => _isInstallingHolidays = false);
@@ -678,7 +679,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('ลบไม่สำเร็จ: $e'), backgroundColor: Colors.red));
+          SnackBar(content: Text('ลบไม่สำเร็จ: $e'), backgroundColor: AppColors.negative));
       return;
     }
     if (!mounted) return;
@@ -695,10 +696,10 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('เพิ่มวันหยุดใหม่',
-                  style: GoogleFonts.sarabun(fontSize: 20, fontWeight: FontWeight.bold, color: primaryColor)),
+                  style: GoogleFonts.sarabun(fontSize: 18, fontWeight: FontWeight.w600, color: primaryColor)),
               const SizedBox(height: 4),
               Text('กำหนดวันหยุดนักขัตฤกษ์ วันหยุดพิเศษ หรือวันหยุดเฉพาะของโรงเรียน เพื่อใช้หักลบจำนวนวันลาโดยอัตโนมัติ',
-                  style: GoogleFonts.sarabun(color: Colors.blueGrey, fontSize: 13)),
+                  style: GoogleFonts.sarabun(color: AppColors.textSecondary, fontSize: 13)),
               const SizedBox(height: 24),
               LayoutBuilder(
                 builder: (context, constraints) {
@@ -742,11 +743,11 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                         : const Icon(Icons.auto_awesome_rounded, size: 18),
                     label: Text(_isRecalculatingLeaves ? 'กำลังคำนวณ...' : 'คำนวณวันลาย้อนหลังใหม่ทั้งหมด'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.orange.shade700,
-                      backgroundColor: Colors.orange.shade50,
-                      side: BorderSide(color: Colors.orange.shade200),
+                      foregroundColor: AppColors.pending,
+                      backgroundColor: AppColors.pendingSoft,
+                      side: BorderSide(color: AppColors.pendingSoft),
                       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                   // วันหยุดราชการใช้ร่วมกันทุกโรงเรียน ติดตั้งได้เฉพาะผู้ดูแลส่วนกลาง
@@ -761,7 +762,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                       foregroundColor: accentColor,
                       side: BorderSide(color: accentColor.withValues(alpha: 0.35)),
                       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                   ElevatedButton.icon(
@@ -772,7 +773,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                       backgroundColor: accentColor,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                 ],
@@ -785,11 +786,11 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
           collection: 'SpecialHolidays',
           title: 'รายการวันหยุดกำหนดเองในระบบ',
           emptyText: 'ยังไม่มีข้อมูลวันหยุดพิเศษเพิ่มเติม',
-          emptySubText: 'วันหยุดเสาร์-อาทิตย์และวันหยุดนักขัตฤกษ์พื้นฐานรองรับอยู่ในระบบโดยอัตโนมัติแล้วครับ',
+          emptySubText: 'วันหยุดเสาร์-อาทิตย์และวันหยุดนักขัตฤกษ์พื้นฐานรองรับอยู่ในระบบโดยอัตโนมัติแล้ว',
           chipSuffix: 'วัน',
-          accent: Colors.amber,
+          accent: AppColors.pending,
           icon: Icons.event_available_rounded,
-          deleteMessage: 'ลบวันหยุดเรียบร้อยแล้วครับ',
+          deleteMessage: 'ลบวันหยุดเรียบร้อยแล้ว',
         ),
       ],
     );
@@ -812,14 +813,14 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('บันทึกวันทำงานพิเศษไม่สำเร็จ: $e'), backgroundColor: Colors.red));
+          content: Text('บันทึกวันทำงานพิเศษไม่สำเร็จ: $e'), backgroundColor: AppColors.negative));
       return;
     }
 
     _specialWorkingTitleController.clear();
     if (!mounted) return;
     setState(() {}); // โหลดรายการใหม่
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึกวันทำงานพิเศษเรียบร้อยแล้วครับ')));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึกวันทำงานพิเศษเรียบร้อยแล้ว')));
   }
 
   Widget _buildSpecialWorkingDayTab() {
@@ -827,17 +828,17 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('ตั้งค่าวันทำงานพิเศษ (เสาร์-อาทิตย์)',
-            style: GoogleFonts.sarabun(fontSize: 22, fontWeight: FontWeight.bold, color: primaryColor)),
+            style: GoogleFonts.sarabun(fontSize: 22, fontWeight: FontWeight.w600, color: primaryColor)),
         const SizedBox(height: 4),
         Text('กำหนดวันเสาร์หรืออาทิตย์ที่มีนโยบายการเรียนการสอนของโรงเรียน เพื่อให้นับเป็นวันลาทำงานจริง (ไม่นับวันเสาร์-อาทิตย์)',
-            style: GoogleFonts.sarabun(color: Colors.blueGrey, fontSize: 13)),
+            style: GoogleFonts.sarabun(color: AppColors.textSecondary, fontSize: 13)),
         const SizedBox(height: 28),
         _buildGlassCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('เพิ่มวันทำงานพิเศษใหม่',
-                  style: GoogleFonts.sarabun(fontSize: 18, fontWeight: FontWeight.bold, color: primaryColor)),
+                  style: GoogleFonts.sarabun(fontSize: 18, fontWeight: FontWeight.w600, color: primaryColor)),
               const SizedBox(height: 20),
               LayoutBuilder(
                 builder: (context, constraints) {
@@ -867,7 +868,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                       backgroundColor: accentColor,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   );
 
@@ -903,7 +904,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
           chipSuffix: 'วัน',
           accent: Colors.yellow.shade700,
           icon: Icons.calendar_today_rounded,
-          deleteMessage: 'ลบวันทำงานพิเศษเรียบร้อยแล้วครับ',
+          deleteMessage: 'ลบวันทำงานพิเศษเรียบร้อยแล้ว',
         ),
       ],
     );
@@ -950,16 +951,16 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(title, style: GoogleFonts.sarabun(fontSize: 18, fontWeight: FontWeight.bold, color: primaryColor)),
+                      child: Text(title, style: GoogleFonts.sarabun(fontSize: 18, fontWeight: FontWeight.w600, color: primaryColor)),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
                         color: accent.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(18),
+                        borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text('ทั้งหมด ${records.length} $chipSuffix',
-                          style: GoogleFonts.sarabun(fontSize: 12, fontWeight: FontWeight.bold, color: accent)),
+                          style: GoogleFonts.sarabun(fontSize: 12, fontWeight: FontWeight.w600, color: accent)),
                     ),
                   ],
                 ),
@@ -972,9 +973,9 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(emptyText, style: GoogleFonts.sarabun(color: Colors.blueGrey, fontSize: 15, fontWeight: FontWeight.w600)),
+                        Text(emptyText, style: GoogleFonts.sarabun(color: AppColors.textSecondary, fontSize: 14, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 6),
-                        Text(emptySubText, style: GoogleFonts.sarabun(color: Colors.grey.shade400, fontSize: 12)),
+                        Text(emptySubText, style: GoogleFonts.sarabun(color: AppColors.textMuted, fontSize: 12)),
                       ],
                     ),
                   ),
@@ -996,17 +997,17 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                         decoration: BoxDecoration(color: accent.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(10)),
                         child: Icon(icon, size: 20, color: accent),
                       ),
-                      title: Text(_recordTitle(record), style: GoogleFonts.sarabun(fontWeight: FontWeight.bold, color: primaryColor)),
+                      title: Text(_recordTitle(record), style: GoogleFonts.sarabun(fontWeight: FontWeight.w600, color: primaryColor)),
                       subtitle: Text(
                           '${date == null ? '-' : _formatDateDisplay(date)}  •  '
                           '${_isAllSchoolsRecord(record) ? 'ทุกโรงเรียน (ตามปฏิทิน)' : 'เฉพาะโรงเรียน'}',
-                          style: GoogleFonts.sarabun(color: Colors.blueGrey)),
+                          style: GoogleFonts.sarabun(color: AppColors.textSecondary)),
                       // วันหยุดตามปฏิทินแก้ได้เฉพาะผู้ดูแลส่วนกลาง ซ่อนปุ่มลบไว้
                       // (กดไปก็ถูก RLS ปฏิเสธอยู่ดี)
                       trailing: _canEditSpecialDate(record)
                           ? IconButton(
                               onPressed: () => _deleteSpecialDateRecord(collection, record['id'].toString(), deleteMessage),
-                              icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+                              icon: const Icon(Icons.delete_outline_rounded, color: AppColors.negative),
                             )
                           : null,
                     );

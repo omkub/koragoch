@@ -33,7 +33,7 @@ export default function SchoolLogo({
   return (
     <span
       style={style}
-      className="grid shrink-0 place-items-center rounded-lg bg-brand-50 text-xs font-bold text-brand-600"
+      className="grid shrink-0 place-items-center rounded-lg bg-brand-50 text-xs font-semibold text-brand-600"
     >
       {initial}
     </span>

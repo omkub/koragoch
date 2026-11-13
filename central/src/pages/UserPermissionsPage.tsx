@@ -215,7 +215,7 @@ export default function UserPermissionsPage({ access }: { access: Access }) {
                     }`}
                     onClick={() => pick(t)}
                   >
-                    <span className="text-[13.5px] font-semibold">{t.fullName || t.username}</span>
+                    <span className="text-[13px] font-semibold">{t.fullName || t.username}</span>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
                       <span className={active ? 'badge-brand' : 'badge-slate'}>
                         {t.is_super_admin ? 'ส่วนกลาง' : roleName(t.id_role)}
@@ -243,12 +243,12 @@ export default function UserPermissionsPage({ access }: { access: Access }) {
           />
           <section ref={detailRef} className="card scroll-mt-20 overflow-hidden">
             {!selected ? (
-              <EmptyState>👈 กรุณาเลือกรายชื่อบุคลากรทางซ้ายเพื่อตั้งค่าสิทธิ์</EmptyState>
+              <EmptyState>เลือกรายชื่อบุคลากรทางซ้ายเพื่อตั้งค่าสิทธิ์</EmptyState>
             ) : (
               <>
                 <div className="card-title flex-wrap bg-slate-50/50">
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-ink">{selected.fullName || selected.username}</span>
+                    <span className="font-semibold text-ink">{selected.fullName || selected.username}</span>
                     <span className="badge-brand">
                       {selected.is_super_admin ? 'ผู้ดูแลส่วนกลาง' : roleName(selected.id_role)}
                     </span>

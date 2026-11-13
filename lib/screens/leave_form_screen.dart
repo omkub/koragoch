@@ -12,6 +12,7 @@ import '../widgets/leave_form_data.dart';
 import '../widgets/leave_template_document.dart';
 import '../widgets/thai_buddhist_calendar_widget.dart';
 import '../utils/leave_permissions.dart';
+import '../theme/app_tokens.dart';
 
 class LeaveFormScreen extends StatefulWidget {
   final Map<String, dynamic>? initialData;
@@ -274,7 +275,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('ไม่สามารถเลือกไฟล์ได้: $e'),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppColors.negative,
           behavior: SnackBarBehavior.floating,
         ));
       }
@@ -302,7 +303,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('กรุณากรอกข้อมูลให้ครบถ้วนครับ'),
         behavior: SnackBarBehavior.floating,
-        backgroundColor: Colors.amber,
+        backgroundColor: AppColors.pending,
       ));
       return;
     }
@@ -336,8 +337,8 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                   content: Text(
-                      '❌ ไม่สามารถส่งได้: คุณมีการลาในช่วงวันที่นี้อยู่แล้ว (${leave['startDate']} - ${leave['endDate']}) สถานะ: $status'),
-                  backgroundColor: Colors.redAccent,
+                      ' ไม่สามารถส่งได้: คุณมีการลาในช่วงวันที่นี้อยู่แล้ว (${leave['startDate']} - ${leave['endDate']}) สถานะ: $status'),
+                  backgroundColor: AppColors.negative,
                   behavior: SnackBarBehavior.floating,
                   duration: const Duration(seconds: 4),
                 ));
@@ -416,9 +417,9 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(_editRequestId != null
-              ? 'อัพเดตข้อมูลใบลาสำเร็จแล้วครับ ✨'
-              : 'ส่งใบลาสำเร็จแล้วครับ ✨'),
-          backgroundColor: const Color(0xFF10B981),
+              ? 'อัพเดตข้อมูลใบลาสำเร็จแล้ว'
+              : 'ส่งใบลาสำเร็จแล้ว'),
+          backgroundColor: AppColors.positive,
           behavior: SnackBarBehavior.floating,
         ));
 
@@ -453,7 +454,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text('เกิดข้อผิดพลาด: $e'),
-            backgroundColor: Colors.redAccent));
+            backgroundColor: AppColors.negative));
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -484,7 +485,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
     final bool isMobile = MediaQuery.of(context).size.width < 1100;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
+      backgroundColor: AppColors.raised,
       body: Row(
         children: [
           // Left Sidebar - Input Form (Enhanced UI)
@@ -507,7 +508,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                     Text("แบบฟอร์มใบลาใหม่",
                         style: GoogleFonts.sarabun(
                             fontSize: isMobile ? 24 : 32,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w600,
                             color: const Color(0xFF1E293B))),
                     const SizedBox(height: 24),
                     // ส่งใบลาแทนคนอื่นได้เฉพาะผู้ดูแลระบบ (รวมส่วนกลาง)
@@ -530,7 +531,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                                         Text("กำลังโหลดรายชื่อบุคลากร...",
                                             style: GoogleFonts.sarabun(
                                                 fontSize: 14,
-                                                color: Colors.blueGrey)),
+                                                color: AppColors.textSecondary)),
                                       ],
                                     )
                                   : _buildSearchableDropdown(
@@ -564,22 +565,22 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 16, vertical: 14),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
+                                color: AppColors.raised,
                                 borderRadius: BorderRadius.circular(12),
                                 border:
-                                    Border.all(color: const Color(0xFFE2E8F0)),
+                                    Border.all(color: AppColors.line),
                               ),
                               child: Row(
                                 children: [
                                   const Icon(Icons.lock_outline,
-                                      size: 18, color: Color(0xFF94A3B8)),
+                                      size: 18, color: AppColors.textMuted),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Text(
                                       _loggedInUser ?? 'กำลังโหลดชื่อ...',
                                       style: GoogleFonts.sarabun(
                                           fontSize: 16,
-                                          fontWeight: FontWeight.bold,
+                                          fontWeight: FontWeight.w600,
                                           color: const Color(0xFF334155)),
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -703,17 +704,17 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                                 prefixIcon: const Icon(
                                     Icons.calendar_month_outlined,
                                     size: 20,
-                                    color: Color(0xFF94A3B8)),
+                                    color: AppColors.textMuted),
                                 filled: true,
-                                fillColor: const Color(0xFFF8FAFC),
+                                fillColor: AppColors.page,
                                 border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
                                     borderSide: const BorderSide(
-                                        color: Color(0xFFE2E8F0))),
+                                        color: AppColors.line)),
                                 enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
                                     borderSide: const BorderSide(
-                                        color: Color(0xFFE2E8F0))),
+                                        color: AppColors.line)),
                                 contentPadding: const EdgeInsets.all(16),
                               ),
                               child: Text(_fiscalYearText,
@@ -735,13 +736,13 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                                     width: 54,
                                     height: 54,
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFEFF6FF),
+                                      color: AppColors.accentSoft,
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                          color: const Color(0xFFBFDBFE)),
+                                          color: AppColors.line),
                                     ),
                                     child: const Icon(Icons.attach_file_rounded,
-                                        color: Color(0xFF2563EB)),
+                                        color: AppColors.accent),
                                   ),
                                 ),
                               ],
@@ -753,21 +754,21 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 12, vertical: 8),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFF0FDF4),
+                                  color: AppColors.positiveSoft,
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
-                                      color: const Color(0xFFBBF7D0)),
+                                      color: AppColors.positiveSoft),
                                 ),
                                 child: Row(
                                   children: [
                                     const Icon(Icons.check_circle_rounded,
-                                        color: Color(0xFF16A34A), size: 16),
+                                        color: AppColors.positive, size: 16),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
                                         "ไฟล์แนบ: $_attachedFileName",
                                         style: const TextStyle(
-                                            color: Color(0xFF15803D),
+                                            color: AppColors.positive,
                                             fontSize: 13,
                                             fontWeight: FontWeight.w500),
                                         maxLines: 1,
@@ -781,7 +782,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                                         _attachedFileType = null;
                                       }),
                                       child: const Icon(Icons.close_rounded,
-                                          color: Color(0xFF16A34A), size: 18),
+                                          color: AppColors.positive, size: 18),
                                     ),
                                   ],
                                 ),
@@ -813,7 +814,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                                     ? "อัพเดตข้อมูล"
                                     : "บันทึกและส่งใบลา",
                                 style: GoogleFonts.sarabun(
-                                    fontSize: 18, fontWeight: FontWeight.bold)),
+                                    fontSize: 18, fontWeight: FontWeight.w600)),
                       ),
                     ),
                     const SizedBox(height: 40),
@@ -831,7 +832,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
             Expanded(
               flex: 7,
               child: Container(
-                color: const Color(0xFF475569),
+                color: AppColors.textSecondary,
                 child: Center(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(
@@ -886,20 +887,20 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: AppColors.page,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: AppColors.line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Icon(icon, size: 20, color: const Color(0xFF64748B)),
+            Icon(icon, size: 20, color: AppColors.textMuted),
             const SizedBox(width: 12),
             Text(title,
                 style: GoogleFonts.sarabun(
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                     color: const Color(0xFF1E293B))),
           ]),
           const Padding(
@@ -920,8 +921,8 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
           'เลือกช่วงเวลาการลา',
           style: GoogleFonts.sarabun(
             fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: const Color(0xFF64748B),
+            fontWeight: FontWeight.w600,
+            color: AppColors.textMuted,
           ),
         ),
         const SizedBox(height: 8),
@@ -932,7 +933,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: const Color(0xFF94A3B8)),
+              border: Border.all(color: AppColors.textMuted),
             ),
             child: Row(
               children: [
@@ -982,7 +983,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
             children: [
               if (selected) ...[
                 const Icon(Icons.check_rounded,
-                    size: 18, color: Color(0xFF0F172A)),
+                    size: 18, color: AppColors.text),
                 const SizedBox(width: 8),
               ],
               Flexible(
@@ -992,8 +993,8 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.sarabun(
                     fontSize: 14,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                    color: const Color(0xFF0F172A),
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w600,
+                    color: AppColors.text,
                   ),
                 ),
               ),
@@ -1006,23 +1007,23 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
 
   Widget _buildSegmentDivider() {
     return Container(
-        width: 1, height: double.infinity, color: const Color(0xFF94A3B8));
+        width: 1, height: double.infinity, color: AppColors.textMuted);
   }
 
   Widget _buildTotalDaysBadge() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0FDF4),
+        color: AppColors.positiveSoft,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFBBF7D0)),
+        border: Border.all(color: AppColors.positiveSoft),
       ),
       child: Text(
         'รวมจำนวนที่ลา: ${_formatLeaveDays(_calculatedTotalDays())} วัน',
         style: GoogleFonts.sarabun(
           fontSize: 14,
-          fontWeight: FontWeight.bold,
-          color: const Color(0xFF16A34A),
+          fontWeight: FontWeight.w600,
+          color: AppColors.positive,
         ),
       ),
     );
@@ -1037,8 +1038,8 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
             child: Text(label,
                 style: GoogleFonts.sarabun(
                     fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF64748B)))),
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textMuted))),
         InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
@@ -1048,10 +1049,10 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
             decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE2E8F0))),
+                border: Border.all(color: AppColors.line)),
             child: Row(children: [
               const Icon(Icons.event_available,
-                  size: 16, color: Colors.blueGrey),
+                  size: 16, color: AppColors.textSecondary),
               const SizedBox(width: 6),
               Text(value,
                   style: const TextStyle(
@@ -1089,13 +1090,13 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
           Row(
             children: [
               const Icon(Icons.bolt_rounded,
-                  size: 14, color: Color(0xFF94A3B8)),
+                  size: 14, color: AppColors.textMuted),
               const SizedBox(width: 4),
               Text(
                 typed.isEmpty ? 'เหตุผลที่ใช้บ่อย' : 'ตัวเลือกที่ใกล้เคียง',
                 style: GoogleFonts.sarabun(
                     fontSize: 11,
-                    color: const Color(0xFF94A3B8),
+                    color: AppColors.textMuted,
                     fontWeight: FontWeight.w600),
               ),
             ],
@@ -1120,13 +1121,13 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                       horizontal: 12, vertical: 7),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? const Color(0xFF0F172A)
-                        : const Color(0xFFF1F5F9),
+                        ? AppColors.text
+                        : AppColors.raised,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                         color: isSelected
-                            ? const Color(0xFF0F172A)
-                            : const Color(0xFFE2E8F0)),
+                            ? AppColors.text
+                            : AppColors.line),
                   ),
                   child: Text(
                     reason,
@@ -1134,7 +1135,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
                       fontSize: 12,
                       color: isSelected ? Colors.white : const Color(0xFF334155),
                       fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.w500,
+                          isSelected ? FontWeight.w600 : FontWeight.w500,
                     ),
                   ),
                 ),
@@ -1154,19 +1155,19 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
       onChanged: (v) => setState(() {}),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
-        prefixIcon: Icon(icon, size: 20, color: const Color(0xFF94A3B8)),
+        hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+        prefixIcon: Icon(icon, size: 20, color: AppColors.textMuted),
         filled: true,
         fillColor: Colors.white,
         border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+            borderSide: const BorderSide(color: AppColors.line)),
         enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+            borderSide: const BorderSide(color: AppColors.line)),
         focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Colors.blue, width: 2)),
+            borderSide: const BorderSide(color: AppColors.accent, width: 2)),
         contentPadding: const EdgeInsets.all(16),
       ),
       style: GoogleFonts.sarabun(fontSize: 14),
@@ -1204,21 +1205,21 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
           decoration: InputDecoration(
             hintText: 'พิมพ์เพื่อค้นหาชื่อบุคลากร...',
             prefixIcon:
-                const Icon(Icons.search, size: 20, color: Color(0xFF94A3B8)),
+                const Icon(Icons.search, size: 20, color: AppColors.textMuted),
             suffixIcon: Icon(
                 enabled ? Icons.arrow_drop_down : Icons.lock_outline,
-                color: const Color(0xFF94A3B8)),
+                color: AppColors.textMuted),
             filled: true,
-            fillColor: enabled ? Colors.white : const Color(0xFFF1F5F9),
+            fillColor: enabled ? Colors.white : AppColors.raised,
             border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                borderSide: const BorderSide(color: AppColors.line)),
             enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                borderSide: const BorderSide(color: AppColors.line)),
             disabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                borderSide: const BorderSide(color: AppColors.line)),
             contentPadding: const EdgeInsets.all(16),
           ),
           style: GoogleFonts.sarabun(
@@ -1235,12 +1236,12 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
       decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE2E8F0))),
+          border: Border.all(color: AppColors.line)),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: options.contains(initialValue) ? initialValue : options.first,
           isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF64748B)),
+          icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.textMuted),
           items: options
               .map((type) => DropdownMenuItem(
                   value: type,
@@ -1264,7 +1265,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
           ),
           child: Row(
             children: [
-              const Icon(Icons.info_outline, size: 16, color: Colors.blue),
+              const Icon(Icons.info_outline, size: 16, color: AppColors.accent),
               const SizedBox(width: 8),
               // ต้องห่อด้วย Expanded เพราะชื่อกลุ่มสาระบางอันยาวมาก
               // (เช่น "ครู | ชำนาญการพิเศษ | วิทยาศาสตร์และเทคโนโลยี")
@@ -1283,7 +1284,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
 
                   return Text(combinedInfo,
                       style: GoogleFonts.sarabun(
-                          fontSize: 12, color: Colors.blue.shade800));
+                          fontSize: 12, color: AppColors.accent));
                 }),
               ),
             ],

@@ -5,18 +5,18 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Noto Sans Thai"', 'system-ui', 'sans-serif'],
+        sans: ['Sarabun', 'system-ui', 'sans-serif'],
         // ตัวอย่างเอกสารราชการ (หัวใบลา) — ตรงกับแบบฟอร์มจริง
         doc: ['Sarabun', '"TH Sarabun New"', 'Tahoma', 'sans-serif'],
       },
       colors: {
         brand: {
-          50: '#eef2ff',
-          100: '#e0e7ff',
-          200: '#c7d2fe',
-          500: '#6366f1',
-          600: '#4f46e5',
-          700: '#4338ca',
+          50: '#eef1f8',
+          100: '#e1e6f1',
+          200: '#c3cde4',
+          500: '#2a4a9c',
+          600: '#1e3a8a',
+          700: '#172e6e',
         },
         ink: '#0f172a',
         canvas: '#f7f8fa',

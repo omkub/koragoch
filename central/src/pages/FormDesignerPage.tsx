@@ -315,7 +315,7 @@ export default function FormDesignerPage() {
       />
 
       <div className="alert-info mb-4 text-[13px] lg:hidden">
-        💡 แนะนำให้ออกแบบฟอร์มบนหน้าจอคอมพิวเตอร์เพื่อความสะดวก — บนมือถือสามารถดูตัวอย่างและทดลองพิมพ์ได้
+        แนะนำให้ออกแบบฟอร์มบนหน้าจอคอมพิวเตอร์เพื่อความสะดวก — บนมือถือสามารถดูตัวอย่างและทดลองพิมพ์ได้
       </div>
 
       {/* แถบจัดการขอบเขตแม่แบบและการบันทึก */}
@@ -331,10 +331,10 @@ export default function FormDesignerPage() {
                   setScope(e.target.value === 'global' ? 'global' : Number(e.target.value));
                 }}
               >
-                <option value="global">🌐 แม่แบบกลาง (ใช้ร่วมทุกโรงเรียน)</option>
+                <option value="global"> แม่แบบกลาง (ใช้ร่วมทุกโรงเรียน)</option>
                 {schools.map((s) => (
                   <option key={s.id_school} value={s.id_school}>
-                    🏫 {schoolName(s)}
+                    {schoolName(s)}
                   </option>
                 ))}
               </select>
@@ -455,11 +455,11 @@ export default function FormDesignerPage() {
           {/* หมวดย่อย 1: ตั้งค่ากระดาษ */}
           <section className="card p-4">
             <button
-              className="flex w-full items-center justify-between gap-2 text-left text-[13.5px] font-bold text-ink hover:text-brand-700"
+              className="flex w-full items-center justify-between gap-2 text-left text-[13px] font-semibold text-ink hover:text-brand-700"
               onClick={() => setShowPaper(!showPaper)}
             >
               <span className="flex items-center gap-2">
-                <span className="grid h-5 w-5 place-items-center rounded-md bg-brand-600 text-[11px] font-bold text-white">
+                <span className="grid h-5 w-5 place-items-center rounded-md bg-brand-600 text-[11px] font-semibold text-white">
                   1
                 </span>
                 <span>ตั้งค่าหน้ากระดาษ</span>
@@ -481,7 +481,7 @@ export default function FormDesignerPage() {
           <section className="card overflow-hidden">
             <div className="card-title">
               <div className="flex items-center gap-2">
-                <span className="grid h-5 w-5 place-items-center rounded-md bg-brand-600 text-[11px] font-bold text-white">
+                <span className="grid h-5 w-5 place-items-center rounded-md bg-brand-600 text-[11px] font-semibold text-white">
                   2
                 </span>
                 <span>โครงสร้างบรรทัด ({draft.blocks.length})</span>
@@ -528,7 +528,7 @@ export default function FormDesignerPage() {
                       </span>
                     </button>
                     {[
-                      { t: b.visible ? 'ซ่อน' : 'แสดง', s: b.visible ? '👁' : '◌', f: () => updateBlock({ ...b, visible: !b.visible }) },
+                      { t: b.visible ? 'ซ่อน' : 'แสดง', s: b.visible ? '◉' : '◌', f: () => updateBlock({ ...b, visible: !b.visible }) },
                       { t: 'เลื่อนขึ้น', s: '↑', f: () => moveBlock(i, -1) },
                       { t: 'เลื่อนลง', s: '↓', f: () => moveBlock(i, 1) },
                       ...(b.type !== 'approval' && b.type !== 'leaveTypes' && b.type !== 'header'
@@ -564,7 +564,7 @@ export default function FormDesignerPage() {
                 flags={flags}
               />
               {selected.builtIn && (
-                <p className="field-hint mt-2">บรรทัดของแม่แบบเริ่มต้น ลบไม่ได้ แต่กดซ่อนได้ด้วยปุ่ม 👁</p>
+                <p className="field-hint mt-2">บรรทัดของแม่แบบเริ่มต้น ลบไม่ได้ แต่กดซ่อนได้ด้วยปุ่มซ่อน</p>
               )}
             </section>
           )}
@@ -603,7 +603,7 @@ export default function FormDesignerPage() {
                 </select>
               </Field>
               <button className="btn-secondary" disabled={!context} onClick={printTest}>
-                🖨️ ทดลองพิมพ์ / PDF
+                ทดลองพิมพ์ / PDF
               </button>
             </div>
           </section>
@@ -628,7 +628,7 @@ export default function FormDesignerPage() {
               <EmptyState>กำลังโหลดข้อมูลตัวอย่าง...</EmptyState>
             </div>
           )}
-          <p className="field-hint mt-2">💡 คลิกที่บรรทัดใดก็ได้บนหน้ากระดาษตัวอย่างเพื่อเลือกขึ้นมาแก้ไข</p>
+          <p className="field-hint mt-2"> คลิกที่บรรทัดใดก็ได้บนหน้ากระดาษตัวอย่างเพื่อเลือกขึ้นมาแก้ไข</p>
         </div>
       </div>
     </>

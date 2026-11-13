@@ -17,14 +17,15 @@ import 'personnel_screen.dart';
 import 'report_overview_screen.dart';
 import 'login_screen.dart';
 import 'mobile/mobile_profile_screen.dart';
-import 'login_logs_screen.dart'; // 🛡️ นำเข้าหน้าประวัติการเข้าใช้งาน 🥇🏆
-import 'calendar_screen.dart'; // 📅 นำเข้าหน้าปฏิทินกิจกรรม 🥇🏆
+import 'login_logs_screen.dart'; // นำเข้าหน้าประวัติการเข้าใช้งาน
+import 'calendar_screen.dart'; // นำเข้าหน้าปฏิทินกิจกรรม
 import 'official_trip_screen.dart';
 import 'attendance_screen.dart';
 import '../services/attendance_service.dart';
 import '../utils/profile_image.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/school_logo.dart';
+import '../theme/app_tokens.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -335,23 +336,23 @@ class _MainLayoutState extends State<MainLayout> {
     bool isMobile = MediaQuery.of(context).size.width < 1100;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
+      backgroundColor: AppColors.raised,
       appBar: isMobile
           ? AppBar(
               backgroundColor: Colors.white,
               elevation: 0.5,
-              iconTheme: const IconThemeData(color: Color(0xFF0F172A)),
+              iconTheme: const IconThemeData(color: AppColors.text),
               centerTitle: true,
               title: Text('ระบบวันลา',
                   style: GoogleFonts.sarabun(
-                      color: const Color(0xFF0F172A),
-                      fontWeight: FontWeight.bold,
+                      color: AppColors.text,
+                      fontWeight: FontWeight.w600,
                       fontSize: 18)),
               actions: [
                 IconButton(
                   onPressed: _logout,
                   icon: const Icon(Icons.logout_rounded,
-                      size: 20, color: Colors.blueGrey),
+                      size: 20, color: AppColors.textSecondary),
                 ),
               ],
             )
@@ -378,7 +379,7 @@ class _MainLayoutState extends State<MainLayout> {
                   if (!isMobile) _buildSidebar(true, defaultAllowed),
                   Expanded(
                     child: Material(
-                      color: const Color(0xFFF1F5F9),
+                      color: AppColors.raised,
                       child: SizedBox(
                         width: double.infinity,
                         height: double.infinity,
@@ -440,7 +441,7 @@ class _MainLayoutState extends State<MainLayout> {
                 if (!isMobile) _buildSidebar(true, allowed),
                 Expanded(
                   child: Material(
-                    color: const Color(0xFFF1F5F9),
+                    color: AppColors.raised,
                     child: SizedBox(
                       width: double.infinity,
                       height: double.infinity,
@@ -470,10 +471,10 @@ class _MainLayoutState extends State<MainLayout> {
                     setState(() => _selectedIndex = _getGlobalIndex(index)),
                 type: BottomNavigationBarType.fixed,
                 backgroundColor: Colors.white,
-                selectedItemColor: const Color(0xFF0F172A),
+                selectedItemColor: AppColors.text,
                 unselectedItemColor: Colors.black26,
                 selectedLabelStyle: GoogleFonts.sarabun(
-                    fontSize: 12, fontWeight: FontWeight.bold),
+                    fontSize: 12, fontWeight: FontWeight.w600),
                 unselectedLabelStyle: GoogleFonts.sarabun(fontSize: 12),
                 items: const [
                   BottomNavigationBarItem(
@@ -508,7 +509,7 @@ class _MainLayoutState extends State<MainLayout> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: AppColors.page,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
       ),
@@ -533,8 +534,8 @@ class _MainLayoutState extends State<MainLayout> {
                     textAlign: TextAlign.center,
                     style: GoogleFonts.sarabun(
                       fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF0F172A),
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.text,
                     ),
                   ),
                 ),
@@ -566,13 +567,13 @@ class _MainLayoutState extends State<MainLayout> {
           width: 34,
           height: 34,
           decoration: BoxDecoration(
-            color: enabled ? Colors.white : const Color(0xFFF1F5F9),
+            color: enabled ? Colors.white : AppColors.raised,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
           ),
           child: Icon(icon,
               size: 20,
-              color: enabled ? const Color(0xFF0F172A) : Colors.black26),
+              color: enabled ? AppColors.text : Colors.black26),
         ),
       ),
     );
@@ -598,9 +599,6 @@ class _MainLayoutState extends State<MainLayout> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)
-              ],
             ),
             child: Row(
               children: [
@@ -608,7 +606,7 @@ class _MainLayoutState extends State<MainLayout> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
+                      color: AppColors.raised,
                       borderRadius: BorderRadius.circular(10)),
                   clipBehavior: Clip.antiAlias,
                   // โลโก้โรงเรียนของผู้ใช้ (ตั้งที่เว็บส่วนกลาง) — ไม่มี = ไอคอนกลาง
@@ -622,11 +620,11 @@ class _MainLayoutState extends State<MainLayout> {
                     Text('ระบบวันลา',
                         style: GoogleFonts.sarabun(
                             fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black)),
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.text)),
                     Text('ระบบข้อมูลสำหรับครู',
                         style: GoogleFonts.sarabun(
-                            fontSize: 10,
+                            fontSize: 11,
                             color: Colors.black38,
                             fontWeight: FontWeight.w500)),
                   ],
@@ -687,8 +685,8 @@ class _MainLayoutState extends State<MainLayout> {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: _selectedIndex == -1
-                  ? const Color(0xFFEFF6FF)
-                  : const Color(0xFFF8FAFC),
+                  ? AppColors.accentSoft
+                  : AppColors.page,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
@@ -703,7 +701,7 @@ class _MainLayoutState extends State<MainLayout> {
                           imageUrl: _userProfileImage,
                           size: 36,
                           name: _displayName.isNotEmpty ? _displayName : '?',
-                          backgroundColor: const Color(0xFFE2E8F0),
+                          backgroundColor: AppColors.line,
                           foregroundColor: Colors.black87,
                           borderRadius: BorderRadius.circular(10),
                         ),
@@ -716,7 +714,7 @@ class _MainLayoutState extends State<MainLayout> {
                               Text(_displayName,
                                   style: GoogleFonts.sarabun(
                                       fontSize: 13,
-                                      fontWeight: FontWeight.bold),
+                                      fontWeight: FontWeight.w600),
                                   overflow: TextOverflow.ellipsis),
                               Text(_displaySubtitle,
                                   style: GoogleFonts.sarabun(
@@ -764,27 +762,27 @@ class _MainLayoutState extends State<MainLayout> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFFF8FAFC) : Colors.transparent,
+            color: isSelected ? AppColors.page : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
             border: isSelected
                 ? const Border(
-                    left: BorderSide(color: Color(0xFF0F172A), width: 3))
+                    left: BorderSide(color: AppColors.accent, width: 3))
                 : null,
           ),
           child: Row(
             children: [
               Icon(icon,
                   size: 22,
-                  color: isSelected ? const Color(0xFF0F172A) : Colors.black45),
+                  color: isSelected ? AppColors.accent : AppColors.textMuted),
               const SizedBox(width: 16),
               Expanded(
                 child: Text(
                   label,
                   style: GoogleFonts.sarabun(
                     fontSize: 14,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                     color:
-                        isSelected ? const Color(0xFF0F172A) : Colors.black45,
+                        isSelected ? AppColors.text : Colors.black45,
                   ),
                 ),
               ),
@@ -795,7 +793,7 @@ class _MainLayoutState extends State<MainLayout> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(
-                    color: Colors.red,
+                    color: AppColors.negative,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -803,7 +801,7 @@ class _MainLayoutState extends State<MainLayout> {
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 11,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),

@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
 import '../utils/school_info.dart';
 import '../widgets/leave_form_page.dart';
+import '../theme/app_tokens.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -140,7 +141,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
+      backgroundColor: AppColors.raised,
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: _firebaseService.getCalendarActivitiesStream(
           fullName: (_userRole.contains('ผู้ดูแลระบบ') ||
@@ -186,8 +187,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           SchoolInfo.calendarTitle,
                           style: GoogleFonts.sarabun(
                             fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF0F172A),
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.text,
                           ),
                         ),
                         Text(
@@ -197,7 +198,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               : 'แสดงรายการการลาของคุณครูตามรอบปฏิทินครับ',
                           style: GoogleFonts.sarabun(
                             fontSize: 14,
-                            color: Colors.blueGrey,
+                            color: AppColors.textSecondary,
                           ),
                         ),
                       ],
@@ -208,9 +209,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       icon: const Icon(Icons.today, size: 18),
                       label: Text('กลับสู่วันนี้',
                           style:
-                              GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                              GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0F172A),
+                        backgroundColor: AppColors.text,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12)),
@@ -230,7 +231,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         child: Container(
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(24),
+                            borderRadius: BorderRadius.circular(16),
                             boxShadow: [
                               BoxShadow(
                                   color: Colors.black.withValues(alpha: 0.03),
@@ -259,17 +260,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             eventLoader: _getEventsForDay,
                             calendarStyle: CalendarStyle(
                               todayDecoration: BoxDecoration(
-                                  color: const Color(0xFF0F172A)
+                                  color: AppColors.text
                                       .withValues(alpha: 0.1),
                                   shape: BoxShape.circle),
                               todayTextStyle: const TextStyle(
-                                  color: Color(0xFF0F172A),
-                                  fontWeight: FontWeight.bold),
+                                  color: AppColors.text,
+                                  fontWeight: FontWeight.w600),
                               selectedDecoration: const BoxDecoration(
-                                  color: Color(0xFF0F172A),
+                                  color: AppColors.text,
                                   shape: BoxShape.circle),
                               markerDecoration: const BoxDecoration(
-                                  color: Colors.orange, shape: BoxShape.circle),
+                                  color: AppColors.pending, shape: BoxShape.circle),
                               markersMaxCount: 1,
                             ),
                             headerStyle: HeaderStyle(
@@ -278,13 +279,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               titleTextFormatter: (date, locale) =>
                                   _formatThaiMonthYear(date),
                               titleTextStyle: GoogleFonts.sarabun(
-                                  fontSize: 18, fontWeight: FontWeight.bold),
+                                  fontSize: 18, fontWeight: FontWeight.w600),
                               formatButtonDecoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
+                                color: AppColors.raised,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               formatButtonTextStyle: GoogleFonts.sarabun(
-                                  fontSize: 12, fontWeight: FontWeight.bold),
+                                  fontSize: 12, fontWeight: FontWeight.w600),
                             ),
                           ),
                         ),
@@ -300,7 +301,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             Text(
                               'กิจกรรมประจำวันที่ ${_formatThaiFullDate(_selectedDay ?? _focusedDay)}',
                               style: GoogleFonts.sarabun(
-                                  fontSize: 18, fontWeight: FontWeight.bold),
+                                  fontSize: 18, fontWeight: FontWeight.w600),
                             ),
                             const SizedBox(height: 16),
                             Expanded(
@@ -328,17 +329,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Colors.black.withValues(alpha: 0.02)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.event_available_outlined,
-                size: 48, color: Colors.grey.shade300),
+                size: 48, color: AppColors.textMuted),
             const SizedBox(height: 16),
             Text('ไม่มีรายการการลาในวันนี้ครับ',
-                style: GoogleFonts.sarabun(color: Colors.grey)),
+                style: GoogleFonts.sarabun(color: AppColors.textMuted)),
           ],
         ),
       );
@@ -350,10 +351,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
         final event = events[index];
         final type = event['leaveType'] ?? 'บันทึกกิจกรรม';
 
-        Color color = Colors.blue;
-        if (type.contains('ลาป่วย')) color = Colors.red;
-        if (type.contains('ลากิจ')) color = Colors.orange;
-        if (type.contains('ลาพักผ่อน')) color = Colors.green;
+        Color color = AppColors.accent;
+        if (type.contains('ลาป่วย')) color = AppColors.negative;
+        if (type.contains('ลากิจ')) color = AppColors.pending;
+        if (type.contains('ลาพักผ่อน')) color = AppColors.positive;
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -382,7 +383,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         child: Text(
                           event['fullName'] ?? 'ไม่ระบุชื่อ',
                           style: GoogleFonts.sarabun(
-                              fontWeight: FontWeight.bold, fontSize: 15),
+                              fontWeight: FontWeight.w600, fontSize: 14),
                         ),
                       ),
                       Container(
@@ -395,7 +396,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             style: GoogleFonts.sarabun(
                                 fontSize: 11,
                                 color: color,
-                                fontWeight: FontWeight.bold)),
+                                fontWeight: FontWeight.w600)),
                       ),
                     ],
                   ),

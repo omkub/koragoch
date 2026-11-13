@@ -14,10 +14,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/attendance_import.dart';
 import '../services/firebase_service.dart';
+import '../theme/app_tokens.dart';
 
-const _ink = Color(0xFF0F172A);
-const _muted = Color(0xFF64748B);
-const _line = Color(0xFFE2E8F0);
+const _ink = AppColors.text;
+const _muted = AppColors.textMuted;
+const _line = AppColors.line;
 
 class AttendanceImportTab extends StatefulWidget {
   const AttendanceImportTab({super.key});
@@ -141,7 +142,7 @@ class _AttendanceImportTabState extends State<AttendanceImportTab> {
         children: [
           Text('นำเข้าเวลาสแกนจากไฟล์',
               style: GoogleFonts.sarabun(
-                  fontSize: 20, fontWeight: FontWeight.bold, color: _ink)),
+                  fontSize: 18, fontWeight: FontWeight.w600, color: _ink)),
           const SizedBox(height: 4),
           Text(
               'export ไฟล์จากเครื่องสแกนหน้า (CSV / TXT / DAT) แล้วเลือกที่นี่ — '
@@ -167,14 +168,14 @@ class _AttendanceImportTabState extends State<AttendanceImportTab> {
                   style: GoogleFonts.sarabun(fontSize: 13, color: _muted)),
             ],
           ),
-          if (_error != null) _banner(_error!, Colors.red),
+          if (_error != null) _banner(_error!, AppColors.negative),
           if (_result != null) _buildResult(_result!),
           if (_table != null && _table!.rows.isNotEmpty) ...[
             const SizedBox(height: 20),
             _buildColumnPickers(),
             const SizedBox(height: 16),
             if (parsed == null)
-              _banner('เลือกคอลัมน์รหัสพนักงานและวันเวลาก่อน', Colors.orange)
+              _banner('เลือกคอลัมน์รหัสพนักงานและวันเวลาก่อน', AppColors.pending)
             else ...[
               _buildSummary(scans, invalid, unknownCodes),
               const SizedBox(height: 12),
@@ -184,7 +185,7 @@ class _AttendanceImportTabState extends State<AttendanceImportTab> {
                 children: [
                   FilledButton.icon(
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF16A34A),
+                      backgroundColor: AppColors.positive,
                       padding: const EdgeInsets.symmetric(
                           horizontal: 24, vertical: 16),
                     ),
@@ -203,7 +204,7 @@ class _AttendanceImportTabState extends State<AttendanceImportTab> {
                             ? 'กำลังนำเข้า $_progress / ${scans.length}'
                             : 'นำเข้า ${scans.length} รายการ',
                         style:
-                            GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                            GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
                   ),
                 ],
               ),
@@ -268,17 +269,17 @@ class _AttendanceImportTabState extends State<AttendanceImportTab> {
       spacing: 12,
       runSpacing: 8,
       children: [
-        _chip('อ่านได้ ${scans.length} รายการ', const Color(0xFF16A34A)),
-        _chip('ช่วงวันที่ $range', const Color(0xFF2563EB)),
+        _chip('อ่านได้ ${scans.length} รายการ', AppColors.positive),
+        _chip('ช่วงวันที่ $range', AppColors.accent),
         if (invalid > 0)
-          _chip('อ่านไม่ได้ $invalid แถว (ข้าม)', Colors.red),
+          _chip('อ่านไม่ได้ $invalid แถว (ข้าม)', AppColors.negative),
         if (unknownCodes.isNotEmpty)
           Tooltip(
             message: unknownCodes.take(30).join(', '),
             child: _chip(
                 'รหัสที่ยังไม่จับคู่กับครู ${unknownCodes.length} รหัส — '
                 'นำเข้าได้ ไปจับคู่ที่ web ทีหลัง',
-                Colors.orange),
+                AppColors.pending),
           ),
       ],
     );
@@ -297,12 +298,12 @@ class _AttendanceImportTabState extends State<AttendanceImportTab> {
             ListTile(
               dense: true,
               leading: Text(s.code,
-                  style: GoogleFonts.robotoMono(fontWeight: FontWeight.bold)),
+                  style: GoogleFonts.robotoMono(fontWeight: FontWeight.w600)),
               title: Text(_nameByCode[s.code] ?? 'ยังไม่จับคู่',
                   style: GoogleFonts.sarabun(
                       color: _nameByCode.containsKey(s.code)
                           ? _ink
-                          : Colors.orange)),
+                          : AppColors.pending)),
               trailing: Text(
                   '${s.localTime.day}/${s.localTime.month}/${s.localTime.year + 543}  '
                   '${two(s.localTime.hour)}:${two(s.localTime.minute)}:${two(s.localTime.second)}',
@@ -323,7 +324,7 @@ class _AttendanceImportTabState extends State<AttendanceImportTab> {
       'นำเข้าแล้ว ${r.inserted} รายการ'
       '${r.duplicates > 0 ? ' · ข้ามที่มีอยู่แล้ว ${r.duplicates}' : ''}'
       '${r.unmatched > 0 ? ' · ยังไม่จับคู่กับครู ${r.unmatched} (จับคู่ที่ web)' : ''}',
-      const Color(0xFF16A34A));
+      AppColors.positive);
 
   Widget _banner(String text, Color color) => Container(
         width: double.infinity,

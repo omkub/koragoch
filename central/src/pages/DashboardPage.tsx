@@ -203,7 +203,7 @@ export default function DashboardPage() {
         <div className="grid gap-3 md:grid-cols-3">
           {QUICK_CATEGORIES.map((cat) => (
             <div key={cat.title} className="card p-4">
-              <div className="text-[13.5px] font-bold text-ink">{cat.title}</div>
+              <div className="text-[13px] font-semibold text-ink">{cat.title}</div>
               <div className="mt-0.5 text-xs text-slate-500">{cat.desc}</div>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {cat.links.map((lk) => (
@@ -333,7 +333,7 @@ export default function DashboardPage() {
               <p className="py-4 text-sm text-slate-500">กำลังตรวจสอบ...</p>
             ) : todo.length === 0 ? (
               <div className="rounded-xl bg-emerald-50/70 p-4 text-center text-[13px] font-medium text-emerald-800">
-                เรียบร้อยดี ทุกโรงเรียนตั้งค่าครบถ้วน ✅
+                เรียบร้อยดี ทุกโรงเรียนตั้งค่าครบถ้วน
               </div>
             ) : (
               <ul className="divide-y divide-slate-100">

@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
+import '../theme/app_tokens.dart';
 
 class DashboardScreen extends StatefulWidget {
   final Function(int)? onNavigate;
@@ -215,7 +216,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
         return SizedBox.expand(
           child: Container(
-            color: const Color(0xFFF1F5F9),
+            color: AppColors.raised,
             child: SingleChildScrollView(
               // ไม่บังคับให้เลื่อนเสมอ ถ้าเนื้อหาพอดีจอจะเลื่อนไม่ได้เลย
               // (AlwaysScrollableScrollPhysics ทำให้ลากขึ้นลงได้ทั้งที่ไม่มีอะไรให้ดูต่อ)
@@ -249,16 +250,12 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildFullScreenLoading() {
     return SizedBox.expand(
       child: Container(
-        color: const Color(0xFFF1F5F9),
+        color: AppColors.raised,
         child: Stack(
           children: [
             Container(
               decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFFF8FAFC), Color(0xFFEFF6FF)],
-                ),
+                color: AppColors.page,
               ),
             ),
             Center(
@@ -278,9 +275,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const CircularProgressIndicator(
-                      color: Color(0xFF0F172A),
+                      color: AppColors.text,
                       strokeWidth: 3,
-                      backgroundColor: Color(0xFFE2E8F0),
+                      backgroundColor: AppColors.line,
                     ),
                     const SizedBox(height: 24),
                     Text(
@@ -288,7 +285,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       style: GoogleFonts.sarabun(
                         fontSize: 16,
                         color: const Color(0xFF1E293B),
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -296,7 +293,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     Text(
                       'กรุณารอสักครู่ ระบบกำลังจัดสรรสถิติให้คุณครับ',
                       style: GoogleFonts.sarabun(
-                          fontSize: 12, color: Colors.blueGrey),
+                          fontSize: 12, color: AppColors.textSecondary),
                     ),
                   ],
                 ),
@@ -327,26 +324,26 @@ class _DashboardScreenState extends State<DashboardScreen>
         ),
         children: [
           _buildCounterCard('การลาทั้งหมด', totalAll.toString(), 'รายการรวม',
-              Icons.summarize_outlined, const Color(0xFFEFF6FF), Colors.blue,
+              Icons.summarize_outlined, AppColors.accentSoft, AppColors.accent,
               isMobile: isMobile),
 
           // 🏗️ สร้างบัตรตามประเภทการลาในฐานข้อมูลจริงครับ 🥇🏆
           ...typeCountMap.entries.map((e) {
             IconData icon = Icons.description_outlined;
-            Color color = Colors.blueGrey;
+            Color color = AppColors.textSecondary;
 
             if (e.key.contains('ป่วย')) {
               icon = Icons.health_and_safety_outlined;
-              color = Colors.red;
+              color = AppColors.negative;
             } else if (e.key.contains('กิจ')) {
               icon = Icons.assignment_ind_outlined;
-              color = Colors.amber;
+              color = AppColors.pending;
             } else if (e.key.contains('คลอด')) {
               icon = Icons.child_care_rounded;
-              color = Colors.purple;
+              color = AppColors.accent;
             } else if (e.key.contains('พักผ่อน')) {
               icon = Icons.beach_access_rounded;
-              color = Colors.teal;
+              color = AppColors.accent;
             }
 
             return _buildCounterCard(e.key, e.value.toString(), 'รายการ', icon,
@@ -360,7 +357,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               'รอดำเนินการ',
               Icons.hourglass_empty_rounded,
               const Color(0xFFFFF7ED),
-              Colors.orange,
+              AppColors.pending,
               isWarning: pend > 0,
               isMobile: isMobile),
           _buildCounterCard(
@@ -368,8 +365,8 @@ class _DashboardScreenState extends State<DashboardScreen>
               apprv.toString(),
               'เสร็จสิ้น',
               Icons.check_circle_outline_rounded,
-              const Color(0xFFF0FDF4),
-              Colors.green,
+              AppColors.positiveSoft,
+              AppColors.positive,
               isMobile: isMobile),
         ],
       );
@@ -401,7 +398,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       padding: const EdgeInsets.symmetric(vertical: 80, horizontal: 40),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 20)
         ],
@@ -411,20 +408,20 @@ class _DashboardScreenState extends State<DashboardScreen>
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-                color: Colors.orange.shade50, shape: BoxShape.circle),
+                color: AppColors.pendingSoft, shape: BoxShape.circle),
             child: Icon(Icons.warning_amber_rounded,
-                size: 64, color: Colors.orange.shade700),
+                size: 64, color: AppColors.pending),
           ),
           const SizedBox(height: 24),
           Text('ยังไม่มีการกำหนดรอบงบประมาณ',
               style: GoogleFonts.sarabun(
-                  fontSize: 22, fontWeight: FontWeight.bold)),
+                  fontSize: 22, fontWeight: FontWeight.w600)),
           const SizedBox(height: 12),
           Text(
             'กรุณาไปที่เมนู "จัดการระบบ" -> แท็บ "ปีงบประมาณ"\nเพื่อกำหนดช่วงเวลาและเปิดใช้งานรอบงบประมาณที่ต้องการสรุปผลครับ',
             textAlign: TextAlign.center,
             style: GoogleFonts.sarabun(
-                fontSize: 15, color: Colors.blueGrey, height: 1.6),
+                fontSize: 14, color: AppColors.textSecondary, height: 1.6),
           ),
         ],
       ),
@@ -475,7 +472,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       title,
                       style: GoogleFonts.sarabun(
                           fontSize: isMobile ? 12 : 14,
-                          color: Colors.blueGrey,
+                          color: AppColors.textSecondary,
                           fontWeight: FontWeight.w600),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -491,14 +488,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                       style: GoogleFonts.sarabun(
                           fontSize: isMobile ? 24 : 32,
                           height: 1.2,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w600,
                           color: const Color(0xFF1E293B))),
                   const SizedBox(width: 4),
                   Expanded(
                       child: Text(sub,
                           style: GoogleFonts.sarabun(
                               fontSize: isMobile ? 10 : 13,
-                              color: Colors.blueGrey),
+                              color: AppColors.textSecondary),
                           overflow: TextOverflow.ellipsis)),
                 ],
               ),
@@ -512,9 +509,9 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildChartCard(Map<String, dynamic> typeMap, double totalCount,
       {bool isMobile = false}) {
     final List<Color> chartColors = [
-      const Color(0xFF0F172A),
+      AppColors.text,
       const Color(0xFF3B82F6),
-      const Color(0xFF10B981),
+      AppColors.positive,
       const Color(0xFFF59E0B),
       const Color(0xFFEC4899),
       const Color(0xFF8B5CF6),
@@ -526,7 +523,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       padding: EdgeInsets.all(isMobile ? 18 : 32),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.03),
@@ -544,14 +541,14 @@ class _DashboardScreenState extends State<DashboardScreen>
               const SizedBox(width: 12),
               Text('สัดส่วนจำนวนครั้งการลา',
                   style: GoogleFonts.sarabun(
-                      fontSize: 18, fontWeight: FontWeight.bold)),
+                      fontSize: 18, fontWeight: FontWeight.w600)),
             ],
           ),
           Expanded(
             child: totalCount == 0
                 ? Center(
                     child: Text('ยังไม่มีข้อมูลการลา',
-                        style: GoogleFonts.sarabun(color: Colors.grey)))
+                        style: GoogleFonts.sarabun(color: AppColors.textMuted)))
                 : Stack(
                     alignment: Alignment.center,
                     children: [
@@ -580,10 +577,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                         children: [
                           Text('รวม (ครั้ง)',
                               style: GoogleFonts.sarabun(
-                                  fontSize: 12, color: Colors.blueGrey)),
+                                  fontSize: 12, color: AppColors.textSecondary)),
                           Text(totalCount.toInt().toString(),
                               style: GoogleFonts.sarabun(
-                                  fontSize: 32, fontWeight: FontWeight.bold)),
+                                  fontSize: 32, fontWeight: FontWeight.w600)),
                         ],
                       ),
                     ],
@@ -626,7 +623,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       padding: EdgeInsets.all(isMobile ? 16 : 32),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.03),
@@ -643,11 +640,11 @@ class _DashboardScreenState extends State<DashboardScreen>
               Row(
                 children: [
                   const Icon(Icons.history_toggle_off_rounded,
-                      size: 20, color: Colors.teal),
+                      size: 20, color: AppColors.accent),
                   const SizedBox(width: 12),
                   Text('ประวัติล่าสุด',
                       style: GoogleFonts.sarabun(
-                          fontSize: 18, fontWeight: FontWeight.bold)),
+                          fontSize: 18, fontWeight: FontWeight.w600)),
                 ],
               ),
               InkWell(
@@ -661,13 +658,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
+                      color: AppColors.raised,
                       borderRadius: BorderRadius.circular(6)),
                   child: Text('ดูทั้งหมด',
                       style: GoogleFonts.sarabun(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blueGrey)),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary)),
                 ),
               ),
             ],
@@ -677,7 +674,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             child: leaves.isEmpty
                 ? Center(
                     child: Text('ยังไม่มีประวัติการลา',
-                        style: GoogleFonts.sarabun(color: Colors.grey)))
+                        style: GoogleFonts.sarabun(color: AppColors.textMuted)))
                 : ListView.builder(
                     itemCount: leaves.length > 5 ? 5 : leaves.length,
                     itemBuilder: (context, index) {
@@ -704,18 +701,18 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildHistoryItem(String name, String pos, String type, String days,
       String date, String reason, String status) {
-    Color statusBg = const Color(0xFFDCFCE7);
-    Color statusText = Colors.teal;
+    Color statusBg = AppColors.positiveSoft;
+    Color statusText = AppColors.accent;
     if (status.contains('รอ')) {
-      statusBg = Colors.orange.shade50;
-      statusText = Colors.orange.shade700;
+      statusBg = AppColors.pendingSoft;
+      statusText = AppColors.pending;
     }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: AppColors.page,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.black.withValues(alpha: 0.02)),
       ),
@@ -725,7 +722,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           Row(
             children: [
               const Icon(Icons.person_pin_rounded,
-                  size: 24, color: Colors.blueGrey),
+                  size: 24, color: AppColors.textSecondary),
               const SizedBox(width: 12),
               // 🔥 ใช้ Expanded ตรงนี้เพื่อแก้ปัญหา Right Overflow ครับ 🥇🏆
               Expanded(
@@ -739,7 +736,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           child: Text(
                             name,
                             style: GoogleFonts.sarabun(
-                                fontSize: 13, fontWeight: FontWeight.bold),
+                                fontSize: 13, fontWeight: FontWeight.w600),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -748,7 +745,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           padding: const EdgeInsets.symmetric(
                               horizontal: 4, vertical: 1),
                           decoration: BoxDecoration(
-                              color: const Color(0xFFE2E8F0),
+                              color: AppColors.line,
                               borderRadius: BorderRadius.circular(4)),
                           child: Text(pos,
                               style: const TextStyle(
@@ -761,13 +758,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                       children: [
                         Text(type,
                             style: GoogleFonts.sarabun(
-                                fontSize: 11, fontWeight: FontWeight.bold)),
+                                fontSize: 11, fontWeight: FontWeight.w600)),
                         const SizedBox(width: 4),
                         Text(days,
                             style: GoogleFonts.sarabun(
                                 fontSize: 11,
-                                color: Colors.orange,
-                                fontWeight: FontWeight.bold)),
+                                color: AppColors.pending,
+                                fontWeight: FontWeight.w600)),
                       ],
                     ),
                   ],
@@ -783,7 +780,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     style: TextStyle(
                         fontSize: 9,
                         color: statusText,
-                        fontWeight: FontWeight.bold)),
+                        fontWeight: FontWeight.w600)),
               ),
             ],
           ),
@@ -791,7 +788,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           Padding(
             padding: const EdgeInsets.only(left: 36, top: 4),
             child: Text(date,
-                style: const TextStyle(fontSize: 10, color: Colors.black26)),
+                style: const TextStyle(fontSize: 11, color: Colors.black26)),
           ),
         ],
       ),

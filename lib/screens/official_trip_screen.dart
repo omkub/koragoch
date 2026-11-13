@@ -14,6 +14,7 @@ import '../forms/trip_render_context.dart';
 import '../services/form_template_service.dart';
 import '../widgets/leave_template_document.dart';
 import '../widgets/thai_buddhist_calendar_widget.dart';
+import '../theme/app_tokens.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // หน้า "ประวัติไปราชการ / ประชุม" (เมนู 9) + หน้า "บันทึกไปราชการ / ประชุม"
@@ -29,19 +30,19 @@ import '../widgets/thai_buddhist_calendar_widget.dart';
 // ซึ่งเป็นตัวกันจริง — ถ้าฐานข้อมูลปฏิเสธ จะแสดงข้อความจาก trigger
 // ═══════════════════════════════════════════════════════════════
 
-const _ink = Color(0xFF0F172A);
-const _muted = Color(0xFF64748B);
-const _line = Color(0xFFE2E8F0);
-const _pageBg = Color(0xFFF1F5F9);
+const _ink = AppColors.text;
+const _muted = AppColors.textMuted;
+const _line = AppColors.line;
+const _pageBg = AppColors.raised;
 
 Color _statusColor(String status) {
   switch (status) {
     case OfficialTripService.approved:
-      return const Color(0xFF16A34A);
+      return AppColors.positive;
     case OfficialTripService.rejected:
-      return const Color(0xFFDC2626);
+      return AppColors.negative;
     default:
-      return const Color(0xFFD97706);
+      return AppColors.pending;
   }
 }
 
@@ -240,13 +241,13 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
       await action();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(doneMessage), backgroundColor: Colors.green));
+          SnackBar(content: Text(doneMessage), backgroundColor: AppColors.positive));
       await _loadTrips();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(OfficialTripService.errorMessage(e)),
-          backgroundColor: Colors.red));
+          backgroundColor: AppColors.negative));
     }
   }
 
@@ -254,7 +255,7 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
     if (_myId == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('ไม่พบข้อมูลผู้ใช้ กรุณาออกจากระบบแล้วเข้าใหม่'),
-          backgroundColor: Colors.red));
+          backgroundColor: AppColors.negative));
       return;
     }
     if (trip == null && widget.onCreate != null) {
@@ -286,7 +287,7 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('ลบรายการไปราชการ',
-            style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+            style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
         content: Text('ลบ "${trip['title']}" ใช่ไหม? ลบแล้วกู้คืนไม่ได้',
             style: GoogleFonts.sarabun()),
         actions: [
@@ -294,7 +295,7 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('ยกเลิก')),
           FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              style: FilledButton.styleFrom(backgroundColor: AppColors.negative),
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('ลบ')),
         ],
@@ -312,7 +313,7 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('พิจารณาการไปราชการ',
-            style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+            style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
         content: SizedBox(
           width: 420,
           child: Column(
@@ -320,7 +321,7 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(trip['title']?.toString() ?? '',
-                  style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                  style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
               Text('${_teacherName(trip['id_user'])} · ${_dateText(trip)}',
                   style: GoogleFonts.sarabun(color: _muted)),
               const SizedBox(height: 16),
@@ -336,12 +337,12 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
           TextButton(
               onPressed: () => Navigator.pop(ctx), child: const Text('ยกเลิก')),
           OutlinedButton(
-              style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+              style: OutlinedButton.styleFrom(foregroundColor: AppColors.negative),
               onPressed: () => Navigator.pop(ctx, OfficialTripService.rejected),
               child: const Text('ไม่อนุมัติ')),
           FilledButton(
               style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF16A34A)),
+                  backgroundColor: AppColors.positive),
               onPressed: () => Navigator.pop(ctx, OfficialTripService.approved),
               child: const Text('อนุมัติ')),
         ],
@@ -365,7 +366,7 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('รายงานผลการไปราชการ',
-            style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+            style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
         content: SizedBox(
           width: 520,
           child: TextField(
@@ -443,7 +444,7 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(trip['title']?.toString() ?? '',
-            style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+            style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
         content: SizedBox(
           width: 560,
           child: SingleChildScrollView(
@@ -537,7 +538,7 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
         onPressed: () => _openForm(),
         icon: const Icon(Icons.add_rounded),
         label: Text('บันทึกไปราชการ',
-            style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+            style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
       ),
     );
   }
@@ -552,7 +553,7 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
               Text('ประวัติไปราชการ / ประชุม',
                   style: GoogleFonts.sarabun(
                       fontSize: isMobile ? 22 : 28,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w600,
                       color: Colors.black)),
               Text('ปีงบประมาณ $_fiscalYear · ไม่นับเป็นวันลา',
                   style: GoogleFonts.sarabun(fontSize: 13, color: _muted)),
@@ -578,7 +579,7 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
             onPressed: () => _openForm(),
             icon: const Icon(Icons.add_rounded, size: 20),
             label: Text('บันทึกไปราชการ',
-                style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
           ),
       ],
     );
@@ -679,11 +680,11 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.error_outline_rounded,
-                color: Colors.red, size: 40),
+                color: AppColors.negative, size: 40),
             const SizedBox(height: 8),
             Text('โหลดข้อมูลไม่สำเร็จ: $_error',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.sarabun(color: Colors.red)),
+                style: GoogleFonts.sarabun(color: AppColors.negative)),
             const SizedBox(height: 8),
             TextButton(onPressed: _loadTrips, child: const Text('ลองใหม่')),
           ],
@@ -696,7 +697,7 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
             _trips.isEmpty
                 ? 'ยังไม่มีการไปราชการในปีงบประมาณ $_fiscalYear'
                 : 'ไม่พบรายการที่ตรงกับตัวกรอง',
-            style: GoogleFonts.sarabun(color: _muted, fontSize: 15)),
+            style: GoogleFonts.sarabun(color: _muted, fontSize: 14)),
       );
     }
     return RefreshIndicator(
@@ -741,7 +742,7 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
                 width: 64,
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
+                  color: AppColors.page,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: _line),
                 ),
@@ -750,7 +751,7 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
                     Text(start == null ? '-' : '${start.day}',
                         style: GoogleFonts.sarabun(
                             fontSize: 22,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w600,
                             color: _ink)),
                     Text(
                         start == null
@@ -775,13 +776,13 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
                         Text(trip['title']?.toString() ?? '',
                             style: GoogleFonts.sarabun(
                                 fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w600,
                                 color: _ink)),
                         _tag(trip['tripType']?.toString() ?? '',
-                            const Color(0xFF2563EB)),
+                            AppColors.accent),
                         _tag(status, _statusColor(status)),
                         if (hasReport)
-                          _tag('รายงานผลแล้ว', const Color(0xFF7C3AED)),
+                          _tag('รายงานผลแล้ว', AppColors.accent),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -833,7 +834,7 @@ class _OfficialTripScreenState extends State<OfficialTripScreen> {
       if (_canEdit(trip)) _menuItem('edit', Icons.edit_rounded, 'แก้ไข'),
       if (_canEdit(trip))
         _menuItem('delete', Icons.delete_outline_rounded, 'ลบ',
-            color: Colors.red),
+            color: AppColors.negative),
     ];
     return PopupMenuButton<String>(
       icon: const Icon(Icons.more_vert_rounded, color: _muted),
@@ -952,7 +953,7 @@ class _OfficialTripFormScreenState extends State<OfficialTripFormScreen> {
         color: _pageBg,
         child: Center(
           child: Text('ไม่พบข้อมูลผู้ใช้ กรุณาออกจากระบบแล้วเข้าใหม่',
-              style: GoogleFonts.sarabun(color: Colors.red, fontSize: 15)),
+              style: GoogleFonts.sarabun(color: AppColors.negative, fontSize: 14)),
         ),
       );
     }
@@ -1202,14 +1203,14 @@ class _TripFormPanelState extends State<TripFormPanel> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content:
               Text(_isEdit ? 'บันทึกการแก้ไขแล้ว' : 'บันทึกการไปราชการแล้ว'),
-          backgroundColor: Colors.green));
+          backgroundColor: AppColors.positive));
       _finish(true);
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(OfficialTripService.errorMessage(e)),
-          backgroundColor: Colors.red));
+          backgroundColor: AppColors.negative));
     }
   }
 
@@ -1354,8 +1355,8 @@ class _TripFormPanelState extends State<TripFormPanel> {
                       Text(
                         'รวม ${FirebaseService.formatLeaveDayCount(_totalDays)} วันทำการ',
                         style: GoogleFonts.sarabun(
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF16A34A)),
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.positive),
                       ),
                     ],
                   ),
@@ -1441,7 +1442,7 @@ class _TripFormPanelState extends State<TripFormPanel> {
           : const Icon(Icons.save_rounded, size: 18),
       label: Text(_isEdit ? 'บันทึกการแก้ไข' : 'บันทึก',
           style: GoogleFonts.sarabun(
-              fontWeight: FontWeight.bold, fontSize: widget.asPage ? 18 : null)),
+              fontWeight: FontWeight.w600, fontSize: widget.asPage ? 18 : null)),
     );
 
     if (widget.asPage) return _buildPage(fields, saveButton);
@@ -1459,7 +1460,7 @@ class _TripFormPanelState extends State<TripFormPanel> {
                   child: Text(
                       _isEdit ? 'แก้ไขการไปราชการ' : 'บันทึกการไปราชการ',
                       style: GoogleFonts.sarabun(
-                          fontSize: 20, fontWeight: FontWeight.bold)),
+                          fontSize: 18, fontWeight: FontWeight.w600)),
                 ),
                 IconButton(
                     onPressed: _saving ? null : () => _finish(false),
@@ -1538,7 +1539,7 @@ class _TripFormPanelState extends State<TripFormPanel> {
                                   : 'บันทึกไปราชการ / ประชุม',
                               style: GoogleFonts.sarabun(
                                   fontSize: 32,
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight: FontWeight.w600,
                                   color: const Color(0xFF1E293B))),
                         ),
                         if (_isEdit)
@@ -1553,7 +1554,7 @@ class _TripFormPanelState extends State<TripFormPanel> {
                     Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
+                        color: AppColors.page,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(color: _line),
                       ),
@@ -1571,7 +1572,7 @@ class _TripFormPanelState extends State<TripFormPanel> {
         Expanded(
           flex: 7,
           child: Container(
-            color: const Color(0xFF475569),
+            color: AppColors.textSecondary,
             child: Center(
               child: SingleChildScrollView(
                 padding:
@@ -1609,7 +1610,7 @@ class _TripFormPanelState extends State<TripFormPanel> {
         padding: const EdgeInsets.only(bottom: 10),
         child: Text(text,
             style: GoogleFonts.sarabun(
-                fontSize: 14, fontWeight: FontWeight.bold, color: _muted)),
+                fontSize: 14, fontWeight: FontWeight.w600, color: _muted)),
       );
 
   /// วางช่องเรียงกันในแนวนอน (จอแคบเรียงลงมาแทน)
@@ -1694,7 +1695,7 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
 
     return AlertDialog(
       title: Text('เลือกผู้ร่วมเดินทาง (${_selected.length} คน)',
-          style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+          style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
       content: SizedBox(
         width: 460,
         height: 480,
