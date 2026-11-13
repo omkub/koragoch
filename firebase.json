@@ -19,6 +19,10 @@
         "destination": "/central/index.html"
       },
       {
+        "source": "/school/**",
+        "destination": "/school/index.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
