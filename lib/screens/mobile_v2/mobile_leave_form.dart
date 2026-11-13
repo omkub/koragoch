@@ -19,6 +19,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/firebase_service.dart';
 import '../../services/official_trip_service.dart';
 import '../../widgets/thai_buddhist_calendar_widget.dart';
+import '../../utils/leave_days.dart';
 import '../../utils/profile_image.dart';
 import '../../utils/staff_status.dart';
 import '../../widgets/leave_form_page.dart';
@@ -66,6 +67,8 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
   String? _attachedFileDataUrl;
   String? _attachedFileType;
   bool _openingPreview = false;
+  Set<String> _holidayKeys = {};
+  Set<String> _specialWorkingKeys = {};
 
   @override
   void initState() {
@@ -74,6 +77,17 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
       _initializeEditMode(widget.initialData!);
     }
     _loadUser();
+    _loadSpecialDates();
+  }
+
+  /// วันหยุด / วันทำงานพิเศษ ใช้นับจำนวนวันลา (ตัวโหลดเดียวกับ app PC)
+  Future<void> _loadSpecialDates() async {
+    final dates = await OfficialTripService().getSpecialDates();
+    if (!mounted) return;
+    setState(() {
+      _holidayKeys = dates.holidays;
+      _specialWorkingKeys = dates.workingDays;
+    });
   }
 
   void _initializeEditMode(Map<String, dynamic> data) {
@@ -231,19 +245,19 @@ class _MobileLeaveFormV2State extends State<MobileLeaveFormV2> {
   bool get _isHalfDayActive =>
       _isHalfDay && _isSameCalendarDay(_startDate, _endDate);
 
-  bool get _isMaternityLeave =>
-      (_selectedLeaveType ?? '').toString().contains('คลอด');
+  bool get _isMaternityLeave => LeaveDays.isMaternityType(_selectedLeaveType);
 
   DateTime _maternityEndDateFrom(DateTime start) {
     final first = DateTime(start.year, start.month, start.day);
     return first.add(const Duration(days: 89));
   }
 
-  num _calculatedTotalDays() {
-    if (_isHalfDayActive) return 0.5;
-    final days = _endDate.difference(_startDate).inDays + 1;
-    return days < 1 ? 1 : days;
-  }
+  /// สูตรกลาง — ห้ามเขียนสูตรเองในหน้าจอ (ดู lib/utils/leave_days.dart)
+  num _calculatedTotalDays() => LeaveDays.count(_startDate, _endDate,
+      halfDay: _isHalfDayActive,
+      maternity: _isMaternityLeave,
+      holidays: _holidayKeys,
+      workingDays: _specialWorkingKeys);
 
   String _formatLeaveDays(num value) =>
       FirebaseService.formatLeaveDayCount(value);

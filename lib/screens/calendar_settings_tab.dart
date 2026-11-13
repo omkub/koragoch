@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/firebase_service.dart';
+import '../utils/leave_days.dart';
 import '../utils/school_info.dart';
 import '../widgets/thai_buddhist_calendar_widget.dart';
 
@@ -567,31 +568,13 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
       return double.tryParse(current?.toString() ?? '') ?? 0;
     }
 
-    final first = DateTime(start.year, start.month, start.day).isBefore(DateTime(end.year, end.month, end.day))
-        ? DateTime(start.year, start.month, start.day)
-        : DateTime(end.year, end.month, end.day);
-    final last = DateTime(start.year, start.month, start.day).isBefore(DateTime(end.year, end.month, end.day))
-        ? DateTime(end.year, end.month, end.day)
-        : DateTime(start.year, start.month, start.day);
-
-    final leaveType = (leave['leaveType'] ?? '').toString();
-    if (leaveType.contains('คลอด')) {
-      return last.difference(first).inDays + 1;
-    }
-
-    double total = 0;
-    for (DateTime day = first; !day.isAfter(last); day = day.add(const Duration(days: 1))) {
-      final key = _dateKey(day);
-      final isWeekend = day.weekday == DateTime.saturday || day.weekday == DateTime.sunday;
-      if (specialWorkingKeys.contains(key)) {
-        total += 1;
-      } else if (holidayKeys.contains(key)) {
-        continue;
-      } else if (!isWeekend) {
-        total += 1;
-      }
-    }
-    return total;
+    // สูตรกลางเดียวกับหน้าส่งใบลา (lib/utils/leave_days.dart)
+    return LeaveDays.count(start, end,
+            maternity:
+                LeaveDays.isMaternityType(leave['leaveType']?.toString()),
+            holidays: holidayKeys,
+            workingDays: specialWorkingKeys)
+        .toDouble();
   }
 
   Future<void> _recalculateAllLeaveDays() async {
