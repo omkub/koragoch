@@ -574,15 +574,15 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(_isApproveStatus(newStatus)
-                ? '✅ อนุมัติเรียบร้อย (รับที่ ${updateData['receiveNumber']})'
-                : '✅ ปรับปรุงสถานะเป็น: $newStatus เรียบร้อยแล้ว'),
+                ? 'อนุมัติเรียบร้อย (รับที่ ${updateData['receiveNumber']})'
+                : 'ปรับปรุงสถานะเป็น: $newStatus เรียบร้อยแล้ว'),
             backgroundColor:
                 _isApproveStatus(newStatus) ? Colors.green : Colors.orange));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('❌ เกิดข้อผิดพลาด: $e'),
+            content: Text('เกิดข้อผิดพลาด: $e'),
             backgroundColor: Colors.red));
       }
     }
@@ -625,13 +625,13 @@ class _MobileHistoryScreenState extends State<MobileHistoryScreen> {
                 // จึงต้องเช็ก context.mounted ของมันเองหลัง await
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text('✅ ลบรายการเรียบร้อยแล้ว'),
+                      content: Text('ลบรายการเรียบร้อยแล้ว'),
                       backgroundColor: Colors.black));
                 }
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text('❌ ล้มเหลว: $e'),
+                      content: Text('ล้มเหลว: $e'),
                       backgroundColor: Colors.red));
                 }
               }

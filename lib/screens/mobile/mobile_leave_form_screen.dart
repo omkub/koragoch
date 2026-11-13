@@ -339,7 +339,7 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
           children: [
             ListTile(
                 leading: const Icon(Icons.image_rounded),
-                title: const Text('เลือกรูปภาพ (แนะนำ - เร็วที่สุด ⚡)'),
+                title: const Text('เลือกรูปภาพ (แนะนำ - เร็วที่สุด)'),
                 onTap: () => Navigator.pop(ctx, 'img')),
             ListTile(
                 leading: const Icon(Icons.file_present_rounded),
@@ -443,7 +443,7 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
           if (existingStart != null && existingEnd != null) {
             if (_hasLeaveConflict(leave, newStart, newEnd)) {
               _showError(
-                  '❌ ไม่สามารถส่งได้: คุณมีการลาในช่วงวันที่นี้อยู่แล้ว (${leave['startDate']} - ${leave['endDate']})');
+                  'ไม่สามารถส่งได้: คุณมีการลาในช่วงวันที่นี้อยู่แล้ว (${leave['startDate']} - ${leave['endDate']})');
               setState(() => _isSubmitting = false);
               return;
             }
@@ -464,7 +464,7 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
                     child: CircularProgressIndicator(
                         strokeWidth: 2, color: Colors.white)),
                 SizedBox(width: 16),
-                Text('กำลังส่งไฟล์แนบใบรับรองแพทย์... 📂'),
+                Text('กำลังส่งไฟล์แนบใบรับรองแพทย์...'),
               ],
             ),
             duration: Duration(minutes: 1),
@@ -520,8 +520,8 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
       if (mounted) {
         _resetForm();
         _showSuccess(_editRequestId != null
-            ? "อัพเดตข้อมูลใบลาสำเร็จเรียบร้อยแล้วครับ"
-            : "ส่งใบลาสำเร็จเรียบร้อยแล้วครับ");
+            ? "อัพเดตข้อมูลใบลาสำเร็จเรียบร้อยแล้ว"
+            : "ส่งใบลาสำเร็จเรียบร้อยแล้ว");
         _scrollController.animateTo(0,
             duration: const Duration(milliseconds: 500), curve: Curves.easeOut);
 
@@ -598,7 +598,7 @@ class _MobileLeaveFormScreenState extends State<MobileLeaveFormScreen> {
             const Icon(Icons.check_circle_rounded,
                 color: Color(0xFF10B981), size: 28),
             const SizedBox(width: 12),
-            Text("สำเร็จ!",
+            Text("สำเร็จ",
                 style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
           ],
         ),
