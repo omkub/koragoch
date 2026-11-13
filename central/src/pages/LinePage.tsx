@@ -172,7 +172,7 @@ export default function LinePage() {
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="subcard flex flex-col justify-between gap-3">
               <div>
-                <div className="text-[13.5px] font-bold text-ink">1.1 URL ของ Google Apps Script</div>
+                <div className="text-[13px] font-semibold text-ink">1.1 URL ของ Google Apps Script</div>
                 <p className="mt-0.5 text-xs text-slate-500">
                   Web App URL ที่ลงท้ายด้วย <code>/exec</code> สำหรับส่งข้อความ LINE และอัปโหลดไฟล์
                 </p>
@@ -192,7 +192,7 @@ export default function LinePage() {
 
             <div className="subcard flex flex-col justify-between gap-3">
               <div>
-                <div className="text-[13.5px] font-bold text-ink">1.2 เครื่องมือดึง Group ID ล่าสุด</div>
+                <div className="text-[13px] font-semibold text-ink">1.2 เครื่องมือดึง Group ID ล่าสุด</div>
                 <p className="mt-0.5 text-xs text-slate-500">
                   วิธีใช้: เชิญบอทเข้ากลุ่ม LINE ของโรงเรียน แล้วพิมพ์ข้อความอะไรก็ได้ในกลุ่ม 1 ครั้ง จากนั้นกดปุ่มดึงไอดี
                 </p>

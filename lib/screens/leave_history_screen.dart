@@ -8,6 +8,7 @@ import 'leave_form_screen.dart';
 import '../utils/profile_image.dart';
 import '../widgets/leave_form_page.dart';
 import '../utils/leave_permissions.dart';
+import '../theme/app_tokens.dart';
 
 class LeaveHistoryScreen extends StatefulWidget {
   final Function(Map<String, dynamic>)? onEdit;
@@ -254,14 +255,14 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
+      backgroundColor: AppColors.raised,
       // 🗑️ FAB ลบหลายรายการ — ลอยอยู่มุมขวาล่าง ไม่มีทางหายแน่นอน 🥇🏆
       floatingActionButton: _selectedIds.isNotEmpty
           ? FloatingActionButton.extended(
               onPressed: _isDeletingBulk
                   ? null
                   : _showBulkDeleteConfirmationFromBanner,
-              backgroundColor: Colors.red.shade700,
+              backgroundColor: AppColors.negative,
               foregroundColor: Colors.white,
               icon: _isDeletingBulk
                   ? const SizedBox(
@@ -275,7 +276,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                     ? 'กำลังลบ...'
                     : 'ลบ ${_selectedIds.length} รายการ',
                 style:
-                    const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
             )
           : null,
@@ -384,7 +385,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                                     style: GoogleFonts.sarabun(
                                         fontSize: 12,
                                         color: Colors.black,
-                                        fontWeight: FontWeight.bold)),
+                                        fontWeight: FontWeight.w600)),
                               ),
                             ],
                           ),
@@ -410,7 +411,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                                         'ไม่พบรายการที่ตรงกับตัวกรอง',
                                         style: GoogleFonts.sarabun(
                                             fontSize: 14,
-                                            color: const Color(0xFF64748B),
+                                            color: AppColors.textMuted,
                                             fontWeight: FontWeight.w600),
                                       ),
                                     ),
@@ -424,7 +425,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                                       separatorBuilder: (ctx, i) =>
                                           const Divider(
                                               height: 1,
-                                              color: Color(0xFFF1F5F9)),
+                                              color: AppColors.raised),
                                       itemBuilder: (ctx, i) =>
                                           _buildHistoryRow(leaves[i]),
                                     ),
@@ -451,7 +452,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                     decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFE2E8F0))),
+                        border: Border.all(color: AppColors.line)),
                     child: Text(
                         _selectedRound != null
                             ? 'แสดงรายการระหว่างวันที่ ${FirebaseService.formatThaiDate(_selectedRound!['startDate'])} ถึง ${FirebaseService.formatThaiDate(_selectedRound!['endDate'])}'
@@ -470,14 +471,14 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: AppColors.page,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: AppColors.line),
       ),
       child: Row(
         children: [
           const Icon(Icons.calendar_month_rounded,
-              size: 18, color: Color(0xFF64748B)),
+              size: 18, color: AppColors.textMuted),
           const SizedBox(width: 8),
           Expanded(
             child: DropdownButtonHideUnderline(
@@ -486,9 +487,9 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                 isExpanded: true,
                 hint: Text('เลือกปีงบประมาณ',
                     style: GoogleFonts.sarabun(
-                        fontSize: 13, color: const Color(0xFF94A3B8))),
+                        fontSize: 13, color: AppColors.textMuted)),
                 icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                    color: Color(0xFF64748B)),
+                    color: AppColors.textMuted),
                 style: GoogleFonts.sarabun(fontSize: 13, color: Colors.black87),
                 borderRadius: BorderRadius.circular(10),
                 items: _rounds
@@ -539,8 +540,8 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.line),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -608,7 +609,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
               icon: const Icon(Icons.search_rounded, size: 18),
               label: Text(
                 'ค้นหา',
-                style: GoogleFonts.sarabun(fontWeight: FontWeight.w700),
+                style: GoogleFonts.sarabun(fontWeight: FontWeight.w600),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.black,
@@ -633,7 +634,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
               icon: const Icon(Icons.refresh, size: 18),
               label: Text(
                 'รีเฟรช',
-                style: GoogleFonts.sarabun(fontWeight: FontWeight.w700),
+                style: GoogleFonts.sarabun(fontWeight: FontWeight.w600),
               ),
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.black87,
@@ -713,13 +714,13 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: AppColors.page,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: AppColors.line),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: const Color(0xFF64748B)),
+          Icon(icon, size: 18, color: AppColors.textMuted),
           const SizedBox(width: 8),
           Expanded(
             child: DropdownButtonHideUnderline(
@@ -727,7 +728,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                 value: value,
                 isExpanded: true,
                 icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                    color: Color(0xFF64748B)),
+                    color: AppColors.textMuted),
                 borderRadius: BorderRadius.circular(10),
                 style: GoogleFonts.sarabun(fontSize: 13, color: Colors.black87),
                 items: items
@@ -757,29 +758,29 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
         decoration: InputDecoration(
           hintText: 'ค้นหา ชื่อ เหตุผล ประเภทลา สถานะ',
           hintStyle:
-              GoogleFonts.sarabun(fontSize: 13, color: const Color(0xFF94A3B8)),
+              GoogleFonts.sarabun(fontSize: 13, color: AppColors.textMuted),
           prefixIcon: const Icon(Icons.search_rounded,
-              size: 20, color: Color(0xFF64748B)),
+              size: 20, color: AppColors.textMuted),
           // ปุ่มล้างตัวกรองทั้งหมด โผล่เมื่อมีตัวกรองใดถูกใช้อยู่
           suffixIcon: _hasActiveHistoryFilters
               ? IconButton(
                   tooltip: 'ล้างตัวกรองทั้งหมด',
                   icon: const Icon(Icons.close_rounded,
-                      size: 18, color: Color(0xFF64748B)),
+                      size: 18, color: AppColors.textMuted),
                   onPressed: _clearHistoryFilters,
                 )
               : null,
           filled: true,
-          fillColor: const Color(0xFFF8FAFC),
+          fillColor: AppColors.page,
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+            borderSide: const BorderSide(color: AppColors.line),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+            borderSide: const BorderSide(color: AppColors.line),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
@@ -828,7 +829,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
             style: GoogleFonts.sarabun(
                 fontSize: 12,
                 color: Colors.black,
-                fontWeight: FontWeight.bold)));
+                fontWeight: FontWeight.w600)));
   }
 
   Widget _buildSelectBox({required bool checked, required VoidCallback onTap}) {
@@ -888,7 +889,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                       fontSize: 13,
                       color: Colors.black,
                       fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal),
+                          isSelected ? FontWeight.w600 : FontWeight.normal),
                   overflow: TextOverflow.ellipsis)),
           _historyCell(
               'ประเภทลา',
@@ -942,22 +943,22 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                               status == 'ส่งใบลาแล้ว' ||
                               status == 'อนุมัติแล้ว' ||
                               status == 'อนุญาต')
-                          ? Colors.green
+                          ? AppColors.positive
                           : (status == 'ยังไม่ส่ง' || status == 'ไม่อนุญาต'
-                              ? Colors.orange
+                              ? AppColors.pending
                               : Colors.black)),
                   const SizedBox(width: 4),
                   Text(status,
                       style: GoogleFonts.sarabun(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
                           color: (status == 'ส่งใบแล้ว' ||
                                   status == 'ส่งใบลาแล้ว' ||
                                   status == 'อนุมัติแล้ว' ||
                                   status == 'อนุญาต')
-                              ? Colors.green
+                              ? AppColors.positive
                               : (status == 'ยังไม่ส่ง' || status == 'ไม่อนุญาต'
-                                  ? Colors.orange
+                                  ? AppColors.pending
                                   : Colors.black))),
                 ],
               ),
@@ -976,14 +977,14 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
+                          color: AppColors.raised,
                           borderRadius: BorderRadius.circular(6)),
                       child: Text(
                           FirebaseService.formatLeaveDayCount(
                               leaf['totalDays']),
                           style: GoogleFonts.sarabun(
                               fontSize: 12,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w600,
                               color: Colors.black))))),
           _historyCell(
               'รับที่',
@@ -1075,40 +1076,40 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                         value: 'approve',
                         child: Row(children: [
                           const Icon(Icons.send_rounded,
-                              size: 18, color: Colors.green),
+                              size: 18, color: AppColors.positive),
                           const SizedBox(width: 10),
                           Text('ส่งใบแล้ว',
                               style: GoogleFonts.sarabun(
-                                  fontSize: 13, color: Colors.green))
+                                  fontSize: 13, color: AppColors.positive))
                         ])),
                     if (isAdmin)
                     PopupMenuItem<String>(
                         value: 'reject',
                         child: Row(children: [
                           const Icon(Icons.pending_actions_rounded,
-                              size: 18, color: Colors.orange),
+                              size: 18, color: AppColors.pending),
                           const SizedBox(width: 10),
                           Text('ยังไม่ส่ง',
                               style: GoogleFonts.sarabun(
-                                  fontSize: 13, color: Colors.orange))
+                                  fontSize: 13, color: AppColors.pending))
                         ])),
                     if (isAdmin)
                     PopupMenuItem<String>(
                         value: 'set_receive',
                         child: Row(children: [
                           const Icon(Icons.assignment_turned_in_outlined,
-                              size: 18, color: Colors.indigo),
+                              size: 18, color: AppColors.accent),
                           const SizedBox(width: 10),
                           Text('กำหนดรับใบลา',
                               style: GoogleFonts.sarabun(
-                                  fontSize: 13, color: Colors.indigo))
+                                  fontSize: 13, color: AppColors.accent))
                         ])),
                     if (isAdmin) const PopupMenuDivider(),
                     PopupMenuItem<String>(
                         value: 'view',
                         child: Row(children: [
                           const Icon(Icons.picture_as_pdf_outlined,
-                              size: 18, color: Colors.blue),
+                              size: 18, color: AppColors.accent),
                           const SizedBox(width: 10),
                           Text('พิมพ์หรือดาวน์โหลด PDF',
                               style: GoogleFonts.sarabun(fontSize: 13))
@@ -1118,22 +1119,22 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                           value: 'edit',
                           child: Row(children: [
                             const Icon(Icons.edit_outlined,
-                                size: 18, color: Colors.amber),
+                                size: 18, color: AppColors.pending),
                             const SizedBox(width: 10),
                             Text('แก้ไขใบลา',
                                 style: GoogleFonts.sarabun(
-                                    fontSize: 13, color: Colors.amber.shade700))
+                                    fontSize: 13, color: AppColors.pending))
                           ])),
                     if (canEdit)
                     PopupMenuItem<String>(
                         value: 'delete',
                         child: Row(children: [
                           const Icon(Icons.delete_outline,
-                              size: 18, color: Colors.red),
+                              size: 18, color: AppColors.negative),
                           const SizedBox(width: 10),
                           Text('ลบรายการ',
                               style: GoogleFonts.sarabun(
-                                  fontSize: 13, color: Colors.red))
+                                  fontSize: 13, color: AppColors.negative))
                         ])),
                   ];
                 },
@@ -1172,17 +1173,17 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
         _reloadLeaves(); // ดึงรายการใหม่ ไม่งั้นสถานะในตารางยังเป็นค่าเดิม
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(_isApproveStatus(status)
-              ? '✅ อนุมัติเรียบร้อย (รับที่ ${updateData['receiveNumber']})'
-              : '✅ ปรับปรุงสถานะเป็น: $status เรียบร้อยแล้ว'),
+              ? ' อนุมัติเรียบร้อย (รับที่ ${updateData['receiveNumber']})'
+              : ' ปรับปรุงสถานะเป็น: $status เรียบร้อยแล้ว'),
           backgroundColor:
-              _isApproveStatus(status) ? Colors.green : Colors.orange,
+              _isApproveStatus(status) ? AppColors.positive : AppColors.pending,
           behavior: SnackBarBehavior.floating,
         ));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('❌ เกิดข้อผิดพลาด: $e')));
+            .showSnackBar(SnackBar(content: Text(' เกิดข้อผิดพลาด: $e')));
       }
     }
   }
@@ -1210,10 +1211,10 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             title: Row(children: [
               const Icon(Icons.assignment_turned_in_outlined,
-                  color: Colors.indigo),
+                  color: AppColors.accent),
               const SizedBox(width: 12),
               Text('กำหนดรับใบลา',
-                  style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                  style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
             ]),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1221,10 +1222,10 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
               children: [
                 Text('ชื่อ: ${leaf['fullName'] ?? '-'}',
                     style: GoogleFonts.sarabun(
-                        fontSize: 13, color: Colors.blueGrey)),
+                        fontSize: 13, color: AppColors.textSecondary)),
                 const SizedBox(height: 16),
                 Text('รับที่',
-                    style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                    style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 4),
                 TextField(
                   controller: receiveCtrl,
@@ -1239,7 +1240,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text('วันที่',
-                    style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                    style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 4),
                 InkWell(
                   onTap: () async {
@@ -1258,7 +1259,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 12),
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
+                      border: Border.all(color: AppColors.textMuted),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child:
@@ -1267,7 +1268,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text('เวลา',
-                    style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                    style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 4),
                 InkWell(
                   onTap: () async {
@@ -1284,7 +1285,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 12),
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
+                      border: Border.all(color: AppColors.textMuted),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child:
@@ -1321,22 +1322,22 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                     if (mounted) {
                       _reloadLeaves(); // ดึงรายการใหม่ให้เลขรับขึ้นทันที
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text('✅ บันทึกรับที่ $receiveVal เรียบร้อย'),
-                        backgroundColor: Colors.green,
+                        content: Text(' บันทึกรับที่ $receiveVal เรียบร้อย'),
+                        backgroundColor: AppColors.positive,
                         behavior: SnackBarBehavior.floating,
                       ));
                     }
                   } catch (e) {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text('❌ เกิดข้อผิดพลาด: $e'),
-                        backgroundColor: Colors.red,
+                        content: Text(' เกิดข้อผิดพลาด: $e'),
+                        backgroundColor: AppColors.negative,
                       ));
                     }
                   }
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.indigo,
+                  backgroundColor: AppColors.accent,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
@@ -1385,10 +1386,10 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(children: [
-          const Icon(Icons.warning_amber_rounded, color: Colors.red),
+          const Icon(Icons.warning_amber_rounded, color: AppColors.negative),
           const SizedBox(width: 10),
           Text('ยืนยันการลบ',
-              style: GoogleFonts.sarabun(fontWeight: FontWeight.bold))
+              style: GoogleFonts.sarabun(fontWeight: FontWeight.w600))
         ]),
         content: Text(
             'คุณต้องการลบรายการใบลา ID: $requestId หรือไม่?\nข้อมูลทั้งหมดจะถูกลบถาวรครับ',
@@ -1397,7 +1398,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
           TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: Text('ยกเลิก',
-                  style: GoogleFonts.sarabun(color: Colors.grey.shade600))),
+                  style: GoogleFonts.sarabun(color: AppColors.textMuted))),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(ctx);
@@ -1411,8 +1412,8 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                   setState(() => _selectedIds.remove(requestId));
                   _reloadLeaves(); // ดึงรายการใหม่ ไม่งั้นแถวที่ลบไปยังค้างอยู่
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: const Text('✅ ลบรายการเรียบร้อยแล้ว'),
-                      backgroundColor: Colors.red.shade400,
+                      content: const Text(' ลบรายการเรียบร้อยแล้ว'),
+                      backgroundColor: AppColors.negative,
                       behavior: SnackBarBehavior.floating,
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10))));
@@ -1420,17 +1421,17 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('❌ เกิดข้อผิดพลาด: $e')));
+                      SnackBar(content: Text(' เกิดข้อผิดพลาด: $e')));
                 }
               }
             },
             style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
+                backgroundColor: AppColors.negative,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10))),
             child: Text('ใช่, ลบทั้งหมด',
-                style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -1448,10 +1449,10 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(children: [
-          const Icon(Icons.delete_forever, color: Colors.red),
+          const Icon(Icons.delete_forever, color: AppColors.negative),
           const SizedBox(width: 10),
           Text('ลบรายการที่เลือก',
-              style: GoogleFonts.sarabun(fontWeight: FontWeight.bold))
+              style: GoogleFonts.sarabun(fontWeight: FontWeight.w600))
         ]),
         content: Text(
             'คุณต้องการลบใบลาที่เลือกทั้งหมด ${_selectedIds.length} รายการหรือไม่?\nขั้นตอนนี้ไม่สามารถย้อนกลับได้ครับ',
@@ -1460,19 +1461,19 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
           TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: Text('ยกเลิก',
-                  style: GoogleFonts.sarabun(color: Colors.grey.shade600))),
+                  style: GoogleFonts.sarabun(color: AppColors.textMuted))),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(ctx);
               _handleBulkDelete(leaves);
             },
             style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
+                backgroundColor: AppColors.negative,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10))),
             child: Text('ยืนยันลบทั้งหมด',
-                style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -1516,8 +1517,8 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
         });
         _reloadLeaves(); // ดึงรายการใหม่หลังลบหลายรายการ
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('✅ ลบสำเร็จทั้งหมด $count รายการ'),
-            backgroundColor: Colors.red.shade400,
+            content: Text(' ลบสำเร็จทั้งหมด $count รายการ'),
+            backgroundColor: AppColors.negative,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10))));
@@ -1526,7 +1527,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
       if (mounted) {
         setState(() => _isDeletingBulk = false);
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('❌ เกิดข้อผิดพลาดในการลบกลุ่มรายการ: $e')));
+            SnackBar(content: Text(' เกิดข้อผิดพลาดในการลบกลุ่มรายการ: $e')));
       }
     }
   }

@@ -20,7 +20,7 @@ export function PageHeader({
             {category}
           </div>
         )}
-        <h1 className="text-xl font-bold tracking-tight text-ink sm:text-2xl">{title}</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-ink sm:text-2xl">{title}</h1>
         {description && <p className="mt-1 max-w-3xl text-[13px] leading-relaxed text-slate-500">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
@@ -46,13 +46,13 @@ export function SectionHeader({
     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
       <div className="flex min-w-0 items-center gap-2.5">
         {step !== undefined && (
-          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-brand-600 text-xs font-bold text-white shadow-sm">
+          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-brand-600 text-xs font-semibold text-white shadow-sm">
             {step}
           </span>
         )}
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-[14.5px] font-bold text-ink">{title}</h2>
+            <h2 className="text-sm font-semibold text-ink">{title}</h2>
             {badge}
           </div>
           {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
@@ -107,12 +107,12 @@ export function StatCard({
 
   return (
     <div className="card flex flex-col justify-between p-4 sm:p-5">
-      <div className="flex items-center justify-between gap-2 text-[12.5px] font-medium text-slate-500">
+      <div className="flex items-center justify-between gap-2 text-xs font-medium text-slate-500">
         <span className="truncate">{label}</span>
         <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl ${palette.iconBg}`}>{icon}</span>
       </div>
       <div className="mt-2.5">
-        <div className={`text-2xl font-bold leading-none tabular-nums sm:text-[28px] ${palette.value}`}>{value}</div>
+        <div className={`text-2xl font-semibold leading-none tabular-nums sm:text-[28px] ${palette.value}`}>{value}</div>
         {hint && <div className={`mt-1.5 text-xs font-medium ${palette.hint}`}>{hint}</div>}
       </div>
     </div>
@@ -124,7 +124,6 @@ export function Notice({ message }: { message: { text: string; error?: boolean }
   if (!message) return null;
   return (
     <div role="status" className={`mb-4 flex items-center gap-2 ${message.error ? 'alert-error' : 'alert-ok'}`}>
-      <span className="text-base leading-none">{message.error ? '⚠️' : '✅'}</span>
       <span className="flex-1">{message.text}</span>
     </div>
   );

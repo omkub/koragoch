@@ -69,7 +69,7 @@ export default function App() {
     return (
       <CenterScreen>
         <div className="card w-full max-w-sm p-6">
-          <h2 className="text-lg font-bold">ไม่มีสิทธิ์เข้าหน้านี้</h2>
+          <h2 className="text-lg font-semibold">ไม่มีสิทธิ์เข้าหน้านี้</h2>
           <p className="mt-1 text-sm text-slate-500">หน้านี้สำหรับผู้ดูแลระบบเท่านั้น</p>
           <button className="btn-primary mt-5 w-full" onClick={() => supabase.auth.signOut()}>
             ออกจากระบบ

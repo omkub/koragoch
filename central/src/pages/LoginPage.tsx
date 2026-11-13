@@ -36,13 +36,13 @@ export default function LoginPage() {
     <div className="grid min-h-screen place-items-center bg-canvas px-4 py-10">
       <div className="w-full max-w-[400px]">
         <div className="mb-6 flex flex-col items-center text-center">
-          <div className="grid h-14 w-14 place-items-center rounded-2xl bg-brand-600 text-xl font-bold text-white shadow-md">
+          <div className="grid h-14 w-14 place-items-center rounded-2xl bg-brand-600 text-xl font-semibold text-white shadow-md">
             ลา
           </div>
           <span className="mt-3 rounded-full bg-brand-50 px-3 py-0.5 text-xs font-semibold text-brand-700">
             ระบบบริหารจัดการส่วนกลาง
           </span>
-          <h1 className="mt-2 text-2xl font-bold tracking-tight text-ink">เข้าสู่ระบบผู้ดูแล</h1>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">เข้าสู่ระบบผู้ดูแล</h1>
           <p className="mt-1 text-[13px] text-slate-500">สำหรับผู้ดูแลระบบส่วนกลาง และผู้ดูแลระบบประจำโรงเรียน</p>
         </div>
 

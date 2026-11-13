@@ -124,7 +124,7 @@ const NAV: { group: string; badge: string; items: NavItem[] }[] = [
 ];
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
-  `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13.5px] font-medium transition-all ${
+  `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-colors ${
     isActive
       ? 'bg-brand-50 font-semibold text-brand-700 shadow-[inset_3px_0_0_0_#4f46e5]'
       : 'text-slate-600 hover:bg-slate-50 hover:text-ink'
@@ -135,12 +135,12 @@ function Sidebar({ isSuper, onNavigate }: { isSuper: boolean; onNavigate?: () =>
     <div className="flex h-full flex-col justify-between px-3.5 py-4">
       {/* ส่วนหัวแบรนด์ */}
       <div className="mb-3 flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-3">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-600 text-[15px] font-bold text-white shadow-sm">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-600 text-[15px] font-semibold text-white shadow-sm">
           ลา
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[14.5px] font-bold leading-tight text-ink">ระบบบริหารการลา</div>
-          <div className="mt-0.5 inline-flex items-center gap-1 text-[11.5px] font-medium text-brand-700">
+          <div className="truncate text-sm font-semibold leading-tight text-ink">ระบบบริหารการลา</div>
+          <div className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-brand-700">
             <span className="h-1.5 w-1.5 rounded-full bg-brand-600" />
             {isSuper ? 'ผู้ดูแลระบบส่วนกลาง' : 'ผู้ดูแลระบบโรงเรียน'}
           </div>
@@ -154,7 +154,7 @@ function Sidebar({ isSuper, onNavigate }: { isSuper: boolean; onNavigate?: () =>
           if (!visible.length) return null;
           return (
             <div key={group} className="flex flex-col gap-0.5">
-              <div className="px-2.5 pb-1 pt-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              <div className="px-2.5 pb-1 pt-1 text-[11px] font-semibold text-slate-400">
                 {group}
               </div>
               {visible.map((i) => (
@@ -191,7 +191,7 @@ function Sidebar({ isSuper, onNavigate }: { isSuper: boolean; onNavigate?: () =>
 }
 
 /**
- * โครงหน้าเว็บส่วนกลาง — จอกว้าง: เมนูซ้ายติดจอแยกหมวดหมู่ / มือถือ: เมนูเลื่อนออกจากซ้ายด้วยปุ่ม ☰
+ * โครงหน้าเว็บส่วนกลาง — จอกว้าง: เมนูซ้ายติดจอแยกหมวดหมู่ / มือถือ: เมนูเลื่อนออกจากซ้ายด้วยปุ่ม
  */
 export default function AppShell({ isSuper, children }: { isSuper: boolean; children: ReactNode }) {
   const [open, setOpen] = useState(false);

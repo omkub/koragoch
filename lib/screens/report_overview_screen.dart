@@ -9,6 +9,7 @@ import '../utils/admin_position.dart';
 import '../utils/staff_status.dart';
 import '../utils/teacher_sort.dart';
 import '../widgets/leave_form_data.dart';
+import '../theme/app_tokens.dart';
 
 class ReportOverviewScreen extends StatefulWidget {
   /// หน้าตาใหม่บนมือถือ: ไม่มีชื่อหน้าซ้ำ / ปุ่มย่อ / รายการเป็นการ์ดต่อคน
@@ -163,7 +164,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
     if (widget.appStyle) return _buildAppStyle();
 
     return Material(
-      color: const Color(0xFFF1F5F9),
+      color: AppColors.raised,
       child: Padding(
         padding: EdgeInsets.symmetric(
           horizontal: isMobile ? 16 : 24,
@@ -182,15 +183,15 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                     Text('รายงานสรุปการลา',
                         style: GoogleFonts.sarabun(
                             fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF0F172A))),
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.text)),
                     if (_selectedRound != null)
                       _buildRoundDropdown()
                     else
                       Text(
                           'ข้อมูลการลาสะสมของคุณครูทั้งหมด (กรุณาตั้งค่ารอบงบประมาณ)',
                           style: GoogleFonts.sarabun(
-                              fontSize: 14, color: Colors.blueGrey)),
+                              fontSize: 14, color: AppColors.textSecondary)),
                   ],
                 ),
                 Padding(
@@ -203,9 +204,9 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                         icon: const Icon(Icons.download, size: 18),
                         label: Text('ไฟล์ PDF',
                             style: GoogleFonts.sarabun(
-                                fontWeight: FontWeight.bold)),
+                                fontWeight: FontWeight.w600)),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0F172A),
+                          backgroundColor: AppColors.text,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(
                               horizontal: 20, vertical: 12),
@@ -219,7 +220,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                         icon: const Icon(Icons.table_view_rounded, size: 18),
                         label: Text('Export Excel',
                             style: GoogleFonts.sarabun(
-                                fontWeight: FontWeight.bold)),
+                                fontWeight: FontWeight.w600)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF047857),
                           foregroundColor: Colors.white,
@@ -237,7 +238,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                           backgroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
-                              side: const BorderSide(color: Color(0xFFE2E8F0))),
+                              side: const BorderSide(color: AppColors.line)),
                         ),
                       ),
                     ],
@@ -272,7 +273,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                         children: [
                           // Grouped Header
                           Container(
-                            color: const Color(0xFFF8FAFC),
+                            color: AppColors.page,
                             child: Row(
                               children: [
                                 _buildHeaderCell('ชื่อ - สกุล / ตำแหน่ง',
@@ -286,7 +287,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                           ),
                           // Sub Header
                           Container(
-                            color: const Color(0xFFF1F5F9),
+                            color: AppColors.raised,
                             child: Row(
                               children: [
                                 const Expanded(flex: 3, child: SizedBox()),
@@ -297,7 +298,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                               ],
                             ),
                           ),
-                          const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                          const Divider(height: 1, color: AppColors.line),
                           Expanded(
                             child: SingleChildScrollView(
                               scrollDirection: Axis.vertical,
@@ -344,8 +345,8 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                     BorderSide(color: Colors.black.withValues(alpha: 0.03)))),
         child: Text(title,
             style: GoogleFonts.sarabun(
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
                 color: const Color(0xFF1E293B))),
       ),
     );
@@ -364,8 +365,8 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                     BorderSide(color: Colors.black.withValues(alpha: 0.03)))),
         child: Text(title,
             style: GoogleFonts.sarabun(
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
                 color: const Color(0xFF1E293B))),
       ),
     );
@@ -387,8 +388,8 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                       child: Text(t,
                           style: GoogleFonts.sarabun(
                               fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF64748B))))))
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textMuted)))))
               .toList(),
         ),
       ),
@@ -406,9 +407,9 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
             icon: Icon(icon, size: 18, color: color),
             label: Text(label,
                 style: GoogleFonts.sarabun(
-                    fontWeight: FontWeight.w700, color: color)),
+                    fontWeight: FontWeight.w600, color: color)),
             style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Color(0xFFE2E8F0)),
+              side: const BorderSide(color: AppColors.line),
               backgroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(
@@ -418,7 +419,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
         );
 
     return Material(
-      color: const Color(0xFFF4F7FC),
+      color: AppColors.page,
       child: RefreshIndicator(
         onRefresh: _loadData,
         child: ListView(
@@ -430,11 +431,11 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
             else
               Text('กรุณาตั้งค่ารอบงบประมาณ',
                   style:
-                      GoogleFonts.sarabun(fontSize: 14, color: Colors.blueGrey)),
+                      GoogleFonts.sarabun(fontSize: 14, color: AppColors.textSecondary)),
             const SizedBox(height: 12),
             Row(children: [
               smallButton(Icons.download_rounded, 'PDF',
-                  const Color(0xFF0F172A), _exportPdf),
+                  AppColors.text, _exportPdf),
               const SizedBox(width: 10),
               smallButton(Icons.table_view_rounded, 'Excel',
                   const Color(0xFF047857), _exportExcel),
@@ -500,10 +501,10 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                   style: GoogleFonts.sarabun(fontSize: 12, color: color)),
               Text('${_formatNumber(v['days']!)} วัน',
                   style: GoogleFonts.sarabun(
-                      fontSize: 15, fontWeight: FontWeight.w800, color: color)),
+                      fontSize: 14, fontWeight: FontWeight.w600, color: color)),
               Text('${_formatNumber(v['times']!)} ครั้ง',
                   style: GoogleFonts.sarabun(
-                      fontSize: 11, color: Colors.blueGrey)),
+                      fontSize: 11, color: AppColors.textSecondary)),
             ],
           ),
         );
@@ -513,7 +514,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: AppColors.line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -526,23 +527,23 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                   children: [
                     Text((teacher['fullName'] ?? '-').toString(),
                         style: GoogleFonts.sarabun(
-                            fontSize: 15, fontWeight: FontWeight.bold)),
+                            fontSize: 14, fontWeight: FontWeight.w600)),
                     Text(_getPositionAndDept(teacher),
                         style: GoogleFonts.sarabun(
-                            fontSize: 12, color: Colors.blueGrey)),
+                            fontSize: 12, color: AppColors.textSecondary)),
                   ],
                 ),
               ),
               Text('รวม $totalTimes ครั้ง / ${_formatNumber(totalDays)} วัน',
                   style: GoogleFonts.sarabun(
-                      fontSize: 12, fontWeight: FontWeight.bold)),
+                      fontSize: 12, fontWeight: FontWeight.w600)),
             ],
           ),
           const SizedBox(height: 10),
           Row(children: [
-            stat('ป่วย', s.sick, Colors.blue.shade700),
-            stat('กิจ', s.personal, Colors.orange.shade700),
-            stat('คลอด', s.maternity, Colors.purple.shade700),
+            stat('ป่วย', s.sick, AppColors.accent),
+            stat('กิจ', s.personal, AppColors.pending),
+            stat('คลอด', s.maternity, AppColors.accent),
           ]),
         ],
       ),
@@ -602,23 +603,23 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                 children: [
                   Text(name,
                       style: GoogleFonts.sarabun(
-                          fontSize: 14, fontWeight: FontWeight.bold)),
+                          fontSize: 14, fontWeight: FontWeight.w600)),
                   Text(_getPositionAndDept(teacher),
                       style: GoogleFonts.sarabun(
-                          fontSize: 11, color: Colors.blueGrey)),
+                          fontSize: 11, color: AppColors.textSecondary)),
                 ],
               ),
             ),
           ),
           _buildValueCell(
               _formatNumber(sick['times']!), _formatNumber(sick['days']!),
-              flex: 2, color: Colors.blue.shade700),
+              flex: 2, color: AppColors.accent),
           _buildValueCell(_formatNumber(personal['times']!),
               _formatNumber(personal['days']!),
-              flex: 2, color: Colors.orange.shade700),
+              flex: 2, color: AppColors.pending),
           _buildValueCell(_formatNumber(maternity['times']!),
               _formatNumber(maternity['days']!),
-              flex: 2, color: Colors.purple.shade700),
+              flex: 2, color: AppColors.accent),
           Expanded(
             flex: 2,
             child: Container(
@@ -627,7 +628,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
               child: Text('$totalTimes / ${_formatNumber(totalDays)}',
                   style: GoogleFonts.sarabun(
                       fontSize: 13,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w600,
                       color: Colors.black87)),
             ),
           ),
@@ -641,9 +642,9 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
       margin: const EdgeInsets.only(top: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.blue.shade50,
+        color: AppColors.accentSoft,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.blue.shade100),
+        border: Border.all(color: AppColors.accentSoft),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<Map<String, dynamic>>(
@@ -658,8 +659,8 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                 'ปี ${round['year']} รอบที่ ${round['round']}',
                 style: GoogleFonts.sarabun(
                     fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade800),
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.accent),
               ),
             );
           }).toList(),
@@ -683,20 +684,20 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-                color: Colors.orange.shade50, shape: BoxShape.circle),
+                color: AppColors.pendingSoft, shape: BoxShape.circle),
             child: Icon(Icons.warning_amber_rounded,
-                size: 64, color: Colors.orange.shade700),
+                size: 64, color: AppColors.pending),
           ),
           const SizedBox(height: 24),
           Text('ไม่พบรอบงบประมาณที่เปิดใช้งาน',
               style: GoogleFonts.sarabun(
-                  fontSize: 22, fontWeight: FontWeight.bold)),
+                  fontSize: 22, fontWeight: FontWeight.w600)),
           const SizedBox(height: 12),
           Text(
             'กรุณาติดต่อผู้ดูแลระบบเพื่อเปิดใช้งานรอบงบประมาณ\nข้อมูลตารางสรุปจะแสดงผลตามช่วงเวลาของรอบที่เลือกครับ',
             textAlign: TextAlign.center,
             style: GoogleFonts.sarabun(
-                fontSize: 15, color: Colors.blueGrey, height: 1.6),
+                fontSize: 14, color: AppColors.textSecondary, height: 1.6),
           ),
         ],
       ),
@@ -1161,7 +1162,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                             color: color ?? Colors.black38,
                             fontWeight: v1 == '0'
                                 ? FontWeight.normal
-                                : FontWeight.bold)))),
+                                : FontWeight.w600)))),
             Expanded(
                 child: Center(
                     child: Text(v2 == '0' ? '-' : v2,
@@ -1170,7 +1171,7 @@ class _ReportOverviewScreenState extends State<ReportOverviewScreen> {
                             color: color ?? Colors.black38,
                             fontWeight: v2 == '0'
                                 ? FontWeight.normal
-                                : FontWeight.bold)))),
+                                : FontWeight.w600)))),
           ],
         ),
       ),

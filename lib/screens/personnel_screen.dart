@@ -5,6 +5,7 @@ import '../services/official_trip_service.dart';
 import '../utils/admin_position.dart';
 import '../utils/profile_image.dart';
 import '../utils/teacher_sort.dart';
+import '../theme/app_tokens.dart';
 
 class PersonnelScreen extends StatefulWidget {
   final VoidCallback? onBack; // 🔥 เพิ่ม callback สำหรับกดย้อนกลับครับ 🥇🏆
@@ -30,7 +31,7 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
     bool isMobile = MediaQuery.of(context).size.width < 1100;
     
     return Material(
-      color: const Color(0xFFF1F5F9),
+      color: AppColors.raised,
       child: StreamBuilder<List<Map<String, dynamic>>>(
         // เฉพาะคนที่ยังปฏิบัติงาน (ไม่รวมคนลาออก/เกษียณ/ย้าย และบัญชีส่วนกลาง)
         stream: _firebaseService.getActiveUsersStream(),
@@ -91,14 +92,14 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
-                      border: Border.all(color: Colors.grey.shade200),
+                      border: Border.all(color: AppColors.raised),
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<int>(
                         value: _tabController!.index,
                         isExpanded: true,
-                        icon: const Icon(Icons.unfold_more_rounded, color: Color(0xFF64748B)),
-                        style: GoogleFonts.sarabun(fontSize: 16, color: const Color(0xFF0F172A), fontWeight: FontWeight.bold),
+                        icon: const Icon(Icons.unfold_more_rounded, color: AppColors.textMuted),
+                        style: GoogleFonts.sarabun(fontSize: 16, color: AppColors.text, fontWeight: FontWeight.w600),
                         items: finalTabs.asMap().entries.map((entry) {
                           return DropdownMenuItem<int>(
                             value: entry.key,
@@ -128,7 +129,7 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
                       dividerColor: Colors.transparent,
                       labelPadding: const EdgeInsets.only(right: 12),
                       tabs: finalTabs.map((dept) {
-                        final color = dept == 'รวมทั้งหมด' ? const Color(0xFF0F172A) : _getDeptColor(dept);
+                        final color = dept == 'รวมทั้งหมด' ? AppColors.text : _getDeptColor(dept);
                         return Tab(
                           child: AnimatedBuilder(
                             animation: _tabController!,
@@ -139,13 +140,13 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
                                 decoration: BoxDecoration(
                                   color: isSelected ? color.withValues(alpha: 0.1) : Colors.white,
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: isSelected ? color : Colors.grey.shade200),
+                                  border: Border.all(color: isSelected ? color : AppColors.raised),
                                 ),
                                 child: Row(
                                   children: [
-                                    Icon(dept == 'รวมทั้งหมด' ? Icons.groups_rounded : Icons.folder_copy_rounded, size: 18, color: isSelected ? color : Colors.blueGrey),
+                                    Icon(dept == 'รวมทั้งหมด' ? Icons.groups_rounded : Icons.folder_copy_rounded, size: 18, color: isSelected ? color : AppColors.textSecondary),
                                     const SizedBox(width: 10),
-                                    Text(dept, style: GoogleFonts.sarabun(fontSize: 14, fontWeight: isSelected ? FontWeight.bold : FontWeight.w500, color: isSelected ? color : Colors.blueGrey)),
+                                    Text(dept, style: GoogleFonts.sarabun(fontSize: 14, fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500, color: isSelected ? color : AppColors.textSecondary)),
                                   ],
                                 ),
                               );
@@ -170,7 +171,7 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
                       final members = sortedTeachers(
                           List<Map<String, dynamic>>.from(rawMembers));
                       final color = dept == 'รวมทั้งหมด' ? const Color(0xFF3B82F6) : _getDeptColor(dept);
-                      if (members.isEmpty) return Center(child: Text('ไม่มีข้อมูลบุคลากรในกลุ่มนี้', style: GoogleFonts.sarabun(color: Colors.blueGrey)));
+                      if (members.isEmpty) return Center(child: Text('ไม่มีข้อมูลบุคลากรในกลุ่มนี้', style: GoogleFonts.sarabun(color: AppColors.textSecondary)));
                       return _buildDataTable(members, color);
                     }).toList(),
                   ),
@@ -197,7 +198,7 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
             Text('บุคลากรตามกลุ่มสาระ',
                 style: GoogleFonts.sarabun(
                     fontSize: isMobile ? 22 : 28,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                     color: Colors.black)),
           ],
         ),
@@ -209,7 +210,7 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
           ),
           icon: const Icon(Icons.history_edu_rounded, size: 20),
           label: Text(isMobile ? 'ทำเนียบ' : 'ทำเนียบผู้บริหาร',
-              style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+              style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
         ),
         IconButton(
             onPressed: () => setState(() {}),
@@ -221,16 +222,16 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
   // 🔥 ฟังก์ชันสุ่มหรือกำหนดสีตามชื่อกลุ่มสาระครับ 🎨🏆
   Color _getDeptColor(String dept) {
     if (dept.contains('คณิตศาสตร์')) return const Color(0xFF3B82F6); // Blue
-    if (dept.contains('วิทยาศาสตร์')) return const Color(0xFF10B981); // Emerald
+    if (dept.contains('วิทยาศาสตร์')) return AppColors.positive; // Emerald
     if (dept.contains('ภาษาไทย')) return const Color(0xFFF59E0B); // Amber
     if (dept.contains('ภาษาต่างประเทศ')) {
       return const Color(0xFF8B5CF6); // Violet
     }
     if (dept.contains('ศิลปะ')) return const Color(0xFFEC4899); // Pink
     if (dept.contains('การงานอาชีพ')) return const Color(0xFFF97316); // Orange
-    if (dept.contains('สุขศึกษา')) return const Color(0xFFEF4444); // Red
-    if (dept.contains('ฝ่ายบริหาร')) return const Color(0xFF0F172A); // Slate
-    return const Color(0xFF64748B); // Default
+    if (dept.contains('สุขศึกษา')) return AppColors.negative; // Red
+    if (dept.contains('ฝ่ายบริหาร')) return AppColors.text; // Slate
+    return AppColors.textMuted; // Default
   }
 
   // 🔥 เปลี่ยนจาก Card เป็นตารางข้อมูล (Data Table) แบบแน่นๆ ตามรูปภาพอ้างอิงครับ 🥇🏆
@@ -243,7 +244,7 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: AppColors.raised),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
@@ -258,15 +259,15 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
                         constraints: BoxConstraints(minWidth: constraints.maxWidth),
                         child: DataTable(
                           headingRowColor: WidgetStateProperty.resolveWith((states) => baseColor.withValues(alpha: 0.15)),
-                    headingTextStyle: GoogleFonts.sarabun(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
+                    headingTextStyle: GoogleFonts.sarabun(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87),
                     dataRowMinHeight: 60,
                     dataRowMaxHeight: 60,
                     horizontalMargin: 24,
                     columnSpacing: 32,
                     dividerThickness: 0.5,
                     border: TableBorder(
-                      horizontalInside: BorderSide(color: Colors.grey.shade200, width: 1),
-                      verticalInside: BorderSide(color: Colors.grey.shade100, width: 1),
+                      horizontalInside: BorderSide(color: AppColors.raised, width: 1),
+                      verticalInside: BorderSide(color: AppColors.raised, width: 1),
                     ),
                     columns: const [
                       DataColumn(label: Text('ลำดับ')),
@@ -280,18 +281,18 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
                     rows: List<DataRow>.generate(members.length, (index) {
                       final u = members[index];
                       // สร้างสีพื้นหลังสลับแถว (Zebra Striping)
-                      final Color rowColor = index % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
+                      final Color rowColor = index % 2 == 0 ? Colors.white : AppColors.page;
                       
                       return DataRow(
                         color: WidgetStateProperty.resolveWith((states) => rowColor),
                         cells: [
-                          DataCell(Text('${index + 1}', style: GoogleFonts.sarabun(fontSize: 14, color: Colors.blueGrey))),
+                          DataCell(Text('${index + 1}', style: GoogleFonts.sarabun(fontSize: 14, color: AppColors.textSecondary))),
                           DataCell(_buildTableAvatar(u, baseColor)),
                           DataCell(Text(u['fullName'] ?? '-', style: GoogleFonts.sarabun(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)))),
                           DataCell(Text(u['ตำแหน่งงานบริหาร'] == 'ไม่มีตำแหน่งบริหาร' || u['ตำแหน่งงานบริหาร'] == null ? '-' : u['ตำแหน่งงานบริหาร'], style: GoogleFonts.sarabun(fontSize: 13, color: baseColor))),
                           DataCell(_buildBadge(u['position'] ?? 'ครู', baseColor)),
-                          DataCell(_buildBadge(u['academicStanding'] ?? u['วิทยฐานะ'] ?? '-', Colors.blueGrey)),
-                          DataCell(Text(u['department'] ?? u['กลุ่มสาระการเรียนรู้'] ?? '-', style: GoogleFonts.sarabun(fontSize: 13, color: Colors.blueGrey.shade700))),
+                          DataCell(_buildBadge(u['academicStanding'] ?? u['วิทยฐานะ'] ?? '-', AppColors.textSecondary)),
+                          DataCell(Text(u['department'] ?? u['กลุ่มสาระการเรียนรู้'] ?? '-', style: GoogleFonts.sarabun(fontSize: 13, color: AppColors.textSecondary))),
                         ],
                       );
                     }),
@@ -327,14 +328,14 @@ class _PersonnelScreenState extends State<PersonnelScreen> with TickerProviderSt
   }
 
   Widget _buildBadge(String t, Color c) {
-    if (t == '-' || t == '---เลือก---') return Text('-', style: GoogleFonts.sarabun(color: Colors.blueGrey));
+    if (t == '-' || t == '---เลือก---') return Text('-', style: GoogleFonts.sarabun(color: AppColors.textSecondary));
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
           color: c.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
       child: Text(t,
           style: GoogleFonts.sarabun(
-              fontSize: 12, color: c, fontWeight: FontWeight.bold)),
+              fontSize: 12, color: c, fontWeight: FontWeight.w600)),
     );
   }
 }
@@ -368,7 +369,7 @@ class _AdminRosterDialogState extends State<AdminRosterDialog> {
       title: Row(children: [
         Expanded(
           child: Text('ทำเนียบผู้บริหาร',
-              style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+              style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
         ),
         DropdownButton<int>(
           value: _year,
@@ -399,7 +400,7 @@ class _AdminRosterDialogState extends State<AdminRosterDialog> {
               return Text(
                   'ยังไม่ได้เริ่มบันทึกประวัติตำแหน่งบริหาร\n'
                   '(ผู้ดูแลระบบต้องรัน supabase/admin_position_history.sql ก่อน)',
-                  style: GoogleFonts.sarabun(color: Colors.blueGrey));
+                  style: GoogleFonts.sarabun(color: AppColors.textSecondary));
             }
 
             // ตำแหน่ง → รายชื่อพร้อมช่วงเวลาที่ดำรงในปีงบนี้
@@ -424,7 +425,7 @@ class _AdminRosterDialogState extends State<AdminRosterDialog> {
             }
             if (byRole.isEmpty) {
               return Text('ไม่มีผู้ดำรงตำแหน่งบริหารในปีงบ $_year',
-                  style: GoogleFonts.sarabun(color: Colors.blueGrey));
+                  style: GoogleFonts.sarabun(color: AppColors.textSecondary));
             }
             final roles = byRole.keys.toList()
               ..sort((a, b) => _roleRank(a).compareTo(_roleRank(b)) != 0
@@ -440,15 +441,15 @@ class _AdminRosterDialogState extends State<AdminRosterDialog> {
                       padding: const EdgeInsets.only(top: 10, bottom: 2),
                       child: Text(role,
                           style: GoogleFonts.sarabun(
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF0F172A))),
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.text)),
                     ),
                     for (final line in byRole[role]!)
                       Padding(
                         padding: const EdgeInsets.only(left: 12, top: 2),
                         child: Text('• $line',
                             style: GoogleFonts.sarabun(
-                                fontSize: 13.5, color: Colors.blueGrey.shade800)),
+                                fontSize: 13, color: AppColors.textSecondary)),
                       ),
                   ],
                 ],

@@ -17,48 +17,49 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/attendance_service.dart';
 import '../utils/web_platform.dart' as platform;
+import '../theme/app_tokens.dart';
 
-const _ink = Color(0xFF0F172A);
-const _muted = Color(0xFF64748B);
-const _line = Color(0xFFE2E8F0);
-const _pageBg = Color(0xFFF1F5F9);
+const _ink = AppColors.text;
+const _muted = AppColors.textMuted;
+const _line = AppColors.line;
+const _pageBg = AppColors.raised;
 
 /// สี + ไอคอนของแต่ละสถานะ
 ({Color fg, Color bg, IconData icon}) statusStyle(String status) =>
     switch (status) {
       'มา' => (
-          fg: const Color(0xFF15803D),
-          bg: const Color(0xFFDCFCE7),
+          fg: AppColors.positive,
+          bg: AppColors.positiveSoft,
           icon: Icons.check_circle_rounded
         ),
       'สาย' => (
           fg: const Color(0xFFB45309),
-          bg: const Color(0xFFFEF3C7),
+          bg: AppColors.pendingSoft,
           icon: Icons.schedule_rounded
         ),
       'ลา' => (
           fg: const Color(0xFF1D4ED8),
-          bg: const Color(0xFFDBEAFE),
+          bg: AppColors.accentSoft,
           icon: Icons.event_busy_rounded
         ),
       'ไปราชการ' => (
-          fg: const Color(0xFF7C3AED),
-          bg: const Color(0xFFEDE9FE),
+          fg: AppColors.accent,
+          bg: AppColors.raised,
           icon: Icons.business_center_rounded
         ),
       'ขาด' => (
           fg: const Color(0xFFB91C1C),
-          bg: const Color(0xFFFEE2E2),
+          bg: AppColors.negativeSoft,
           icon: Icons.cancel_rounded
         ),
       'ยังไม่สแกน' => (
           fg: const Color(0xFFC2410C),
-          bg: const Color(0xFFFFEDD5),
+          bg: AppColors.raised,
           icon: Icons.hourglass_empty_rounded
         ),
       _ => (
           fg: _muted,
-          bg: const Color(0xFFF1F5F9),
+          bg: AppColors.raised,
           icon: Icons.remove_circle_outline_rounded
         ),
     };
@@ -141,7 +142,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           child: Text(
             'โรงเรียนยังไม่เปิดใช้ระบบลงเวลา\n(เปิดได้ที่ web ส่วนกลาง > ลงเวลา)',
             textAlign: TextAlign.center,
-            style: GoogleFonts.sarabun(color: _muted, fontSize: 15),
+            style: GoogleFonts.sarabun(color: _muted, fontSize: 14),
           ),
         ),
       );
@@ -160,7 +161,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               labelColor: _ink,
               unselectedLabelColor: _muted,
               indicatorColor: _ink,
-              labelStyle: GoogleFonts.sarabun(fontWeight: FontWeight.bold),
+              labelStyle: GoogleFonts.sarabun(fontWeight: FontWeight.w600),
               unselectedLabelStyle: GoogleFonts.sarabun(),
               tabs: const [
                 Tab(text: 'รายวัน'),
@@ -203,7 +204,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       Text('ลงเวลา',
                           style: GoogleFonts.sarabun(
                               fontSize: isMobile ? 22 : 28,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w600,
                               color: Colors.black)),
                     Text(
                         'เข้างาน ${_settings.workStart} · สายหลัง ${_settings.lateAfter} · เลิกงาน ${_settings.workEnd}',
@@ -315,7 +316,7 @@ class _MyAttendanceTabState extends State<_MyAttendanceTab>
         context: context,
         builder: (ctx) => AlertDialog(
           title: Text('ถอนความยินยอม',
-              style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+              style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
           content: Text(
               'ถอนความยินยอมแล้ว แจ้งผู้ดูแลระบบให้ลบใบหน้าของคุณออกจากเครื่องสแกนด้วย '
               'และคุณจะต้องลงเวลาด้วยวิธีอื่นตามที่โรงเรียนกำหนด',
@@ -427,7 +428,7 @@ class _MyAttendanceTabState extends State<_MyAttendanceTab>
   Widget _consentCard() {
     final given = _consentAt != null;
     return _Card(
-      color: given ? Colors.white : const Color(0xFFFFFBEB),
+      color: given ? Colors.white : AppColors.page,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -435,7 +436,7 @@ class _MyAttendanceTabState extends State<_MyAttendanceTab>
           children: [
             Icon(given ? Icons.verified_user_rounded : Icons.face_rounded,
                 color:
-                    given ? const Color(0xFF15803D) : const Color(0xFFB45309)),
+                    given ? AppColors.positive : const Color(0xFFB45309)),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -446,7 +447,7 @@ class _MyAttendanceTabState extends State<_MyAttendanceTab>
                           ? 'ยินยอมใช้ข้อมูลใบหน้าแล้ว'
                           : 'ขอความยินยอมใช้ข้อมูลใบหน้าเพื่อลงเวลา',
                       style: GoogleFonts.sarabun(
-                          fontWeight: FontWeight.bold, color: _ink)),
+                          fontWeight: FontWeight.w600, color: _ink)),
                   const SizedBox(height: 4),
                   Text(
                       given
@@ -591,7 +592,7 @@ class _DailyTabState extends State<_DailyTab>
                       '${isToday ? 'วันนี้ · ' : ''}${AttendanceService.thaiDayLabel(_day)} ${_day.year + 543}',
                       textAlign: TextAlign.center,
                       style: GoogleFonts.sarabun(
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w600,
                           fontSize: 16,
                           color: _ink),
                     ),
@@ -847,7 +848,7 @@ class _MonthlyTabState extends State<_MonthlyTab>
               scrollDirection: Axis.horizontal,
               child: DataTable(
                 headingTextStyle: GoogleFonts.sarabun(
-                    fontWeight: FontWeight.bold, color: _ink),
+                    fontWeight: FontWeight.w600, color: _ink),
                 dataTextStyle: GoogleFonts.sarabun(color: _ink),
                 columnSpacing: 20,
                 columns: [
@@ -938,7 +939,7 @@ class _ScanDetailDialogState extends State<_ScanDetailDialog> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) => AlertDialog(
           title: Text(title,
-              style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+              style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
           content: SizedBox(
             width: 360,
             child: Column(
@@ -1057,7 +1058,7 @@ class _ScanDetailDialogState extends State<_ScanDetailDialog> {
               children: [
                 Text(s.fullName,
                     style: GoogleFonts.sarabun(
-                        fontWeight: FontWeight.bold, fontSize: 18)),
+                        fontWeight: FontWeight.w600, fontSize: 18)),
                 Text(
                     '${AttendanceService.thaiDayLabel(s.day)} ${s.day.year + 543}',
                     style: GoogleFonts.sarabun(fontSize: 13, color: _muted)),
@@ -1070,7 +1071,7 @@ class _ScanDetailDialogState extends State<_ScanDetailDialog> {
       content: SizedBox(
         width: 440,
         child: _error != null
-            ? Text(_error!, style: GoogleFonts.sarabun(color: Colors.red))
+            ? Text(_error!, style: GoogleFonts.sarabun(color: AppColors.negative))
             : scans == null
                 ? const SizedBox(
                     height: 80,
@@ -1137,7 +1138,7 @@ class _ScanDetailDialogState extends State<_ScanDetailDialog> {
       ),
       title: Text('${AttendanceService.hm(log.scannedAt)} น.',
           style: GoogleFonts.sarabun(
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w600,
             fontSize: 16,
             color: log.voided ? _muted : _ink,
             decoration: log.voided ? TextDecoration.lineThrough : null,
@@ -1233,7 +1234,7 @@ class _StatusPill extends StatelessWidget {
             color: style.bg, borderRadius: BorderRadius.circular(999)),
         child: Text(status,
             style: GoogleFonts.sarabun(
-                fontSize: 12, fontWeight: FontWeight.bold, color: style.fg)),
+                fontSize: 12, fontWeight: FontWeight.w600, color: style.fg)),
       );
 }
 
@@ -1256,7 +1257,7 @@ class _CountChip extends StatelessWidget {
           const SizedBox(width: 6),
           Text('$status $count',
               style: GoogleFonts.sarabun(
-                  fontWeight: FontWeight.bold, color: style.fg)),
+                  fontWeight: FontWeight.w600, color: style.fg)),
         ],
       ),
     );
@@ -1282,7 +1283,7 @@ class _MonthPicker extends StatelessWidget {
             child: Text(AttendanceService.thaiMonthYear(month),
                 textAlign: TextAlign.center,
                 style: GoogleFonts.sarabun(
-                    fontWeight: FontWeight.bold, color: _ink)),
+                    fontWeight: FontWeight.w600, color: _ink)),
           ),
           IconButton(
               onPressed: isCurrent
@@ -1324,11 +1325,11 @@ class _ErrorView extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.error_outline_rounded,
-                color: Colors.red, size: 40),
+                color: AppColors.negative, size: 40),
             const SizedBox(height: 8),
             Text('โหลดข้อมูลไม่สำเร็จ: $message',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.sarabun(color: Colors.red)),
+                style: GoogleFonts.sarabun(color: AppColors.negative)),
             TextButton(onPressed: onRetry, child: const Text('ลองใหม่')),
           ],
         ),

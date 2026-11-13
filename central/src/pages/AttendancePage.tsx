@@ -391,7 +391,7 @@ export default function AttendancePage() {
       {newKey && (
         <section className="card mb-6 border-2 border-brand-500 bg-brand-50/20">
           <div className="card-title bg-brand-50/60">
-            <span>🔑 รหัสลับของเครื่อง "{newKey.device}"</span>
+            <span> รหัสลับของเครื่อง "{newKey.device}"</span>
             <span className="badge-amber">แสดงครั้งเดียว</span>
           </div>
           <div className="flex flex-col gap-3 p-4 sm:p-5">
@@ -480,7 +480,7 @@ export default function AttendancePage() {
           <button className={tab === 'codes' ? 'active' : ''} onClick={() => setTab('codes')}>
             3. รหัสบุคลากร ({matchedCount}/{teachers.length})
             {pendingCodes.length > 0 && (
-              <span className="ml-1 rounded-full bg-amber-500 px-1.5 py-0.2 text-[10px] font-bold text-white">
+              <span className="ml-1 rounded-full bg-amber-500 px-1.5 py-0.2 text-[10px] font-semibold text-white">
                 {pendingCodes.length}
               </span>
             )}

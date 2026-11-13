@@ -22,6 +22,7 @@ import '../utils/profile_image.dart';
 import '../utils/school_info.dart';
 import '../utils/staff_status.dart';
 import '../widgets/thai_buddhist_calendar_widget.dart';
+import '../theme/app_tokens.dart';
 
 class UserManagementScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -89,7 +90,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               insetPadding: const EdgeInsets.all(16),
               clipBehavior: Clip.antiAlias,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24)),
+                  borderRadius: BorderRadius.circular(16)),
               child: SizedBox(
                 width: 600,
                 child: SingleChildScrollView(child: _buildAddForm(true)),
@@ -119,7 +120,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   final _scriptUrl =
       'https://script.google.com/macros/s/AKfycbx480ohowHypG_MdHVx_BBjNZ54bkZ-cMY4ryntLwbfK-qi8T30JFe3dU6EMVET_0OP/exec';
   final _profileFolderId =
-      '1Gor8_V0nRjHU5qLYGke4EE86L1c2dB2k'; // 📂 โฟลเดอร์สำหรับเก็บรูปโปรไฟล์โดยเฉพาะครับ 🥇
+      '1Gor8_V0nRjHU5qLYGke4EE86L1c2dB2k'; // โฟลเดอร์สำหรับเก็บรูปโปรไฟล์โดยเฉพาะครับ
   final _syncUrlController = TextEditingController(
       text:
           'https://docs.google.com/spreadsheets/d/1rei51ixTtvXGhxHkrApum6M_lpfGxDGr-QFMqB0_4c4/edit?gid=1827790500#gid=1827790500');
@@ -134,7 +135,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   bool _isEditing = false;
   String? _editingId;
   String _oldPhotoUrl =
-      ''; // 🔥 ตัวแปรเก็บลิ้งค์รูปภาพเดิมเพื่อเปรียบเทียบตอนลบขยะจากโฮสต์ครับ 🥇🏆
+      ''; // ตัวแปรเก็บลิ้งค์รูปภาพเดิมเพื่อเปรียบเทียบตอนลบขยะจากโฮสต์ครับ
 
   // Sync State
   List<Map<String, dynamic>> _syncPreview = [];
@@ -150,9 +151,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   int _permissionViewTab = 0; // 0: หน้า PC, 1: หน้ามือถือ
 
   // สีหลักตามสไตล์พรีเมียม
-  final Color primaryColor = const Color(0xFF0F172A); // Slate 900
+  final Color primaryColor = AppColors.text; // Slate 900
   final Color accentColor = const Color(0xFF3B82F6); // Blue 500
-  final Color bgColor = const Color(0xFFF1F5F9); // Slate 100
+  final Color bgColor = AppColors.raised; // Slate 100
   final Color cardColor = Colors.white;
 
   List<String> _positions = ['---เลือก---'];
@@ -189,7 +190,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   List<String> _leaveTypes = []; // 🔥 ตัวแปรสำหรับประเภทการลาครับ 🥇🏆
   List<String> _leaveReasons = []; // 📝 เหตุผลการลาที่ใช้เป็นตัวเลือกด่วน
   bool _isLoadingDropdowns = true;
-  String _searchText = ''; // 🔥 ตัวแปรสำหรับค้นหาแบบ Real-time ครับ 🥇🏆
+  String _searchText = ''; // ตัวแปรสำหรับค้นหาแบบ Real-time ครับ
   int _masterSubTab = 0; // 🔥 ตัวแปรสำหรับสลับหมวดหมู่ข้อมูลพื้นฐานครับ 🥇🏆
 
   // 🔢 นิยามรหัสเมนูมาตรฐาน (ID Mapping) เพื่อความเสถียรครับ 🥇🏆🏎️
@@ -198,7 +199,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     1: 'รายงานสรุปการลา',
     2: 'ส่งใบลา',
     3: 'ประวัติการลา',
-    4: 'จัดการระบบ', // 🔥 ปรับชื่อให้ตรงกับ Sidebar ด้านซ้าย 100% ครับ
+    4: 'จัดการระบบ', // ปรับชื่อให้ตรงกับ Sidebar ด้านซ้าย 100% ครับ
     5: 'บุคลากร (กลุ่มสาระ)',
     7: 'ประวัติการเข้าใช้งาน',
     8: 'ปฏิทินกิจกรรมส่วนกลาง',
@@ -645,7 +646,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           user['academicStanding'] ?? user['วิทยฐานะ'] ?? '---เลือก---';
       _selectedRole = user['role'] ??
           user['permission'] ??
-          'ครู'; // 🔥 ตรวจสอบทั้งสองฟิลด์ครับ
+          'ครู'; // ตรวจสอบทั้งสองฟิลด์ครับ
       _adminPosController.text = user['ตำแหน่งงานบริหาร'] ?? '';
       _originalAdminPos = _adminPosController.text;
       _adminPosEffective = DateTime.now();
@@ -654,7 +655,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       _editingAdminHistory = AdminPosition.historyOf(user);
       _emailController.text = user['email']?.toString() ?? '';
       _phoneController.text = user['phone']?.toString() ?? '';
-      _photoController.text = user['profileImage'] ?? ''; // 📸 ดึงข้อมูลรูปภาพ
+      _photoController.text = user['profileImage'] ?? ''; // ดึงข้อมูลรูปภาพ
       _oldPhotoUrl = _photoController
           .text; // 🥇 เก็บรูปภาพเดิมไว้เผื่อกรณีทีมีการลบ/เปลี่ยนรูป
     });
@@ -695,7 +696,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('ยืนยันการลบ',
-            style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+            style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
         content: Text(
             'คุณต้องการลบรายชื่อ $name ใช่หรือไม่?\nการดำเนินการนี้ไม่สามารถย้อนกลับได้ครับ',
             style: GoogleFonts.sarabun()),
@@ -703,11 +704,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
               child:
-                  const Text('ยกเลิก', style: TextStyle(color: Colors.grey))),
+                  const Text('ยกเลิก', style: TextStyle(color: AppColors.textMuted))),
           ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
               style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red, foregroundColor: Colors.white),
+                  backgroundColor: AppColors.negative, foregroundColor: Colors.white),
               child: const Text('ยืนยันลบข้อมูล')),
         ],
       ),
@@ -732,7 +733,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('ลบข้อมูลเรียบร้อยแล้วครับ')));
+              const SnackBar(content: Text('ลบข้อมูลเรียบร้อยแล้ว')));
         }
       } catch (e) {
         if (mounted) {
@@ -769,7 +770,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('อัปโหลดรูปภาพขึ้น Google Drive สำเร็จครับ! ☁️🥇')));
+            content: Text('อัปโหลดรูปภาพขึ้น Google Drive สำเร็จ')));
       }
     } catch (err) {
       if (mounted) {
@@ -799,12 +800,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
+                    color: AppColors.raised,
                     borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 24),
             Text('จัดการรูปโปรไฟล์',
                 style: GoogleFonts.sarabun(
-                    fontSize: 18, fontWeight: FontWeight.bold)),
+                    fontSize: 18, fontWeight: FontWeight.w600)),
             const SizedBox(height: 32),
             ListTile(
               leading: Container(
@@ -813,9 +814,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       color: Colors.blue.withValues(alpha: 0.1),
                       shape: BoxShape.circle),
                   child: const Icon(Icons.add_a_photo_outlined,
-                      color: Colors.blue)),
+                      color: AppColors.accent)),
               title: Text('เลือกรูปภาพจากเครื่อง (ย่อขนาดอัตโนมัติ)',
-                  style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                  style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
               subtitle: Text('อัปโหลดไฟล์จากในคอมพิวเตอร์หรือมือถือครับ',
                   style: GoogleFonts.sarabun(fontSize: 12)),
               onTap: () {
@@ -830,9 +831,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   decoration: BoxDecoration(
                       color: Colors.orange.withValues(alpha: 0.1),
                       shape: BoxShape.circle),
-                  child: const Icon(Icons.link_rounded, color: Colors.orange)),
+                  child: const Icon(Icons.link_rounded, color: AppColors.pending)),
               title: Text('ใช้ลิ้งค์จาก Google Drive',
-                  style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                  style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
               subtitle: Text(
                   'นำลิ้งก์แชร์จาก Drive มาวางเพื่อใช้งานแบบ Cloud ครับ',
                   style: GoogleFonts.sarabun(fontSize: 12)),
@@ -848,10 +849,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       color: Colors.red.withValues(alpha: 0.1),
                       shape: BoxShape.circle),
                   child: const Icon(Icons.delete_outline_rounded,
-                      color: Colors.red)),
+                      color: AppColors.negative)),
               title: Text('ลบรูปภาพโปรไฟล์',
                   style: GoogleFonts.sarabun(
-                      fontWeight: FontWeight.bold, color: Colors.red)),
+                      fontWeight: FontWeight.w600, color: AppColors.negative)),
               subtitle: Text(
                   'นำรูปภาพออกจากผู้พัฒนานี้เพื่อกลับไปใช้ค่าเริ่มต้นครับ',
                   style: GoogleFonts.sarabun(fontSize: 12)),
@@ -861,7 +862,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   _photoController.clear(); // 🗑️ ล้างลิ้งค์รูปภาพ
                 });
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('นำรูปภาพออกเรียบร้อยแล้วครับ 🗑️')));
+                    content: Text('นำรูปภาพออกเรียบร้อยแล้ว')));
               },
             ),
             const SizedBox(height: 20),
@@ -953,7 +954,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   padding: const EdgeInsets.all(22),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF4F7FB),
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(16),
                     boxShadow: const [
                       BoxShadow(
                         color: Color(0x330F172A),
@@ -971,11 +972,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             width: 46,
                             height: 46,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFE0F2FE),
+                              color: AppColors.raised,
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: const Icon(Icons.compare_arrows_rounded,
-                                color: Color(0xFF0284C7)),
+                                color: AppColors.accent),
                           ),
                           const SizedBox(width: 14),
                           Expanded(
@@ -985,14 +986,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 Text('นำเข้าข้อมูลบุคลากร',
                                     style: GoogleFonts.sarabun(
                                         fontSize: 22,
-                                        fontWeight: FontWeight.w900,
-                                        color: const Color(0xFF0F172A))),
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.text)),
                                 const SizedBox(height: 3),
                                 Text(
                                   'เลือก table จาก Firebase เพื่อนำเข้า Supabase ตามลำดับ dependency อัตโนมัติ',
                                   style: GoogleFonts.sarabun(
                                       fontSize: 13,
-                                      color: const Color(0xFF64748B)),
+                                      color: AppColors.textMuted),
                                 ),
                               ],
                             ),
@@ -1007,8 +1008,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             child: Text(
                                 '$selectedCount/${allCollections.length} table',
                                 style: GoogleFonts.sarabun(
-                                    fontWeight: FontWeight.w900,
-                                    color: const Color(0xFF2563EB))),
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.accent)),
                           ),
                         ],
                       ),
@@ -1017,7 +1018,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(18),
+                          borderRadius: BorderRadius.circular(16),
                           boxShadow: const [
                             BoxShadow(
                               color: Color(0x0F0F172A),
@@ -1030,7 +1031,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           children: [
                             Checkbox(
                               value: allChecked,
-                              activeColor: const Color(0xFF2563EB),
+                              activeColor: AppColors.accent,
                               onChanged: (v) => setDialogState(() {
                                 for (final c in allCollections) {
                                   selected[c] = v ?? false;
@@ -1041,9 +1042,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             Expanded(
                               child: Text('เลือกทั้งหมด',
                                   style: GoogleFonts.sarabun(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w900,
-                                      color: const Color(0xFF0F172A))),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.text)),
                             ),
                             Text(
                               selectedCollections.isEmpty
@@ -1053,8 +1054,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.sarabun(
                                   fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF64748B)),
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textMuted),
                             ),
                           ],
                         ),
@@ -1084,13 +1085,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                     horizontal: 14, vertical: 12),
                                 decoration: BoxDecoration(
                                   color: checked
-                                      ? const Color(0xFFEFF6FF)
+                                      ? AppColors.accentSoft
                                       : Colors.white,
                                   borderRadius: BorderRadius.circular(16),
                                   border: Border.all(
                                     color: checked
                                         ? const Color(0xFF93C5FD)
-                                        : const Color(0xFFE2E8F0),
+                                        : AppColors.line,
                                     width: checked ? 1.4 : 1,
                                   ),
                                 ),
@@ -1098,7 +1099,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                   children: [
                                     Checkbox(
                                       value: checked,
-                                      activeColor: const Color(0xFF2563EB),
+                                      activeColor: AppColors.accent,
                                       onChanged: (v) => setDialogState(
                                           () => selected[table] = v ?? false),
                                     ),
@@ -1108,15 +1109,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                       height: 34,
                                       decoration: BoxDecoration(
                                         color: checked
-                                            ? const Color(0xFFDBEAFE)
-                                            : const Color(0xFFF1F5F9),
+                                            ? AppColors.accentSoft
+                                            : AppColors.raised,
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: Icon(_migrationTableIcon(table),
                                           size: 18,
                                           color: checked
-                                              ? const Color(0xFF2563EB)
-                                              : const Color(0xFF64748B)),
+                                              ? AppColors.accent
+                                              : AppColors.textMuted),
                                     ),
                                     const SizedBox(width: 10),
                                     Expanded(
@@ -1130,18 +1131,18 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                               style: GoogleFonts.sarabun(
-                                                  fontWeight: FontWeight.w900,
+                                                  fontWeight: FontWeight.w600,
                                                   color:
-                                                      const Color(0xFF0F172A))),
+                                                      AppColors.text)),
                                           const SizedBox(height: 2),
                                           Text(_migrationTableGroup(table),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                               style: GoogleFonts.sarabun(
-                                                  fontSize: 11.5,
-                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
                                                   color:
-                                                      const Color(0xFF64748B))),
+                                                      AppColors.textMuted)),
                                         ],
                                       ),
                                     ),
@@ -1164,12 +1165,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               icon: const Icon(Icons.schema_rounded),
                               label: Text('เปรียบเทียบที่เลือก',
                                   style: GoogleFonts.sarabun(
-                                      fontWeight: FontWeight.w800)),
+                                      fontWeight: FontWeight.w600)),
                               style: OutlinedButton.styleFrom(
                                 minimumSize: const Size.fromHeight(46),
-                                foregroundColor: const Color(0xFF1E3A8A),
+                                foregroundColor: AppColors.accent,
                                 side:
-                                    const BorderSide(color: Color(0xFF94A3B8)),
+                                    const BorderSide(color: AppColors.textMuted),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(999),
                                 ),
@@ -1186,11 +1187,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               icon: const Icon(Icons.cloud_upload_rounded),
                               label: Text('นำเข้าที่เลือก ($selectedCount)',
                                   style: GoogleFonts.sarabun(
-                                      fontWeight: FontWeight.w900)),
+                                      fontWeight: FontWeight.w600)),
                               style: ElevatedButton.styleFrom(
                                 minimumSize: const Size.fromHeight(46),
                                 elevation: 0,
-                                backgroundColor: const Color(0xFF10B981),
+                                backgroundColor: AppColors.positive,
                                 foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(999),
@@ -1203,8 +1204,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             onPressed: () => Navigator.pop(ctx),
                             child: Text('ยกเลิก',
                                 style: GoogleFonts.sarabun(
-                                    fontWeight: FontWeight.w800,
-                                    color: const Color(0xFF64748B))),
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textMuted)),
                           ),
                         ],
                       ),
@@ -1226,7 +1227,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       final isError = line.contains(' Error:') ||
           line.contains('schema Error:') ||
           line.startsWith('⏸️ ') ||
-          line.startsWith('❌ ');
+          line.startsWith(' ');
       return !isError;
     }).toList();
   }
@@ -1262,13 +1263,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       final isError = line.contains(' Error:') ||
           line.contains('schema Error:') ||
           line.startsWith('⏸️ ') ||
-          line.startsWith('❌ ');
+          line.startsWith(' ');
       if (!isError) continue;
       final table = line
           .split(RegExp(r'[:/]'))
           .first
           .replaceAll('⏸️', '')
-          .replaceAll('❌', '')
+          .replaceAll('', '')
           .trim();
       result.putIfAbsent(table.isEmpty ? 'ระบบ' : table, () => []).add(line);
     }
@@ -1287,7 +1288,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: const [
           BoxShadow(
             color: Color(0x140F172A),
@@ -1308,7 +1309,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
             decoration: const BoxDecoration(
               color: Color(0xFFFBFDFF),
-              border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+              border: Border(bottom: BorderSide(color: AppColors.line)),
             ),
             child: Row(
               children: [
@@ -1329,16 +1330,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       Text(title,
                           style: GoogleFonts.sarabun(
                               fontSize: 14,
-                              fontWeight: FontWeight.w900,
-                              color: const Color(0xFF0F172A))),
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.text)),
                       if (subtitle != null) ...[
                         const SizedBox(height: 2),
                         Text(subtitle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.sarabun(
-                                fontSize: 11.5,
-                                color: const Color(0xFF64748B))),
+                                fontSize: 12,
+                                color: AppColors.textMuted)),
                       ],
                     ],
                   ),
@@ -1353,21 +1354,21 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 5),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
+                          color: AppColors.raised,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                          border: Border.all(color: AppColors.line),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             const Icon(Icons.copy_rounded,
-                                size: 14, color: Color(0xFF475569)),
+                                size: 14, color: AppColors.textSecondary),
                             const SizedBox(width: 4),
                             Text('Copy ทั้งหมด',
                                 style: GoogleFonts.sarabun(
                                     fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: const Color(0xFF475569))),
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textSecondary)),
                           ],
                         ),
                       ),
@@ -1407,13 +1408,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             Text(title,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.sarabun(
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF0F172A))),
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.text)),
             const SizedBox(height: 4),
             Text(detail,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.sarabun(
-                    fontSize: 12, color: const Color(0xFF64748B))),
+                    fontSize: 12, color: AppColors.textMuted)),
           ],
         ),
       ),
@@ -1426,7 +1427,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         icon: Icons.cloud_upload_outlined,
         title: 'ยังไม่มีข้อมูลนำเข้า',
         detail: 'รายละเอียดจะเพิ่มเข้ามาระหว่างการทำงาน',
-        color: const Color(0xFF2563EB),
+        color: AppColors.accent,
       );
     }
     return ListView.separated(
@@ -1435,14 +1436,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (ctx, i) {
         final line = infoLines[i];
-        final isSuccess = line.contains('imported') || line.startsWith('✅');
+        final isSuccess = line.contains('imported') || line.startsWith('');
         final isNote =
             line.startsWith('ℹ️') || line.contains('INSERT โดยไม่ส่ง PK');
         final color = isSuccess
-            ? const Color(0xFF16A34A)
+            ? AppColors.positive
             : isNote
-                ? const Color(0xFF2563EB)
-                : const Color(0xFF64748B);
+                ? AppColors.accent
+                : AppColors.textMuted;
         final icon = isSuccess
             ? Icons.check_circle_rounded
             : isNote
@@ -1463,7 +1464,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               Expanded(
                 child: Text(line,
                     style: GoogleFonts.sarabun(
-                        fontSize: 12.5,
+                        fontSize: 12,
                         height: 1.35,
                         color: const Color(0xFF334155))),
               ),
@@ -1488,7 +1489,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   child: const Padding(
                     padding: EdgeInsets.all(4),
                     child: Icon(Icons.copy_rounded,
-                        size: 14, color: Color(0xFF94A3B8)),
+                        size: 14, color: AppColors.textMuted),
                   ),
                 ),
               ),
@@ -1505,7 +1506,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         icon: Icons.verified_rounded,
         title: 'ยังไม่พบปัญหา',
         detail: 'ถ้ามีรายการค้าง จะถูกแยกตาม table ตรงนี้',
-        color: const Color(0xFF16A34A),
+        color: AppColors.positive,
       );
     }
     return ListView.separated(
@@ -1518,8 +1519,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: const Color(0xFFFFF7F7),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFFECACA)),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.negativeSoft),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1527,27 +1528,27 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               Row(
                 children: [
                   const Icon(Icons.warning_amber_rounded,
-                      size: 18, color: Color(0xFFDC2626)),
+                      size: 18, color: AppColors.negative),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(entry.key,
                         style: GoogleFonts.sarabun(
                             fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                            color: const Color(0xFF991B1B))),
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.negative)),
                   ),
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFEE2E2),
+                      color: AppColors.negativeSoft,
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text('${entry.value.length} รายการ',
                         style: GoogleFonts.sarabun(
                             fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF991B1B))),
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.negative)),
                   ),
                   const SizedBox(width: 6),
                   Tooltip(
@@ -1573,7 +1574,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       child: const Padding(
                         padding: EdgeInsets.all(4),
                         child: Icon(Icons.copy_rounded,
-                            size: 15, color: Color(0xFFDC2626)),
+                            size: 15, color: AppColors.negative),
                       ),
                     ),
                   ),
@@ -1600,8 +1601,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               if (entry.value.length > 30)
                 Text('แสดง 30 รายการแรกจาก ${entry.value.length} รายการ',
                     style: GoogleFonts.sarabun(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                         color: const Color(0xFFB91C1C))),
             ],
           ),
@@ -1616,7 +1617,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         icon: Icons.table_rows_rounded,
         title: 'ยังไม่มี record สำเร็จ',
         detail: 'จำนวนสำเร็จของแต่ละ table จะแสดงที่นี่',
-        color: const Color(0xFF16A34A),
+        color: AppColors.positive,
       );
     }
     return ListView.separated(
@@ -1628,9 +1629,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFFF0FDF4),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFBBF7D0)),
+            color: AppColors.positiveSoft,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.positiveSoft),
           ),
           child: Row(
             children: [
@@ -1638,14 +1639,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 child: Text(entry.key,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.sarabun(
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFF166534))),
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.positive)),
               ),
               Text('${entry.value[0]}/${entry.value[1]}',
                   style: GoogleFonts.sarabun(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      color: const Color(0xFF15803D))),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.positive)),
               const SizedBox(width: 8),
               Tooltip(
                 message: 'คัดลอกผลของ ${entry.key}',
@@ -1669,7 +1670,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   child: const Padding(
                     padding: EdgeInsets.all(4),
                     child: Icon(Icons.copy_rounded,
-                        size: 15, color: Color(0xFF16A34A)),
+                        size: 15, color: AppColors.positive),
                   ),
                 ),
               ),
@@ -1691,7 +1692,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('เปิดหน้าต่างนำเข้าไม่สำเร็จ: $e'),
-          backgroundColor: Colors.red.shade700,
+          backgroundColor: AppColors.negative,
         ),
       );
     }
@@ -1709,7 +1710,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text('ล้างข้อมูลใน Supabase',
-            style: GoogleFonts.sarabun(fontWeight: FontWeight.w900)),
+            style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
         content: Text(
           'ต้องการล้างข้อมูล ${orderedTables.length} table ที่เลือกไว้หรือไม่? การล้างนี้จะใช้สิทธิ์ Supabase ของผู้ใช้ปัจจุบัน',
           style: GoogleFonts.sarabun(),
@@ -1723,9 +1724,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             onPressed: () => Navigator.of(dialogContext).pop(true),
             icon: const Icon(Icons.delete_sweep_rounded, size: 18),
             label: Text('ล้างข้อมูล',
-                style: GoogleFonts.sarabun(fontWeight: FontWeight.w800)),
+                style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
+              backgroundColor: AppColors.negative,
               foregroundColor: Colors.white,
             ),
           ),
@@ -1748,8 +1749,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               ? 'ไม่พบตารางที่ล้างได้ หรือสิทธิ์ Supabase ไม่อนุญาต'
               : 'ล้างข้อมูลใน Supabase แล้ว ${cleared.length} table'),
           backgroundColor: cleared.isEmpty
-              ? Colors.orange.shade700
-              : const Color(0xFF15803D),
+              ? AppColors.pending
+              : AppColors.positive,
         ),
       );
     } catch (e) {
@@ -1757,7 +1758,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('ล้างข้อมูลใน Supabase ไม่สำเร็จ: $e'),
-          backgroundColor: Colors.red.shade700,
+          backgroundColor: AppColors.negative,
         ),
       );
     } finally {
@@ -1773,11 +1774,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       final auth = FirebaseAuth.instance;
       if (auth.currentUser != null) {
         onLog(
-            '🔐 Firebase Auth: บัญชีพร้อมใช้งาน (${auth.currentUser?.email ?? auth.currentUser?.uid})');
+            ' Firebase Auth: บัญชีพร้อมใช้งาน (${auth.currentUser?.email ?? auth.currentUser?.uid})');
         return;
       }
 
-      onLog('🔐 กำลังยืนยันตัวตนแอดมินกับ Firebase Auth (admin)...');
+      onLog(' กำลังยืนยันตัวตนแอดมินกับ Firebase Auth (admin)...');
       // กำหนด username: admin, password: 1234
       const adminEmail = 'admin@rbp.ac.th';
       const passwordsToTry = [
@@ -1794,7 +1795,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             password: pwd,
           );
           if (uc.user != null) {
-            onLog('✅ ยืนยันตัวตน Firebase Auth สำเร็จ ($adminEmail)');
+            onLog(' ยืนยันตัวตน Firebase Auth สำเร็จ ($adminEmail)');
             return;
           }
         } catch (_) {
@@ -1809,7 +1810,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           password: '1234-SLA2026!',
         );
         if (uc.user != null) {
-          onLog('✅ สร้างและยืนยันตัวตน Firebase Auth สำเร็จ ($adminEmail)');
+          onLog(' สร้างและยืนยันตัวตน Firebase Auth สำเร็จ ($adminEmail)');
           return;
         }
       } catch (_) {
@@ -1817,13 +1818,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       }
 
       if (auth.currentUser != null) {
-        onLog('✅ Firebase Auth พร้อมใช้งาน (${auth.currentUser?.email})');
+        onLog(' Firebase Auth พร้อมใช้งาน (${auth.currentUser?.email})');
       } else {
         onLog(
-            '⚠️ ไม่สามารถล็อกอิน Firebase Auth อัตโนมัติได้ — ดำเนินการต่อตามปกติ');
+            ' ไม่สามารถล็อกอิน Firebase Auth อัตโนมัติได้ — ดำเนินการต่อตามปกติ');
       }
     } catch (e) {
-      onLog('⚠️ แจ้งเตือน Firebase Auth: $e');
+      onLog(' แจ้งเตือน Firebase Auth: $e');
     }
   }
 
@@ -1870,7 +1871,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
                 color: const Color(0xFFF4F7FB),
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(16),
                 boxShadow: const [
                   BoxShadow(
                     color: Color(0x330F172A),
@@ -1891,16 +1892,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           height: 42,
                           decoration: BoxDecoration(
                             color: done
-                                ? const Color(0xFFDCFCE7)
-                                : const Color(0xFFEDE9FE),
-                            borderRadius: BorderRadius.circular(14),
+                                ? AppColors.positiveSoft
+                                : AppColors.raised,
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(
                             done
                                 ? Icons.check_circle_rounded
                                 : Icons.sync_rounded,
                             color: done
-                                ? const Color(0xFF16A34A)
+                                ? AppColors.positive
                                 : const Color(0xFF8B5CF6),
                           ),
                         ),
@@ -1917,9 +1918,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                     ? 'นำเข้าเสร็จสิ้น'
                                     : 'กำลังนำเข้าข้อมูล...',
                                 style: GoogleFonts.sarabun(
-                                  fontWeight: FontWeight.w900,
+                                  fontWeight: FontWeight.w600,
                                   fontSize: 22,
-                                  color: const Color(0xFF0F172A),
+                                  color: AppColors.text,
                                 ),
                               ),
                             ),
@@ -1931,7 +1932,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.sarabun(
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight: FontWeight.w600,
                                   color: const Color(0xFF334155),
                                 ),
                               ),
@@ -1955,8 +1956,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             child: Text(
                               'สำเร็จ $total records',
                               style: GoogleFonts.sarabun(
-                                fontWeight: FontWeight.w900,
-                                color: const Color(0xFF15803D),
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.positive,
                               ),
                             ),
                           );
@@ -1975,7 +1976,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           child: LinearProgressIndicator(
                             value: value,
                             minHeight: 10,
-                            backgroundColor: const Color(0xFFE2E8F0),
+                            backgroundColor: AppColors.line,
                             valueColor: const AlwaysStoppedAnimation<Color>(
                                 Color(0xFF8B5CF6)),
                           ),
@@ -1987,8 +1988,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               : '${(value * 100).toStringAsFixed(0)}%',
                           style: GoogleFonts.sarabun(
                             fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF64748B),
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textMuted,
                           ),
                         ),
                       ],
@@ -2011,7 +2012,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 title: 'ข้อมูลนำเข้า',
                                 subtitle: 'ขั้นตอนและรายละเอียดที่ถูกนำเข้า',
                                 icon: Icons.cloud_upload_rounded,
-                                color: const Color(0xFF2563EB),
+                                color: AppColors.accent,
                                 onCopyAll: infoLines.isEmpty
                                     ? null
                                     : () async {
@@ -2042,7 +2043,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 title: 'ตรวจสอบปัญหา',
                                 subtitle: 'แยก error และรายการค้างตาม table',
                                 icon: Icons.error_outline_rounded,
-                                color: const Color(0xFFDC2626),
+                                color: AppColors.negative,
                                 onCopyAll: errorsByTable.isEmpty
                                     ? null
                                     : () async {
@@ -2082,7 +2083,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 title: 'สำเร็จต่อ table',
                                 subtitle: 'จำนวน record ที่นำเข้าได้',
                                 icon: Icons.table_rows_rounded,
-                                color: const Color(0xFF16A34A),
+                                color: AppColors.positive,
                                 onCopyAll: counts.isEmpty
                                     ? null
                                     : () async {
@@ -2125,12 +2126,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         icon: const Icon(Icons.close_rounded),
                         label: Text(done ? 'ปิด' : 'กำลังทำงาน...',
                             style: GoogleFonts.sarabun(
-                                fontWeight: FontWeight.w800)),
+                                fontWeight: FontWeight.w600)),
                         style: ElevatedButton.styleFrom(
                           minimumSize: const Size(130, 46),
                           elevation: 0,
                           backgroundColor: done
-                              ? const Color(0xFF16A34A)
+                              ? AppColors.positive
                               : const Color(0xFFCBD5E1),
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
@@ -2215,7 +2216,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           ? 'ไม่มีรายการนำเข้าสำเร็จ — ตรวจเหตุผลในบันทึก'
           : 'นำเข้าสำเร็จ $total records';
     } catch (e) {
-      logs.value = [...logs.value, '❌ Error: $e'];
+      logs.value = [...logs.value, ' Error: $e'];
       currentStep.value = 'เกิดข้อผิดพลาด';
       progress.value = 0;
     } finally {
@@ -3354,7 +3355,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     bool isMedium = MediaQuery.of(context).size.width > 900;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
+      backgroundColor: AppColors.raised,
       // หน้านี้อยู่ใน Scaffold ของหน้าหลักอีกชั้น ซึ่งหลบแป้นพิมพ์ให้แล้ว —
       // ถ้าชั้นนี้หลบซ้ำ ความสูงถูกหักสองเท่าจนติดลบ หน้าขาวตอนพิมพ์ค้นหาบนมือถือ
       resizeToAvoidBottomInset: false,
@@ -3497,13 +3498,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             Text("ตั้งค่าข้อมูลระบบพื้นฐาน",
                 style: GoogleFonts.sarabun(
                     fontSize: 22,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                     color: primaryColor)),
           ],
         ),
         const SizedBox(height: 8),
         Text("บริหารจัดการตัวเลือกต่างๆ ในระบบให้ทันสมัยอยู่เสมอ",
-            style: GoogleFonts.sarabun(color: Colors.blueGrey, fontSize: 14)),
+            style: GoogleFonts.sarabun(color: AppColors.textSecondary, fontSize: 14)),
         const SizedBox(height: 32),
 
         // แถบสลับหมวดหมู่ย่อย (Sub-Tabs) ครับ 🕵️‍♂️🏎️🏆
@@ -3513,19 +3514,19 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           child: ListView(
             scrollDirection: Axis.horizontal,
             children: [
-              _buildSubTabButton(0, "ตำแหน่ง", Icons.work_rounded, Colors.blue),
+              _buildSubTabButton(0, "ตำแหน่ง", Icons.work_rounded, AppColors.accent),
               _buildSubTabButton(
-                  1, "วิทยฐานะ", Icons.stars_rounded, Colors.amber),
+                  1, "วิทยฐานะ", Icons.stars_rounded, AppColors.pending),
               _buildSubTabButton(
-                  2, "กลุ่มสาระฯ", Icons.domain_rounded, Colors.teal),
+                  2, "กลุ่มสาระฯ", Icons.domain_rounded, AppColors.accent),
               _buildSubTabButton(
-                  3, "สิทธิ์การเข้าถึง", Icons.shield_rounded, Colors.purple),
+                  3, "สิทธิ์การเข้าถึง", Icons.shield_rounded, AppColors.accent),
               _buildSubTabButton(
-                  4, "ตำแหน่งบริหาร", Icons.edit_document, Colors.orange),
+                  4, "ตำแหน่งบริหาร", Icons.edit_document, AppColors.pending),
               _buildSubTabButton(
                   5, "ประเภทการลา", Icons.description_rounded, Colors.pink),
               _buildSubTabButton(
-                  6, "เหตุผลการลา", Icons.notes_rounded, Colors.indigo),
+                  6, "เหตุผลการลา", Icons.notes_rounded, AppColors.accent),
             ],
           ),
         ),
@@ -3552,17 +3553,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           decoration: BoxDecoration(
             color: isActive ? color.withValues(alpha: 0.1) : Colors.white,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: isActive ? color : Colors.grey.shade200),
+            border: Border.all(color: isActive ? color : AppColors.raised),
           ),
           child: Row(
             children: [
-              Icon(icon, size: 18, color: isActive ? color : Colors.blueGrey),
+              Icon(icon, size: 18, color: isActive ? color : AppColors.textSecondary),
               const SizedBox(width: 10),
               Text(label,
                   style: GoogleFonts.sarabun(
                     fontSize: 14,
-                    fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-                    color: isActive ? color : Colors.blueGrey,
+                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                    color: isActive ? color : AppColors.textSecondary,
                   )),
             ],
           ),
@@ -3575,25 +3576,25 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     switch (_masterSubTab) {
       case 0:
         return _buildMasterCard(
-            "จัดการตำแหน่ง", Icons.work_rounded, Colors.blue, _positions);
+            "จัดการตำแหน่ง", Icons.work_rounded, AppColors.accent, _positions);
       case 1:
         return _buildMasterCard(
-            "จัดการวิทยฐานะ", Icons.stars_rounded, Colors.amber, _ranks);
+            "จัดการวิทยฐานะ", Icons.stars_rounded, AppColors.pending, _ranks);
       case 2:
         return _buildMasterCard("จัดการกลุ่มสาระฯ", Icons.domain_rounded,
-            Colors.teal, _departments);
+            AppColors.accent, _departments);
       case 3:
         return _buildMasterCard("จัดการสิทธิ์การเข้าถึง", Icons.shield_rounded,
-            Colors.purple, _roles);
+            AppColors.accent, _roles);
       case 4:
         return _buildMasterCard("จัดการตำแหน่งบริหาร", Icons.edit_document,
-            Colors.orange, _adminPositions);
+            AppColors.pending, _adminPositions);
       case 5:
         return _buildMasterCard("จัดการประเภทการลา", Icons.description_rounded,
             Colors.pink, _leaveTypes);
       case 6:
         return _buildMasterCard("จัดการเหตุผลการลา", Icons.notes_rounded,
-            Colors.indigo, _leaveReasons);
+            AppColors.accent, _leaveReasons);
       default:
         return const SizedBox();
     }
@@ -3797,7 +3798,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('ไม่พบเหตุผลการลาในใบลาที่บันทึกไว้'),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppColors.pending,
         ));
       }
       return;
@@ -3818,7 +3819,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(
             'ตรวจแล้ว ${used.length} เหตุผล — ไม่มีรายการใหม่ ทุกรายการซ้ำหรือใกล้เคียงกับที่มีอยู่'),
-        backgroundColor: Colors.blueGrey,
+        backgroundColor: AppColors.textSecondary,
       ));
       return;
     }
@@ -3827,7 +3828,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('พบเหตุผลใหม่ ${additions.length} รายการ',
-            style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+            style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
         content: SizedBox(
           width: 420,
           height: 360,
@@ -3838,7 +3839,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 'จากใบลาทั้งหมด ${used.length} เหตุผลที่ไม่ซ้ำกัน '
                 'รายการด้านล่างยังไม่มีในระบบ',
                 style: GoogleFonts.sarabun(
-                    fontSize: 12, color: Colors.blueGrey.shade600),
+                    fontSize: 12, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 12),
               Expanded(
@@ -3852,7 +3853,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         children: [
                           Text('${i + 1}.',
                               style: GoogleFonts.sarabun(
-                                  fontSize: 12, color: Colors.grey)),
+                                  fontSize: 12, color: AppColors.textMuted)),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(additions[i],
@@ -3875,7 +3876,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+                backgroundColor: AppColors.accent, foregroundColor: Colors.white),
             child: Text('บันทึกทั้งหมด', style: GoogleFonts.sarabun()),
           ),
         ],
@@ -3890,7 +3891,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('เพิ่มเหตุผลใหม่ ${additions.length} รายการเรียบร้อย'),
-        backgroundColor: Colors.green,
+        backgroundColor: AppColors.positive,
       ));
     }
   }
@@ -3980,7 +3981,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('แก้ไขรายการ',
-            style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+            style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -4012,7 +4013,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('มีรายการนี้อยู่แล้ว'),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppColors.pending,
         ));
       }
       return;
@@ -4023,14 +4024,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('แก้ไขรายการเรียบร้อยแล้ว'),
-          backgroundColor: Colors.green,
+          backgroundColor: AppColors.positive,
         ));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('แก้ไขไม่สำเร็จ: ${_dbError(e)}'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.negative,
         ));
       }
     }
@@ -4083,10 +4084,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   children: [
                     Text(title,
                         style: GoogleFonts.sarabun(
-                            fontWeight: FontWeight.bold, fontSize: 16)),
+                            fontWeight: FontWeight.w600, fontSize: 16)),
                     Text("รายการทั้งหมด ${visibleItems.length} รายการ",
                         style:
-                            const TextStyle(fontSize: 11, color: Colors.grey)),
+                            const TextStyle(fontSize: 11, color: AppColors.textMuted)),
                   ],
                 ),
                 const Spacer(),
@@ -4122,7 +4123,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               content: Text(
                                 'อัปเดตข้อมูลเรียบร้อย $updated รายการ',
                               ),
-                              backgroundColor: Colors.green,
+                              backgroundColor: AppColors.positive,
                             ),
                           );
                         }
@@ -4132,7 +4133,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('อัปเดตข้อมูลไม่สำเร็จ: $e'),
-                              backgroundColor: Colors.red,
+                              backgroundColor: AppColors.negative,
                             ),
                           );
                         }
@@ -4144,7 +4145,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       foregroundColor: color,
                       textStyle: GoogleFonts.sarabun(
                         fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -4153,7 +4154,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 IconButton(
                     onPressed: _loadDropdownData,
                     icon: const Icon(Icons.refresh_rounded,
-                        size: 18, color: Colors.blueGrey))
+                        size: 18, color: AppColors.textSecondary))
               ],
             ),
           ),
@@ -4173,7 +4174,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 Expanded(
                   child: Text(scopeNote,
                       style: GoogleFonts.sarabun(
-                          fontSize: 12, color: Colors.blueGrey.shade700)),
+                          fontSize: 12, color: AppColors.textSecondary)),
                 ),
               ]),
             ),
@@ -4187,7 +4188,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       'ยังไม่มีข้อมูลในหมวดนี้',
                       style: GoogleFonts.sarabun(
                         fontSize: 13,
-                        color: Colors.grey.shade500,
+                        color: AppColors.textMuted,
                       ),
                     ),
                   )
@@ -4198,7 +4199,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         width: double.infinity,
                         child: DataTable(
                           headingRowColor:
-                              WidgetStateProperty.all(const Color(0xFFF8FAFC)),
+                              WidgetStateProperty.all(AppColors.page),
                           dataRowMinHeight: 48,
                           dataRowMaxHeight: 56,
                           horizontalMargin: 16,
@@ -4206,8 +4207,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           dividerThickness: 0.8,
                           headingTextStyle: GoogleFonts.sarabun(
                             fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blueGrey.shade600,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary,
                           ),
                           dataTextStyle: GoogleFonts.sarabun(
                             fontSize: 13,
@@ -4232,9 +4233,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             final locked = readOnly || isCoreRole;
                             final (statusText, statusColor) = isRolesTab
                                 ? (isCoreRole
-                                    ? ('ทุกโรงเรียน', Colors.blue)
-                                    : ('เฉพาะโรงเรียนนี้', Colors.green))
-                                : ('ใช้งาน', Colors.green);
+                                    ? ('ทุกโรงเรียน', AppColors.accent)
+                                    : ('เฉพาะโรงเรียนนี้', AppColors.positive))
+                                : ('ใช้งาน', AppColors.positive);
                             return DataRow(
                               color: WidgetStateProperty.resolveWith((states) {
                                 return index.isEven
@@ -4280,8 +4281,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                       statusText,
                                       style: GoogleFonts.sarabun(
                                         fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: statusColor.shade700,
+                                        fontWeight: FontWeight.w600,
+                                        color: statusColor,
                                       ),
                                     ),
                                   ),
@@ -4295,7 +4296,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                           child: Icon(
                                               Icons.lock_outline_rounded,
                                               size: 17,
-                                              color: Colors.blueGrey.shade300),
+                                              color: AppColors.textSecondary),
                                         )
                                       : Row(
                                           mainAxisSize: MainAxisSize.min,
@@ -4338,7 +4339,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                                                         child: const Text(
                                                                             'ลบเลย',
                                                                             style:
-                                                                                TextStyle(color: Colors.red))),
+                                                                                TextStyle(color: AppColors.negative))),
                                                                   ],
                                                                 )) ??
                                                     false;
@@ -4355,7 +4356,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                                         content: Text(
                                                             'ลบรายการเรียบร้อยแล้ว'),
                                                         backgroundColor:
-                                                            Colors.green,
+                                                            AppColors.positive,
                                                       ));
                                                     }
                                                   } catch (e) {
@@ -4367,7 +4368,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                                         content: Text(
                                                             'ลบไม่สำเร็จ: ${_dbError(e)}'),
                                                         backgroundColor:
-                                                            Colors.red,
+                                                            AppColors.negative,
                                                       ));
                                                     }
                                                   }
@@ -4376,7 +4377,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                               icon: const Icon(
                                                   Icons.delete_outline,
                                                   size: 17,
-                                                  color: Colors.redAccent),
+                                                  color: AppColors.negative),
                                             ),
                                           ],
                                         ),
@@ -4406,17 +4407,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           hintStyle: GoogleFonts.sarabun(
                               fontSize: 13, color: Colors.black26),
                           filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
+                          fillColor: AppColors.page,
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 0),
                           border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide:
-                                  BorderSide(color: Colors.grey.shade100)),
+                                  BorderSide(color: AppColors.raised)),
                           enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide:
-                                  BorderSide(color: Colors.grey.shade100)),
+                                  BorderSide(color: AppColors.raised)),
                         ),
                       ),
                     ),
@@ -4443,8 +4444,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           ScaffoldMessenger.of(context).hideCurrentSnackBar();
                           ScaffoldMessenger.of(context)
                               .showSnackBar(const SnackBar(
-                            content: Text('บันทึกข้อมูลใหม่สำเร็จแล้วครับ!'),
-                            backgroundColor: Colors.green,
+                            content: Text('บันทึกข้อมูลใหม่สำเร็จแล้ว'),
+                            backgroundColor: AppColors.positive,
                           ));
                           _loadDropdownData();
                         }
@@ -4452,7 +4453,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                             content: Text('ล้มเหลว: ${_dbError(e)}'),
-                            backgroundColor: Colors.red,
+                            backgroundColor: AppColors.negative,
                           ));
                         }
                       }
@@ -4517,7 +4518,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           color: isActive ? Colors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-              color: isActive ? Colors.blue.shade100 : Colors.transparent),
+              color: isActive ? AppColors.accentSoft : Colors.transparent),
           boxShadow: isActive
               ? [
                   BoxShadow(
@@ -4532,14 +4533,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           children: [
             Icon(icon,
                 size: 18,
-                color: isActive ? accentColor : Colors.blueGrey.shade400),
+                color: isActive ? accentColor : AppColors.textSecondary),
             const SizedBox(width: 8),
             Text(
               title,
               style: GoogleFonts.sarabun(
                 fontSize: 13,
-                fontWeight: isActive ? FontWeight.bold : FontWeight.w600,
-                color: isActive ? primaryColor : Colors.blueGrey.shade500,
+                fontWeight: isActive ? FontWeight.w600 : FontWeight.w600,
+                color: isActive ? primaryColor : AppColors.textSecondary,
               ),
             ),
           ],
@@ -4564,7 +4565,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 child: Padding(
                     padding: EdgeInsets.all(60),
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.blueGrey)));
+                        strokeWidth: 2, color: AppColors.textSecondary)));
           }
 
           final Map<String, Map<String, dynamic>> rolePerms = {};
@@ -4589,20 +4590,20 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         Text("การกำหนดสิทธิ์",
                             style: GoogleFonts.sarabun(
                                 fontSize: 24,
-                                fontWeight: FontWeight.w900,
+                                fontWeight: FontWeight.w600,
                                 color: primaryColor)),
                         const SizedBox(height: 4),
                         Text(
                             "ตั้งค่าการมองเห็นเมนู$_permissionViewTitle · เฉพาะโรงเรียนนี้",
                             style: const TextStyle(
-                                color: Colors.blueGrey, fontSize: 13)),
+                                color: AppColors.textSecondary, fontSize: 13)),
                         const SizedBox(height: 16),
                         Container(
                           padding: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
+                            color: AppColors.raised,
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                            border: Border.all(color: AppColors.line),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -4682,9 +4683,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                             backgroundColor:
-                                failed == null ? null : Colors.red.shade700,
+                                failed == null ? null : AppColors.negative,
                             content: Text(failed == null
-                                ? 'บันทึกสิทธิ์ ${records.length} รายการเรียบร้อยครับ! 🏗️🥇'
+                                ? 'บันทึกสิทธิ์ ${records.length} รายการเรียบร้อย'
                                 : 'บันทึกสิทธิ์ไม่สำเร็จ: $failed'),
                           ));
                         }
@@ -4705,7 +4706,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 ),
               ),
 
-              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+              const Divider(height: 1, color: AppColors.raised),
 
               // 💎 หัวตาราง
               Container(
@@ -4715,7 +4716,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     color: Colors.white,
                     border: Border(
                         bottom:
-                            BorderSide(color: Color(0xFFE2E8F0), width: 1.5))),
+                            BorderSide(color: AppColors.line, width: 1.5))),
                 child: Row(
                   children: [
                     Expanded(
@@ -4725,16 +4726,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 ? 'รายการหน้าเมนูระบบ'
                                 : 'รายการหน้าเมนูมือถือ',
                             style: GoogleFonts.sarabun(
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w600,
                                 fontSize: 13,
-                                color: Colors.blueGrey.shade700))),
+                                color: AppColors.textSecondary))),
                     ..._permissionRoles.map((role) => Expanded(
                           child: Center(
                             child: Text(role,
                                 style: GoogleFonts.sarabun(
                                     fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.blueGrey.shade500)),
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textSecondary)),
                           ),
                         )),
                   ],
@@ -4754,7 +4755,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     decoration: const BoxDecoration(
                         color: Colors.white,
                         border: Border(
-                            bottom: BorderSide(color: Color(0xFFF1F5F9)))),
+                            bottom: BorderSide(color: AppColors.raised))),
                     child: Row(
                       children: [
                         Expanded(
@@ -4762,7 +4763,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           child: Row(
                             children: [
                               const Icon(Icons.check_circle_outline_rounded,
-                                  size: 16, color: Color(0xFF94A3B8)),
+                                  size: 16, color: AppColors.textMuted),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(pageName,
@@ -4829,12 +4830,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                             }
                                           } catch (e) {
                                             debugPrint(
-                                                '❌ Supabase permission toggle error: $e');
+                                                ' Supabase permission toggle error: $e');
                                             if (mounted) {
                                               ScaffoldMessenger.of(this.context)
                                                   .showSnackBar(SnackBar(
                                                 backgroundColor:
-                                                    Colors.red.shade700,
+                                                    AppColors.negative,
                                                 content: Text(
                                                     'บันทึกสิทธิ์ไม่สำเร็จ: $e'),
                                               ));
@@ -4927,7 +4928,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           color: isActive ? Colors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-              color: isActive ? Colors.grey.shade200 : Colors.transparent),
+              color: isActive ? AppColors.raised : Colors.transparent),
           boxShadow: isActive
               ? [
                   BoxShadow(
@@ -4940,14 +4941,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           children: [
             Icon(icon,
                 size: 16,
-                color: isActive ? accentColor : Colors.blueGrey.shade400),
+                color: isActive ? accentColor : AppColors.textSecondary),
             const SizedBox(width: 8),
             Text(
               title,
               style: GoogleFonts.sarabun(
                 fontSize: 14,
-                fontWeight: isActive ? FontWeight.bold : FontWeight.w600,
-                color: isActive ? primaryColor : Colors.blueGrey.shade400,
+                fontWeight: isActive ? FontWeight.w600 : FontWeight.w600,
+                color: isActive ? primaryColor : AppColors.textSecondary,
               ),
             ),
           ],
@@ -4962,7 +4963,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       padding: const EdgeInsets.all(24), // ปรับระยะ Padding ให้กระชับขึ้นครับ
       decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
                 color: Colors.black.withValues(alpha: 0.03),
@@ -4979,12 +4980,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   width: 4,
                   height: 16,
                   decoration: BoxDecoration(
-                      color: Colors.orange,
+                      color: AppColors.pending,
                       borderRadius: BorderRadius.circular(2))),
               const SizedBox(width: 12),
               Text(_isEditing ? 'แก้ไขผู้ใช้งาน' : 'เพิ่มผู้ใช้งาน',
                   style: GoogleFonts.sarabun(
-                      fontSize: 18, fontWeight: FontWeight.bold)),
+                      fontSize: 18, fontWeight: FontWeight.w600)),
               const Spacer(),
               IconButton(
                 tooltip: 'ปิด',
@@ -5007,7 +5008,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     width: 100,
                     height: 100,
                     decoration: BoxDecoration(
-                        color: const Color(0xFFF1F5F9),
+                        color: AppColors.raised,
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 4),
                         boxShadow: [
@@ -5024,7 +5025,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 child: Padding(
                                     padding: EdgeInsets.all(20),
                                     child: CircularProgressIndicator(
-                                        strokeWidth: 2, color: Colors.blue)));
+                                        strokeWidth: 2, color: AppColors.accent)));
                           }
                           // แปลงลิงก์ด้วยตัวกลางเดียวกับหน้าอื่น ๆ ครับ
                           final imgUrl = resolveDisplayImageUrl(val.text);
@@ -5036,10 +5037,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 errorBuilder: (c, e, s) => const Icon(
                                     Icons.people,
                                     size: 50,
-                                    color: Colors.blueGrey));
+                                    color: AppColors.textSecondary));
                           }
                           return const Icon(Icons.people_alt_outlined,
-                              color: Colors.blueGrey, size: 32);
+                              color: AppColors.textSecondary, size: 32);
                         }),
                   ),
                   Positioned(
@@ -5048,7 +5049,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(6),
                       decoration: const BoxDecoration(
-                          color: Colors.blue, shape: BoxShape.circle),
+                          color: AppColors.accent, shape: BoxShape.circle),
                       child: const Icon(Icons.edit_outlined,
                           color: Colors.white, size: 14),
                     ),
@@ -5066,9 +5067,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           Padding(
             padding: const EdgeInsets.only(left: 12),
             child: Text(
-                '💡 แนะนำ: ใช้ลิ้งค์ Google Drive เพื่อการเชื่อมต่อกับ Google Sheets ที่สมบูรณ์แบบครับ',
+                ' แนะนำ: ใช้ลิ้งค์ Google Drive เพื่อการเชื่อมต่อกับ Google Sheets ที่สมบูรณ์แบบครับ',
                 style: GoogleFonts.sarabun(
-                    fontSize: 10, color: Colors.orange.shade800)),
+                    fontSize: 11, color: AppColors.pending)),
           ),
           const SizedBox(height: 24),
           _buildFieldLabel('ชื่อ-นามสกุล'),
@@ -5171,13 +5172,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           Row(
             children: [
               const Icon(Icons.tips_and_updates_outlined,
-                  size: 16, color: Colors.orange),
+                  size: 16, color: AppColors.pending),
               const SizedBox(width: 8),
               Text('ตำแหน่งงานบริหาร',
                   style: GoogleFonts.sarabun(
                       fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.orange.shade800)),
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.pending)),
             ],
           ),
           const SizedBox(height: 8),
@@ -5186,8 +5187,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               val: _adminPosController.text,
               onC: (v) => _updateUserForm(() => _adminPosController.text = v!),
               icon: Icons.stars_outlined,
-              color: Colors.orange.shade50,
-              iconColor: Colors.orange,
+              color: AppColors.pendingSoft,
+              iconColor: AppColors.pending,
               hint: 'ไม่มีตำแหน่งบริหาร'),
           const SizedBox(height: 4),
           Padding(
@@ -5195,7 +5196,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             child: Text(
                 'ใช้แสดงชื่อผู้ลงนามท้ายใบลา ตามผู้ที่ดำรงตำแหน่งในวันที่ส่งใบลา',
                 style:
-                    GoogleFonts.sarabun(fontSize: 10, color: Colors.black26)),
+                    GoogleFonts.sarabun(fontSize: 11, color: Colors.black26)),
           ),
           if (_adminPosChanged) _buildAdminPositionChange(),
           if (_isEditing && _editingAdminHistory.isNotEmpty)
@@ -5205,7 +5206,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
               child: Text(_userFormError!,
-                  style: GoogleFonts.sarabun(color: Colors.red)),
+                  style: GoogleFonts.sarabun(color: AppColors.negative)),
             ),
           ElevatedButton.icon(
             onPressed: _isSavingUser || _isUploading ? null : _saveUser,
@@ -5214,9 +5215,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 _isSavingUser
                     ? 'กำลังบันทึก...'
                     : (_isEditing ? 'แก้ไขข้อมูล' : 'บันทึกข้อมูลผู้ใช้'),
-                style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0F172A),
+              backgroundColor: AppColors.text,
               foregroundColor: Colors.white,
               minimumSize: const Size(double.infinity, 56),
               shape: RoundedRectangleBorder(
@@ -5247,7 +5248,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       return Container(
         padding: EdgeInsets.all(narrow ? 14 : 24),
         decoration: BoxDecoration(
-            color: Colors.white, borderRadius: BorderRadius.circular(24)),
+            color: Colors.white, borderRadius: BorderRadius.circular(16)),
         child: Column(children: [
           _buildUserListHeader(users, narrow),
           SizedBox(height: narrow ? 10 : 16),
@@ -5265,7 +5266,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           controller: _scrollController,
                           itemCount: pageUsers.length,
                           separatorBuilder: (_, __) => const Divider(
-                              height: 1, color: Color(0xFFF1F5F9)),
+                              height: 1, color: AppColors.raised),
                           itemBuilder: (context, index) =>
                               _buildUserCard(pageUsers[index]),
                         ),
@@ -5425,13 +5426,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('รายชื่อผู้ใช้งาน',
                 style: GoogleFonts.sarabun(
-                    fontSize: narrow ? 17 : 18, fontWeight: FontWeight.bold)),
+                    fontSize: narrow ? 17 : 18, fontWeight: FontWeight.w600)),
             Text(
                 _showInactive
                     ? 'คนพ้นสภาพ ${users.length} คน'
                     : 'แสดง ${users.length} คน',
                 style:
-                    GoogleFonts.sarabun(fontSize: 12, color: Colors.blueGrey)),
+                    GoogleFonts.sarabun(fontSize: 12, color: AppColors.textSecondary)),
           ]),
         ),
         IconButton(
@@ -5471,10 +5472,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
     return Container(
       color: waiting
-          ? Colors.orange.shade50
+          ? AppColors.pendingSoft
           : active
               ? null
-              : const Color(0xFFF8FAFC),
+              : AppColors.page,
       padding: const EdgeInsets.fromLTRB(4, 10, 0, 10),
       child: Row(children: [
         _buildUserProfilePhoto(user),
@@ -5488,25 +5489,25 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 style: GoogleFonts.sarabun(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: active ? const Color(0xFF0F172A) : Colors.blueGrey)),
+                    color: active ? AppColors.text : AppColors.textSecondary)),
             if (details.isNotEmpty)
               Text(details,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.sarabun(
-                      fontSize: 12, color: Colors.blueGrey)),
+                      fontSize: 12, color: AppColors.textSecondary)),
             if (!active || waiting || revealed != null)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Wrap(spacing: 6, runSpacing: 4, children: [
                   if (!active)
-                    _userBadge(_employmentStatusText(user), Colors.blueGrey)
+                    _userBadge(_employmentStatusText(user), AppColors.textSecondary)
                   else if (_leaveScheduled(user))
-                    _userBadge(_employmentStatusText(user), Colors.orange),
+                    _userBadge(_employmentStatusText(user), AppColors.pending),
                   if (waiting)
-                    _userBadge('ขอรีเซ็ตรหัสผ่าน', Colors.orange.shade800),
+                    _userBadge('ขอรีเซ็ตรหัสผ่าน', AppColors.pending),
                   if (revealed != null)
-                    _userBadge('รหัส: $revealed', Colors.green.shade800),
+                    _userBadge('รหัส: $revealed', AppColors.positive),
                 ]),
               ),
           ]),
@@ -5533,28 +5534,28 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             }
           },
           itemBuilder: (_) => [
-            _userMenuItem('edit', Icons.edit_outlined, 'แก้ไข', Colors.blue),
+            _userMenuItem('edit', Icons.edit_outlined, 'แก้ไข', AppColors.accent),
             _userMenuItem(
                 'status',
                 active
                     ? Icons.person_off_outlined
                     : Icons.settings_backup_restore,
                 active ? 'พ้นสภาพ (ลาออก / เกษียณ / ย้าย)' : 'แก้สถานะ',
-                active ? Colors.blueGrey : Colors.teal),
+                active ? AppColors.textSecondary : AppColors.accent),
             _userMenuItem(
                 'reset',
                 Icons.lock_reset,
                 waiting ? 'อนุมัติรีเซ็ตรหัสผ่าน' : 'รีเซ็ตรหัสผ่าน',
-                Colors.orange.shade800),
+                AppColors.pending),
             _userMenuItem(
                 'password',
                 revealed == null
                     ? Icons.visibility_outlined
                     : Icons.visibility_off_outlined,
                 revealed == null ? 'ดูรหัสผ่าน' : 'ซ่อนรหัสผ่าน',
-                Colors.blueGrey),
+                AppColors.textSecondary),
             _userMenuItem(
-                'delete', Icons.delete_outline, 'ลบข้อมูล', Colors.red),
+                'delete', Icons.delete_outline, 'ลบข้อมูล', AppColors.negative),
           ],
         ),
       ]),
@@ -5590,7 +5591,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           child: heading
               ? Text(value,
                   style: GoogleFonts.sarabun(
-                      fontSize: 12, fontWeight: FontWeight.bold))
+                      fontSize: 12, fontWeight: FontWeight.w600))
               : SelectableText(value.trim().isEmpty ? '-' : value,
                   style: GoogleFonts.sarabun(fontSize: 12)),
         ));
@@ -5623,11 +5624,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       constraints: const BoxConstraints(minHeight: 68),
       decoration: BoxDecoration(
         color: waiting
-            ? Colors.orange.shade50
+            ? AppColors.pendingSoft
             : active
                 ? Colors.white
-                : const Color(0xFFF1F5F9),
-        border: const Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
+                : AppColors.raised,
+        border: const Border(bottom: BorderSide(color: AppColors.raised)),
       ),
       child: Row(children: [
         _userTableCell((user['id_user'] ?? user['id'] ?? '').toString(), 1),
@@ -5651,14 +5652,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               IconButton(
                   tooltip: 'แก้ไข',
                   onPressed: () => _openUserForm(user: user),
-                  color: Colors.blue,
+                  color: AppColors.accent,
                   icon: const Icon(Icons.edit_outlined, size: 20)),
               IconButton(
                   tooltip: active && !_leaveScheduled(user)
                       ? 'พ้นสภาพ (ลาออก / เกษียณ / ย้าย)'
                       : 'สถานะ: ${_employmentStatusText(user)}',
                   onPressed: () => _editEmploymentStatus(user),
-                  color: active ? Colors.blueGrey : Colors.teal,
+                  color: active ? AppColors.textSecondary : AppColors.accent,
                   icon: Icon(
                       active
                           ? Icons.person_off_outlined
@@ -5667,12 +5668,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               IconButton(
                   tooltip: waiting ? 'อนุมัติรีเซ็ต' : 'รีเซ็ตรหัสผ่าน',
                   onPressed: () => _enablePasswordReset(user),
-                  color: Colors.orange.shade800,
+                  color: AppColors.pending,
                   icon: const Icon(Icons.lock_reset, size: 20)),
               IconButton(
                   tooltip: 'ลบข้อมูล',
                   onPressed: () => _deleteUser(user),
-                  color: Colors.red,
+                  color: AppColors.negative,
                   icon: const Icon(Icons.delete_outline, size: 20)),
             ])),
       ]),
@@ -5698,12 +5699,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     style: GoogleFonts.sarabun(
                         fontSize: 12,
                         letterSpacing: 1.5,
-                        color: Colors.blueGrey))
+                        color: AppColors.textSecondary))
                 : SelectableText(revealed,
                     style: GoogleFonts.sarabun(
                         fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green.shade800)),
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.positive)),
           ),
           IconButton(
             padding: EdgeInsets.zero,
@@ -5714,7 +5715,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     ? Icons.visibility_outlined
                     : Icons.visibility_off_outlined,
                 size: 18,
-                color: revealed == null ? Colors.blueGrey : Colors.green),
+                color: revealed == null ? AppColors.textSecondary : AppColors.positive),
             onPressed: () {
               if (revealed != null) {
                 setState(() => _revealedPasswords.remove(key));
@@ -5783,11 +5784,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             title: Row(children: [
-              const Icon(Icons.shield_outlined, color: Color(0xFF2563EB)),
+              const Icon(Icons.shield_outlined, color: AppColors.accent),
               const SizedBox(width: 10),
               Expanded(
                 child: Text('ยืนยันตัวตน',
-                    style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                    style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
               ),
             ]),
             content: SizedBox(
@@ -5798,7 +5799,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 children: [
                   Text('ขอดูรหัสผ่านของ ${user['fullName'] ?? '-'}',
                       style: GoogleFonts.sarabun(
-                          fontSize: 13, color: Colors.blueGrey)),
+                          fontSize: 13, color: AppColors.textSecondary)),
                   const SizedBox(height: 16),
                   TextField(
                     controller: passCtrl,
@@ -5819,7 +5820,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     const SizedBox(height: 8),
                     Text(errorText!,
                         style: GoogleFonts.sarabun(
-                            fontSize: 12, color: Colors.red.shade700)),
+                            fontSize: 12, color: AppColors.negative)),
                   ],
                 ],
               ),
@@ -5828,12 +5829,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               TextButton(
                 onPressed: verifying ? null : () => Navigator.pop(ctx),
                 child: Text('ยกเลิก',
-                    style: GoogleFonts.sarabun(color: Colors.grey.shade600)),
+                    style: GoogleFonts.sarabun(color: AppColors.textMuted)),
               ),
               ElevatedButton(
                 onPressed: verifying ? null : submit,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2563EB),
+                  backgroundColor: AppColors.accent,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
@@ -5846,7 +5847,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             strokeWidth: 2, color: Colors.white))
                     : Text('ยืนยัน',
                         style:
-                            GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                            GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
               ),
             ],
           );
@@ -5868,19 +5869,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFEF4444), Color(0xFFB91C1C)], // สีแดงสดตะโกนครับ!
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppColors.accent,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.red.withValues(alpha: 0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Row(
         children: [
@@ -5889,7 +5879,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             decoration: const BoxDecoration(
                 color: Colors.white, shape: BoxShape.circle),
             child: const Icon(Icons.notifications_active,
-                color: Colors.red, size: 20),
+                color: AppColors.negative, size: 20),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -5899,7 +5889,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 Text('มีรายการแจ้งลืมรหัสผ่านรอการดำเนินการ',
                     style: GoogleFonts.sarabun(
                         color: Colors.white,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                         fontSize: 13)),
                 Text('จำนวน $count รายการ กรุณากดรีเซ็ตรหัสผ่านเพื่อจัดการครับ',
                     style: GoogleFonts.sarabun(
@@ -5917,7 +5907,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
-              foregroundColor: Colors.red,
+              foregroundColor: AppColors.negative,
               elevation: 0,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
@@ -5925,7 +5915,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             ),
             child: Text('ดูรายการ',
                 style: GoogleFonts.sarabun(
-                    fontSize: 12, fontWeight: FontWeight.bold)),
+                    fontSize: 12, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -5961,7 +5951,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: const [
           BoxShadow(
             color: Color(0x0D0F172A),
@@ -5983,12 +5973,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     Text('เปรียบเทียบ Firebase กับ Supabase ก่อนนำเข้า',
                         style: GoogleFonts.sarabun(
                             fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            color: const Color(0xFF0F172A))),
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.text)),
                     const SizedBox(height: 2),
                     Text('เลือก table เดียวหรือหลาย table ด้วย checkbox',
                         style: GoogleFonts.sarabun(
-                            fontSize: 12.5, color: const Color(0xFF64748B))),
+                            fontSize: 12, color: AppColors.textMuted)),
                   ],
                 ),
               ),
@@ -5996,9 +5986,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 padding: const EdgeInsets.only(top: 30),
                 child: Text('$count/${all.length} table',
                     style: GoogleFonts.sarabun(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF64748B))),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textMuted)),
               ),
             ],
           ),
@@ -6026,7 +6016,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               Text('เลือกทั้งหมด',
                   style: GoogleFonts.sarabun(
                       fontSize: 13,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600,
                       color: const Color(0xFF334155))),
             ],
           ),
@@ -6087,14 +6077,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       height: 28,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEFF6FF),
+                        color: AppColors.accentSoft,
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text('${i + 1}',
                           style: GoogleFonts.sarabun(
                               fontSize: 11,
-                              fontWeight: FontWeight.w900,
-                              color: const Color(0xFF2563EB))),
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.accent)),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -6102,7 +6092,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.sarabun(
-                              fontSize: 12.5,
+                              fontSize: 12,
                               fontWeight: FontWeight.w500,
                               color: const Color(0xFF4B5563))),
                     ),
@@ -6130,11 +6120,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   label: Text(
                       _isClearingImportTables ? 'กำลังล้าง...' : 'ล้างข้อมูล',
                       style: GoogleFonts.sarabun(
-                          fontSize: 13, fontWeight: FontWeight.w900)),
+                          fontSize: 13, fontWeight: FontWeight.w600)),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size.fromHeight(34),
-                    foregroundColor: const Color(0xFFDC2626),
-                    side: const BorderSide(color: Color(0xFFFCA5A5)),
+                    foregroundColor: AppColors.negative,
+                    side: const BorderSide(color: AppColors.negativeSoft),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(999)),
                     padding: EdgeInsets.zero,
@@ -6152,7 +6142,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   icon: const Icon(Icons.compare_arrows_rounded, size: 16),
                   label: Text('เปรียบเทียบที่เลือก',
                       style: GoogleFonts.sarabun(
-                          fontSize: 13, fontWeight: FontWeight.w900)),
+                          fontSize: 13, fontWeight: FontWeight.w600)),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size.fromHeight(34),
                     foregroundColor: const Color(0xFF3B5F96),
@@ -6173,11 +6163,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   icon: const Icon(Icons.cloud_upload_rounded, size: 16),
                   label: Text('นำเข้าที่เลือก ($count)',
                       style: GoogleFonts.sarabun(
-                          fontSize: 13, fontWeight: FontWeight.w900)),
+                          fontSize: 13, fontWeight: FontWeight.w600)),
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size.fromHeight(34),
                     elevation: 0,
-                    backgroundColor: const Color(0xFF10B981),
+                    backgroundColor: AppColors.positive,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(999)),
@@ -6334,7 +6324,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('เปรียบเทียบข้อมูลที่เลือก',
-            style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+            style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
         content: SizedBox(
           width: 780,
           height: 520,
@@ -6361,27 +6351,27 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     children: [
                       Text(table,
                           style: GoogleFonts.sarabun(
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w600,
                               fontSize: 16,
                               color: primaryColor)),
                       if (blocker != null)
                         Text(blocker,
                             style: GoogleFonts.sarabun(
-                                fontSize: 12, color: Colors.orange.shade900)),
+                                fontSize: 12, color: AppColors.pending)),
                       const SizedBox(height: 4),
                       DataTable(
                         headingRowColor:
-                            WidgetStateProperty.all(const Color(0xFFE2E8F0)),
+                            WidgetStateProperty.all(AppColors.line),
                         columnSpacing: 34,
                         columns: [
                           DataColumn(
                               label: Text('Firebase field',
                                   style: GoogleFonts.sarabun(
-                                      fontWeight: FontWeight.bold))),
+                                      fontWeight: FontWeight.w600))),
                           DataColumn(
                               label: Text('Supabase column',
                                   style: GoogleFonts.sarabun(
-                                      fontWeight: FontWeight.bold))),
+                                      fontWeight: FontWeight.w600))),
                         ],
                         rows: rows,
                       ),
@@ -6405,18 +6395,18 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            const Icon(Icons.cleaning_services_rounded, color: Colors.red, size: 24),
+            const Icon(Icons.cleaning_services_rounded, color: AppColors.negative, size: 24),
             const SizedBox(width: 12),
             Text('ล้างเลขรับใบลาทั้งหมด',
                 style: GoogleFonts.sarabun(
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                     color: primaryColor)),
           ]),
           const SizedBox(height: 8),
           Text(
               'ลบเลขรับที่/วันที่/เวลา ออกจากใบลาทั้งหมด เพื่อให้ admin อนุมัติใหม่แล้วระบบเติมเลขรับให้อัตโนมัติ',
-              style: GoogleFonts.sarabun(fontSize: 13, color: Colors.blueGrey)),
+              style: GoogleFonts.sarabun(fontSize: 13, color: AppColors.textSecondary)),
           const SizedBox(height: 16),
           ElevatedButton.icon(
             onPressed: _isClearing
@@ -6427,7 +6417,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       builder: (ctx) => AlertDialog(
                         title: Text('ยืนยันการล้างข้อมูล',
                             style: GoogleFonts.sarabun(
-                                fontWeight: FontWeight.bold)),
+                                fontWeight: FontWeight.w600)),
                         content: Text(
                             'ต้องการล้างเลขรับใบลาทั้งหมดหรือไม่?\nข้อมูลเลขรับ/วันที่/เวลา จะถูกลบออกทั้งหมด',
                             style: GoogleFonts.sarabun()),
@@ -6438,7 +6428,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           ElevatedButton(
                             onPressed: () => Navigator.pop(ctx, true),
                             style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red,
+                                backgroundColor: AppColors.negative,
                                 foregroundColor: Colors.white),
                             child: const Text('ยืนยันล้างข้อมูล'),
                           ),
@@ -6452,16 +6442,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       if (mounted) {
                         ScaffoldMessenger.of(context)
                             .showSnackBar(const SnackBar(
-                          content: Text('✅ ล้างเลขรับใบลาทั้งหมดเรียบร้อย'),
-                          backgroundColor: Colors.green,
+                          content: Text(' ล้างเลขรับใบลาทั้งหมดเรียบร้อย'),
+                          backgroundColor: AppColors.positive,
                           behavior: SnackBarBehavior.floating,
                         ));
                       }
                     } catch (e) {
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                          content: Text('❌ เกิดข้อผิดพลาด: $e'),
-                          backgroundColor: Colors.red,
+                          content: Text(' เกิดข้อผิดพลาด: $e'),
+                          backgroundColor: AppColors.negative,
                           behavior: SnackBarBehavior.floating,
                         ));
                       }
@@ -6479,7 +6469,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             label:
                 Text(_isClearing ? 'กำลังล้างข้อมูล...' : 'ล้างเลขรับทั้งหมด'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.negative,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(
@@ -6501,7 +6491,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             borderRadius: BorderRadius.circular(16),
           ),
           child: const Icon(Icons.cloud_sync_rounded,
-              color: Colors.blue, size: 28),
+              color: AppColors.accent, size: 28),
         ),
         const SizedBox(width: 16),
         Column(
@@ -6510,11 +6500,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             Text("นำเข้าข้อมูลบุคลากร",
                 style: GoogleFonts.sarabun(
                     fontSize: 22,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                     color: primaryColor)),
             Text("เชื่อมต่อและดึงข้อมูลจาก Google Sheets อัตโนมัติ",
                 style:
-                    GoogleFonts.sarabun(fontSize: 13, color: Colors.blueGrey)),
+                    GoogleFonts.sarabun(fontSize: 13, color: AppColors.textSecondary)),
           ],
         ),
       ],
@@ -6533,14 +6523,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               hintText: 'https://script.google.com/macros/s/.../exec',
               hintStyle: const TextStyle(fontSize: 11, color: Colors.black26),
               filled: true,
-              fillColor: const Color(0xFFF8FAFC),
+              fillColor: AppColors.page,
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none),
               prefixIcon:
-                  const Icon(Icons.link, size: 18, color: Colors.blueGrey),
+                  const Icon(Icons.link, size: 18, color: AppColors.textSecondary),
             ),
             style: const TextStyle(fontSize: 12),
           ),
@@ -6567,8 +6557,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         : Icons.info_outline_rounded,
                     size: 16,
                     color: _syncStatusMsg!.contains('สำเร็จ')
-                        ? Colors.green
-                        : Colors.orange,
+                        ? AppColors.positive
+                        : AppColors.pending,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -6577,8 +6567,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                               color: _syncStatusMsg!.contains('สำเร็จ')
-                                  ? Colors.green
-                                  : Colors.orange))),
+                                  ? AppColors.positive
+                                  : AppColors.pending))),
                 ],
               ),
             ),
@@ -6593,7 +6583,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 : const Icon(Icons.download_rounded, size: 18),
             label: Text(
                 _isFetchingSync ? 'กำลังดึงข้อมูล...' : 'ตรวจสอบข้อมูลตัวอย่าง',
-                style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
             style: ElevatedButton.styleFrom(
               backgroundColor: accentColor,
               foregroundColor: Colors.white,
@@ -6618,7 +6608,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   _isPerformingSync
                       ? 'กำลังบันทึก...'
                       : 'บันทึกข้อมูลลงฐานข้อมูล',
-                  style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                  style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryColor,
                 foregroundColor: Colors.white,
@@ -6646,7 +6636,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               children: [
                 Text('ตัวอย่างข้อมูลที่จะนำเข้า',
                     style: GoogleFonts.sarabun(
-                        fontSize: 16, fontWeight: FontWeight.bold)),
+                        fontSize: 16, fontWeight: FontWeight.w600)),
                 if (_syncPreview.isNotEmpty)
                   Container(
                     padding:
@@ -6656,9 +6646,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         borderRadius: BorderRadius.circular(20)),
                     child: Text('${_syncPreview.length} รายการ',
                         style: const TextStyle(
-                            fontSize: 10,
-                            color: Colors.blue,
-                            fontWeight: FontWeight.bold)),
+                            fontSize: 11,
+                            color: AppColors.accent,
+                            fontWeight: FontWeight.w600)),
                   ),
               ],
             ),
@@ -6679,14 +6669,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   child: SingleChildScrollView(
                     child: DataTable(
                       headingRowColor:
-                          WidgetStateProperty.all(const Color(0xFFF8FAFC)),
+                          WidgetStateProperty.all(AppColors.page),
                       dataRowMaxHeight: 50,
                       dataRowMinHeight: 40,
                       columnSpacing: 24,
                       headingTextStyle: GoogleFonts.sarabun(
                           fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blueGrey),
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary),
                       columns: [
                         const DataColumn(label: Text('#')),
                         // เลือกแสดงเฉพาะหัวตารางจริงๆ ที่ดึงมาครับ ไม่เอาคีย์ระบบมาปนให้งง 🥇
@@ -6702,7 +6692,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           cells: [
                             DataCell(Text((index + 1).toString(),
                                 style: const TextStyle(
-                                    fontSize: 10, color: Colors.grey))),
+                                    fontSize: 11, color: AppColors.textMuted))),
                             ...rawHeaders.map((h) {
                               String val = item[h]?.toString() ?? '-';
                               bool isMedicalCert =
@@ -6728,7 +6718,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                       color: Colors.grey.withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(4),
                                       border: Border.all(
-                                          color: Colors.grey
+                                          color: AppColors.textMuted
                                               .withValues(alpha: 0.2)),
                                     ),
                                     clipBehavior: Clip.antiAlias,
@@ -6741,7 +6731,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                           child: Icon(
                                               Icons.insert_drive_file_outlined,
                                               size: 16,
-                                              color: Colors.blue.shade300)),
+                                              color: AppColors.accent)),
                                       loadingBuilder: (ctx, child, progress) =>
                                           progress == null
                                               ? child
@@ -6785,14 +6775,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(Icons.table_rows_rounded,
-                        size: 48, color: Colors.grey.shade200),
+                        size: 48, color: AppColors.raised),
                     const SizedBox(height: 16),
                     Text('ยังไม่มีข้อมูลตัวอย่าง',
                         style: GoogleFonts.sarabun(
-                            color: Colors.grey.shade400, fontSize: 13)),
+                            color: AppColors.textMuted, fontSize: 13)),
                     Text('กรุณากดตรวจสอบข้อมูลด้านซ้ายครับ',
                         style: GoogleFonts.sarabun(
-                            color: Colors.grey.shade300, fontSize: 11)),
+                            color: AppColors.textMuted, fontSize: 11)),
                   ],
                 ),
               ),
@@ -6957,7 +6947,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           _syncPreview = previewData;
           _isFetchingSync = false;
           _syncStatusMsg = previewData.isNotEmpty
-              ? 'ดึงข้อมูลสำเร็จ! พบ ${previewData.length} รายการจาก Sheets'
+              ? 'ดึงข้อมูลสำเร็จ พบ ${previewData.length} รายการจาก Sheets'
               : 'ดึงข้อมูลสำเร็จ แต่ตัวแปรในชีตไม่ตรงกับระบบครับ';
         });
       } else {
@@ -7024,7 +7014,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           'days': totalDays,
           'totalDays': totalDays,
           'medicalCertificate': item['medicalCertificate']?.toString() ??
-              '', // ✨ เพิ่มช่องลิ้งค์ใบรับรองแพทย์ครับ
+              '', // เพิ่มช่องลิ้งค์ใบรับรองแพทย์ครับ
           'updatedAt': FieldValue.serverTimestamp(),
           'timestamp': FieldValue.serverTimestamp(),
         };
@@ -7037,7 +7027,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       setState(() {
         _isPerformingSync = false;
         _syncStatusMsg =
-            'ซิงค์ข้อมูลลงใบบันทึกการลา (Leaves) สำเร็จ! (ประมวลผล: $updated รายการ)';
+            'ซิงค์ข้อมูลลงใบบันทึกการลา (Leaves) สำเร็จ (ประมวลผล: $updated รายการ)';
         _syncPreview = [];
       });
     } catch (e) {
@@ -7053,7 +7043,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       padding: padding ?? const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white),
         boxShadow: [
           BoxShadow(
@@ -7086,9 +7076,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       margin: const EdgeInsets.only(top: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.orange.shade50,
+        color: AppColors.pendingSoft,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.shade200),
+        border: Border.all(color: AppColors.pendingSoft),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -7096,8 +7086,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           Text(ending ? 'พ้นตำแหน่งบริหารตั้งแต่วันที่' : 'ตำแหน่งใหม่มีผลตั้งแต่วันที่',
               style: GoogleFonts.sarabun(
                   fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.orange.shade900)),
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.pending)),
           const SizedBox(height: 6),
           OutlinedButton.icon(
             icon: const Icon(Icons.event, size: 18),
@@ -7118,7 +7108,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           const SizedBox(height: 6),
           Text(
               'ก่อนวันนี้ใบลายังขึ้นผู้ลงนามตามตำแหน่งเดิม · ใบลาเก่าที่ส่งไปแล้วไม่เปลี่ยน',
-              style: GoogleFonts.sarabun(fontSize: 11.5, color: Colors.blueGrey)),
+              style: GoogleFonts.sarabun(fontSize: 12, color: AppColors.textSecondary)),
           if (!ending && holderName.isNotEmpty) ...[
             const SizedBox(height: 8),
             CheckboxListTile(
@@ -7133,7 +7123,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               subtitle: Text(
                   'ไม่ติ๊ก = ตำแหน่งนี้มีได้หลายคน ทั้งสองคนดำรงตำแหน่งพร้อมกัน',
                   style: GoogleFonts.sarabun(
-                      fontSize: 11.5, color: Colors.blueGrey)),
+                      fontSize: 12, color: AppColors.textSecondary)),
             ),
           ],
         ],
@@ -7159,25 +7149,25 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       padding: const EdgeInsets.fromLTRB(14, 10, 6, 6),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: AppColors.textMuted),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('ประวัติตำแหน่งบริหาร',
               style: GoogleFonts.sarabun(
-                  fontSize: 13, fontWeight: FontWeight.bold)),
+                  fontSize: 13, fontWeight: FontWeight.w600)),
           for (final p in _editingAdminHistory.reversed)
             Row(children: [
               Expanded(
                 child: Text('${p.role} · ${range(p)}',
-                    style: GoogleFonts.sarabun(fontSize: 12.5)),
+                    style: GoogleFonts.sarabun(fontSize: 12)),
               ),
               if (p.id != null)
                 IconButton(
                   tooltip: 'ลบรายการที่บันทึกผิด',
                   icon: Icon(Icons.delete_outline,
-                      size: 18, color: Colors.red.shade400),
+                      size: 18, color: AppColors.negative),
                   onPressed: () => _deleteAdminPositionPeriod(p),
                 ),
             ]),
@@ -7273,7 +7263,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               });
           return AlertDialog(
             title: Text('สถานะบุคลากร: $name',
-                style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
             content: SizedBox(
               width: 420,
               child: Column(
@@ -7294,7 +7284,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     const SizedBox(height: 16),
                     Text('พ้นสภาพตั้งแต่วันที่ (วันแรกที่ไม่ได้ปฏิบัติงาน เช่น เกษียณ 1 ต.ค.)',
                         style: GoogleFonts.sarabun(
-                            fontSize: 12, color: Colors.blueGrey)),
+                            fontSize: 12, color: AppColors.textSecondary)),
                     const SizedBox(height: 4),
                     OutlinedButton.icon(
                       icon: const Icon(Icons.event, size: 18),
@@ -7320,23 +7310,23 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 'ตั้งแต่วันนั้นจึงเข้าระบบไม่ได้และไม่ขึ้นในรายชื่อ'
                             : 'เข้าระบบไม่ได้ และไม่ขึ้นในรายชื่อที่ใช้ทำงาน',
                         style: GoogleFonts.sarabun(
-                            fontSize: 12, color: Colors.blueGrey)),
+                            fontSize: 12, color: AppColors.textSecondary)),
                     const SizedBox(height: 4),
                     Text(
                         'ใบลาเก่ายังอยู่ครบ รายงานนับเฉพาะปีงบประมาณที่ยังปฏิบัติงาน',
                         style: GoogleFonts.sarabun(
-                            fontSize: 12, color: Colors.blueGrey)),
+                            fontSize: 12, color: AppColors.textSecondary)),
                     if (isSelf)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
                             effectiveLater
-                                ? '⚠️ นี่คือบัญชีของคุณเอง — ตั้งแต่วันที่ '
+                                ? ' นี่คือบัญชีของคุณเอง — ตั้งแต่วันที่ '
                                     '${FirebaseService.formatThaiDate(leftDate)} '
                                     'จะเข้าระบบไม่ได้'
-                                : '⚠️ นี่คือบัญชีของคุณเอง — บันทึกแล้วจะเข้าระบบไม่ได้ทันที',
+                                : ' นี่คือบัญชีของคุณเอง — บันทึกแล้วจะเข้าระบบไม่ได้ทันที',
                             style: GoogleFonts.sarabun(
-                                fontSize: 12, color: Colors.red.shade700)),
+                                fontSize: 12, color: AppColors.negative)),
                       ),
                   ],
                 ],
@@ -7378,7 +7368,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       if (!mounted) return;
       final missing = e.toString().contains('employment_status');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          backgroundColor: Colors.red.shade700,
+          backgroundColor: AppColors.negative,
           content: Text(missing
               ? 'ยังตั้งสถานะไม่ได้ — ต้องรัน supabase/staff_status.sql ก่อน'
               : 'บันทึกสถานะไม่สำเร็จ: $e')));
@@ -7411,40 +7401,40 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             title: Row(children: [
-              const Icon(Icons.check_circle, color: Colors.green),
+              const Icon(Icons.check_circle, color: AppColors.positive),
               const SizedBox(width: 8),
               Text('รีเซ็ตสำเร็จ',
-                  style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                  style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
             ]),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text('รหัสชั่วคราวสำหรับ ${user['fullName']}:',
-                    style: GoogleFonts.sarabun(color: Colors.blueGrey)),
+                    style: GoogleFonts.sarabun(color: AppColors.textSecondary)),
                 const SizedBox(height: 16),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
+                    color: AppColors.raised,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: SelectableText(resetCode,
                       style: GoogleFonts.sarabun(
                           fontSize: 32,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w600,
                           letterSpacing: 4,
-                          color: Colors.indigo.shade900)),
+                          color: AppColors.accent)),
                 ),
                 const SizedBox(height: 12),
                 Text(
                     'ใช้ได้ถึง ${expiry.day}/${expiry.month}/${expiry.year + 543} ${expiry.hour}:${expiry.minute.toString().padLeft(2, '0')} น.',
                     style: GoogleFonts.sarabun(
-                        fontSize: 12, color: Colors.orange.shade700)),
+                        fontSize: 12, color: AppColors.pending)),
                 const SizedBox(height: 4),
                 Text('กรุณาแจ้งรหัสนี้ให้ครูเจ้าของบัญชีครับ',
                     style: GoogleFonts.sarabun(
-                        fontSize: 12, color: Colors.blueGrey)),
+                        fontSize: 12, color: AppColors.textSecondary)),
               ],
             ),
             actions: [
@@ -7452,7 +7442,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 onPressed: () => Navigator.pop(ctx),
                 child: Text('ตกลง',
                     style: GoogleFonts.sarabun(
-                        fontWeight: FontWeight.bold, color: Colors.green)),
+                        fontWeight: FontWeight.w600, color: AppColors.positive)),
               ),
             ],
           ),
@@ -7462,7 +7452,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: Colors.red),
+            content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: AppColors.negative),
       );
     }
   }
@@ -7472,8 +7462,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       child: Text(t,
           style: GoogleFonts.sarabun(
               fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Colors.blueGrey)));
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary)));
 
   Widget _buildTextField(TextEditingController ctrl, String hint,
           {bool obscure = false,
@@ -7486,19 +7476,19 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           decoration: InputDecoration(
               hintText: hint,
               prefixIcon: icon != null
-                  ? Icon(icon, size: 18, color: Colors.blueGrey)
+                  ? Icon(icon, size: 18, color: AppColors.textSecondary)
                   : null,
               hintStyle: const TextStyle(fontSize: 12, color: Colors.black26),
               filled: true,
-              fillColor: const Color(0xFFF8FAFC),
+              fillColor: AppColors.page,
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey.shade100)),
+                  borderSide: BorderSide(color: AppColors.raised)),
               enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey.shade100))),
+                  borderSide: BorderSide(color: AppColors.raised))),
           style: const TextStyle(fontSize: 13));
 
   Widget _buildDropdownField({
@@ -7513,12 +7503,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       Container(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-              color: color ?? const Color(0xFFF8FAFC),
+              color: color ?? AppColors.page,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                   color: color != null
                       ? color.withValues(alpha: 0.5)
-                      : Colors.grey.shade100)),
+                      : AppColors.raised)),
           child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
             value: (items.isNotEmpty && val != null && items.contains(val))
@@ -7538,7 +7528,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       children: [
                         if (icon != null) ...[
                           Icon(icon,
-                              size: 18, color: iconColor ?? Colors.blueGrey),
+                              size: 18, color: iconColor ?? AppColors.textSecondary),
                           const SizedBox(width: 8),
                         ],
                         Text(e, style: const TextStyle(fontSize: 12)),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../theme/app_tokens.dart';
 
 /// แท็บ "ตั้งค่า LINE" ในหน้าจัดการระบบ
 ///
@@ -22,8 +23,8 @@ class LineSettingsScreen extends StatelessWidget {
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -35,8 +36,8 @@ class LineSettingsScreen extends StatelessWidget {
             Text('การแจ้งเตือน LINE',
                 style: GoogleFonts.sarabun(
                     fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF0F172A))),
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.text)),
           ]),
           const SizedBox(height: 16),
           Text(
@@ -46,7 +47,7 @@ class LineSettingsScreen extends StatelessWidget {
             'ถ้าต้องการเปลี่ยนกลุ่ม LINE หรือเปิด/ปิดการแจ้งเตือนของโรงเรียน '
             'กรุณาติดต่อผู้ดูแลระบบส่วนกลาง',
             style: GoogleFonts.sarabun(
-                fontSize: 15, height: 1.6, color: Colors.blueGrey.shade700),
+                fontSize: 14, height: 1.6, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 20),
           OutlinedButton.icon(

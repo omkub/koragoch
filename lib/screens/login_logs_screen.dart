@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../services/firebase_service.dart';
+import '../theme/app_tokens.dart';
 
 class LoginLogsScreen extends StatefulWidget {
   /// หน้าตาใหม่บนมือถือ: รายการการ์ดต่อการเข้าใช้งาน แทนตารางกว้าง + คอลัมน์ข้าง
@@ -159,7 +160,7 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE0E3E6)),
       ),
       child: Row(
@@ -173,7 +174,7 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
             ),
             child: Icon(
                 isWeb ? Icons.desktop_windows_outlined : Icons.smartphone_rounded,
-                color: isWeb ? const Color(0xFF0084FF) : Colors.green,
+                color: isWeb ? const Color(0xFF0084FF) : AppColors.positive,
                 size: 20),
           ),
           const SizedBox(width: 12),
@@ -185,7 +186,7 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.sarabun(
-                        fontSize: 14, fontWeight: FontWeight.bold)),
+                        fontSize: 14, fontWeight: FontWeight.w600)),
                 Text('${log['role'] ?? 'ครู'} · ${log['username'] ?? '-'}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -213,7 +214,7 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
   Widget build(BuildContext context) {
     if (widget.appStyle) {
       return Material(
-          color: const Color(0xFFF4F7FC), child: _buildAppStyle());
+          color: AppColors.page, child: _buildAppStyle());
     }
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FC),
@@ -303,10 +304,10 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.history_toggle_off_rounded,
-              size: 64, color: Colors.grey.shade300),
+              size: 64, color: AppColors.textMuted),
           const SizedBox(height: 16),
           Text('ไม่พบประวัติการเข้าใช้งานครับ',
-              style: GoogleFonts.sarabun(color: Colors.grey)),
+              style: GoogleFonts.sarabun(color: AppColors.textMuted)),
         ],
       ),
     );
@@ -446,7 +447,7 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
             Icons.calendar_month_rounded, const Color(0xFF944700)),
         const SizedBox(width: 12),
         _buildSummaryCard('สถานะออนไลน์', onlineUsers.toString(), 'ออนไลน์',
-            Icons.circle_rounded, const Color(0xFF10B981)),
+            Icons.circle_rounded, AppColors.positive),
       ],
     );
   }
@@ -485,7 +486,7 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
             Text(value,
                 style: GoogleFonts.sarabun(
                     fontSize: 22,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                     color: const Color(0xFF191C1E))),
             const Spacer(),
             if (showBar)
@@ -548,8 +549,8 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
               const SizedBox(width: 8),
               Text('ตัวกรองข้อมูล',
                   style: GoogleFonts.sarabun(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                       color: const Color(0xFF191C1E))),
               const Spacer(),
               OutlinedButton(
@@ -678,7 +679,7 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
                 Text('รายการกิจกรรม',
                     style: GoogleFonts.sarabun(
                         fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                         color: const Color(0xFF191C1E))),
                 const SizedBox(width: 10),
                 IconButton(
@@ -719,7 +720,7 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 48),
               child: Text('ไม่พบข้อมูลตามตัวกรองครับ',
-                  style: GoogleFonts.sarabun(color: Colors.grey)),
+                  style: GoogleFonts.sarabun(color: AppColors.textMuted)),
             )
           else
             SizedBox(
@@ -764,7 +765,7 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
           textAlign: align,
           style: GoogleFonts.sarabun(
               fontSize: 12,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
               color: const Color(0xFF717783))),
     );
   }
@@ -796,7 +797,7 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
                     isWeb
                         ? Icons.desktop_windows_outlined
                         : Icons.smartphone_rounded,
-                    color: isWeb ? const Color(0xFF0084FF) : Colors.green,
+                    color: isWeb ? const Color(0xFF0084FF) : AppColors.positive,
                     size: 20,
                   ),
                 ),
@@ -810,7 +811,7 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.sarabun(
                               fontSize: 13,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w600,
                               color: const Color(0xFF191C1E))),
                       Text('Username: ${log['username'] ?? '-'}',
                           maxLines: 1,
@@ -885,7 +886,7 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
             textAlign: TextAlign.center,
             style: GoogleFonts.sarabun(
                 fontSize: 11,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w600,
                 color: isAdmin
                     ? const Color(0xFF005DAC)
                     : const Color(0xFF414752))),
@@ -917,7 +918,7 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
       ),
       child: Text(text,
           style: GoogleFonts.sarabun(
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
               color: selected ? Colors.white : const Color(0xFF414752))),
     );
   }
@@ -948,7 +949,7 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
               const SizedBox(width: 8),
               Text('กิจกรรมล่าสุด',
                   style: GoogleFonts.sarabun(
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w600,
                       color: const Color(0xFF191C1E))),
             ],
           ),
@@ -986,7 +987,7 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
                 Text(_relativeTime(log),
                     style: GoogleFonts.sarabun(
                         fontSize: 11,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                         color: const Color(0xFF005DAC))),
                 Text('${log['fullName'] ?? '-'} เข้าสู่ระบบ',
                     maxLines: 2,
@@ -995,7 +996,7 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
                         fontSize: 12, color: const Color(0xFF191C1E))),
                 Text('Username: ${log['username'] ?? '-'}',
                     style: GoogleFonts.sarabun(
-                        fontSize: 10, color: const Color(0xFF717783))),
+                        fontSize: 11, color: const Color(0xFF717783))),
               ],
             ),
           ),
@@ -1017,7 +1018,7 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
         children: [
           Text('ระบบตรวจสอบอัจฉริยะ',
               style: GoogleFonts.sarabun(
-                  color: Colors.white, fontWeight: FontWeight.bold)),
+                  color: Colors.white, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           Text('ขณะนี้ระบบกำลังตรวจสอบพฤติกรรมการเข้าใช้งานที่ผิดปกติ',
               style: GoogleFonts.sarabun(fontSize: 12, color: Colors.white70)),
@@ -1044,7 +1045,7 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
                           style: GoogleFonts.sarabun(
                               fontSize: 12,
                               color: Colors.white,
-                              fontWeight: FontWeight.bold)),
+                              fontWeight: FontWeight.w600)),
                     ],
                   ),
                 ),

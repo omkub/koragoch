@@ -12,6 +12,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../utils/school_info.dart';
+import '../theme/app_tokens.dart';
 
 class SchoolSettingsTab extends StatefulWidget {
   const SchoolSettingsTab({super.key});
@@ -120,7 +121,7 @@ class _SchoolSettingsTabState extends State<SchoolSettingsTab> {
 
       if (!mounted) return;
       setState(() => _isSaving = false);
-      _toast('บันทึกข้อมูลโรงเรียนเรียบร้อยแล้วครับ ✨');
+      _toast('บันทึกข้อมูลโรงเรียนเรียบร้อยแล้ว');
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
@@ -133,7 +134,7 @@ class _SchoolSettingsTabState extends State<SchoolSettingsTab> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(message, style: GoogleFonts.sarabun()),
-      backgroundColor: isError ? Colors.red.shade700 : const Color(0xFF10B981),
+      backgroundColor: isError ? AppColors.negative : AppColors.positive,
     ));
   }
 
@@ -157,7 +158,7 @@ class _SchoolSettingsTabState extends State<SchoolSettingsTab> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(_error!,
-                style: GoogleFonts.sarabun(color: Colors.red.shade700)),
+                style: GoogleFonts.sarabun(color: AppColors.negative)),
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: _load,
@@ -176,13 +177,13 @@ class _SchoolSettingsTabState extends State<SchoolSettingsTab> {
         children: [
           Text('ข้อมูลโรงเรียน',
               style: GoogleFonts.sarabun(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF0F172A))),
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.text)),
           const SizedBox(height: 4),
           Text('ข้อมูลนี้แสดงบนหัวใบลาราชการทุกใบ ทั้งบนจอและตอนพิมพ์',
               style:
-                  GoogleFonts.sarabun(fontSize: 13, color: Colors.blueGrey)),
+                  GoogleFonts.sarabun(fontSize: 13, color: AppColors.textSecondary)),
           const SizedBox(height: 20),
 
           // แสดงชื่อเต็มที่จะได้จริง เพื่อให้เห็นผลก่อนกดบันทึก
@@ -190,23 +191,23 @@ class _SchoolSettingsTabState extends State<SchoolSettingsTab> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFFF1F5F9),
+              color: AppColors.raised,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              border: Border.all(color: AppColors.line),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('ชื่อเต็มที่จะใช้ในเอกสาร',
                     style: GoogleFonts.sarabun(
-                        fontSize: 12, color: Colors.blueGrey)),
+                        fontSize: 12, color: AppColors.textSecondary)),
                 const SizedBox(height: 6),
                 Text(
                     _previewFullName.isEmpty
                         ? '(ยังไม่ได้กรอกชื่อ)'
                         : _previewFullName,
                     style: GoogleFonts.sarabun(
-                        fontSize: 16, fontWeight: FontWeight.bold)),
+                        fontSize: 16, fontWeight: FontWeight.w600)),
               ],
             ),
           ),
@@ -240,9 +241,9 @@ class _SchoolSettingsTabState extends State<SchoolSettingsTab> {
                             strokeWidth: 2, color: Colors.white))
                     : const Icon(Icons.save_rounded, size: 18),
                 label: Text(_isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล',
-                    style: GoogleFonts.sarabun(fontWeight: FontWeight.bold)),
+                    style: GoogleFonts.sarabun(fontWeight: FontWeight.w600)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F172A),
+                  backgroundColor: AppColors.text,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
                       horizontal: 24, vertical: 16),
@@ -260,10 +261,10 @@ class _SchoolSettingsTabState extends State<SchoolSettingsTab> {
           ),
           const SizedBox(height: 16),
           Text(
-              '💡 แก้ไขได้เฉพาะผู้ดูแลระบบ และหน้าจออื่นจะเห็นชื่อใหม่'
+              ' แก้ไขได้เฉพาะผู้ดูแลระบบ และหน้าจออื่นจะเห็นชื่อใหม่'
               'หลังเข้าสู่ระบบครั้งถัดไป',
               style:
-                  GoogleFonts.sarabun(fontSize: 12, color: Colors.blueGrey)),
+                  GoogleFonts.sarabun(fontSize: 12, color: AppColors.textSecondary)),
         ],
       ),
     );
@@ -280,7 +281,7 @@ class _SchoolSettingsTabState extends State<SchoolSettingsTab> {
               style: GoogleFonts.sarabun(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: const Color(0xFF64748B))),
+                  color: AppColors.textMuted)),
           const SizedBox(height: 6),
           TextField(
             controller: controller,
@@ -290,18 +291,18 @@ class _SchoolSettingsTabState extends State<SchoolSettingsTab> {
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: GoogleFonts.sarabun(
-                  fontSize: 13, color: const Color(0xFF94A3B8)),
+                  fontSize: 13, color: AppColors.textMuted),
               filled: true,
               fillColor: Colors.white,
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                borderSide: const BorderSide(color: AppColors.line),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                borderSide: const BorderSide(color: AppColors.line),
               ),
             ),
           ),
