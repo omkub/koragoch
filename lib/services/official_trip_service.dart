@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../utils/leave_days.dart';
 import 'firebase_service.dart';
 
 // ═══════════════════════════════════════════════════════════════
@@ -172,8 +173,7 @@ class OfficialTripService {
     return e.toString();
   }
 
-  static String dateKey(DateTime d) =>
-      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  static String dateKey(DateTime d) => LeaveDays.dateKey(d);
 
   static DateTime? parseDate(dynamic value) {
     if (value == null) return null;
@@ -206,30 +206,14 @@ class OfficialTripService {
   static DateTime fiscalYearEnd(int buddhistYear) =>
       DateTime(buddhistYear - 543, 9, 30);
 
-  /// จำนวนวันทำการ — กติกาเดียวกับหน้าส่งใบลา:
+  /// จำนวนวันทำการ — ใช้สูตรกลางเดียวกับใบลา ([LeaveDays.count]):
   /// วันทำงานพิเศษนับเสมอ, วันหยุดไม่นับ, เสาร์-อาทิตย์ไม่นับ
   static num countWorkingDays(DateTime start, DateTime end,
-      {required bool halfDay,
-      required Set<String> holidays,
-      required Set<String> workingDays}) {
-    if (halfDay) return 0.5;
-    final first = DateTime(start.year, start.month, start.day);
-    final last = DateTime(end.year, end.month, end.day);
-    var total = 0;
-    for (var day = first;
-        !day.isAfter(last);
-        day = day.add(const Duration(days: 1))) {
-      final key = dateKey(day);
-      final isWeekend =
-          day.weekday == DateTime.saturday || day.weekday == DateTime.sunday;
-      if (workingDays.contains(key)) {
-        total++;
-      } else if (!holidays.contains(key) && !isWeekend) {
-        total++;
-      }
-    }
-    return total;
-  }
+          {required bool halfDay,
+          required Set<String> holidays,
+          required Set<String> workingDays}) =>
+      LeaveDays.count(start, end,
+          halfDay: halfDay, holidays: holidays, workingDays: workingDays);
 
   static String? _specialDateKey(Map<String, dynamic> data) {
     DateTime? dt;

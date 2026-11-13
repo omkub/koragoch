@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
 import '../services/official_trip_service.dart';
+import '../utils/leave_days.dart';
 import '../utils/staff_status.dart';
 import '../widgets/leave_form_data.dart';
 import '../widgets/leave_template_document.dart';
@@ -114,50 +115,14 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
     }
   }
 
+  /// วันหยุด / วันทำงานพิเศษ ใช้นับจำนวนวันลา (ตัวโหลดเดียวกับ app มือถือ)
   Future<void> _loadSpecialDates() async {
-    try {
-      // 🚀 อ่านวันหยุด/วันทำงานพิเศษจาก Supabase
-      final holidays =
-          await _firebaseService.getSpecialHolidaysFromSupabase();
-      final specialWorking =
-          await _firebaseService.getSpecialWorkingDaysFromSupabase();
-      if (!mounted) return;
-      final hKeys = holidays
-          .map((d) => _toDateKey(d))
-          .whereType<String>()
-          .toSet();
-      final swKeys = specialWorking
-          .map((d) => _toDateKey(d))
-          .whereType<String>()
-          .toSet();
-      setState(() {
-        _holidayKeys = hKeys;
-        _specialWorkingKeys = swKeys;
-      });
-    } catch (e) {
-      debugPrint("Error loading special dates: $e");
-    }
-  }
-
-  String _dateKeyFromDateTime(DateTime dt) {
-    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
-  }
-
-  String? _toDateKey(Map<String, dynamic> data) {
-    DateTime? dt;
-    final dateValue = data['dateValue'];
-    if (dateValue is int) {
-      dt = DateTime.fromMillisecondsSinceEpoch(dateValue);
-    }
-    if (dt == null) {
-      final dateStr = data['date']?.toString() ?? data['day']?.toString() ?? data['workDate']?.toString();
-      if (dateStr != null) {
-        dt = FirebaseService.parseFast(dateStr);
-        if (dt != null && dt.year > 2400) dt = DateTime(dt.year - 543, dt.month, dt.day);
-      }
-    }
-    if (dt == null) return null;
-    return _dateKeyFromDateTime(dt);
+    final dates = await OfficialTripService().getSpecialDates();
+    if (!mounted) return;
+    setState(() {
+      _holidayKeys = dates.holidays;
+      _specialWorkingKeys = dates.workingDays;
+    });
   }
 
   Future<void> _fetchUserData(String fullName) async {
@@ -206,36 +171,19 @@ class _LeaveFormScreenState extends State<LeaveFormScreen>
   bool get _isHalfDayActive =>
       _isHalfDay && _isSameCalendarDay(_startDate, _endDate);
 
-  bool get _isMaternityLeave =>
-      (_selectedLeaveType ?? '').toString().contains('คลอด');
+  bool get _isMaternityLeave => LeaveDays.isMaternityType(_selectedLeaveType);
 
   DateTime _maternityEndDateFrom(DateTime start) {
     final first = DateTime(start.year, start.month, start.day);
     return first.add(const Duration(days: 89));
   }
 
-  num _calculatedTotalDays() {
-    if (_isHalfDayActive) return 0.5;
-    final first = DateTime(_startDate.year, _startDate.month, _startDate.day);
-    final last = DateTime(_endDate.year, _endDate.month, _endDate.day);
-    if (_isMaternityLeave) {
-      final days = last.difference(first).inDays + 1;
-      return days < 1 ? 1 : days;
-    }
-    double total = 0;
-    for (DateTime day = first; !day.isAfter(last); day = day.add(const Duration(days: 1))) {
-      final key = _dateKeyFromDateTime(day);
-      final isWeekend = day.weekday == DateTime.saturday || day.weekday == DateTime.sunday;
-      if (_specialWorkingKeys.contains(key)) {
-        total += 1;
-      } else if (_holidayKeys.contains(key)) {
-        continue;
-      } else if (!isWeekend) {
-        total += 1;
-      }
-    }
-    return total < 0.5 ? 0 : total;
-  }
+  /// สูตรกลาง — ห้ามเขียนสูตรเองในหน้าจอ (ดู lib/utils/leave_days.dart)
+  num _calculatedTotalDays() => LeaveDays.count(_startDate, _endDate,
+      halfDay: _isHalfDayActive,
+      maternity: _isMaternityLeave,
+      holidays: _holidayKeys,
+      workingDays: _specialWorkingKeys);
 
   String _formatLeaveDays(num value) =>
       FirebaseService.formatLeaveDayCount(value);
