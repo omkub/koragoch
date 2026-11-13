@@ -86,6 +86,17 @@ jobs:
       - name: รวมเว็บส่วนกลางเข้าไปในเว็บหลัก
         run: cp -r central/dist build/web/central
 
+      - name: ติดตั้ง dependencies ของเว็บโรงเรียน
+        working-directory: school-web
+        run: npm ci
+
+      - name: Build เว็บโรงเรียน
+        working-directory: school-web
+        run: npm run build -- --base /school/
+
+      - name: รวมเว็บโรงเรียนเข้าไปในเว็บหลัก
+        run: cp -r school-web/dist build/web/school
+
       # merge หลาย PR ติดกัน: deploy เฉพาะรอบที่ยังเป็น commit ล่าสุดของ main
       - name: ตรวจว่ายังเป็นเวอร์ชันล่าสุดของ main
         id: latest
