@@ -747,13 +747,13 @@ export default function AppointmentOrdersPage({
     <div className="space-y-4">
       {/* Top Action Bar */}
       <div className="surface-card p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex rounded-lg border border-line bg-canvas p-0.5">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+            <div className="inline-flex shrink-0 rounded-lg border border-line bg-canvas p-0.5">
               <button
                 type="button"
                 onClick={() => setScopeFilter('division')}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                className={` whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                   scopeFilter === 'division'
                     ? 'bg-white text-ink shadow-sm'
                     : 'text-slate-500 hover:text-ink'
@@ -764,7 +764,7 @@ export default function AppointmentOrdersPage({
               <button
                 type="button"
                 onClick={() => setScopeFilter('school')}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                className={`whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                   scopeFilter === 'school'
                     ? 'bg-white text-ink shadow-sm'
                     : 'text-slate-500 hover:text-ink'
@@ -782,7 +782,7 @@ export default function AppointmentOrdersPage({
                 else selectExistingOrder(Number(val));
               }}
               aria-label="เลือกคำสั่งแต่งตั้ง"
-              className="input max-w-xs py-1.5 text-xs"
+              className="input !w-auto min-w-[210px] max-w-xs flex-1 py-1.5 text-xs sm:flex-initial"
             >
               <option value="new">
                 + ร่างคำสั่งแต่งตั้งใหม่ (ที่ {nextOrderNo}/{draft.order_year})
@@ -797,14 +797,14 @@ export default function AppointmentOrdersPage({
             <button
               type="button"
               onClick={handleStartNewOrder}
-              className="btn-secondary btn-sm"
+              className="btn-secondary btn-sm shrink-0 whitespace-nowrap"
             >
               <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
               <span>สร้างคำสั่งใหม่</span>
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
             <div className="inline-flex rounded-lg border border-line bg-canvas p-0.5 lg:hidden">
               <button
                 type="button"
