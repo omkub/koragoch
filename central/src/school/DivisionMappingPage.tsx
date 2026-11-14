@@ -137,19 +137,32 @@ export default function DivisionMappingPage({
       divKey.trim().toLowerCase().replace(/\s+/g, '-') ||
       `div-${Date.now().toString(36)}`;
 
-    const { error: insErr } = await supabase.from('SchoolWebDivisions').insert({
-      id_school: schoolId,
-      division_key: cleanKey,
-      name: divName.trim(),
-      description: divDesc.trim() || null,
-      icon_name: divIcon,
-      sort_order: divisions.length + 1,
-      is_enabled: true,
-    });
+    const { data: newDiv, error: insErr } = await supabase
+      .from('SchoolWebDivisions')
+      .insert({
+        id_school: schoolId,
+        division_key: cleanKey,
+        name: divName.trim(),
+        description: divDesc.trim() || null,
+        icon_name: divIcon,
+        sort_order: divisions.length + 1,
+        is_enabled: true,
+      })
+      .select('id')
+      .single();
 
     if (insErr) {
       setError(insErr.message);
     } else {
+      if (newDiv?.id) {
+        await supabase.from('SchoolWebDivisionModules').insert({
+          id_school: schoolId,
+          division_id: newDiv.id,
+          module_key: 'appointment-orders',
+          sort_order: 10,
+          is_enabled: true,
+        });
+      }
       setDivKey('');
       setDivName('');
       setDivDesc('');

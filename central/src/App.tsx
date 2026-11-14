@@ -255,6 +255,7 @@ export default function App() {
           element={
             <DivisionHubPage
               schoolId={selectedSchoolId}
+              schoolName={currentSchool?.fullName || 'โรงเรียน'}
               canEdit={canEditSchool}
               editableDivisionIds={editableDivisionIds}
               access={access}
@@ -267,6 +268,7 @@ export default function App() {
           element={
             <DivisionHubPage
               schoolId={selectedSchoolId}
+              schoolName={currentSchool?.fullName || 'โรงเรียน'}
               canEdit={canEditSchool}
               editableDivisionIds={editableDivisionIds}
               access={access}

@@ -134,6 +134,17 @@ export const FALLBACK_CATALOG: ModuleCatalogItem[] = [
     sort_order: 1,
     is_active: true,
   },
+  {
+    module_key: 'appointment-orders',
+    title: 'คำสั่งแต่งตั้ง',
+    description:
+      'จัดทำหนังสือคำสั่งแต่งตั้งคณะทำงานของฝ่าย แสดงตัวอย่างกระดาษ A4 และส่งออกไฟล์ Word (.docx)',
+    module_type: 'builtin',
+    default_division_key: 'all',
+    default_url: null,
+    sort_order: 10,
+    is_active: true,
+  },
 ];
 
 export const FALLBACK_DIVISIONS: Omit<SchoolDivision, 'id_school'>[] = [
@@ -204,10 +215,21 @@ export async function fetchSchoolDivisionTree(schoolId: number): Promise<{
       .order('id', { ascending: true }),
   ]);
 
-  const catalog =
+  const rawCatalog =
     !catRes.error && catRes.data && catRes.data.length > 0
       ? (catRes.data as ModuleCatalogItem[])
       : FALLBACK_CATALOG;
+
+  // รับประกันว่ามี 'appointment-orders' ใน catalog เสมอ แม้ยังไม่ได้รันไฟล์ SQL ใหม่
+  const hasOrderCatalog = rawCatalog.some(
+    (c) => c.module_key === 'appointment-orders',
+  );
+  const catalog = hasOrderCatalog
+    ? rawCatalog
+    : [
+        ...rawCatalog,
+        FALLBACK_CATALOG.find((c) => c.module_key === 'appointment-orders')!,
+      ];
 
   const catalogMap = new Map<string, ModuleCatalogItem>();
   for (const item of catalog) {
@@ -232,6 +254,30 @@ export async function fetchSchoolDivisionTree(schoolId: number): Promise<{
           resolved_url: m.external_url || cat?.default_url || null,
         };
       });
+
+      // หากฝ่ายนี้ยังไม่มี 'appointment-orders' ใน DB ให้แสดงเป็นค่าเริ่มต้นของทุกฝ่ายทันที
+      if (!resolved.some((m) => m.module_key === 'appointment-orders')) {
+        const orderCat = catalogMap.get('appointment-orders');
+        if (orderCat) {
+          resolved.push({
+            id: -(div.id * 100 + 99),
+            id_school: schoolId,
+            division_id: div.id,
+            module_key: 'appointment-orders',
+            custom_title: null,
+            custom_description: null,
+            external_url: null,
+            open_mode: 'new_tab',
+            sort_order: 10,
+            is_enabled: true,
+            title: orderCat.title,
+            description: orderCat.description || '',
+            module_type: 'builtin',
+            resolved_url: null,
+          });
+        }
+      }
+
       return {
         ...div,
         modules: resolved,
@@ -244,7 +290,9 @@ export async function fetchSchoolDivisionTree(schoolId: number): Promise<{
   // Fallback tree when DB has no rows yet
   const fallbackTree: DivisionWithModules[] = FALLBACK_DIVISIONS.map((div) => {
     const defaultMods = catalog.filter(
-      (c) => c.default_division_key === div.division_key,
+      (c) =>
+        c.default_division_key === div.division_key ||
+        c.default_division_key === 'all',
     );
     return {
       ...div,

@@ -4,6 +4,7 @@ import { ArrowUpRight, ExternalLink, Layers, Settings2 } from 'lucide-react';
 import { supabase, type Access } from '../supabase';
 import AcademicsPage from './AcademicsPage';
 import AnnouncementsSection from './AnnouncementsSection';
+import AppointmentOrdersPage from './AppointmentOrdersPage';
 import DepartmentsPage from './DepartmentsPage';
 import DocumentsPage from './DocumentsPage';
 import FinanceBudgetPage from './FinanceBudgetPage';
@@ -13,6 +14,7 @@ import StudentsPage from './StudentsPage';
 
 interface DivisionHubPageProps {
   schoolId: number | null;
+  schoolName?: string;
   canEdit: boolean;
   editableDivisionIds?: number[];
   access: Access;
@@ -21,6 +23,7 @@ interface DivisionHubPageProps {
 
 export default function DivisionHubPage({
   schoolId,
+  schoolName = 'โรงเรียน',
   canEdit,
   editableDivisionIds = [],
   access,
@@ -139,6 +142,8 @@ export default function DivisionHubPage({
           {activeModule && (
             <DivisionModuleRenderer
               schoolId={schoolId}
+              schoolName={schoolName}
+              division={division}
               canEdit={canEditThisDivision}
               access={access}
               mod={activeModule}
@@ -152,11 +157,15 @@ export default function DivisionHubPage({
 
 function DivisionModuleRenderer({
   schoolId,
+  schoolName,
+  division,
   canEdit,
   access,
   mod,
 }: {
   schoolId: number | null;
+  schoolName: string;
+  division: DivisionWithModules;
   canEdit: boolean;
   access: Access;
   mod: ResolvedDivisionModule;
@@ -178,6 +187,15 @@ function DivisionModuleRenderer({
       return <AnnouncementsSection schoolId={schoolId} canEdit={canEdit} />;
     case 'finance-budget':
       return <FinanceBudgetPage schoolId={schoolId} canEdit={canEdit} mod={mod} />;
+    case 'appointment-orders':
+      return (
+        <AppointmentOrdersPage
+          schoolId={schoolId}
+          schoolName={schoolName}
+          division={division}
+          canEdit={canEdit}
+        />
+      );
     default:
       return <ExternalOrCustomModuleView mod={mod} canEdit={canEdit} />;
   }
