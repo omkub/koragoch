@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
-import { supabase, type Access } from './supabase';
+import {
+  getTargetSchoolIdFromLeaveApp,
+  hydrateSsoSession,
+  isEmbeddedInLeaveApp,
+  supabase,
+  type Access,
+} from './supabase';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import SchoolsPage from './pages/SchoolsPage';
@@ -43,6 +49,7 @@ function extractUsername(email: string | undefined | null): string {
 }
 
 export default function App() {
+  const [hydratingSso, setHydratingSso] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
   const [access, setAccess] = useState<Access | null>(null);
   const [userName, setUserName] = useState('ผู้ใช้งาน');
@@ -62,9 +69,22 @@ export default function App() {
   >([]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
-    return () => data.subscription.unsubscribe();
+    let mounted = true;
+    (async () => {
+      await hydrateSsoSession();
+      const { data } = await supabase.auth.getSession();
+      if (mounted) {
+        setSession(data.session);
+        setHydratingSso(false);
+      }
+    })();
+    const { data } = supabase.auth.onAuthStateChange((_event, s) => {
+      if (mounted) setSession(s);
+    });
+    return () => {
+      mounted = false;
+      data.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -100,9 +120,11 @@ export default function App() {
           ? schoolRes.data
           : Number(schoolRes.data) || null;
       const schoolList = (schoolsRes.data as SchoolBasic[] | null) ?? [];
+      const isSuperUser = superRes.data === true;
+      const requestedSchoolId = getTargetSchoolIdFromLeaveApp();
 
       setAccess({
-        level: superRes.data === true ? 'super' : adminRes.data === true ? 'school' : 'none',
+        level: isSuperUser ? 'super' : adminRes.data === true ? 'school' : 'none',
         schoolId,
       });
       const teacherRow = teacherRes.data as {
@@ -114,7 +136,21 @@ export default function App() {
         typeof teacherRow?.id_role === 'number' ? teacherRow.id_role : null,
       );
       setSchools(schoolList);
-      setSelectedSchoolId(schoolId ?? schoolList[0]?.id_school ?? null);
+
+      // ผูกเข้ากับโรงเรียนของผู้ใช้เองอัตโนมัติ (หรือโรงเรียนที่ส่งมาจากแท็บแอปวันลา)
+      const matchedRequested =
+        requestedSchoolId &&
+        schoolList.some((s) => s.id_school === requestedSchoolId)
+          ? requestedSchoolId
+          : null;
+
+      if (!isSuperUser && schoolId) {
+        setSelectedSchoolId(schoolId);
+      } else {
+        setSelectedSchoolId(
+          matchedRequested ?? schoolId ?? schoolList[0]?.id_school ?? null,
+        );
+      }
     })();
   }, [session]);
 
@@ -181,6 +217,13 @@ export default function App() {
     loadSchoolContext();
   }, [loadSchoolContext]);
 
+  if (hydratingSso) {
+    return (
+      <CenterScreen>
+        <p className="text-sm text-slate-500">กำลังเชื่อมต่อข้อมูลโรงเรียน...</p>
+      </CenterScreen>
+    );
+  }
   if (!session) {
     return <LoginPage />;
   }
@@ -233,6 +276,7 @@ export default function App() {
       onSelectSchool={setSelectedSchoolId}
       onSignOut={() => supabase.auth.signOut()}
       divisions={visibleDivisions}
+      isEmbedded={isEmbeddedInLeaveApp()}
     >
       <Routes>
         {/* หน้าหลักโรงเรียน */}

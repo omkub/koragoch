@@ -21,6 +21,7 @@ import 'login_logs_screen.dart'; // นำเข้าหน้าประว�
 import 'calendar_screen.dart'; // นำเข้าหน้าปฏิทินกิจกรรม
 import 'official_trip_screen.dart';
 import 'attendance_screen.dart';
+import 'school_web_tab_screen.dart';
 import '../services/attendance_service.dart';
 import '../utils/profile_image.dart';
 import '../widgets/notification_bell.dart';
@@ -284,7 +285,7 @@ class _MainLayoutState extends State<MainLayout> {
       ),
       const UserManagementScreen(),
       const PersonnelScreen(),
-      const SizedBox.shrink(), // Reserved menu ID 6; removed from this app.
+      SchoolWebTabScreen(onPermissionsChanged: _loadPermissions),
       const LoginLogsScreen(),
       const CalendarScreen(),
       OfficialTripScreen(
@@ -367,7 +368,7 @@ class _MainLayoutState extends State<MainLayout> {
                       _currentUser == 'ผู้ดูแลระบบ')
                   ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
                   // โหลดสิทธิ์ไม่ได้: สรุปผลเฉพาะผู้บริหาร
-                  : [if (_userRole.contains('ผู้บริหาร')) 0, 2, 3, 9, 10];
+                  : [if (_userRole.contains('ผู้บริหาร')) 0, 2, 3, 6, 9, 10];
               // ไม่มีสิทธิ์เห็นสรุปผล → เปิดหน้าส่งใบลาแทน
               if (effectiveIndex == 0 && !defaultAllowed.contains(0)) {
                 effectiveIndex = 2;
@@ -404,7 +405,16 @@ class _MainLayoutState extends State<MainLayout> {
             }
 
             for (int i = 0; i <= 10; i++) {
-              if (i == 6) continue;
+              if (i == 6) {
+                if (data.containsKey('6') || data.containsKey('เว็บโรงเรียน')) {
+                  if (isTruthy(data['6']) || isTruthy(data['เว็บโรงเรียน'])) {
+                    allowed.add(6);
+                  }
+                } else {
+                  allowed.add(6);
+                }
+                continue;
+              }
               final val = data[i.toString()];
               if (isTruthy(val)) allowed.add(i);
             }
@@ -417,6 +427,7 @@ class _MainLayoutState extends State<MainLayout> {
               'จัดการระบบ (รายชื่อบุคลากร)': 4,
               'จัดการระบบ': 4,
               'บุคลากร (กลุ่มสาระ)': 5,
+              'เว็บโรงเรียน': 6,
               'ประวัติการเข้าใช้งาน': 7,
               'ปฏิทินกิจกรรมส่วนกลาง': 8,
             };
@@ -429,6 +440,7 @@ class _MainLayoutState extends State<MainLayout> {
             if (_userRole.contains('ผู้ดูแลระบบ') ||
                 _currentUser == 'ผู้ดูแลระบบ') {
               if (!allowed.contains(4)) allowed.add(4);
+              if (!allowed.contains(6)) allowed.add(6);
             }
             if (!_attendanceEnabled) allowed.remove(10);
             if (allowed.contains(9)) allowed.add(_tripFormIndex);
@@ -657,6 +669,9 @@ class _MainLayoutState extends State<MainLayout> {
                 if (allowedMenus.contains(5))
                   _buildMenuItem(
                       5, Icons.people_outline, 'บุคลากร (กลุ่มสาระ)'),
+                if (allowedMenus.contains(6))
+                  _buildMenuItem(
+                      6, Icons.account_balance_outlined, 'เว็บโรงเรียน'),
                 if (allowedMenus.contains(7))
                   _buildMenuItem(
                       7, Icons.security_rounded, 'ประวัติการเข้าใช้งาน'),

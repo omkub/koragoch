@@ -201,6 +201,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     3: 'ประวัติการลา',
     4: 'จัดการระบบ', // ปรับชื่อให้ตรงกับ Sidebar ด้านซ้าย 100% ครับ
     5: 'บุคลากร (กลุ่มสาระ)',
+    6: 'เว็บโรงเรียน',
     7: 'ประวัติการเข้าใช้งาน',
     8: 'ปฏิทินกิจกรรมส่วนกลาง',
     9: 'ไปราชการ / ประชุม',
@@ -4493,6 +4494,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       Map<String, dynamic> data, String pageId, String pageName) {
     final numericValue = data[pageId];
     final nameValue = data[pageName];
+    if (pageId == '6' && numericValue == null && nameValue == null) return true;
     return _isTruthy(numericValue) || _isTruthy(nameValue);
   }
 

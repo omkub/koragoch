@@ -258,3 +258,39 @@ Future<String> promptInstall() async {
     return 'unavailable';
   }
 }
+
+
+/// สร้างลิงก์เข้าสู่เว็บโรงเรียน (/central/) พร้อมส่งต่อ Supabase Session (Single Sign-On)
+/// และรหัสโรงเรียนของผู้ใช้ (id_school) เพื่อให้เปิดเข้าโรงเรียนตัวเองได้ทันทีโดยไม่ต้องล็อกอินซ้ำ
+String resolveSchoolWebUrl({
+  String? accessToken,
+  String? refreshToken,
+  int? schoolId,
+  bool embedded = true,
+  String subPath = '',
+}) {
+  final origin = web.window.location.origin;
+  final cleanSub = subPath.startsWith('/') ? subPath.substring(1) : subPath;
+  final basePath = '$origin/central/$cleanSub';
+
+  final queryParts = <String>[
+    'embedded=${embedded ? '1' : '0'}',
+    if (schoolId != null) 'school_id=$schoolId',
+  ];
+
+  final hashParts = <String>[
+    if (accessToken != null && accessToken.isNotEmpty)
+      'sso_access_token=${Uri.encodeComponent(accessToken)}',
+    if (refreshToken != null && refreshToken.isNotEmpty)
+      'sso_refresh_token=${Uri.encodeComponent(refreshToken)}',
+  ];
+
+  final queryStr = queryParts.isNotEmpty ? '?${queryParts.join('&')}' : '';
+  final hashStr = hashParts.isNotEmpty ? '#${hashParts.join('&')}' : '';
+  return '$basePath$queryStr$hashStr';
+}
+
+/// เปิดลิงก์เว็บโรงเรียนในแท็บปัจจุบันหรือแท็บใหม่
+void openUrlInBrowser(String url, {bool sameTab = false}) {
+  web.window.open(url, sameTab ? '_self' : '_blank');
+}

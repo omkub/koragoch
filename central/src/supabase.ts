@@ -126,3 +126,131 @@ export async function functionError(error: unknown): Promise<string> {
   }
   return error instanceof Error ? error.message : String(error);
 }
+
+
+const FLUTTER_SUPABASE_STORAGE_KEY = 'sb-uziajblqlbrvqmxvizsi-auth-token';
+const EMBEDDED_SESSION_KEY = 'koragoch-school-web-embedded';
+const LOCKED_SCHOOL_SESSION_KEY = 'koragoch-school-web-school-id';
+
+function parseTokensFromRawJson(raw: string | null): {
+  access_token: string;
+  refresh_token: string;
+} | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (
+      typeof parsed.access_token === 'string' &&
+      typeof parsed.refresh_token === 'string'
+    ) {
+      return {
+        access_token: parsed.access_token,
+        refresh_token: parsed.refresh_token,
+      };
+    }
+    const current = parsed.currentSession as Record<string, unknown> | undefined;
+    if (
+      current &&
+      typeof current.access_token === 'string' &&
+      typeof current.refresh_token === 'string'
+    ) {
+      return {
+        access_token: current.access_token,
+        refresh_token: current.refresh_token,
+      };
+    }
+  } catch {
+    /* ignore malformed storage */
+  }
+  return null;
+}
+
+/**
+ * เชื่อม Session อัตโนมัติจากแอประบบวันลา (Single Sign-On)
+ * 1) อ่าน sso_access_token / sso_refresh_token จาก URL hash หรือ query (เมื่อคลิกมาจากแท็บแอปวันลา)
+ * 2) หากไม่มีใน URL ให้ตรวจ Session ของแอปวันลาใน localStorage บนโดเมนเดียวกัน
+ */
+export async function hydrateSsoSession(): Promise<void> {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashStr = window.location.hash.startsWith('#')
+      ? window.location.hash.slice(1)
+      : window.location.hash;
+    const hashParams = new URLSearchParams(hashStr);
+
+    if (searchParams.get('embedded') === '1') {
+      sessionStorage.setItem(EMBEDDED_SESSION_KEY, '1');
+    } else if (searchParams.get('embedded') === '0') {
+      sessionStorage.removeItem(EMBEDDED_SESSION_KEY);
+    }
+
+    const urlSchoolId = searchParams.get('school_id');
+    if (urlSchoolId && /^\d+$/.test(urlSchoolId)) {
+      sessionStorage.setItem(LOCKED_SCHOOL_SESSION_KEY, urlSchoolId);
+    }
+
+    const ssoAccess =
+      hashParams.get('sso_access_token') || searchParams.get('sso_access_token');
+    const ssoRefresh =
+      hashParams.get('sso_refresh_token') ||
+      searchParams.get('sso_refresh_token');
+
+    if (ssoAccess && ssoRefresh) {
+      await supabase.auth.setSession({
+        access_token: ssoAccess,
+        refresh_token: ssoRefresh,
+      });
+
+      hashParams.delete('sso_access_token');
+      hashParams.delete('sso_refresh_token');
+      searchParams.delete('sso_access_token');
+      searchParams.delete('sso_refresh_token');
+
+      const nextSearch = searchParams.toString();
+      const nextHash = hashParams.toString();
+      const cleanUrl =
+        window.location.pathname +
+        (nextSearch ? `?${nextSearch}` : '') +
+        (nextHash ? `#${nextHash}` : '');
+      window.history.replaceState({}, document.title, cleanUrl);
+      return;
+    }
+
+    const {
+      data: { session: existingSession },
+    } = await supabase.auth.getSession();
+
+    const flutterTokens = parseTokensFromRawJson(
+      window.localStorage.getItem(FLUTTER_SUPABASE_STORAGE_KEY),
+    );
+
+    if (flutterTokens && !existingSession) {
+      await supabase.auth.setSession(flutterTokens);
+    }
+  } catch {
+    /* หากซิงก์ไม่สำเร็จ จะแสดงหน้าล็อกอินตามปกติ */
+  }
+}
+
+/** ตรวจสอบว่าเว็บโรงเรียนกำลังเปิดแบบฝังอยู่ในแท็บของแอประบบวันลาหรือไม่ */
+export function isEmbeddedInLeaveApp(): boolean {
+  if (typeof window === 'undefined') return false;
+  const searchParams = new URLSearchParams(window.location.search);
+  if (searchParams.get('embedded') === '1') return true;
+  if (searchParams.get('embedded') === '0') return false;
+  return sessionStorage.getItem(EMBEDDED_SESSION_KEY) === '1';
+}
+
+/** ดึงรหัสโรงเรียนที่ส่งมาจากแอประบบวันลา (ถ้ามี) */
+export function getTargetSchoolIdFromLeaveApp(): number | null {
+  if (typeof window === 'undefined') return null;
+  const searchParams = new URLSearchParams(window.location.search);
+  const raw =
+    searchParams.get('school_id') ||
+    sessionStorage.getItem(LOCKED_SCHOOL_SESSION_KEY);
+  if (!raw) return null;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+}

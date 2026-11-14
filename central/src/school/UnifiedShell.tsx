@@ -1,8 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
+  ArrowLeft,
   Bell,
   Building2,
+  ExternalLink,
   FileText,
   Folder,
   GraduationCap,
@@ -32,6 +34,7 @@ interface UnifiedShellProps {
   onSelectSchool: (id: number) => void;
   onSignOut: () => void;
   divisions: DivisionWithModules[];
+  isEmbedded?: boolean;
   children: ReactNode;
 }
 
@@ -139,6 +142,7 @@ export default function UnifiedShell({
   onSelectSchool,
   onSignOut,
   divisions,
+  isEmbedded = false,
   children,
 }: UnifiedShellProps) {
   const { pathname } = useLocation();
@@ -436,6 +440,28 @@ export default function UnifiedShell({
           </div>
 
           <div className="relative flex items-center gap-2">
+            {isEmbedded ? (
+              <a
+                href={`${window.location.pathname}?embedded=0${selectedSchoolId ? `&school_id=${selectedSchoolId}` : ''}`}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-secondary btn-sm"
+                title="เปิดเว็บโรงเรียนเต็มหน้าจอในแท็บใหม่"
+              >
+                <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.5} />
+                <span className="hidden sm:inline">เปิดเต็มจอ</span>
+              </a>
+            ) : (
+              <a
+                href="/"
+                className="btn-secondary btn-sm"
+                title="สลับกลับไปยังระบบวันลา"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.5} />
+                <span>กลับระบบวันลา</span>
+              </a>
+            )}
+
             <button
               type="button"
               onClick={() => setNotifOpen((prev) => !prev)}

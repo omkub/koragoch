@@ -88,3 +88,38 @@ Future<String> pushPermission() async => 'unsupported';
 String pushPermissionState() => 'unsupported';
 Future<String> pushEnable(String publicKey) async => 'error:unsupported';
 Future<String> pushDisable() async => '';
+
+
+/// สร้างลิงก์เข้าสู่เว็บโรงเรียน (/central/) พร้อมส่งต่อ Supabase Session (Single Sign-On)
+String resolveSchoolWebUrl({
+  String? accessToken,
+  String? refreshToken,
+  int? schoolId,
+  bool embedded = true,
+  String subPath = '',
+}) {
+  final cleanSub = subPath.startsWith('/') ? subPath.substring(1) : subPath;
+  const baseOrigin = 'https://rbp-chanikarnn.web.app';
+  final basePath = '$baseOrigin/central/$cleanSub';
+
+  final queryParts = <String>[
+    'embedded=${embedded ? '1' : '0'}',
+    if (schoolId != null) 'school_id=$schoolId',
+  ];
+
+  final hashParts = <String>[
+    if (accessToken != null && accessToken.isNotEmpty)
+      'sso_access_token=${Uri.encodeComponent(accessToken)}',
+    if (refreshToken != null && refreshToken.isNotEmpty)
+      'sso_refresh_token=${Uri.encodeComponent(refreshToken)}',
+  ];
+
+  final queryStr = queryParts.isNotEmpty ? '?${queryParts.join('&')}' : '';
+  final hashStr = hashParts.isNotEmpty ? '#${hashParts.join('&')}' : '';
+  return '$basePath$queryStr$hashStr';
+}
+
+/// นอกเว็บไม่รองรับการเปิดหน้าต่างเบราว์เซอร์โดยตรงผ่าน window.open
+void openUrlInBrowser(String url, {bool sameTab = false}) {
+  debugPrint('openUrlInBrowser ($url): รองรับเฉพาะบนเว็บ');
+}

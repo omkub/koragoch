@@ -32,6 +32,9 @@ export default function DivisionPermissionsPage({
   onReload,
 }: DivisionPermissionsPageProps) {
   const [roles, setRoles] = useState<Role[]>([]);
+  const [tabVisibleByRole, setTabVisibleByRole] = useState<
+    Record<number, boolean>
+  >({});
   const [accessMap, setAccessMap] = useState<
     Record<string, { can_view: boolean; can_edit: boolean }>
   >({});
@@ -49,11 +52,16 @@ export default function DivisionPermissionsPage({
   const loadData = useCallback(async () => {
     if (!schoolId) return;
     setLoading(true);
-    const [rolesRes, accessRes] = await Promise.all([
+    const [rolesRes, permRes, accessRes] = await Promise.all([
       supabase
         .from('roles')
         .select('ID_Roles, Accessrights, id_school')
         .order('ID_Roles', { ascending: true }),
+      supabase
+        .from('Permissions')
+        .select('id_role, menu_id, status')
+        .eq('id_school', schoolId)
+        .eq('menu_id', 6),
       supabase
         .from('SchoolWebRoleDivisionAccess')
         .select('id, id_school, division_id, id_role, can_view, can_edit')
@@ -61,7 +69,24 @@ export default function DivisionPermissionsPage({
     ]);
 
     const allRoles = (rolesRes.data as Role[] | null) ?? [];
-    setRoles(rolesForSchool(allRoles, schoolId));
+    const schoolRoles = rolesForSchool(allRoles, schoolId);
+    setRoles(schoolRoles);
+
+    const tabMap: Record<number, boolean> = {};
+    for (const r of schoolRoles) {
+      tabMap[r.ID_Roles] = true;
+    }
+    for (const row of (permRes.data as
+      | { id_role: number; menu_id: number; status: unknown }[]
+      | null) ?? []) {
+      const st = row.status;
+      tabMap[row.id_role] =
+        st === true ||
+        st === 1 ||
+        String(st) === '1' ||
+        String(st).toUpperCase() === 'TRUE';
+    }
+    setTabVisibleByRole(tabMap);
 
     const map: Record<string, { can_view: boolean; can_edit: boolean }> = {};
     for (const row of (accessRes.data as RoleDivisionAccessRow[] | null) ?? []) {
@@ -104,6 +129,42 @@ export default function DivisionPermissionsPage({
     setMessage({
       type: 'ok',
       text: 'สร้างโครงสร้างฝ่ายเริ่มต้นของโรงเรียนเรียบร้อยแล้ว',
+    });
+  }
+
+  async function togglePcTabVisibility(roleId: number, nextVisible: boolean) {
+    if (!schoolId || !canEdit) return;
+    const key = `tab:${roleId}`;
+    setBusyKey(key);
+    setMessage(null);
+
+    const { error } = await supabase.from('Permissions').upsert(
+      {
+        id_school: schoolId,
+        id_role: roleId,
+        menu_id: 6,
+        status: nextVisible ? '1' : '0',
+        updatedAt: new Date().toISOString(),
+      },
+      { onConflict: 'id_school,id_role,menu_id' },
+    );
+
+    setBusyKey(null);
+    if (error) {
+      setMessage({
+        type: 'err',
+        text: `บันทึกสิทธิ์แท็บ PC ไม่สำเร็จ: ${error.message}`,
+      });
+      return;
+    }
+
+    setTabVisibleByRole((prev) => ({
+      ...prev,
+      [roleId]: nextVisible,
+    }));
+    setMessage({
+      type: 'ok',
+      text: 'อัปเดตสิทธิ์การมองเห็นแท็บ "เว็บโรงเรียน" บนหน้าจอ PC เรียบร้อยแล้ว',
     });
   }
 
@@ -180,6 +241,64 @@ export default function DivisionPermissionsPage({
           {message.text}
         </div>
       )}
+
+      {/* ส่วนตั้งค่าสิทธิ์การมองเห็นแท็บ "เว็บโรงเรียน" บนแถบเมนูซ้ายของแอปวันลา (PC) */}
+      <div className="surface-card p-6">
+        <div className="mb-4">
+          <h2 className="text-base font-semibold text-ink">
+            สิทธิ์การมองเห็นแท็บ &ldquo;เว็บโรงเรียน&rdquo; บนหน้าจอ PC (ระบบวันลา)
+          </h2>
+          <p className="mt-0.5 text-xs text-slate-500">
+            กำหนดว่ากลุ่มบทบาทใดในโรงเรียนจะเห็นแท็บเมนู &ldquo;เว็บโรงเรียน&rdquo; บนแถบเมนูด้านซ้ายของแอประบบวันลาบน PC
+          </p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {roles.map((role) => {
+            const isAdminRole = role.Accessrights.includes('ผู้ดูแลระบบ');
+            const isVisible = isAdminRole
+              ? true
+              : (tabVisibleByRole[role.ID_Roles] ?? true);
+            const isBusy = busyKey === `tab:${role.ID_Roles}`;
+
+            return (
+              <div
+                key={role.ID_Roles}
+                className={`flex items-center justify-between gap-3 rounded-xl border p-3.5 transition-colors ${
+                  isVisible
+                    ? 'border-brand-200 bg-brand-50/40'
+                    : 'border-line bg-canvas/50'
+                }`}
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-ink">
+                    {role.Accessrights}
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    {isVisible ? 'มองเห็นแท็บเว็บโรงเรียน' : 'ซ่อนแท็บเว็บโรงเรียน'}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={!canEdit || isAdminRole || isBusy}
+                  onClick={() =>
+                    togglePcTabVisibility(role.ID_Roles, !isVisible)
+                  }
+                  className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                    isVisible
+                      ? 'border-brand-600 bg-brand-600 text-white'
+                      : 'border-slate-300 bg-white text-transparent hover:border-slate-400'
+                  } disabled:opacity-50`}
+                  aria-label={`เปิดหรือปิดการมองเห็นแท็บเว็บโรงเรียนสำหรับ ${role.Accessrights}`}
+                >
+                  <Check className="h-3.5 w-3.5" strokeWidth={2} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {!hasDbMapping ? (
         <div className="surface-card p-6">
