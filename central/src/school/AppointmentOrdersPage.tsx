@@ -1413,6 +1413,40 @@ function GroupMemberSelectorSection({
     [checkedIds],
   );
 
+  const allFilteredChecked = useMemo(
+    () =>
+      filteredStaff.length > 0 &&
+      filteredStaff.every((s) => !!checkedIds[s.id_user]),
+    [filteredStaff, checkedIds],
+  );
+
+  function toggleCheckAllFiltered() {
+    setPickerWarning(null);
+    if (filteredStaff.length === 0) return;
+    setCheckedIds((prev) => {
+      const next = { ...prev };
+      const shouldCheck = !allFilteredChecked;
+      for (const s of filteredStaff) {
+        next[s.id_user] = shouldCheck;
+      }
+      return next;
+    });
+  }
+
+  function applyRoleToAllChecked(role: string) {
+    if (!role) return;
+    setPickerWarning(null);
+    setSelectedRoles((prev) => {
+      const next = { ...prev };
+      for (const [idStr, isChecked] of Object.entries(checkedIds)) {
+        if (isChecked) {
+          next[Number(idStr)] = role;
+        }
+      }
+      return next;
+    });
+  }
+
   function toggleCheck(idUser: number) {
     setPickerWarning(null);
     setCheckedIds((prev) => ({
@@ -1607,11 +1641,48 @@ function GroupMemberSelectorSection({
               <table className="w-full border-collapse text-left text-xs">
                 <thead className="sticky top-0 z-10 border-b border-line bg-slate-50 text-[11px] font-medium text-slate-600">
                   <tr>
-                    <th className="w-9 px-2.5 py-2 text-center">เลือก</th>
+                    <th className="w-20 px-2.5 py-2 text-center">
+                      <label
+                        className="inline-flex cursor-pointer items-center justify-center gap-1.5 select-none"
+                        title="ติ๊กเลือกทั้งหมดที่แสดงจากการกรอง"
+                      >
+                        <input
+                          type="checkbox"
+                          disabled={filteredStaff.length === 0}
+                          checked={allFilteredChecked}
+                          onChange={toggleCheckAllFiltered}
+                          aria-label="เลือกทั้งหมดที่แสดงจากการกรอง"
+                          className="checkbox"
+                        />
+                        <span>ทั้งหมด</span>
+                      </label>
+                    </th>
                     <th className="px-2.5 py-2">ชื่อ-นามสกุล</th>
                     <th className="px-2.5 py-2">ตำแหน่ง</th>
-                    <th className="w-44 px-2.5 py-2">
-                      ตำแหน่งในคณะ (เลือกเอง)
+                    <th className="w-52 px-2.5 py-1.5">
+                      <div className="flex flex-col gap-1">
+                        <span>ตำแหน่งในคณะ (เลือกเอง)</span>
+                        {checkedCount > 1 && (
+                          <select
+                            value=""
+                            onChange={(e) => {
+                              applyRoleToAllChecked(e.target.value);
+                              e.currentTarget.value = '';
+                            }}
+                            aria-label="กำหนดตำแหน่งในคณะให้คนที่ติ๊กทั้งหมด"
+                            className="rounded border border-brand-200 bg-brand-50/70 px-1.5 py-0.5 text-[10px] font-normal text-brand-700 outline-none"
+                          >
+                            <option value="">
+                              ตั้งค่าคนที่ติ๊กทั้งหมด ({checkedCount} คน)...
+                            </option>
+                            {WORKING_ROLE_OPTIONS.map((roleOpt) => (
+                              <option key={roleOpt} value={roleOpt}>
+                                ตั้งเป็น &quot;{roleOpt}&quot; ทั้งหมด
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
                     </th>
                   </tr>
                 </thead>
