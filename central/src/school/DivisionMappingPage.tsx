@@ -1,12 +1,16 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   Check,
   ExternalLink,
   Layers,
+  Pencil,
   Plus,
   Power,
   RefreshCw,
+  Search,
   Trash2,
+  UserCheck,
+  Users,
 } from 'lucide-react';
 import { supabase } from '../supabase';
 import type {
@@ -15,7 +19,21 @@ import type {
   ModuleCatalogItem,
   ResolvedDivisionModule,
 } from './mapping';
+import {
+  fetchRoleDivisionModulePermissions,
+  type RoleDivisionModulePermissions,
+} from './roleModulePermissions';
 import SchoolPackagePanel from './SchoolPackagePanel';
+import {
+  fetchSchoolStaffMembers,
+  getStaffAssignedDivisionKeys,
+  getStaffDivisionMemberRole,
+  inferRoleTierFromRoleName,
+  ROLE_TIER_META,
+  saveStaffDivisionMembership,
+  type DivisionMemberRole,
+  type SchoolStaffMember,
+} from './staffDivisionMapping';
 import type { SchoolBasic } from './types';
 
 interface DivisionMappingPageProps {
@@ -47,6 +65,7 @@ export default function DivisionMappingPage({
   hasDbMapping,
   onReload,
 }: DivisionMappingPageProps) {
+  const [activeTab, setActiveTab] = useState<'modules' | 'staff'>('modules');
   const [selectedDivId, setSelectedDivId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +89,20 @@ export default function DivisionMappingPage({
   const [extUrl, setExtUrl] = useState('');
   const [extOpenMode, setExtOpenMode] = useState<'new_tab' | 'same_tab'>('new_tab');
 
+  // Staff Division Mapping state (Tab 2)
+  const [staffList, setStaffList] = useState<SchoolStaffMember[]>([]);
+  const [permState, setPermState] = useState<RoleDivisionModulePermissions>({
+    divisionByRole: {},
+    moduleByRole: {},
+    userTabOverride: {},
+    divisionByUser: {},
+    moduleByUser: {},
+  });
+  const [loadingStaff, setLoadingStaff] = useState(false);
+  const [savingUserKey, setSavingUserKey] = useState<string | null>(null);
+  const [staffSearch, setStaffSearch] = useState('');
+  const [staffFilter, setStaffFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
+
   useEffect(() => {
     if (divisions.length === 0) {
       setSelectedDivId(null);
@@ -82,6 +115,93 @@ export default function DivisionMappingPage({
 
   const activeDivision =
     divisions.find((d) => d.id === selectedDivId) ?? divisions[0] ?? null;
+
+  const allDivisionKeys = useMemo(
+    () => divisions.map((d) => d.division_key),
+    [divisions],
+  );
+  const allModuleKeys = useMemo(() => {
+    const s = new Set<string>();
+    for (const d of divisions) {
+      for (const m of d.modules) s.add(m.module_key);
+    }
+    return [...s];
+  }, [divisions]);
+
+  const loadStaffMappingData = useCallback(async () => {
+    if (!schoolId) return;
+    setLoadingStaff(true);
+    try {
+      const [staff, perms] = await Promise.all([
+        fetchSchoolStaffMembers(schoolId),
+        fetchRoleDivisionModulePermissions(
+          schoolId,
+          allDivisionKeys.length > 0
+            ? allDivisionKeys
+            : ['hr', 'academic', 'admin', 'finance'],
+          allModuleKeys.length > 0 ? allModuleKeys : undefined,
+        ),
+      ]);
+      setStaffList(staff);
+      setPermState(perms);
+    } finally {
+      setLoadingStaff(false);
+    }
+  }, [schoolId, allDivisionKeys, allModuleKeys]);
+
+  useEffect(() => {
+    loadStaffMappingData();
+  }, [loadStaffMappingData]);
+
+  async function handleChangeStaffDivisionRole(
+    staff: SchoolStaffMember,
+    divisionKey: string,
+    nextRole: DivisionMemberRole,
+  ) {
+    if (!schoolId || !canEdit) return;
+    const key = `${staff.id_user}:${divisionKey}`;
+    setSavingUserKey(key);
+    setError(null);
+    setMessage(null);
+
+    const { error: saveErr } = await saveStaffDivisionMembership({
+      schoolId,
+      idUser: staff.id_user,
+      divisionKey,
+      memberRole: nextRole,
+    });
+
+    setSavingUserKey(null);
+    if (saveErr) {
+      setError(`บันทึกสังกัดฝ่ายไม่สำเร็จ: ${saveErr}`);
+      return;
+    }
+
+    setPermState((prev) => {
+      const nextDivByUser = { ...prev.divisionByUser };
+      if (nextRole === 'none') {
+        delete nextDivByUser[key];
+      } else {
+        nextDivByUser[key] = {
+          can_view: true,
+          can_edit: nextRole === 'editor',
+        };
+      }
+      return {
+        ...prev,
+        divisionByUser: nextDivByUser,
+      };
+    });
+
+    const roleLabel =
+      nextRole === 'editor'
+        ? 'เจ้าหน้าที่ประจำฝ่าย (แก้ไขข้อมูลได้)'
+        : nextRole === 'member'
+          ? 'สมาชิกในฝ่าย (ดูและใช้งาน Module)'
+          : 'นำออกจากฝ่าย';
+    setMessage(`อัปเดตสังกัดของ "${staff.fullName}" เป็น "${roleLabel}" เรียบร้อยแล้ว`);
+    await onReload();
+  }
 
   async function handleSeedDefaultMapping() {
     if (!schoolId || !canEdit) return;
@@ -302,26 +422,54 @@ export default function DivisionMappingPage({
     (c) => !assignedKeys.has(c.module_key),
   );
 
+  const divisionNameByKey = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const d of divisions) map.set(d.division_key, d.name);
+    return map;
+  }, [divisions]);
+
+  const filteredStaff = useMemo(() => {
+    if (!activeDivision) return [];
+    const q = staffSearch.trim().toLowerCase();
+    return staffList.filter((s) => {
+      if (q) {
+        const hit =
+          s.fullName.toLowerCase().includes(q) ||
+          s.username.toLowerCase().includes(q) ||
+          s.roleName.toLowerCase().includes(q);
+        if (!hit) return false;
+      }
+      const memberRole = getStaffDivisionMemberRole(
+        permState,
+        s.id_user,
+        activeDivision.division_key,
+      );
+      if (staffFilter === 'assigned' && memberRole === 'none') return false;
+      if (staffFilter === 'unassigned' && memberRole !== 'none') return false;
+      return true;
+    });
+  }, [staffList, staffSearch, staffFilter, permState, activeDivision]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-medium text-brand-600">
-            ส่วนผู้ดูแลระบบกลาง · โครงสร้างระบบโรงเรียน
+            ส่วนผู้ดูแลระบบกลาง · โครงสร้างระบบโรงเรียนและการจัดสังกัดฝ่าย
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">
-            จัดการฝ่ายและ Module รายโรงเรียน
+            จัดการฝ่าย, Module ประจำฝ่าย และสังกัดบุคลากร
           </h1>
           <p className="mt-1 text-sm text-slate-600">
-            กำหนดว่า{' '}
+            กำหนดโครงสร้างฝ่ายและ Module ของ{' '}
             <span className="font-medium text-ink">
               {school?.fullName || `โรงเรียน #${schoolId ?? '-'}`}
             </span>{' '}
-            มีฝ่ายใดบ้าง และแต่ละฝ่ายประกอบด้วย Module หรือ Web ย่อยใด
+            พร้อมระบุว่าบุคลากรแต่ละคนสังกัดอยู่ฝ่ายใด (อยู่ฝ่ายไหนจะมองเห็น Module ของฝ่ายนั้นอัตโนมัติ)
           </p>
         </div>
 
-        {canEdit && !hasDbMapping && (
+        {canEdit && !hasDbMapping && activeTab === 'modules' && (
           <button
             type="button"
             disabled={busy}
@@ -332,6 +480,36 @@ export default function DivisionMappingPage({
             <span>บันทึกโครงสร้างมาตรฐานลงฐานข้อมูล</span>
           </button>
         )}
+      </div>
+
+      {/* แถบสลับ Tab: [ 1. โครงสร้างฝ่าย & Module | 2. จัดสังกัดบุคลากรเข้าฝ่าย ] */}
+      <div className="flex flex-wrap gap-2 border-b border-line pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveTab('modules')}
+          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-colors ${
+            activeTab === 'modules'
+              ? 'bg-brand-600 text-white shadow-sm'
+              : 'border border-line bg-white text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <Layers className="h-4 w-4" strokeWidth={1.75} />
+          <span>1. จัดการฝ่ายและผูก Module ประจำฝ่าย</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('staff')}
+          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-colors ${
+            activeTab === 'staff'
+              ? 'bg-brand-600 text-white shadow-sm'
+              : 'border border-line bg-white text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <Users className="h-4 w-4" strokeWidth={1.75} />
+          <span>
+            2. จัดสังกัดบุคลากรเข้าฝ่าย (บุคลากร ↔ ฝ่าย · {staffList.length} คน)
+          </span>
+        </button>
       </div>
 
       {error && (
@@ -346,7 +524,7 @@ export default function DivisionMappingPage({
       )}
 
       {/* ส่วนกำหนดสิทธิ์ระดับโรงเรียน (เฉพาะ Super Admin แก้ไขได้) */}
-      {isSuper && (
+      {isSuper && activeTab === 'modules' && (
         <SchoolPackagePanel
           schoolId={schoolId}
           schoolName={school?.fullName || `โรงเรียน #${schoolId ?? '-'}`}
@@ -355,339 +533,647 @@ export default function DivisionMappingPage({
         />
       )}
 
-      {/* Asymmetric 5 + 7 Mapping Grid */}
-      <div className="grid gap-6 lg:grid-cols-12">
-        {/* Left 5 cols: School Divisions */}
-        <section className="surface-card p-6 lg:col-span-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-ink">
-                1. ฝ่ายของโรงเรียน ({divisions.length})
-              </h2>
-              <p className="mt-0.5 text-xs text-slate-500">
-                ฝ่ายที่เปิดใช้งานจะแสดงเป็นเมนูหลักใน Sidebar ของโรงเรียน
-              </p>
-            </div>
-            {canEdit && hasDbMapping && (
-              <button
-                type="button"
-                onClick={() => setShowAddDiv((p) => !p)}
-                className="text-xs font-medium text-brand-600 hover:text-brand-700"
-              >
-                {showAddDiv ? 'ยกเลิก' : '+ เพิ่มฝ่าย'}
-              </button>
-            )}
-          </div>
-
-          {canEdit && showAddDiv && (
-            <form
-              onSubmit={handleAddDivision}
-              className="mt-4 space-y-3 rounded-xl border border-line bg-canvas/70 p-4"
-            >
+      {activeTab === 'modules' ? (
+        /* TAB 1: Asymmetric 5 + 7 Mapping Grid (ฝ่าย <-> Module) */
+        <div className="grid gap-6 lg:grid-cols-12">
+          {/* Left 5 cols: School Divisions */}
+          <section className="surface-card p-6 lg:col-span-5">
+            <div className="flex items-center justify-between">
               <div>
-                <label className="mb-1 block text-xs font-medium text-ink">
-                  ชื่อฝ่าย
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={divName}
-                  onChange={(e) => setDivName(e.target.value)}
-                  placeholder="เช่น ฝ่ายกิจการนักเรียน"
-                  className="input"
-                />
+                <h2 className="text-base font-semibold text-ink">
+                  1. ฝ่ายของโรงเรียน ({divisions.length})
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  ฝ่ายที่เปิดใช้งานจะแสดงเป็นเมนูหลักใน Sidebar ของโรงเรียน
+                </p>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              {canEdit && hasDbMapping && (
+                <button
+                  type="button"
+                  onClick={() => setShowAddDiv((p) => !p)}
+                  className="text-xs font-medium text-brand-600 hover:text-brand-700"
+                >
+                  {showAddDiv ? 'ยกเลิก' : '+ เพิ่มฝ่าย'}
+                </button>
+              )}
+            </div>
+
+            {canEdit && showAddDiv && (
+              <form
+                onSubmit={handleAddDivision}
+                className="mt-4 space-y-3 rounded-xl border border-line bg-canvas/70 p-4"
+              >
                 <div>
                   <label className="mb-1 block text-xs font-medium text-ink">
-                    รหัสฝ่าย (ภาษาอังกฤษ)
+                    ชื่อฝ่าย
                   </label>
                   <input
                     type="text"
-                    value={divKey}
-                    onChange={(e) => setDivKey(e.target.value)}
-                    placeholder="เช่น student-affairs"
+                    required
+                    value={divName}
+                    onChange={(e) => setDivName(e.target.value)}
+                    placeholder="เช่น ฝ่ายกิจการนักเรียน"
                     className="input"
                   />
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-ink">
-                    ไอคอน
-                  </label>
-                  <select
-                    value={divIcon}
-                    onChange={(e) => setDivIcon(e.target.value as DivisionIconName)}
-                    className="input"
-                  >
-                    {ICON_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-ink">
-                  คำอธิบายสั้น
-                </label>
-                <input
-                  type="text"
-                  value={divDesc}
-                  onChange={(e) => setDivDesc(e.target.value)}
-                  placeholder="หน้าที่ของฝ่าย"
-                  className="input"
-                />
-              </div>
-              <div className="flex justify-end">
-                <button type="submit" disabled={busy} className="btn-primary btn-sm">
-                  <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
-                  <span>สร้างฝ่าย</span>
-                </button>
-              </div>
-            </form>
-          )}
-
-          <div className="mt-4 space-y-2">
-            {divisions.map((div) => {
-              const isSelected = activeDivision?.id === div.id;
-              const enabledModCount = div.modules.filter((m) => m.is_enabled).length;
-              return (
-                <div
-                  key={div.id}
-                  onClick={() => setSelectedDivId(div.id)}
-                  className={`cursor-pointer rounded-xl border p-3.5 transition-colors ${
-                    isSelected
-                      ? 'border-brand-500 bg-brand-50/40'
-                      : 'border-line bg-white hover:bg-slate-50/80'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-ink">{div.name}</p>
-                        {!div.is_enabled && (
-                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500">
-                            ปิดอยู่
-                          </span>
-                        )}
-                      </div>
-                      {div.description && (
-                        <p className="mt-0.5 text-xs text-slate-500">
-                          {div.description}
-                        </p>
-                      )}
-                      <p className="mt-1.5 tabular-nums text-[11px] text-slate-400">
-                        เปิดใช้งาน {enabledModCount} จาก {div.modules.length} Module
-                      </p>
-                    </div>
-
-                    {canEdit && div.id > 0 && (
-                      <div
-                        className="flex shrink-0 items-center gap-1"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => toggleDivision(div)}
-                          title={
-                            div.is_enabled
-                              ? 'ปิดฝ่ายนี้ (ซ่อนจากโรงเรียนนี้)'
-                              : 'เปิดใช้งานฝ่ายนี้'
-                          }
-                          className={`rounded-lg border p-1.5 transition-colors ${
-                            div.is_enabled
-                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                              : 'border-line bg-white text-slate-400 hover:text-slate-700'
-                          }`}
-                        >
-                          <Power className="h-3.5 w-3.5" strokeWidth={1.5} />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => removeDivision(div)}
-                          title="ลบฝ่ายนี้"
-                          className="rounded-lg border border-line bg-white p-1.5 text-slate-400 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Right 7 cols: Modules mapped to selected Division */}
-        <section className="surface-card p-6 lg:col-span-7">
-          {!activeDivision ? (
-            <p className="text-sm text-slate-500">เลือกฝ่ายทางซ้ายเพื่อดู Module</p>
-          ) : (
-            <div className="space-y-5">
-              <div className="flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Layers className="h-[18px] w-[18px] text-brand-600" strokeWidth={1.5} />
-                    <h2 className="text-base font-semibold text-ink">
-                      2. Module ภายใต้ "{activeDivision.name}"
-                    </h2>
-                  </div>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    กำหนดว่าฝ่ายนี้มีระบบย่อยอะไรบ้าง และตั้งค่าลิงก์ Web ย่อยของแต่ละ Module
-                  </p>
-                </div>
-
-                {canEdit && activeDivision.id > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAddExt((p) => !p)}
-                    className="btn-secondary btn-sm shrink-0"
-                  >
-                    <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
-                    <span>{showAddExt ? 'ปิดฟอร์ม' : 'เพิ่ม Web ย่อยใหม่ในฝ่ายนี้'}</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Add from Standard Catalog */}
-              {canEdit && activeDivision.id > 0 && unassignedCatalog.length > 0 && (
-                <form
-                  onSubmit={handleAssignCatalogModule}
-                  className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-canvas/60 p-3"
-                >
-                  <select
-                    value={selectedCatalogKey}
-                    onChange={(e) => setSelectedCatalogKey(e.target.value)}
-                    className="input flex-1 py-1.5 text-xs"
-                  >
-                    <option value="">
-                      + เลือก Module มาตรฐานมาใส่ในฝ่ายนี้...
-                    </option>
-                    {unassignedCatalog.map((c) => (
-                      <option key={c.module_key} value={c.module_key}>
-                        {c.title} ({c.module_key})
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="submit"
-                    disabled={!selectedCatalogKey || busy}
-                    className="btn-primary btn-sm"
-                  >
-                    <Check className="h-3.5 w-3.5" strokeWidth={1.5} />
-                    <span>ผูกเข้ากับฝ่ายนี้</span>
-                  </button>
-                </form>
-              )}
-
-              {/* Add Custom External Sub-web */}
-              {canEdit && showAddExt && activeDivision.id > 0 && (
-                <form
-                  onSubmit={handleAddExternalModule}
-                  className="grid gap-3 rounded-xl border border-line bg-canvas/70 p-4 sm:grid-cols-2"
-                >
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-ink">
-                      ชื่อ Module / Web ย่อย
+                      รหัสฝ่าย (ภาษาอังกฤษ)
                     </label>
                     <input
                       type="text"
-                      required
-                      value={extTitle}
-                      onChange={(e) => setExtTitle(e.target.value)}
-                      placeholder="เช่น ระบบการเงินโรงเรียน"
+                      value={divKey}
+                      onChange={(e) => setDivKey(e.target.value)}
+                      placeholder="เช่น student-affairs"
                       className="input"
                     />
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-medium text-ink">
-                      รหัส Module (ไม่บังคับ)
-                    </label>
-                    <input
-                      type="text"
-                      value={extKey}
-                      onChange={(e) => setExtKey(e.target.value)}
-                      placeholder="เช่น finance-subweb"
-                      className="input"
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="mb-1 block text-xs font-medium text-ink">
-                      ลิงก์ Web ย่อย (URL)
-                    </label>
-                    <input
-                      type="url"
-                      required
-                      value={extUrl}
-                      onChange={(e) => setExtUrl(e.target.value)}
-                      placeholder="https://..."
-                      className="input"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-ink">
-                      คำอธิบายสั้น
-                    </label>
-                    <input
-                      type="text"
-                      value={extDesc}
-                      onChange={(e) => setExtDesc(e.target.value)}
-                      placeholder="รายละเอียดสั้น ๆ"
-                      className="input"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-ink">
-                      การเปิดลิงก์
+                      ไอคอน
                     </label>
                     <select
-                      value={extOpenMode}
-                      onChange={(e) =>
-                        setExtOpenMode(e.target.value as 'new_tab' | 'same_tab')
-                      }
+                      value={divIcon}
+                      onChange={(e) => setDivIcon(e.target.value as DivisionIconName)}
                       className="input"
                     >
-                      <option value="new_tab">เปิดแท็บใหม่</option>
-                      <option value="same_tab">เปิดหน้าต่างเดิม</option>
+                      {ICON_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
-                  <div className="flex justify-end sm:col-span-2">
-                    <button type="submit" disabled={busy} className="btn-primary btn-sm">
-                      <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
-                      <span>บันทึก Web ย่อยในฝ่ายนี้</span>
-                    </button>
-                  </div>
-                </form>
-              )}
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-ink">
+                    คำอธิบายสั้น
+                  </label>
+                  <input
+                    type="text"
+                    value={divDesc}
+                    onChange={(e) => setDivDesc(e.target.value)}
+                    placeholder="หน้าที่ของฝ่าย"
+                    className="input"
+                  />
+                </div>
+                <div className="flex justify-end">
+                  <button type="submit" disabled={busy} className="btn-primary btn-sm">
+                    <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
+                    <span>สร้างฝ่าย</span>
+                  </button>
+                </div>
+              </form>
+            )}
 
-              {/* Mapped Modules List */}
-              {activeDivision.modules.length === 0 ? (
-                <p className="py-8 text-center text-sm text-slate-500">
-                  ยังไม่มี Module ที่ผูกไว้กับฝ่ายนี้
+            <div className="mt-4 space-y-2">
+              {divisions.map((div) => {
+                const isSelected = activeDivision?.id === div.id;
+                const enabledModCount = div.modules.filter((m) => m.is_enabled).length;
+                return (
+                  <div
+                    key={div.id}
+                    onClick={() => setSelectedDivId(div.id)}
+                    className={`cursor-pointer rounded-xl border p-3.5 transition-colors ${
+                      isSelected
+                        ? 'border-brand-500 bg-brand-50/40'
+                        : 'border-line bg-white hover:bg-slate-50/80'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-ink">{div.name}</p>
+                          {!div.is_enabled && (
+                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500">
+                              ปิดอยู่
+                            </span>
+                          )}
+                        </div>
+                        {div.description && (
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            {div.description}
+                          </p>
+                        )}
+                        <p className="mt-1.5 tabular-nums text-[11px] text-slate-400">
+                          เปิดใช้งาน {enabledModCount} จาก {div.modules.length} Module
+                        </p>
+                      </div>
+
+                      {canEdit && div.id > 0 && (
+                        <div
+                          className="flex shrink-0 items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => toggleDivision(div)}
+                            title={
+                              div.is_enabled
+                                ? 'ปิดฝ่ายนี้ (ซ่อนจากโรงเรียนนี้)'
+                                : 'เปิดใช้งานฝ่ายนี้'
+                            }
+                            className={`rounded-lg border p-1.5 transition-colors ${
+                              div.is_enabled
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                : 'border-line bg-white text-slate-400 hover:text-slate-700'
+                            }`}
+                          >
+                            <Power className="h-3.5 w-3.5" strokeWidth={1.5} />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => removeDivision(div)}
+                            title="ลบฝ่ายนี้"
+                            className="rounded-lg border border-line bg-white p-1.5 text-slate-400 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Right 7 cols: Modules mapped to selected Division */}
+          <section className="surface-card p-6 lg:col-span-7">
+            {!activeDivision ? (
+              <p className="text-sm text-slate-500">เลือกฝ่ายทางซ้ายเพื่อดู Module</p>
+            ) : (
+              <div className="space-y-5">
+                <div className="flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Layers className="h-[18px] w-[18px] text-brand-600" strokeWidth={1.5} />
+                      <h2 className="text-base font-semibold text-ink">
+                        2. Module ภายใต้ &ldquo;{activeDivision.name}&rdquo;
+                      </h2>
+                    </div>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      กำหนดว่าฝ่ายนี้มีระบบย่อยอะไรบ้าง บุคลากรที่สังกัดฝ่ายนี้จะมองเห็น Module เหล่านี้โดยอัตโนมัติ
+                    </p>
+                  </div>
+
+                  {canEdit && activeDivision.id > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAddExt((p) => !p)}
+                      className="btn-secondary btn-sm shrink-0"
+                    >
+                      <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
+                      <span>{showAddExt ? 'ปิดฟอร์ม' : 'เพิ่ม Web ย่อยใหม่ในฝ่ายนี้'}</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Add from Standard Catalog */}
+                {canEdit && activeDivision.id > 0 && unassignedCatalog.length > 0 && (
+                  <form
+                    onSubmit={handleAssignCatalogModule}
+                    className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-canvas/60 p-3"
+                  >
+                    <select
+                      value={selectedCatalogKey}
+                      onChange={(e) => setSelectedCatalogKey(e.target.value)}
+                      className="input flex-1 py-1.5 text-xs"
+                    >
+                      <option value="">
+                        + เลือก Module มาตรฐานมาใส่ในฝ่ายนี้...
+                      </option>
+                      {unassignedCatalog.map((c) => (
+                        <option key={c.module_key} value={c.module_key}>
+                          {c.title} ({c.module_key})
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="submit"
+                      disabled={!selectedCatalogKey || busy}
+                      className="btn-primary btn-sm"
+                    >
+                      <Check className="h-3.5 w-3.5" strokeWidth={1.5} />
+                      <span>ผูกเข้ากับฝ่ายนี้</span>
+                    </button>
+                  </form>
+                )}
+
+                {/* Add Custom External Sub-web */}
+                {canEdit && showAddExt && activeDivision.id > 0 && (
+                  <form
+                    onSubmit={handleAddExternalModule}
+                    className="grid gap-3 rounded-xl border border-line bg-canvas/70 p-4 sm:grid-cols-2"
+                  >
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-ink">
+                        ชื่อ Module / Web ย่อย
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={extTitle}
+                        onChange={(e) => setExtTitle(e.target.value)}
+                        placeholder="เช่น ระบบการเงินโรงเรียน"
+                        className="input"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-ink">
+                        รหัส Module (ไม่บังคับ)
+                      </label>
+                      <input
+                        type="text"
+                        value={extKey}
+                        onChange={(e) => setExtKey(e.target.value)}
+                        placeholder="เช่น finance-subweb"
+                        className="input"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="mb-1 block text-xs font-medium text-ink">
+                        ลิงก์ Web ย่อย (URL)
+                      </label>
+                      <input
+                        type="url"
+                        required
+                        value={extUrl}
+                        onChange={(e) => setExtUrl(e.target.value)}
+                        placeholder="https://..."
+                        className="input"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-ink">
+                        คำอธิบายสั้น
+                      </label>
+                      <input
+                        type="text"
+                        value={extDesc}
+                        onChange={(e) => setExtDesc(e.target.value)}
+                        placeholder="รายละเอียดสั้น ๆ"
+                        className="input"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-ink">
+                        การเปิดลิงก์
+                      </label>
+                      <select
+                        value={extOpenMode}
+                        onChange={(e) =>
+                          setExtOpenMode(e.target.value as 'new_tab' | 'same_tab')
+                        }
+                        className="input"
+                      >
+                        <option value="new_tab">เปิดแท็บใหม่</option>
+                        <option value="same_tab">เปิดหน้าต่างเดิม</option>
+                      </select>
+                    </div>
+                    <div className="flex justify-end sm:col-span-2">
+                      <button type="submit" disabled={busy} className="btn-primary btn-sm">
+                        <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
+                        <span>บันทึก Web ย่อยในฝ่ายนี้</span>
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* Mapped Modules List */}
+                {activeDivision.modules.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-slate-500">
+                    ยังไม่มี Module ที่ผูกไว้กับฝ่ายนี้
+                  </p>
+                ) : (
+                  <div className="divide-y divide-line rounded-xl border border-line">
+                    {activeDivision.modules.map((mod) => (
+                      <ModuleRowItem
+                        key={mod.id}
+                        mod={mod}
+                        canEdit={canEdit && mod.id > 0}
+                        busy={busy}
+                        onToggle={() => toggleModule(mod)}
+                        onSaveUrl={(url) => updateModuleUrl(mod, url)}
+                        onRemove={() => removeModule(mod)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        </div>
+      ) : (
+        /* TAB 2: จัดสังกัดบุคลากรเข้าฝ่าย (บุคลากร <-> ฝ่าย) */
+        <div className="space-y-5">
+          {/* คำอธิบายหลักการทำงานของสังกัดฝ่าย */}
+          <div className="rounded-2xl border border-brand-200 bg-brand-50/40 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-ink">
+                  หลักการทำงาน: บุคลากรสังกัดฝ่ายไหน → มองเห็น Module ตามฝ่ายนั้นอัตโนมัติ
+                </h2>
+                <p className="mt-1 text-xs text-slate-600">
+                  1) <strong>ผู้ใช้งาน (ครู/บุคลากร)</strong>: เมื่อถูกผูกเข้ากับฝ่ายใด จะมองเห็นเฉพาะฝ่ายของตัวเองและใช้งาน Module ทั้งหมดที่ผูกอยู่กับฝ่ายนั้นโดยอัตโนมัติ (สามารถสังกัดได้มากกว่า 1 ฝ่าย)
+                  <br />
+                  2) <strong>ผู้บริหาร / Admin โรงเรียน / Super Admin</strong>: มองเห็นครบทุกฝ่ายของโรงเรียนโดยอัตโนมัติ
                 </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-12">
+            {/* ซ้าย 5 คอลัมน์: รายชื่อฝ่าย + จำนวนบุคลากรในฝ่าย */}
+            <section className="surface-card p-6 lg:col-span-5">
+              <h2 className="text-base font-semibold text-ink">
+                เลือกฝ่ายที่ต้องการจัดบุคลากร ({divisions.length})
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                คลิกเลือกฝ่ายเพื่อกำหนดว่าบุคลากรคนใดสังกัดอยู่ในฝ่ายนี้บ้าง
+              </p>
+
+              <div className="mt-4 space-y-2.5">
+                {divisions.map((div) => {
+                  const isSelected = activeDivision?.id === div.id;
+                  const membersCount = staffList.filter(
+                    (s) =>
+                      getStaffDivisionMemberRole(
+                        permState,
+                        s.id_user,
+                        div.division_key,
+                      ) !== 'none',
+                  ).length;
+                  const editorsCount = staffList.filter(
+                    (s) =>
+                      getStaffDivisionMemberRole(
+                        permState,
+                        s.id_user,
+                        div.division_key,
+                      ) === 'editor',
+                  ).length;
+
+                  return (
+                    <button
+                      key={div.id}
+                      type="button"
+                      onClick={() => setSelectedDivId(div.id)}
+                      className={`w-full rounded-xl border p-4 text-left transition-colors ${
+                        isSelected
+                          ? 'border-brand-600 bg-brand-50/50'
+                          : 'border-line bg-white hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-ink">
+                            {div.name}
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            Module ประจำฝ่าย:{' '}
+                            {div.modules
+                              .filter((m) => m.is_enabled)
+                              .map((m) => m.title)
+                              .join(', ') || 'ยังไม่มี Module'}
+                          </p>
+                        </div>
+                        <span className="shrink-0 rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-semibold text-brand-700">
+                          {membersCount} คน
+                        </span>
+                      </div>
+
+                      {editorsCount > 0 && (
+                        <p className="mt-2 text-[11px] font-medium text-emerald-700">
+                          เจ้าหน้าที่แก้ไขข้อมูลประจำฝ่าย {editorsCount} คน
+                        </p>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* ขวา 7 คอลัมน์: รายชื่อบุคลากรและการกำหนดสังกัดเข้าฝ่ายที่เลือก */}
+            <section className="surface-card p-6 lg:col-span-7">
+              {!activeDivision ? (
+                <p className="text-sm text-slate-500">เลือกฝ่ายทางซ้ายก่อน</p>
               ) : (
-                <div className="divide-y divide-line rounded-xl border border-line">
-                  {activeDivision.modules.map((mod) => (
-                    <ModuleRowItem
-                      key={mod.id}
-                      mod={mod}
-                      canEdit={canEdit && mod.id > 0}
-                      busy={busy}
-                      onToggle={() => toggleModule(mod)}
-                      onSaveUrl={(url) => updateModuleUrl(mod, url)}
-                      onRemove={() => removeModule(mod)}
-                    />
-                  ))}
+                <div className="space-y-4">
+                  <div className="border-b border-line pb-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h2 className="text-base font-semibold text-ink">
+                          จัดบุคลากรเข้า &ldquo;{activeDivision.name}&rdquo;
+                        </h2>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          บุคลากรที่อยู่ในฝ่ายนี้จะมองเห็น Module:{' '}
+                          <span className="font-medium text-ink">
+                            {activeDivision.modules
+                              .filter((m) => m.is_enabled)
+                              .map((m) => m.title)
+                              .join(' · ') || '-'}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* ค้นหาและตัวกรองบุคลากร */}
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <div className="relative flex-1 min-w-[200px]">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          value={staffSearch}
+                          onChange={(e) => setStaffSearch(e.target.value)}
+                          placeholder="ค้นหาชื่อบุคลากร, ชื่อผู้ใช้ หรือตำแหน่ง..."
+                          className="input pl-9 py-1.5 text-xs"
+                        />
+                      </div>
+
+                      <div className="inline-flex rounded-lg border border-line bg-canvas p-0.5">
+                        {(
+                          [
+                            { id: 'all', label: 'ทั้งหมด' },
+                            { id: 'assigned', label: 'อยู่ฝ่ายนี้แล้ว' },
+                            { id: 'unassigned', label: 'ยังไม่อยู่ฝ่ายนี้' },
+                          ] as const
+                        ).map((f) => (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => setStaffFilter(f.id)}
+                            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                              staffFilter === f.id
+                                ? 'bg-white text-ink shadow-sm'
+                                : 'text-slate-500 hover:text-ink'
+                            }`}
+                          >
+                            {f.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {loadingStaff ? (
+                    <p className="py-8 text-center text-sm text-slate-500">
+                      กำลังโหลดรายชื่อบุคลากร...
+                    </p>
+                  ) : filteredStaff.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-slate-500">
+                      ไม่พบบุคลากรตามเงื่อนไขที่ค้นหา
+                    </p>
+                  ) : (
+                    <div className="divide-y divide-line rounded-xl border border-line">
+                      {filteredStaff.map((staff) => {
+                        const tier = inferRoleTierFromRoleName(
+                          staff.roleName,
+                          staff.is_super_admin,
+                        );
+                        const tierMeta = ROLE_TIER_META[tier];
+                        const memberRole = getStaffDivisionMemberRole(
+                          permState,
+                          staff.id_user,
+                          activeDivision.division_key,
+                        );
+                        const assignedDivKeys = getStaffAssignedDivisionKeys(
+                          permState,
+                          staff.id_user,
+                          allDivisionKeys,
+                        );
+                        const isSaving =
+                          savingUserKey ===
+                          `${staff.id_user}:${activeDivision.division_key}`;
+                        const isAutoFullAdmin =
+                          tier === 'super_admin' || tier === 'school_admin';
+
+                        return (
+                          <div
+                            key={staff.id_user}
+                            className={`flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between ${
+                              memberRole !== 'none' ? 'bg-brand-50/20' : 'bg-white'
+                            }`}
+                          >
+                            <div className="min-w-0 space-y-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-sm font-semibold text-ink">
+                                  {staff.fullName}
+                                </span>
+                                <span
+                                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${tierMeta.badgeClass}`}
+                                >
+                                  {tierMeta.shortLabel}
+                                </span>
+                                <span className="text-xs text-slate-400">
+                                  ({staff.roleName})
+                                </span>
+                              </div>
+
+                              {/* แสดงฝ่ายที่บุคลากรคนนี้สังกัดอยู่ทั้งหมด */}
+                              {isAutoFullAdmin ? (
+                                <p className="text-xs text-emerald-700">
+                                  ระดับ {tierMeta.shortLabel}: มองเห็นและแก้ไขได้ทุกฝ่ายโดยอัตโนมัติ
+                                </p>
+                              ) : tier === 'executive' ? (
+                                <p className="text-xs text-amber-700">
+                                  ระดับผู้บริหาร: มองเห็นทุกฝ่ายโดยอัตโนมัติ (สามารถตั้งเป็นเจ้าหน้าที่ฝ่ายเพื่อแก้ไขข้อมูลได้)
+                                </p>
+                              ) : assignedDivKeys.length > 0 ? (
+                                <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                                  <span className="text-[11px] text-slate-500">
+                                    สังกัดปัจจุบัน:
+                                  </span>
+                                  {assignedDivKeys.map((dk) => (
+                                    <span
+                                      key={dk}
+                                      className="rounded-md bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-700 ring-1 ring-inset ring-brand-200"
+                                    >
+                                      {divisionNameByKey.get(dk) || dk}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-slate-400">
+                                  ยังไม่ได้ระบุสังกัดฝ่าย
+                                </p>
+                              )}
+                            </div>
+
+                            {/* ปุ่มเลือกสังกัดในฝ่ายนี้ */}
+                            {!isAutoFullAdmin && (
+                              <div className="inline-flex shrink-0 items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  disabled={!canEdit || isSaving}
+                                  onClick={() =>
+                                    handleChangeStaffDivisionRole(
+                                      staff,
+                                      activeDivision.division_key,
+                                      'none',
+                                    )
+                                  }
+                                  className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                                    memberRole === 'none'
+                                      ? 'border-slate-700 bg-slate-700 text-white'
+                                      : 'border-line bg-white text-slate-600 hover:bg-slate-50'
+                                  } disabled:opacity-50`}
+                                >
+                                  ไม่อยู่ฝ่ายนี้
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={!canEdit || isSaving}
+                                  onClick={() =>
+                                    handleChangeStaffDivisionRole(
+                                      staff,
+                                      activeDivision.division_key,
+                                      'member',
+                                    )
+                                  }
+                                  className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                                    memberRole === 'member'
+                                      ? 'border-sky-600 bg-sky-600 text-white'
+                                      : 'border-line bg-white text-slate-600 hover:bg-slate-50'
+                                  } disabled:opacity-50`}
+                                >
+                                  <UserCheck className="h-3.5 w-3.5" />
+                                  <span>สังกัดฝ่ายนี้</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={!canEdit || isSaving}
+                                  onClick={() =>
+                                    handleChangeStaffDivisionRole(
+                                      staff,
+                                      activeDivision.division_key,
+                                      'editor',
+                                    )
+                                  }
+                                  className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                                    memberRole === 'editor'
+                                      ? 'border-emerald-600 bg-emerald-600 text-white'
+                                      : 'border-line bg-white text-slate-600 hover:bg-slate-50'
+                                  } disabled:opacity-50`}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                  <span>เจ้าหน้าที่ฝ่าย (แก้ไขได้)</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
-        </section>
-      </div>
+            </section>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

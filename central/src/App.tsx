@@ -36,10 +36,13 @@ import {
 } from './school/mapping';
 import {
   fetchRoleDivisionModulePermissions,
-  resolveDivisionAccessLevel,
-  resolveModuleAccessLevel,
   type RoleDivisionModulePermissions,
 } from './school/roleModulePermissions';
+import {
+  filterDivisionsByStaffMapping,
+  inferRoleTierFromRoleName,
+  ROLE_TIER_META,
+} from './school/staffDivisionMapping';
 import { DEFAULT_MODULE_LINKS } from './school/modules';
 import type {
   AcademicTerm,
@@ -63,7 +66,11 @@ export default function App() {
   const [access, setAccess] = useState<Access | null>(null);
   const [userName, setUserName] = useState('ผู้ใช้งาน');
   const [userRoleId, setUserRoleId] = useState<number | null>(null);
+  const [userRoleName, setUserRoleName] = useState<string>('ผู้ใช้งาน');
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [roleWebAccessByRole, setRoleWebAccessByRole] = useState<
+    Record<number, boolean>
+  >({});
 
   const [schools, setSchools] = useState<SchoolBasic[]>([]);
   const [selectedSchoolId, setSelectedSchoolId] = useState<number | null>(null);
@@ -117,23 +124,25 @@ export default function App() {
     }
     (async () => {
       const username = extractUsername(session.user.email);
-      const [superRes, adminRes, schoolRes, schoolsRes, teacherRes] = await Promise.all([
-        supabase.rpc('is_super_admin'),
-        supabase.rpc('is_admin'),
-        supabase.rpc('current_school_id'),
-        supabase
-          .from('Schools')
-          .select('id_school, fullName, affiliation')
-          .order('id_school'),
-        username
-          ? supabase
-              .from('Teachers')
-              .select('id_user, fullName, id_role')
-              .eq('username', username)
-              .limit(1)
-              .maybeSingle()
-          : Promise.resolve({ data: null }),
-      ]);
+      const [superRes, adminRes, schoolRes, schoolsRes, teacherRes, rolesRes] =
+        await Promise.all([
+          supabase.rpc('is_super_admin'),
+          supabase.rpc('is_admin'),
+          supabase.rpc('current_school_id'),
+          supabase
+            .from('Schools')
+            .select('id_school, fullName, affiliation')
+            .order('id_school'),
+          username
+            ? supabase
+                .from('Teachers')
+                .select('id_user, fullName, id_role')
+                .eq('username', username)
+                .limit(1)
+                .maybeSingle()
+            : Promise.resolve({ data: null }),
+          supabase.from('roles').select('ID_Roles, Accessrights'),
+        ]);
 
       const schoolId =
         typeof schoolRes.data === 'number'
@@ -153,10 +162,18 @@ export default function App() {
         id_role?: number | null;
       } | null;
       const resolvedFullName = teacherRow?.fullName || username || 'ผู้ใช้งาน';
+      const resolvedRoleId =
+        typeof teacherRow?.id_role === 'number' ? teacherRow.id_role : null;
+      const roleRow = (
+        (rolesRes.data as { ID_Roles: number; Accessrights: string }[] | null) ?? []
+      ).find((r) => r.ID_Roles === resolvedRoleId);
+      const resolvedRoleName =
+        roleRow?.Accessrights ||
+        (isSuperUser || adminRes.data === true ? 'ผู้ดูแลระบบ' : 'ผู้ใช้งาน');
+
       setUserName(resolvedFullName);
-      setUserRoleId(
-        typeof teacherRow?.id_role === 'number' ? teacherRow.id_role : null,
-      );
+      setUserRoleId(resolvedRoleId);
+      setUserRoleName(resolvedRoleName);
       setCurrentUserId(
         typeof teacherRow?.id_user === 'number' ? teacherRow.id_user : null,
       );
@@ -165,8 +182,7 @@ export default function App() {
       // ซิงก์ Session ขากลับไปยังแอประบบวันลาทันที
       syncSessionToLeaveApp(session, {
         fullName: resolvedFullName,
-        roleName:
-          isSuperUser || adminRes.data === true ? 'ผู้ดูแลระบบ' : undefined,
+        roleName: resolvedRoleName,
       });
 
       // ผูกเข้ากับโรงเรียนของผู้ใช้เองอัตโนมัติ (หรือโรงเรียนที่ส่งมาจากแท็บแอปวันลา)
@@ -189,7 +205,7 @@ export default function App() {
   const loadSchoolContext = useCallback(async () => {
     if (!selectedSchoolId) return;
 
-    const [yearRes, termRes, modRes, treeRes, roleAccRes, roleModPerms] =
+    const [yearRes, termRes, modRes, treeRes, roleAccRes, roleModPerms, webTabPermRes] =
       await Promise.all([
         supabase
           .from('AcademicYears')
@@ -216,6 +232,11 @@ export default function App() {
           .select('division_id, id_role, can_view, can_edit')
           .eq('id_school', selectedSchoolId),
         fetchRoleDivisionModulePermissions(selectedSchoolId),
+        supabase
+          .from('Permissions')
+          .select('id_role, status')
+          .eq('id_school', selectedSchoolId)
+          .eq('menu_id', 6),
       ]);
 
     const currentYear = yearRes.data as AcademicYear | null;
@@ -237,11 +258,22 @@ export default function App() {
       setHasDbModules(false);
     }
 
+    const webMap: Record<number, boolean> = {};
+    for (const r of (webTabPermRes.data as { id_role: number; status: unknown }[] | null) ?? []) {
+      const st = r.status;
+      webMap[r.id_role] =
+        st === true ||
+        st === 1 ||
+        String(st) === '1' ||
+        String(st).toUpperCase() === 'TRUE';
+    }
+
     setCatalog(treeRes.catalog);
     setDivisions(treeRes.divisions);
     setHasDbMapping(treeRes.hasDbMapping);
     setSchoolWebEnabled(treeRes.schoolPackage.schoolWebEnabled);
     setRoleDivModPerms(roleModPerms);
+    setRoleWebAccessByRole(webMap);
     setRoleAccessRows(
       (roleAccRes.data as
         | { division_id: number; id_role: number; can_view: boolean; can_edit: boolean }[]
@@ -276,8 +308,27 @@ export default function App() {
   const currentSchool =
     schools.find((s) => s.id_school === selectedSchoolId) ?? null;
 
-  // กรณีที่โรงเรียนถูกตั้งค่าให้ใช้เฉพาะ Web ย่อยระบบวันลา (ปิดการใช้งานเว็บโรงเรียน)
-  if (!schoolWebEnabled && !isSuper) {
+  const userRoleTier = isSuper
+    ? 'super_admin'
+    : access.level === 'school'
+      ? 'school_admin'
+      : inferRoleTierFromRoleName(userRoleName, false);
+
+  const roleLabel = `${ROLE_TIER_META[userRoleTier].shortLabel} (${userRoleName})`;
+
+  // ตรวจสอบว่าบุคลากรคนนี้มีสิทธิ์เข้าถึง Web โรงเรียนหรือไม่
+  const userWebOverride =
+    currentUserId !== null
+      ? roleDivModPerms.userTabOverride[currentUserId]
+      : undefined;
+  const roleDefaultWebAccess =
+    userRoleId !== null ? (roleWebAccessByRole[userRoleId] ?? true) : true;
+  const canUserAccessSchoolWeb =
+    canEditSchool ||
+    (userWebOverride !== undefined ? userWebOverride : roleDefaultWebAccess);
+
+  // กรณีที่โรงเรียนปิดการใช้งานเว็บโรงเรียน หรือบุคลากรคนนี้ไม่มีสิทธิ์เข้าถึง Web โรงเรียน
+  if ((!schoolWebEnabled || !canUserAccessSchoolWeb) && !isSuper) {
     return (
       <CenterScreen>
         <div className="surface-card max-w-md space-y-4 p-8 text-center">
@@ -288,8 +339,9 @@ export default function App() {
             {currentSchool?.fullName || 'โรงเรียนของคุณ'}
           </h1>
           <p className="text-xs leading-relaxed text-slate-600">
-            โรงเรียนนี้เปิดใช้งานเฉพาะระบบย่อย (ระบบวันลา ไปราชการ และลงเวลาปฏิบัติงาน)
-            ยังไม่ได้เปิดใช้งานระบบเว็บโรงเรียนส่วนกลาง
+            {!schoolWebEnabled
+              ? 'โรงเรียนนี้เปิดใช้งานเฉพาะระบบย่อย (ระบบวันลา ไปราชการ และลงเวลาปฏิบัติงาน) ยังไม่ได้เปิดใช้งานระบบเว็บโรงเรียนส่วนกลาง'
+              : 'บัญชีของคุณได้รับสิทธิ์ให้ใช้งานเฉพาะระบบย่อย (ระบบวันลาและไปราชการ) สามารถกดปุ่มด้านล่างเพื่อเข้าใช้งานได้ทันที'}
           </p>
           <div className="flex flex-col gap-2 pt-2">
             <button
@@ -314,100 +366,32 @@ export default function App() {
       </CenterScreen>
     );
   }
-  const roleLabel = isSuper
-    ? 'ผู้ดูแลระบบส่วนกลาง'
-    : access.level === 'school'
-      ? 'ผู้ดูแลระบบโรงเรียน'
-      : 'บุคลากรโรงเรียน';
 
-  // กรองฝ่ายและ Module ย่อยที่ผู้ใช้งานคนนี้สามารถเปิดดูได้ตาม Role และสิทธิ์รายบุคคล (แอดมินเห็นทุกฝ่ายที่โรงเรียนได้รับอนุญาต)
-  const visibleDivisions: DivisionWithModules[] = canEditSchool
-    ? divisions
-    : divisions
-        .map((div) => {
-          const allowedMods = div.modules.filter((mod) => {
-            if (userRoleId === null && currentUserId === null) return true;
-            const modLevel = resolveModuleAccessLevel(
-              roleDivModPerms,
-              userRoleId,
-              div.division_key,
-              mod.module_key,
-              false,
-              currentUserId,
-            );
-            return modLevel !== 'hidden';
-          });
-          return { ...div, modules: allowedMods };
-        })
-        .filter((div) => {
-          if (userRoleId === null && currentUserId === null) return true;
-          // ถ้ามี Module ย่อยที่ถูกเปิดให้เฉพาะบุคคลในฝ่ายนี้ ให้แสดงฝ่ายนี้ด้วย
-          const hasExplicitUserModule =
-            currentUserId !== null &&
-            div.modules.some(
-              (m) =>
-                roleDivModPerms.moduleByUser[
-                  `${currentUserId}:${m.module_key}`
-                ]?.can_view === true,
-            );
-          if (hasExplicitUserModule) return true;
+  // กรองฝ่ายและ Module ย่อยตามสังกัดฝ่ายของบุคลากรจริง (Auto-Visibility ตามฝ่าย) และระดับสิทธิ์ 4 ระดับ
+  const staffFiltered = filterDivisionsByStaffMapping({
+    divisions,
+    perms: roleDivModPerms,
+    roleTier: userRoleTier,
+    roleId: userRoleId,
+    idUser: currentUserId,
+  });
 
-          const level = resolveDivisionAccessLevel(
-            roleDivModPerms,
-            userRoleId,
-            div.division_key,
-            false,
-            currentUserId,
-          );
-          if (level === 'hidden') return false;
-          const legacyRule = roleAccessRows.find(
-            (r) => r.division_id === div.id && r.id_role === userRoleId,
-          );
-          if (legacyRule && !legacyRule.can_view) return false;
-          return true;
-        });
+  const visibleDivisions: DivisionWithModules[] = staffFiltered.visibleDivisions;
 
-  const editableDivisionIds =
-    userRoleId === null && currentUserId === null
-      ? []
-      : divisions
-          .filter((div) => {
-            const level = resolveDivisionAccessLevel(
-              roleDivModPerms,
-              userRoleId,
-              div.division_key,
-              false,
-              currentUserId,
-            );
-            if (level === 'edit') return true;
-            return roleAccessRows.some(
-              (r) =>
-                r.division_id === div.id &&
-                r.id_role === userRoleId &&
-                r.can_edit,
-            );
-          })
-          .map((div) => div.id);
+  const editableDivisionIds = divisions
+    .filter(
+      (div) =>
+        staffFiltered.editableDivisionKeys.has(div.division_key) ||
+        roleAccessRows.some(
+          (r) =>
+            r.division_id === div.id &&
+            r.id_role === userRoleId &&
+            r.can_edit,
+        ),
+    )
+    .map((div) => div.id);
 
-  const editableModuleKeys: string[] = [];
-  if (userRoleId !== null || currentUserId !== null) {
-    for (const div of divisions) {
-      for (const mod of div.modules) {
-        const modLevel = resolveModuleAccessLevel(
-          roleDivModPerms,
-          userRoleId,
-          div.division_key,
-          mod.module_key,
-          false,
-          currentUserId,
-        );
-        if (modLevel === 'edit') {
-          editableModuleKeys.push(mod.module_key);
-          editableModuleKeys.push(`${div.division_key}:${mod.module_key}`);
-        }
-      }
-    }
-  }
+  const editableModuleKeys: string[] = [...staffFiltered.editableModuleKeys];
 
   return (
     <UnifiedShell

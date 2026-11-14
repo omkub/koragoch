@@ -1,18 +1,33 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, Eye, EyeOff, Layers, Pencil, ShieldCheck } from 'lucide-react';
+import {
+  Check,
+  Layers,
+  LayoutGrid,
+  Search,
+  ShieldCheck,
+  Sliders,
+  Users,
+} from 'lucide-react';
+import MenuVisibilityPanel from '../pages/MenuVisibilityPanel';
 import { rolesForSchool, supabase, type Role } from '../supabase';
 import type { DivisionWithModules } from './mapping';
 import {
   fetchRoleDivisionModulePermissions,
-  resolveDivisionAccessLevel,
-  resolveModuleAccessLevel,
-  saveRoleDivisionAccessLevel,
-  saveRoleModuleAccessLevel,
-  type AccessLevel,
+  saveUserSchoolWebTabOverride,
   type RoleDivisionModulePermissions,
+  type UserTabOverride,
 } from './roleModulePermissions';
 import SchoolPackagePanel from './SchoolPackagePanel';
+import {
+  fetchSchoolStaffMembers,
+  getStaffAssignedDivisionKeys,
+  inferRoleTierFromRoleName,
+  ROLE_TIER_META,
+  updateStaffRoleId,
+  type SchoolRoleTier,
+  type SchoolStaffMember,
+} from './staffDivisionMapping';
 import type { SchoolBasic } from './types';
 
 interface DivisionPermissionsPageProps {
@@ -25,26 +40,7 @@ interface DivisionPermissionsPageProps {
   onReload: () => Promise<void>;
 }
 
-const LEVEL_META: Record<
-  AccessLevel,
-  { label: string; badgeClass: string; activeBtnClass: string }
-> = {
-  hidden: {
-    label: 'ซ่อน',
-    badgeClass: 'bg-slate-100 text-slate-600',
-    activeBtnClass: 'bg-slate-700 text-white border-slate-700',
-  },
-  view: {
-    label: 'ดูอย่างเดียว',
-    badgeClass: 'bg-sky-50 text-sky-700 ring-1 ring-inset ring-sky-200',
-    activeBtnClass: 'bg-sky-600 text-white border-sky-600',
-  },
-  edit: {
-    label: 'แก้ไขได้',
-    badgeClass: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200',
-    activeBtnClass: 'bg-emerald-600 text-white border-emerald-600',
-  },
-};
+type MainSectionTab = 'web_access' | 'tabs_access' | 'leave_ceiling';
 
 export default function DivisionPermissionsPage({
   school,
@@ -54,7 +50,10 @@ export default function DivisionPermissionsPage({
   divisions,
   onReload,
 }: DivisionPermissionsPageProps) {
+  const [activeSection, setActiveSection] =
+    useState<MainSectionTab>('web_access');
   const [roles, setRoles] = useState<Role[]>([]);
+  const [staffList, setStaffList] = useState<SchoolStaffMember[]>([]);
   const [tabVisibleByRole, setTabVisibleByRole] = useState<
     Record<number, boolean>
   >({});
@@ -65,21 +64,14 @@ export default function DivisionPermissionsPage({
     divisionByUser: {},
     moduleByUser: {},
   });
-  const [selectedDivKey, setSelectedDivKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [staffSearch, setStaffSearch] = useState('');
+  const [tierFilter, setTierFilter] = useState<'all' | SchoolRoleTier>('all');
   const [message, setMessage] = useState<{
     type: 'ok' | 'err';
     text: string;
   } | null>(null);
-
-  const selectedDivision = useMemo(
-    () =>
-      divisions.find((d) => d.division_key === selectedDivKey) ??
-      divisions[0] ??
-      null,
-    [divisions, selectedDivKey],
-  );
 
   const allDivisionKeys = useMemo(
     () => divisions.map((d) => d.division_key),
@@ -93,10 +85,16 @@ export default function DivisionPermissionsPage({
     return [...set];
   }, [divisions]);
 
+  const divisionNameByKey = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const d of divisions) map.set(d.division_key, d.name);
+    return map;
+  }, [divisions]);
+
   const loadData = useCallback(async () => {
     if (!schoolId) return;
     setLoading(true);
-    const [rolesRes, permRes, roleDivModPerms] = await Promise.all([
+    const [rolesRes, permRes, staff, roleDivModPerms] = await Promise.all([
       supabase
         .from('roles')
         .select('ID_Roles, Accessrights, id_school')
@@ -106,6 +104,7 @@ export default function DivisionPermissionsPage({
         .select('id_role, menu_id, status')
         .eq('id_school', schoolId)
         .eq('menu_id', 6),
+      fetchSchoolStaffMembers(schoolId),
       fetchRoleDivisionModulePermissions(
         schoolId,
         allDivisionKeys.length > 0
@@ -118,6 +117,7 @@ export default function DivisionPermissionsPage({
     const allRoles = (rolesRes.data as Role[] | null) ?? [];
     const schoolRoles = rolesForSchool(allRoles, schoolId);
     setRoles(schoolRoles);
+    setStaffList(staff);
 
     const tabMap: Record<number, boolean> = {};
     for (const r of schoolRoles) {
@@ -142,16 +142,7 @@ export default function DivisionPermissionsPage({
     loadData();
   }, [loadData]);
 
-  useEffect(() => {
-    if (
-      divisions.length > 0 &&
-      (!selectedDivKey || !divisions.some((d) => d.division_key === selectedDivKey))
-    ) {
-      setSelectedDivKey(divisions[0].division_key);
-    }
-  }, [divisions, selectedDivKey]);
-
-  async function togglePcTabVisibility(roleId: number, nextVisible: boolean) {
+  async function toggleRoleSchoolWebAccess(roleId: number, nextVisible: boolean) {
     if (!schoolId || !canEdit) return;
     const key = `tab:${roleId}`;
     setBusyKey(key);
@@ -172,7 +163,7 @@ export default function DivisionPermissionsPage({
     if (error) {
       setMessage({
         type: 'err',
-        text: `บันทึกสิทธิ์แท็บ PC ไม่สำเร็จ: ${error.message}`,
+        text: `บันทึกสิทธิ์เข้าถึง Web โรงเรียนไม่สำเร็จ: ${error.message}`,
       });
       return;
     }
@@ -183,120 +174,170 @@ export default function DivisionPermissionsPage({
     }));
     setMessage({
       type: 'ok',
-      text: 'อัปเดตสิทธิ์การมองเห็นแท็บ "เว็บโรงเรียน" บนหน้าจอ PC เรียบร้อยแล้ว',
+      text: 'อัปเดตสิทธิ์การเข้าถึง Web โรงเรียนตามกลุ่มบทบาทเรียบร้อยแล้ว',
     });
   }
 
-  async function handleChangeDivisionLevel(
-    divisionKey: string,
-    divisionId: number,
-    roleId: number,
-    level: AccessLevel,
-  ) {
+  async function handleChangeStaffRole(staff: SchoolStaffMember, nextRoleId: number) {
     if (!schoolId || !canEdit) return;
-    const key = `div:${divisionKey}:${roleId}`;
+    const key = `role:${staff.id_user}`;
     setBusyKey(key);
     setMessage(null);
 
-    const { error } = await saveRoleDivisionAccessLevel({
+    const { error } = await updateStaffRoleId({
       schoolId,
-      roleId,
-      divisionKey,
-      divisionId,
-      level,
+      idUser: staff.id_user,
+      roleId: nextRoleId,
     });
 
     setBusyKey(null);
     if (error) {
-      setMessage({ type: 'err', text: `บันทึกสิทธิ์ฝ่ายไม่สำเร็จ: ${error}` });
+      setMessage({
+        type: 'err',
+        text: `เปลี่ยนระดับสิทธิ์ไม่สำเร็จ: ${error}`,
+      });
       return;
     }
 
-    setPermState((prev) => ({
-      ...prev,
-      divisionByRole: {
-        ...prev.divisionByRole,
-        [`${roleId}:${divisionKey}`]: {
-          can_view: level !== 'hidden',
-          can_edit: level === 'edit',
-        },
-      },
-    }));
+    const roleObj = roles.find((r) => r.ID_Roles === nextRoleId);
+    const nextRoleName = roleObj?.Accessrights ?? 'ผู้ใช้งาน';
+    setStaffList((prev) =>
+      prev.map((s) =>
+        s.id_user === staff.id_user
+          ? { ...s, id_role: nextRoleId, roleName: nextRoleName }
+          : s,
+      ),
+    );
     setMessage({
       type: 'ok',
-      text: `บันทึกสิทธิ์ระดับฝ่ายงานเรียบร้อยแล้ว (${LEVEL_META[level].label})`,
+      text: `เปลี่ยนบทบาทของ "${staff.fullName}" เป็น "${nextRoleName}" เรียบร้อยแล้ว`,
     });
-    await onReload();
   }
 
-  async function handleChangeModuleLevel(
-    moduleKey: string,
-    moduleTitle: string,
-    roleId: number,
-    level: AccessLevel,
+  async function handleChangeUserWebAccess(
+    staff: SchoolStaffMember,
+    override: UserTabOverride,
   ) {
     if (!schoolId || !canEdit) return;
-    const key = `mod:${moduleKey}:${roleId}`;
+    const key = `uweb:${staff.id_user}`;
     setBusyKey(key);
     setMessage(null);
 
-    const { error } = await saveRoleModuleAccessLevel({
+    const { error } = await saveUserSchoolWebTabOverride({
       schoolId,
-      roleId,
-      moduleKey,
-      level,
+      idUser: staff.id_user,
+      override,
     });
 
     setBusyKey(null);
     if (error) {
-      setMessage({ type: 'err', text: `บันทึกสิทธิ์ Module ไม่สำเร็จ: ${error}` });
+      setMessage({
+        type: 'err',
+        text: `บันทึกสิทธิ์เข้าถึง Web โรงเรียนรายบุคคลไม่สำเร็จ: ${error}`,
+      });
       return;
     }
 
-    setPermState((prev) => ({
-      ...prev,
-      moduleByRole: {
-        ...prev.moduleByRole,
-        [`${roleId}:${moduleKey}`]: {
-          can_view: level !== 'hidden',
-          can_edit: level === 'edit',
-        },
-      },
-    }));
+    setPermState((prev) => {
+      const next = { ...prev.userTabOverride };
+      if (override === 'inherit') {
+        delete next[staff.id_user];
+      } else {
+        next[staff.id_user] = override === 'visible';
+      }
+      return {
+        ...prev,
+        userTabOverride: next,
+      };
+    });
     setMessage({
       type: 'ok',
-      text: `บันทึกสิทธิ์ของ Module "${moduleTitle}" เรียบร้อยแล้ว (${LEVEL_META[level].label})`,
+      text: `อัปเดตสิทธิ์เข้าถึง Web โรงเรียนของ "${staff.fullName}" เรียบร้อยแล้ว`,
     });
     await onReload();
   }
+
+  const filteredStaff = useMemo(() => {
+    const q = staffSearch.trim().toLowerCase();
+    return staffList.filter((s) => {
+      const tier = inferRoleTierFromRoleName(s.roleName, s.is_super_admin);
+      if (tierFilter !== 'all' && tier !== tierFilter) return false;
+      if (!q) return true;
+      return (
+        s.fullName.toLowerCase().includes(q) ||
+        s.username.toLowerCase().includes(q) ||
+        s.roleName.toLowerCase().includes(q)
+      );
+    });
+  }, [staffList, staffSearch, tierFilter]);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-medium text-brand-600">
-            โหมดผู้ดูแลระบบ · สิทธิ์การมองเห็นและการใช้งานตามบทบาท
+            ศูนย์รวมการจัดการสิทธิ์ (รวมศูนย์ในจุดเดียว)
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">
-            สิทธิ์เข้าถึงฝ่ายงานและ Module ย่อยตามบทบาท (Role)
+            สิทธิ์เข้าถึง Web โรงเรียน, การใช้ Tab และระดับสิทธิ์ 4 ระดับ
           </h1>
           <p className="mt-1 text-sm text-slate-600">
-            กำหนดว่าแต่ละบทบาทใน{' '}
+            กำหนดว่าใครสามารถเข้าใช้ Web โรงเรียนของ{' '}
             <span className="font-medium text-ink">
               {school?.fullName || 'โรงเรียน'}
             </span>{' '}
-            สามารถมองเห็น ซ่อน ดูอย่างเดียว หรือแก้ไขข้อมูลในแต่ละฝ่ายและแต่ละ Module ย่อยได้
+            ได้บ้าง เมื่อเข้าได้แล้วมีสิทธิ์ใช้ Tab ไหน และจัดการระดับสิทธิ์ (ผู้ใช้งาน / ผู้บริหาร / Admin / Super Admin)
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Link to="/user-permissions" className="btn-secondary btn-sm shrink-0">
-            กำหนดสิทธิ์รายบุคคล
-          </Link>
-          <Link to="/admin/mapping" className="btn-secondary btn-sm shrink-0">
-            จัดการฝ่ายและ Module
+          <Link to="/admin/mapping" className="btn-primary btn-sm shrink-0">
+            <Users className="h-3.5 w-3.5" strokeWidth={1.75} />
+            <span>ไปหน้าจัดสังกัดบุคลากรเข้าฝ่าย</span>
           </Link>
         </div>
+      </div>
+
+      {/* แถบเลือกหมวดหมู่หลัก 3 ขั้นตอนในหน้าเดียว */}
+      <div className="flex flex-wrap gap-2 border-b border-line pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveSection('web_access')}
+          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-colors ${
+            activeSection === 'web_access'
+              ? 'bg-brand-600 text-white shadow-sm'
+              : 'border border-line bg-white text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <ShieldCheck className="h-4 w-4" strokeWidth={1.75} />
+          <span>1. สิทธิ์เข้าถึง Web โรงเรียน & ระดับสิทธิ์ผู้ใช้งาน</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSection('tabs_access')}
+          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-colors ${
+            activeSection === 'tabs_access'
+              ? 'bg-brand-600 text-white shadow-sm'
+              : 'border border-line bg-white text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <LayoutGrid className="h-4 w-4" strokeWidth={1.75} />
+          <span>2. สิทธิ์การใช้ Tab เมนูต่างๆ (เมื่อเข้าใช้ได้แล้ว)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSection('leave_ceiling')}
+          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-colors ${
+            activeSection === 'leave_ceiling'
+              ? 'bg-brand-600 text-white shadow-sm'
+              : 'border border-line bg-white text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <Sliders className="h-4 w-4" strokeWidth={1.75} />
+          <span>3. ตั้งค่าสิทธิ์ย่อยระบบวันลา (เพิ่มเติม)</span>
+        </button>
       </div>
 
       {message && (
@@ -311,347 +352,367 @@ export default function DivisionPermissionsPage({
         </div>
       )}
 
-      {/* สิทธิ์ระดับโรงเรียน: เปิด/ปิดเว็บโรงเรียน และเลือก Module ย่อยที่อนุญาตให้โรงเรียนนี้เห็น */}
-      {isSuper && (
-        <SchoolPackagePanel
-          schoolId={schoolId}
-          schoolName={school?.fullName || `โรงเรียน #${schoolId ?? '-'}`}
-          canManage={isSuper}
-          onUpdated={onReload}
-        />
-      )}
+      {activeSection === 'web_access' && (
+        <div className="space-y-6">
+          {/* 1.1 สิทธิ์ระดับโรงเรียน: เปิด/ปิดเว็บโรงเรียน และเลือก Module ย่อยที่อนุญาตให้โรงเรียนนี้เห็น */}
+          {isSuper && (
+            <SchoolPackagePanel
+              schoolId={schoolId}
+              schoolName={school?.fullName || `โรงเรียน #${schoolId ?? '-'}`}
+              canManage={isSuper}
+              onUpdated={onReload}
+            />
+          )}
 
-      {/* ส่วนที่ 1: สิทธิ์การมองเห็นแท็บ "เว็บโรงเรียน" บนแถบเมนูซ้ายของแอปวันลา (PC) */}
-      <div className="surface-card p-6">
-        <div className="mb-4">
-          <h2 className="text-base font-semibold text-ink">
-            1. สิทธิ์การมองเห็นแท็บ &ldquo;เว็บโรงเรียน&rdquo; บนหน้าจอ PC (ระบบวันลา)
-          </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            กำหนดว่ากลุ่มบทบาทใดในโรงเรียนจะเห็นแท็บเมนู &ldquo;เว็บโรงเรียน&rdquo; บนแถบเมนูด้านซ้ายของแอประบบวันลาบน PC
-          </p>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {roles.map((role) => {
-            const isAdminRole = role.Accessrights.includes('ผู้ดูแลระบบ');
-            const isVisible = isAdminRole
-              ? true
-              : (tabVisibleByRole[role.ID_Roles] ?? true);
-            const isBusy = busyKey === `tab:${role.ID_Roles}`;
-
-            return (
-              <div
-                key={role.ID_Roles}
-                className={`flex items-center justify-between gap-3 rounded-xl border p-3.5 transition-colors ${
-                  isVisible
-                    ? 'border-brand-200 bg-brand-50/40'
-                    : 'border-line bg-canvas/50'
-                }`}
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-ink">
-                    {role.Accessrights}
-                  </p>
-                  <p className="text-[11px] text-slate-500">
-                    {isVisible ? 'มองเห็นแท็บเว็บโรงเรียน' : 'ซ่อนแท็บเว็บโรงเรียน'}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  disabled={!canEdit || isAdminRole || isBusy}
-                  onClick={() =>
-                    togglePcTabVisibility(role.ID_Roles, !isVisible)
-                  }
-                  className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
-                    isVisible
-                      ? 'border-brand-600 bg-brand-600 text-white'
-                      : 'border-slate-300 bg-white text-transparent hover:border-slate-400'
-                  } disabled:opacity-50`}
-                  aria-label={`เปิดหรือปิดการมองเห็นแท็บเว็บโรงเรียนสำหรับ ${role.Accessrights}`}
-                >
-                  <Check className="h-3.5 w-3.5" strokeWidth={2} />
-                </button>
+          {/* 1.2 สรุประดับสิทธิ์มาตรฐาน 4 ระดับ + ความเชื่อมโยงกับสังกัดฝ่าย */}
+          <div className="surface-card p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-ink">
+                  โครงสร้างระดับสิทธิ์ 4 ระดับ และการมองเห็น Module ตามฝ่ายของตัวเอง
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  ไม่ต้องตั้งค่าสิทธิ์ราย Module ซ้ำซ้อน — บุคลากรอยู่ฝ่ายไหนจะมองเห็น Module ที่ผูกกับฝ่ายนั้นโดยอัตโนมัติ
+                </p>
               </div>
-            );
-          })}
-        </div>
-      </div>
+              <Link
+                to="/admin/mapping"
+                className="btn-secondary btn-sm shrink-0"
+              >
+                <Layers className="h-3.5 w-3.5" strokeWidth={1.5} />
+                <span>จัดการฝ่าย / ผูกบุคลากรเข้าฝ่าย</span>
+              </Link>
+            </div>
 
-      {/* ส่วนที่ 2: สิทธิ์ระดับฝ่ายงาน และ Module ย่อยภายในฝ่าย */}
-      {loading ? (
-        <div className="surface-card p-8 text-center text-sm text-slate-500">
-          กำลังโหลดข้อมูลบทบาทและสิทธิ์แต่ละฝ่าย...
-        </div>
-      ) : divisions.length === 0 ? (
-        <div className="surface-card p-8 text-center text-sm text-slate-500">
-          ไม่มีฝ่ายงานที่เปิดให้โรงเรียนนี้ใช้งาน
-        </div>
-      ) : (
-        <div className="grid gap-6 lg:grid-cols-12">
-          {/* รายชื่อฝ่ายด้านซ้าย */}
-          <div className="space-y-2 lg:col-span-4">
-            <p className="px-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
-              เลือกฝ่ายงานของโรงเรียน ({divisions.length})
-            </p>
-            {divisions.map((div) => {
-              const active = selectedDivision?.division_key === div.division_key;
-              return (
-                <button
-                  key={div.division_key}
-                  type="button"
-                  onClick={() => setSelectedDivKey(div.division_key)}
-                  className={`flex w-full items-start justify-between gap-3 rounded-xl border p-4 text-left transition-colors ${
-                    active
-                      ? 'border-brand-600 bg-brand-50/50 text-brand-700'
-                      : 'border-line bg-white text-ink hover:bg-slate-50'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck
-                        className={`h-4 w-4 ${
-                          active ? 'text-brand-600' : 'text-slate-400'
-                        }`}
-                        strokeWidth={1.75}
-                      />
-                      <span className="text-sm font-semibold">{div.name}</span>
-                    </div>
-                    {div.description && (
-                      <p className="mt-1 text-xs text-slate-500">
-                        {div.description}
-                      </p>
-                    )}
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {(
+                ['user', 'executive', 'school_admin', 'super_admin'] as SchoolRoleTier[]
+              ).map((tierKey) => {
+                const meta = ROLE_TIER_META[tierKey];
+                return (
+                  <div
+                    key={tierKey}
+                    className="rounded-xl border border-line bg-canvas/50 p-3.5"
+                  >
+                    <span
+                      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${meta.badgeClass}`}
+                    >
+                      {meta.label}
+                    </span>
+                    <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                      {meta.description}
+                    </p>
                   </div>
-                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
-                    {div.modules.length} Module
-                  </span>
-                </button>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
 
-          {/* ตารางกำหนดสิทธิ์ตาม Role และแยกตาม Module ย่อยด้านขวา */}
-          <div className="space-y-6 lg:col-span-8">
-            {selectedDivision && (
-              <>
-                {/* 2.1 สิทธิ์ระดับฝ่ายงาน (ทั้งฝ่าย) */}
-                <div className="surface-card overflow-hidden">
-                  <div className="border-b border-line bg-slate-50/60 px-6 py-4">
-                    <h2 className="text-base font-semibold text-ink">
-                      2.1 สิทธิ์การเข้าถึงระดับฝ่าย: {selectedDivision.name}
-                    </h2>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      กำหนดว่าแต่ละบทบาทจะเห็นฝ่ายนี้บนแถบเมนูซ้ายหรือไม่ และมีสิทธิ์พื้นฐานเป็น &ldquo;ดูอย่างเดียว&rdquo; หรือ &ldquo;แก้ไขได้ทั้งฝ่าย&rdquo;
-                    </p>
-                  </div>
+          {/* 1.3 สิทธิ์เข้าถึง Web โรงเรียนตามกลุ่มบทบาท */}
+          <div className="surface-card p-6">
+            <div className="mb-4">
+              <h2 className="text-base font-semibold text-ink">
+                ขั้นที่ 1: สิทธิ์เข้าถึง Web โรงเรียน ตามกลุ่มบทบาท (สามารถเข้าใช้ได้หรือไม่)
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                กำหนดว่ากลุ่มบทบาทใดในโรงเรียนสามารถเข้าใช้งาน &ldquo;Web โรงเรียน&rdquo; ได้บ้าง (เมื่อเปิดแล้ว จึงกำหนดสิทธิ์การใช้แต่ละ Tab ในหัวข้อที่ 2)
+              </p>
+            </div>
 
-                  <div className="divide-y divide-line">
-                    {roles.map((role) => {
-                      const isAdminRole =
-                        role.Accessrights.includes('ผู้ดูแลระบบ');
-                      const currentLevel = resolveDivisionAccessLevel(
-                        permState,
-                        role.ID_Roles,
-                        selectedDivision.division_key,
-                        isAdminRole,
-                      );
-                      const isBusy =
-                        busyKey ===
-                        `div:${selectedDivision.division_key}:${role.ID_Roles}`;
+            {loading ? (
+              <p className="py-4 text-sm text-slate-500">กำลังโหลดข้อมูล...</p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {roles.map((role) => {
+                  const isAdminRole = role.Accessrights.includes('ผู้ดูแลระบบ');
+                  const isVisible = isAdminRole
+                    ? true
+                    : (tabVisibleByRole[role.ID_Roles] ?? true);
+                  const isBusy = busyKey === `tab:${role.ID_Roles}`;
+                  const tier = inferRoleTierFromRoleName(role.Accessrights, false);
 
-                      return (
-                        <div
-                          key={role.ID_Roles}
-                          className="flex flex-col gap-3 px-6 py-3.5 sm:flex-row sm:items-center sm:justify-between"
-                        >
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-ink">
-                                {role.Accessrights}
-                              </span>
+                  return (
+                    <div
+                      key={role.ID_Roles}
+                      className={`flex items-center justify-between gap-3 rounded-xl border p-3.5 transition-colors ${
+                        isVisible
+                          ? 'border-brand-200 bg-brand-50/40'
+                          : 'border-line bg-canvas/50'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="truncate text-sm font-semibold text-ink">
+                            {role.Accessrights}
+                          </p>
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${ROLE_TIER_META[tier].badgeClass}`}
+                          >
+                            {ROLE_TIER_META[tier].shortLabel}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-[11px] text-slate-500">
+                          {isVisible
+                            ? 'เข้าใช้ Web โรงเรียนได้'
+                            : 'ไม่อนุญาตให้เข้า Web โรงเรียน'}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={!canEdit || isAdminRole || isBusy}
+                        onClick={() =>
+                          toggleRoleSchoolWebAccess(role.ID_Roles, !isVisible)
+                        }
+                        className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                          isVisible
+                            ? 'border-brand-600 bg-brand-600 text-white'
+                            : 'border-slate-300 bg-white text-transparent hover:border-slate-400'
+                        } disabled:opacity-50`}
+                        aria-label={`เปิดหรือปิดสิทธิ์เข้าใช้เว็บโรงเรียนสำหรับ ${role.Accessrights}`}
+                      >
+                        <Check className="h-3.5 w-3.5" strokeWidth={2} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 1.4 ตารางกำหนดระดับสิทธิ์ & สิทธิ์เข้าใช้ Web โรงเรียนรายบุคลากร */}
+          <div className="surface-card p-6">
+            <div className="flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-ink">
+                  กำหนดระดับสิทธิ์และสิทธิ์เข้าถึง Web โรงเรียนรายบุคลากร ({staffList.length} คน)
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  ปรับระดับสิทธิ์ของบุคลากรแต่ละคน (ผู้ใช้งาน / ผู้บริหาร / Admin) และกำหนดสิทธิ์เข้าถึง Web โรงเรียนรายบุคคลได้ในตารางเดียว
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative min-w-[220px]">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={staffSearch}
+                    onChange={(e) => setStaffSearch(e.target.value)}
+                    placeholder="ค้นหาชื่อบุคลากร หรือชื่อผู้ใช้..."
+                    className="input pl-9 py-1.5 text-xs"
+                  />
+                </div>
+
+                <select
+                  value={tierFilter}
+                  onChange={(e) =>
+                    setTierFilter(e.target.value as 'all' | SchoolRoleTier)
+                  }
+                  className="input w-auto py-1.5 text-xs"
+                  aria-label="กรองตามระดับสิทธิ์"
+                >
+                  <option value="all">ทุกระดับสิทธิ์</option>
+                  <option value="user">เฉพาะผู้ใช้งาน</option>
+                  <option value="executive">เฉพาะผู้บริหาร</option>
+                  <option value="school_admin">เฉพาะ Admin โรงเรียน</option>
+                </select>
+              </div>
+            </div>
+
+            {loading ? (
+              <p className="py-8 text-center text-sm text-slate-500">
+                กำลังโหลดรายชื่อบุคลากร...
+              </p>
+            ) : filteredStaff.length === 0 ? (
+              <p className="py-8 text-center text-sm text-slate-500">
+                ไม่พบบุคลากรตามเงื่อนไขที่ค้นหา
+              </p>
+            ) : (
+              <div className="mt-4 divide-y divide-line rounded-xl border border-line">
+                {filteredStaff.map((staff) => {
+                  const tier = inferRoleTierFromRoleName(
+                    staff.roleName,
+                    staff.is_super_admin,
+                  );
+                  const tierMeta = ROLE_TIER_META[tier];
+                  const assignedDivKeys = getStaffAssignedDivisionKeys(
+                    permState,
+                    staff.id_user,
+                    allDivisionKeys,
+                  );
+
+                  const rawOverride = permState.userTabOverride[staff.id_user];
+                  const currentOverride: UserTabOverride =
+                    rawOverride === undefined
+                      ? 'inherit'
+                      : rawOverride
+                        ? 'visible'
+                        : 'hidden';
+
+                  const roleDefaultAccess =
+                    staff.id_role != null
+                      ? (tabVisibleByRole[staff.id_role] ?? true)
+                      : true;
+
+                  return (
+                    <div
+                      key={staff.id_user}
+                      className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between"
+                    >
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-semibold text-ink">
+                            {staff.fullName}
+                          </span>
+                          {staff.username && (
+                            <span className="text-xs text-slate-400">
+                              @{staff.username}
+                            </span>
+                          )}
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${tierMeta.badgeClass}`}
+                          >
+                            {tierMeta.shortLabel}
+                          </span>
+                        </div>
+
+                        {/* แสดงสังกัดฝ่ายของบุคลากร */}
+                        {tier === 'super_admin' || tier === 'school_admin' ? (
+                          <p className="text-xs text-emerald-700">
+                            เห็นและแก้ไขได้ทุกฝ่าย/ทุก Module ในโรงเรียน
+                          </p>
+                        ) : tier === 'executive' ? (
+                          <p className="text-xs text-amber-700">
+                            เห็นข้อมูลครบทุกฝ่ายของโรงเรียน (ระดับผู้บริหาร)
+                          </p>
+                        ) : assignedDivKeys.length > 0 ? (
+                          <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                            <span className="text-[11px] text-slate-500">
+                              สังกัดฝ่าย (เห็น Module ตามฝ่ายนี้):
+                            </span>
+                            {assignedDivKeys.map((dk) => (
                               <span
-                                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${LEVEL_META[currentLevel].badgeClass}`}
+                                key={dk}
+                                className="rounded-md bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-700 ring-1 ring-inset ring-brand-200"
                               >
-                                {LEVEL_META[currentLevel].label}
+                                {divisionNameByKey.get(dk) || dk}
                               </span>
-                            </div>
-                            {isAdminRole && (
-                              <p className="mt-0.5 text-[11px] text-emerald-600">
-                                ผู้ดูแลระบบเข้าดูและแก้ไขได้ทุกฝ่ายโดยอัตโนมัติ
-                              </p>
-                            )}
+                            ))}
                           </div>
+                        ) : (
+                          <p className="text-xs text-slate-400">
+                            ยังไม่ได้ระบุสังกัดฝ่าย (ตั้งค่าได้ที่หน้าจัดการฝ่าย & บุคลากร)
+                          </p>
+                        )}
+                      </div>
 
-                          <div className="inline-flex items-center gap-1.5">
-                            {(['hidden', 'view', 'edit'] as AccessLevel[]).map(
-                              (lvl) => {
-                                const active = currentLevel === lvl;
-                                return (
-                                  <button
-                                    key={lvl}
-                                    type="button"
-                                    disabled={!canEdit || isAdminRole || isBusy}
-                                    onClick={() =>
-                                      handleChangeDivisionLevel(
-                                        selectedDivision.division_key,
-                                        selectedDivision.id,
-                                        role.ID_Roles,
-                                        lvl,
-                                      )
-                                    }
-                                    className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                                      active
-                                        ? LEVEL_META[lvl].activeBtnClass
-                                        : 'border-line bg-white text-slate-600 hover:bg-slate-50'
-                                    } disabled:opacity-50`}
-                                  >
-                                    {lvl === 'hidden' && (
-                                      <EyeOff className="h-3.5 w-3.5" />
-                                    )}
-                                    {lvl === 'view' && (
-                                      <Eye className="h-3.5 w-3.5" />
-                                    )}
-                                    {lvl === 'edit' && (
-                                      <Pencil className="h-3.5 w-3.5" />
-                                    )}
-                                    <span>{LEVEL_META[lvl].label}</span>
-                                  </button>
-                                );
+                      <div className="flex flex-wrap items-center gap-3">
+                        {/* เปลี่ยนบทบาท / ระดับสิทธิ์ */}
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-slate-500">ระดับสิทธิ์:</span>
+                          <select
+                            disabled={
+                              !canEdit ||
+                              staff.is_super_admin ||
+                              busyKey === `role:${staff.id_user}`
+                            }
+                            value={staff.id_role ?? ''}
+                            onChange={(e) =>
+                              handleChangeStaffRole(
+                                staff,
+                                Number(e.target.value),
+                              )
+                            }
+                            className="input w-auto py-1 text-xs font-medium"
+                            aria-label={`ระดับสิทธิ์ของ ${staff.fullName}`}
+                          >
+                            {roles.map((r) => (
+                              <option key={r.ID_Roles} value={r.ID_Roles}>
+                                {r.Accessrights}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* สิทธิ์เข้าถึง Web โรงเรียนรายบุคคล */}
+                        <div className="inline-flex items-center gap-1 rounded-lg border border-line bg-canvas p-0.5">
+                          {(
+                            [
+                              {
+                                value: 'inherit',
+                                label: `ตามบทบาท (${roleDefaultAccess ? 'เข้าได้' : 'ปิด'})`,
                               },
-                            )}
-                          </div>
+                              { value: 'visible', label: 'เข้า Web รร. ได้' },
+                              { value: 'hidden', label: 'ไม่อนุญาต' },
+                            ] as const
+                          ).map((opt) => {
+                            const active = currentOverride === opt.value;
+                            return (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                disabled={
+                                  !canEdit ||
+                                  staff.is_super_admin ||
+                                  busyKey === `uweb:${staff.id_user}`
+                                }
+                                onClick={() =>
+                                  handleChangeUserWebAccess(staff, opt.value)
+                                }
+                                className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                                  active
+                                    ? opt.value === 'hidden'
+                                      ? 'bg-slate-700 text-white'
+                                      : 'bg-brand-600 text-white'
+                                    : 'text-slate-600 hover:text-ink'
+                                } disabled:opacity-50`}
+                              >
+                                {opt.label}
+                              </button>
+                            );
+                          })}
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 2.2 สิทธิ์ระดับ Module ย่อยภายในฝ่าย */}
-                <div className="surface-card overflow-hidden">
-                  <div className="border-b border-line bg-slate-50/60 px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <Layers className="h-4 w-4 text-brand-600" />
-                      <h2 className="text-base font-semibold text-ink">
-                        2.2 สิทธิ์แยกราย Module ย่อยใน{selectedDivision.name}
-                      </h2>
+                      </div>
                     </div>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      กำหนดเจาะจงแต่ละ Module ย่อยว่าบทบาทใด{' '}
-                      <strong>ซ่อน</strong> (ไม่เห็นแท็บ Module),{' '}
-                      <strong>ดูอย่างเดียว</strong> (เปิดดู/ดาวน์โหลดได้ แต่เพิ่มหรือแก้ไขไม่ได้), หรือ{' '}
-                      <strong>แก้ไขได้</strong>
-                    </p>
-                  </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
-                  {selectedDivision.modules.length === 0 ? (
-                    <div className="p-6 text-center text-xs text-slate-500">
-                      ไม่มี Module ย่อยในฝ่ายนี้
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-line">
-                      {selectedDivision.modules.map((mod) => (
-                        <div key={mod.module_key} className="p-5">
-                          <div className="mb-3">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-sm font-semibold text-ink">
-                                {mod.title}
-                              </h3>
-                              <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-[10px] text-slate-500">
-                                {mod.module_key}
-                              </span>
-                            </div>
-                            {mod.description && (
-                              <p className="mt-0.5 text-xs text-slate-500">
-                                {mod.description}
-                              </p>
-                            )}
-                          </div>
+      {activeSection === 'tabs_access' && schoolId !== null && (
+        <div className="space-y-4">
+          <div className="surface-card p-6">
+            <h2 className="text-base font-semibold text-ink">
+              ขั้นที่ 2: เมื่อมีสิทธิ์เข้าใช้งานแล้ว → มีสิทธิ์ใช้ Tab เมนูไหนได้บ้าง
+            </h2>
+            <p className="mt-1 mb-4 text-xs text-slate-500">
+              กำหนดว่าแต่ละกลุ่มสิทธิ์สามารถมองเห็นและกดใช้งาน Tab เมนูใดได้บ้าง ทั้งบนหน้าจอคอมพิวเตอร์ (PC) และบนมือถือ
+            </p>
+            <MenuVisibilityPanel roles={roles} schoolId={schoolId} />
+          </div>
+        </div>
+      )}
 
-                          <div className="grid gap-2.5 sm:grid-cols-2">
-                            {roles.map((role) => {
-                              const isAdminRole =
-                                role.Accessrights.includes('ผู้ดูแลระบบ');
-                              const divLevel = resolveDivisionAccessLevel(
-                                permState,
-                                role.ID_Roles,
-                                selectedDivision.division_key,
-                                isAdminRole,
-                              );
-                              const modLevel = resolveModuleAccessLevel(
-                                permState,
-                                role.ID_Roles,
-                                selectedDivision.division_key,
-                                mod.module_key,
-                                isAdminRole,
-                              );
-                              const isBusy =
-                                busyKey ===
-                                `mod:${mod.module_key}:${role.ID_Roles}`;
-
-                              return (
-                                <div
-                                  key={role.ID_Roles}
-                                  className="flex flex-col justify-between gap-2 rounded-xl border border-line bg-canvas/40 p-3"
-                                >
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="truncate text-xs font-semibold text-ink">
-                                      {role.Accessrights}
-                                    </span>
-                                    <span
-                                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${LEVEL_META[modLevel].badgeClass}`}
-                                    >
-                                      {divLevel === 'hidden'
-                                        ? 'ซ่อน (ตามฝ่าย)'
-                                        : LEVEL_META[modLevel].label}
-                                    </span>
-                                  </div>
-
-                                  <div className="grid grid-cols-3 gap-1">
-                                    {(
-                                      ['hidden', 'view', 'edit'] as AccessLevel[]
-                                    ).map((lvl) => {
-                                      const active = modLevel === lvl;
-                                      return (
-                                        <button
-                                          key={lvl}
-                                          type="button"
-                                          disabled={
-                                            !canEdit ||
-                                            isAdminRole ||
-                                            divLevel === 'hidden' ||
-                                            isBusy
-                                          }
-                                          onClick={() =>
-                                            handleChangeModuleLevel(
-                                              mod.module_key,
-                                              mod.title,
-                                              role.ID_Roles,
-                                              lvl,
-                                            )
-                                          }
-                                          className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
-                                            active
-                                              ? LEVEL_META[lvl].activeBtnClass
-                                              : 'border-line bg-white text-slate-600 hover:bg-slate-50'
-                                          } disabled:opacity-45`}
-                                        >
-                                          {LEVEL_META[lvl].label}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </>
+      {activeSection === 'leave_ceiling' && (
+        <div className="surface-card p-6 space-y-4">
+          <h2 className="text-base font-semibold text-ink">
+            ขั้นที่ 3: การตั้งค่าเพดานสิทธิ์ย่อยของระบบวันลา (เพิ่มเติม)
+          </h2>
+          <p className="text-xs text-slate-600">
+            สำหรับการตั้งค่าปลีกย่อยภายในระบบวันลา (เช่น สิทธิ์การอนุมัติใบลาแต่ละขั้น หรือการเปิด/ปิดฟีเจอร์ย่อยของระบบวันลารายคน) สามารถจัดการได้จากหน้าตั้งค่าเชิงลึกด้านล่างนี้:
+          </p>
+          <div className="flex flex-wrap gap-3 pt-2">
+            <Link to="/user-permissions" className="btn-secondary">
+              เปิดหน้าตั้งค่าสิทธิ์ย่อยรายบุคคล (ระบบวันลา)
+            </Link>
+            {isSuper && (
+              <Link to="/role-permissions" className="btn-secondary">
+                เปิดหน้าเพดานสิทธิ์ระบบวันลาและจัดการรายชื่อบทบาท
+              </Link>
             )}
           </div>
         </div>

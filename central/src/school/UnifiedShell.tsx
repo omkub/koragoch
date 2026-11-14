@@ -86,10 +86,14 @@ interface AdminNavGroup {
 
 const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
   {
-    label: 'โครงสร้างโรงเรียนและ Mapping',
+    label: 'โครงสร้างโรงเรียนและสิทธิ์การใช้งาน',
     items: [
-      { to: '/admin/mapping', label: 'จัดการฝ่ายและ Module', icon: Layers },
-      { to: '/admin/division-permissions', label: 'สิทธิ์เข้าถึงแต่ละฝ่าย', icon: ShieldCheck },
+      { to: '/admin/mapping', label: 'จัดการฝ่าย, Module & บุคลากร', icon: Layers },
+      {
+        to: '/admin/division-permissions',
+        label: 'สิทธิ์เข้าถึง Web โรงเรียน & Tab',
+        icon: ShieldCheck,
+      },
       { to: '/settings', label: 'ปีการศึกษาและลิงก์', icon: Settings },
       { to: '/schools', label: 'ข้อมูลโรงเรียน', icon: Building2, superOnly: true },
       { to: '/admins', label: 'ผู้ดูแลโรงเรียน', icon: ShieldCheck, superOnly: true },
@@ -98,7 +102,6 @@ const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
   {
     label: 'ตั้งค่าระบบวันลาส่วนกลาง',
     items: [
-      { to: '/user-permissions', label: 'สิทธิ์รายบุคคล (วันลา)', icon: Users },
       {
         to: '/leave-admin',
         label: 'ภาพรวมระบบวันลา',
@@ -109,12 +112,6 @@ const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       {
         to: '/admin-positions',
         label: 'ตำแหน่งบริหาร',
-        icon: ShieldCheck,
-        superOnly: true,
-      },
-      {
-        to: '/role-permissions',
-        label: 'เพดานสิทธิ์และเมนู',
         icon: ShieldCheck,
         superOnly: true,
       },

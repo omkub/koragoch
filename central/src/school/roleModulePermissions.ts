@@ -200,14 +200,23 @@ export async function fetchRoleDivisionModulePermissions(
       modKeyByEditMenu.set(getModuleEditMenuId(mKey), mKey);
     }
 
-    // แผนที่ slot รายบุคคล
+    // แผนที่ slot รายบุคคล (รองรับทั้งฝ่ายมาตรฐานและฝ่ายที่โรงเรียนสร้างเพิ่ม)
     const modKeyBySlot = new Map<number, string>();
     for (const [mKey, slot] of Object.entries(USER_MODULE_SLOT)) {
       modKeyBySlot.set(slot, mKey);
     }
+    for (const mKey of moduleKeys) {
+      const slot = USER_MODULE_SLOT[mKey] ?? (10 + (stableHash(mKey) % 10));
+      if (!modKeyBySlot.has(slot)) modKeyBySlot.set(slot, mKey);
+    }
+
     const divKeyBySlot = new Map<number, string>();
     for (const [dKey, slot] of Object.entries(USER_DIVISION_SLOT)) {
       divKeyBySlot.set(slot, dKey);
+    }
+    for (const dKey of divisionKeys) {
+      const slot = USER_DIVISION_SLOT[dKey] ?? (45 + (stableHash(dKey) % 5));
+      if (!divKeyBySlot.has(slot)) divKeyBySlot.set(slot, dKey);
     }
 
     for (const row of (permRes.data as
