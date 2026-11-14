@@ -1,23 +1,28 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
   Check,
   Plus,
   Save,
+  Search,
   Trash2,
   UserPlus,
 } from 'lucide-react';
 import { supabase } from '../supabase';
 import {
+  composeOfficialPosition,
   createDefaultOrderDraft,
+  DEFAULT_ACADEMIC_STANDINGS,
+  DEFAULT_ADMIN_POSITIONS,
+  splitOfficialPosition,
   type AppointmentOrderFull,
   type AppointmentOrderRecord,
   type OrderGroupDraft,
   type OrderMemberDraft,
 } from './appointmentOrders';
-import type { DivisionWithModules } from './mapping';
 import { exportAppointmentOrderToDocx } from './exportOrderDocx';
+import type { DivisionWithModules } from './mapping';
 import OrderWordPreviewPane from './OrderWordPreviewPane';
 
 interface AppointmentOrdersPageProps {
@@ -30,10 +35,12 @@ interface AppointmentOrdersPageProps {
 interface StaffOption {
   id_user: number;
   fullName: string;
+  adminPosition: string;
+  academicStanding: string;
   officialPosition: string;
 }
 
-const WORKING_ROLE_SUGGESTIONS = [
+const WORKING_ROLE_OPTIONS = [
   'ประธานคณะทำงาน',
   'รองประธานคณะทำงาน',
   'หัวหน้าคณะทำงาน',
@@ -52,6 +59,12 @@ export default function AppointmentOrdersPage({
   const [scopeFilter, setScopeFilter] = useState<'division' | 'school'>('division');
   const [selectedOrderId, setSelectedOrderId] = useState<number | 'new'>('new');
   const [staffList, setStaffList] = useState<StaffOption[]>([]);
+  const [adminPositions, setAdminPositions] = useState<string[]>(
+    DEFAULT_ADMIN_POSITIONS,
+  );
+  const [academicStandings, setAcademicStandings] = useState<string[]>(
+    DEFAULT_ACADEMIC_STANDINGS,
+  );
   const [mobilePane, setMobilePane] = useState<'editor' | 'preview'>('editor');
   const [useThaiDigits, setUseThaiDigits] = useState(false);
 
@@ -74,12 +87,19 @@ export default function AppointmentOrdersPage({
     ),
   );
 
-  // Load staff list + existing orders
+  // Load staff list + adminroles + positions + academics + existing orders
   const loadInitialData = useCallback(async () => {
     if (!schoolId) return;
     setLoading(true);
 
-    const [ordersRes, teachersRes, rolesRes] = await Promise.all([
+    const [
+      ordersRes,
+      teachersRes,
+      rolesRes,
+      adminRolesRes,
+      positionsRes,
+      academicsRes,
+    ] = await Promise.all([
       supabase
         .from('SchoolWebOrders')
         .select('*')
@@ -88,33 +108,109 @@ export default function AppointmentOrdersPage({
         .order('id', { ascending: false }),
       supabase
         .from('Teachers')
-        .select('id_user, fullName, id_role, employment_status')
+        .select('*')
         .eq('id_school', schoolId)
         .order('fullName', { ascending: true }),
       supabase.from('roles').select('ID_Roles, Accessrights'),
+      supabase
+        .from('adminroles')
+        .select('ID_AdminRoles, AdminRolesName')
+        .eq('id_school', schoolId),
+      supabase.from('positions').select('ID_Positions, positionName'),
+      supabase.from('academics').select('ID_Academics, AcademicsName'),
     ]);
 
     const roleMap = new Map<number, string>();
     for (const r of (rolesRes.data as { ID_Roles: number; Accessrights: string }[] | null) ?? []) {
-      roleMap.set(r.ID_Roles, r.Accessrights);
+      if (r.Accessrights?.trim()) roleMap.set(r.ID_Roles, r.Accessrights.trim());
     }
 
-    const activeTeachers: StaffOption[] = (
-      (teachersRes.data as
-        | {
-            id_user: number;
-            fullName: string | null;
-            id_role: number | null;
-            employment_status?: string | null;
-          }[]
-        | null) ?? []
-    )
-      .filter((t) => !t.employment_status || t.employment_status === 'active')
-      .map((t) => ({
-        id_user: t.id_user,
-        fullName: (t.fullName || '').trim() || `บุคลากร #${t.id_user}`,
-        officialPosition: (t.id_role ? roleMap.get(t.id_role) : null) || 'ครู',
-      }));
+    const adminRoleMap = new Map<number, string>();
+    const adminPosSet = new Set<string>();
+    for (const ar of (adminRolesRes.data as { ID_AdminRoles: number; AdminRolesName: string | null }[] | null) ?? []) {
+      const name = (ar.AdminRolesName || '').trim();
+      if (name && name !== 'ไม่มีตำแหน่งบริหาร' && name !== '-') {
+        adminRoleMap.set(ar.ID_AdminRoles, name);
+        adminPosSet.add(name);
+      }
+    }
+
+    const posMap = new Map<number, string>();
+    for (const p of (positionsRes.data as { ID_Positions: number; positionName: string | null }[] | null) ?? []) {
+      const name = (p.positionName || '').trim();
+      if (name && name !== '-') {
+        posMap.set(p.ID_Positions, name);
+        adminPosSet.add(name);
+      }
+    }
+    for (const defPos of DEFAULT_ADMIN_POSITIONS) {
+      adminPosSet.add(defPos);
+    }
+    setAdminPositions([...adminPosSet]);
+
+    const acadMap = new Map<number, string>();
+    const acadSet = new Set<string>(['ไม่มีวิทยฐานะ']);
+    for (const ac of (academicsRes.data as { ID_Academics: number; AcademicsName: string | null }[] | null) ?? []) {
+      const name = (ac.AcademicsName || '').trim();
+      if (name && name !== '-') {
+        acadMap.set(ac.ID_Academics, name);
+        acadSet.add(name);
+      }
+    }
+    for (const defAcad of DEFAULT_ACADEMIC_STANDINGS) {
+      acadSet.add(defAcad);
+    }
+    setAcademicStandings([...acadSet]);
+
+    const rawTeachers = (teachersRes.data as Record<string, unknown>[] | null) ?? [];
+    const activeTeachers: StaffOption[] = rawTeachers
+      .filter((t) => {
+        const status = String(t.employment_status || 'active');
+        return status === 'active' && !t.is_super_admin;
+      })
+      .map((t) => {
+        const idUser = Number(t.id_user);
+        const fullName =
+          String(t.fullName || '').trim() || `บุคลากร #${idUser}`;
+
+        // 1) ตำแหน่งบริหาร / ตำแหน่งสายงาน
+        const idAdminRole = Number(t.id_adminrole);
+        const idPosition = Number(t.id_position);
+        const idRole = Number(t.id_role);
+
+        const resolvedAdminPos =
+          (idAdminRole ? adminRoleMap.get(idAdminRole) : '') ||
+          String(t['ตำแหน่งงานบริหาร'] || '').trim() ||
+          (idPosition ? posMap.get(idPosition) : '') ||
+          String(t.position || '').trim() ||
+          (idRole ? roleMap.get(idRole) : '') ||
+          'ครู';
+
+        // 2) วิทยฐานะ
+        const idAcademic = Number(
+          t.ID_Academics ?? t.id_academic ?? t.id_academics ?? 0,
+        );
+        const resolvedAcadRaw =
+          (idAcademic ? acadMap.get(idAcademic) : '') ||
+          String(t.academicStanding ?? t['วิทยฐานะ'] ?? '').trim();
+        const resolvedAcademic =
+          resolvedAcadRaw &&
+          resolvedAcadRaw !== 'ไม่มีวิทยฐานะ' &&
+          resolvedAcadRaw !== '-'
+            ? resolvedAcadRaw
+            : '';
+
+        return {
+          id_user: idUser,
+          fullName,
+          adminPosition: resolvedAdminPos,
+          academicStanding: resolvedAcademic,
+          officialPosition: composeOfficialPosition(
+            resolvedAdminPos,
+            resolvedAcademic,
+          ),
+        };
+      });
 
     setStaffList(activeTeachers);
 
@@ -182,14 +278,22 @@ export default function AppointmentOrdersPage({
       const builtGroups: OrderGroupDraft[] = rawGroups.map((g, idx) => {
         const gMembers: OrderMemberDraft[] = rawMembers
           .filter((m) => m.group_id === g.id)
-          .map((m, mIdx) => ({
-            id: m.id,
-            member_no: mIdx + 1,
-            id_user: m.id_user,
-            full_name: m.full_name,
-            official_position: m.official_position,
-            working_role: m.working_role,
-          }));
+          .map((m, mIdx) => {
+            const split = splitOfficialPosition(
+              m.official_position,
+              academicStandings,
+            );
+            return {
+              id: m.id,
+              member_no: mIdx + 1,
+              id_user: m.id_user,
+              full_name: m.full_name,
+              admin_position: split.admin_position,
+              academic_standing: split.academic_standing,
+              official_position: m.official_position,
+              working_role: m.working_role,
+            };
+          });
         const gDuties = Array.isArray(g.duties)
           ? g.duties.map((d) => String(d))
           : [''];
@@ -206,6 +310,8 @@ export default function AppointmentOrdersPage({
                     member_no: 1,
                     id_user: null,
                     full_name: '',
+                    admin_position: 'ครู',
+                    academic_standing: '',
                     official_position: 'ครู',
                     working_role: 'คณะทำงาน',
                   },
@@ -236,7 +342,7 @@ export default function AppointmentOrdersPage({
               ).groups,
       });
     },
-    [orders, division.id, division.division_key, division.name],
+    [orders, academicStandings, division.id, division.division_key, division.name],
   );
 
   function handleStartNewOrder() {
@@ -254,7 +360,6 @@ export default function AppointmentOrdersPage({
     );
   }
 
-  // Reset default draft when switching division tab
   useEffect(() => {
     if (!schoolId) return;
     setSelectedOrderId('new');
@@ -285,6 +390,8 @@ export default function AppointmentOrdersPage({
                 member_no: 1,
                 id_user: null,
                 full_name: '',
+                admin_position: 'ครู',
+                academic_standing: '',
                 official_position: 'ครู',
                 working_role: 'คณะทำงาน',
               },
@@ -330,15 +437,10 @@ export default function AppointmentOrdersPage({
   }
 
   // --- Member (ข้อ 1.1, 1.2...) Handlers ---
-  function addMemberFromTeacher(groupIdx: number, teacherIdStr: string) {
-    const teacherId = Number(teacherIdStr);
-    const teacher = staffList.find((t) => t.id_user === teacherId);
-    if (!teacher) return;
-
+  function addMemberFromTeacher(groupIdx: number, teacher: StaffOption) {
     setDraft((prev) => {
       const copy = [...prev.groups];
       const g = copy[groupIdx];
-      // If first member is empty placeholder, replace it; otherwise append
       const hasOnlyBlankFirst =
         g.members.length === 1 && !g.members[0].full_name.trim();
       const nextMembers: OrderMemberDraft[] = hasOnlyBlankFirst
@@ -347,6 +449,8 @@ export default function AppointmentOrdersPage({
               member_no: 1,
               id_user: teacher.id_user,
               full_name: teacher.fullName,
+              admin_position: teacher.adminPosition,
+              academic_standing: teacher.academicStanding,
               official_position: teacher.officialPosition,
               working_role: g.members[0].working_role || 'ประธานคณะทำงาน',
             },
@@ -357,12 +461,36 @@ export default function AppointmentOrdersPage({
               member_no: g.members.length + 1,
               id_user: teacher.id_user,
               full_name: teacher.fullName,
+              admin_position: teacher.adminPosition,
+              academic_standing: teacher.academicStanding,
               official_position: teacher.officialPosition,
               working_role: 'คณะทำงาน',
             },
           ];
 
       copy[groupIdx] = { ...g, members: nextMembers };
+      return { ...prev, groups: copy };
+    });
+  }
+
+  function selectTeacherForExistingRow(
+    groupIdx: number,
+    memberIdx: number,
+    teacher: StaffOption,
+  ) {
+    setDraft((prev) => {
+      const copy = [...prev.groups];
+      const g = copy[groupIdx];
+      const members = [...g.members];
+      members[memberIdx] = {
+        ...members[memberIdx],
+        id_user: teacher.id_user,
+        full_name: teacher.fullName,
+        admin_position: teacher.adminPosition,
+        academic_standing: teacher.academicStanding,
+        official_position: teacher.officialPosition,
+      };
+      copy[groupIdx] = { ...g, members };
       return { ...prev, groups: copy };
     });
   }
@@ -379,6 +507,8 @@ export default function AppointmentOrdersPage({
             member_no: g.members.length + 1,
             id_user: null,
             full_name: '',
+            admin_position: 'ครู',
+            academic_standing: '',
             official_position: 'ครู',
             working_role: 'คณะทำงาน',
           },
@@ -388,17 +518,52 @@ export default function AppointmentOrdersPage({
     });
   }
 
-  function updateMemberField(
+  function updateMemberName(groupIdx: number, memberIdx: number, name: string) {
+    setDraft((prev) => {
+      const copy = [...prev.groups];
+      const g = copy[groupIdx];
+      const members = [...g.members];
+      members[memberIdx] = {
+        ...members[memberIdx],
+        full_name: name,
+      };
+      copy[groupIdx] = { ...g, members };
+      return { ...prev, groups: copy };
+    });
+  }
+
+  function updateMemberPositionParts(
     groupIdx: number,
     memberIdx: number,
-    field: keyof OrderMemberDraft,
-    value: string,
+    nextAdminPos: string,
+    nextAcademic: string,
   ) {
     setDraft((prev) => {
       const copy = [...prev.groups];
       const g = copy[groupIdx];
       const members = [...g.members];
-      members[memberIdx] = { ...members[memberIdx], [field]: value };
+      const combined = composeOfficialPosition(nextAdminPos, nextAcademic);
+      members[memberIdx] = {
+        ...members[memberIdx],
+        admin_position: nextAdminPos,
+        academic_standing: nextAcademic,
+        official_position: combined,
+      };
+      copy[groupIdx] = { ...g, members };
+      return { ...prev, groups: copy };
+    });
+  }
+
+  function updateMemberWorkingRole(
+    groupIdx: number,
+    memberIdx: number,
+    workingRole: string,
+  ) {
+    setDraft((prev) => {
+      const copy = [...prev.groups];
+      const g = copy[groupIdx];
+      const members = [...g.members];
+      members[memberIdx] = { ...members[memberIdx], working_role: workingRole };
       copy[groupIdx] = { ...g, members };
       return { ...prev, groups: copy };
     });
@@ -416,7 +581,9 @@ export default function AppointmentOrdersPage({
               member_no: 1,
               id_user: null,
               full_name: '',
-              official_position: '',
+              admin_position: 'ครู',
+              academic_standing: '',
+              official_position: 'ครู',
               working_role: 'คณะทำงาน',
             },
           ],
@@ -516,14 +683,12 @@ export default function AppointmentOrdersPage({
           .eq('id', targetOrderId);
         if (updErr) throw new Error(updErr.message);
 
-        // ล้างคณะทำงานเดิมเพื่อบันทึกชุดปัจจุบันเข้าไปใหม่
         await supabase
           .from('SchoolWebOrderGroups')
           .delete()
           .eq('order_id', targetOrderId);
       }
 
-      // บันทึกแต่ละชุดคณะทำงาน (ข้อ 1, 2, 3...) และรายชื่อย่อย (1.1, 1.2...)
       for (let gIdx = 0; gIdx < draft.groups.length; gIdx++) {
         const g = draft.groups[gIdx];
         const cleanDuties = g.duties.map((d) => d.trim()).filter(Boolean);
@@ -598,14 +763,13 @@ export default function AppointmentOrdersPage({
     setMessage({ type: 'ok', text: 'ลบคำสั่งแต่งตั้งเรียบร้อยแล้ว' });
   }
 
+  const signerSplit = useMemo(
+    () => splitOfficialPosition(draft.signer_title, academicStandings),
+    [draft.signer_title, academicStandings],
+  );
+
   return (
     <div className="space-y-4">
-      <datalist id="working-role-suggestions">
-        {WORKING_ROLE_SUGGESTIONS.map((role) => (
-          <option key={role} value={role} />
-        ))}
-      </datalist>
-
       {/* Top Action Bar */}
       <div className="surface-card p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -666,7 +830,6 @@ export default function AppointmentOrdersPage({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Mobile/Tablet Portrait Mode Switcher (iOS / Small Screens) */}
             <div className="inline-flex rounded-lg border border-line bg-canvas p-0.5 lg:hidden">
               <button
                 type="button"
@@ -846,7 +1009,7 @@ export default function AppointmentOrdersPage({
                   ส่วนที่ 2 · ชุดคณะทำงานและหน้าที่ ({draft.groups.length} คณะ)
                 </h2>
                 <p className="text-xs text-slate-500">
-                  เพิ่มชุดคณะทำงาน ข้อ 1, 2, 3... พร้อมรายชื่อครูและหน้าที่ของแต่ละชุด
+                  พิมพ์ค้นหาชื่อครู เลือกตำแหน่งบริหาร วิทยฐานะ และตำแหน่งทำงานได้รายคน
                 </p>
               </div>
               {canEdit && (
@@ -913,122 +1076,203 @@ export default function AppointmentOrdersPage({
                   )}
                 </div>
 
-                {/* รายชื่อผู้ได้รับแต่งตั้ง (1.1, 1.2...) */}
-                <div className="space-y-2.5">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                {/* แถบค้นหาชื่อบุคลากรเพื่อเพิ่มเข้าชุดคณะทำงาน */}
+                <div className="space-y-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-xs font-medium text-slate-600">
-                      รายชื่อในข้อที่ {gIdx + 1} (ชื่อ-นามสกุล · ตำแหน่ง · ตำแหน่งทำงาน)
+                      รายชื่อในข้อที่ {gIdx + 1} (ชื่อ-นามสกุล · ตำแหน่งบริหาร · วิทยฐานะ · ตำแหน่งทำงาน)
                     </p>
 
                     {canEdit && (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <select
-                          value=""
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              addMemberFromTeacher(gIdx, e.target.value);
-                            }
-                          }}
-                          aria-label="เลือกครูเข้าคณะทำงาน"
-                          className="rounded-lg border border-brand-200 bg-brand-50/60 px-2.5 py-1 text-xs font-medium text-brand-700 outline-none focus:border-brand-500"
-                        >
-                          <option value="">
-                            + เลือกจากรายชื่อบุคลากรในโรงเรียน...
-                          </option>
-                          {staffList.map((t) => (
-                            <option key={t.id_user} value={t.id_user}>
-                              {t.fullName} ({t.officialPosition})
-                            </option>
-                          ))}
-                        </select>
-
+                      <div className="flex flex-wrap items-center gap-2">
+                        <QuickTeacherSearchPicker
+                          staffList={staffList}
+                          placeholder="พิมพ์ชื่อค้นหาบุคลากรเพื่อเพิ่ม..."
+                          onSelect={(teacher) =>
+                            addMemberFromTeacher(gIdx, teacher)
+                          }
+                        />
                         <button
                           type="button"
                           onClick={() => addBlankMember(gIdx)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-line bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          className="inline-flex h-8 items-center gap-1 rounded-lg border border-line bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
                         >
-                          <UserPlus className="h-3 w-3" strokeWidth={1.5} />
+                          <UserPlus className="h-3.5 w-3.5" strokeWidth={1.5} />
                           <span>เพิ่มแถวเปล่า</span>
                         </button>
                       </div>
                     )}
                   </div>
 
-                  <div className="space-y-2">
-                    {group.members.map((member, mIdx) => (
-                      <div
-                        key={mIdx}
-                        className="grid gap-2 rounded-xl border border-line bg-canvas/60 p-2.5 sm:grid-cols-12 sm:items-center"
-                      >
-                        <div className="flex items-center gap-2 sm:col-span-5">
-                          <span className="w-8 shrink-0 text-right font-medium tabular-nums text-xs text-slate-500">
-                            {gIdx + 1}.{mIdx + 1}
-                          </span>
-                          <input
-                            type="text"
-                            disabled={!canEdit}
-                            value={member.full_name}
-                            onChange={(e) =>
-                              updateMemberField(
-                                gIdx,
-                                mIdx,
-                                'full_name',
-                                e.target.value,
-                              )
-                            }
-                            placeholder="ชื่อ-นามสกุล"
-                            className="input py-1.5 text-xs"
-                          />
-                        </div>
+                  {/* รายการผู้ได้รับแต่งตั้ง (1.1, 1.2...) */}
+                  <div className="space-y-2.5">
+                    {group.members.map((member, mIdx) => {
+                      const currentAdminPos =
+                        member.admin_position ??
+                        splitOfficialPosition(
+                          member.official_position,
+                          academicStandings,
+                        ).admin_position;
+                      const currentAcademic =
+                        member.academic_standing ??
+                        splitOfficialPosition(
+                          member.official_position,
+                          academicStandings,
+                        ).academic_standing;
 
-                        <div className="sm:col-span-3">
-                          <input
-                            type="text"
-                            disabled={!canEdit}
-                            value={member.official_position}
-                            onChange={(e) =>
-                              updateMemberField(
-                                gIdx,
-                                mIdx,
-                                'official_position',
-                                e.target.value,
-                              )
-                            }
-                            placeholder="ตำแหน่ง (เช่น ครู)"
-                            className="input py-1.5 text-xs"
-                          />
-                        </div>
+                      const posOptions =
+                        currentAdminPos &&
+                        !adminPositions.includes(currentAdminPos)
+                          ? [currentAdminPos, ...adminPositions]
+                          : adminPositions;
 
-                        <div className="flex items-center gap-1.5 sm:col-span-4">
-                          <input
-                            type="text"
-                            list="working-role-suggestions"
-                            disabled={!canEdit}
-                            value={member.working_role}
-                            onChange={(e) =>
-                              updateMemberField(
-                                gIdx,
-                                mIdx,
-                                'working_role',
-                                e.target.value,
-                              )
-                            }
-                            placeholder="ตำแหน่งทำงาน"
-                            className="input py-1.5 text-xs"
-                          />
-                          {canEdit && (
-                            <button
-                              type="button"
-                              onClick={() => removeMember(gIdx, mIdx)}
-                              className="rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
-                              title="ลบรายชื่อนี้"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-                            </button>
-                          )}
+                      const acadOptions =
+                        currentAcademic &&
+                        !academicStandings.includes(currentAcademic)
+                          ? [currentAcademic, ...academicStandings]
+                          : academicStandings;
+
+                      return (
+                        <div
+                          key={mIdx}
+                          className="rounded-xl border border-line bg-canvas/60 p-3 space-y-2"
+                        >
+                          <div className="grid gap-2 sm:grid-cols-12 sm:items-center">
+                            {/* 1) ชื่อ-นามสกุล (พิมพ์ค้นหาชื่อครูได้ทันที) */}
+                            <div className="flex items-center gap-2 sm:col-span-6">
+                              <span className="w-7 shrink-0 text-right font-semibold tabular-nums text-xs text-brand-700">
+                                {gIdx + 1}.{mIdx + 1}
+                              </span>
+                              <div className="flex-1">
+                                <SearchableMemberNameInput
+                                  value={member.full_name}
+                                  disabled={!canEdit}
+                                  staffList={staffList}
+                                  onChangeText={(txt) =>
+                                    updateMemberName(gIdx, mIdx, txt)
+                                  }
+                                  onSelectTeacher={(teacher) =>
+                                    selectTeacherForExistingRow(
+                                      gIdx,
+                                      memberIdxValue(mIdx),
+                                      teacher,
+                                    )
+                                  }
+                                />
+                              </div>
+                            </div>
+
+                            {/* 2) ตำแหน่งทำงานในคณะกรรมการ */}
+                            <div className="flex items-center gap-1.5 sm:col-span-6">
+                              <select
+                                disabled={!canEdit}
+                                value={
+                                  WORKING_ROLE_OPTIONS.includes(member.working_role)
+                                    ? member.working_role
+                                    : '__custom__'
+                                }
+                                onChange={(e) => {
+                                  if (e.target.value !== '__custom__') {
+                                    updateMemberWorkingRole(
+                                      gIdx,
+                                      mIdx,
+                                      e.target.value,
+                                    );
+                                  }
+                                }}
+                                aria-label="เลือกตำแหน่งทำงาน"
+                                className="input py-1.5 text-xs"
+                              >
+                                {WORKING_ROLE_OPTIONS.map((role) => (
+                                  <option key={role} value={role}>
+                                    {role}
+                                  </option>
+                                ))}
+                                {!WORKING_ROLE_OPTIONS.includes(
+                                  member.working_role,
+                                ) && (
+                                  <option value="__custom__">
+                                    {member.working_role || 'กำหนดเอง'}
+                                  </option>
+                                )}
+                              </select>
+
+                              {canEdit && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeMember(gIdx, mIdx)}
+                                  className="rounded p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                                  title="ลบรายชื่อนี้"
+                                >
+                                  <Trash2
+                                    className="h-3.5 w-3.5"
+                                    strokeWidth={1.5}
+                                  />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* แถวที่ 2 ของคนนี้: Dropdown ตำแหน่งบริหาร + Dropdown วิทยฐานะ */}
+                          <div className="grid gap-2 pl-9 sm:grid-cols-12">
+                            <div className="sm:col-span-6">
+                              <label className="mb-0.5 block text-[11px] font-medium text-slate-500">
+                                ตำแหน่ง / ตำแหน่งบริหาร
+                              </label>
+                              <select
+                                disabled={!canEdit}
+                                value={currentAdminPos}
+                                onChange={(e) =>
+                                  updateMemberPositionParts(
+                                    gIdx,
+                                    mIdx,
+                                    e.target.value,
+                                    currentAcademic,
+                                  )
+                                }
+                                className="input py-1 text-xs"
+                              >
+                                <option value="">-- เลือกตำแหน่งบริหาร/สายงาน --</option>
+                                {posOptions.map((pos) => (
+                                  <option key={pos} value={pos}>
+                                    {pos}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="sm:col-span-6">
+                              <label className="mb-0.5 block text-[11px] font-medium text-slate-500">
+                                วิทยฐานะ
+                              </label>
+                              <select
+                                disabled={!canEdit}
+                                value={currentAcademic || 'ไม่มีวิทยฐานะ'}
+                                onChange={(e) => {
+                                  const val =
+                                    e.target.value === 'ไม่มีวิทยฐานะ'
+                                      ? ''
+                                      : e.target.value;
+                                  updateMemberPositionParts(
+                                    gIdx,
+                                    mIdx,
+                                    currentAdminPos,
+                                    val,
+                                  );
+                                }}
+                                className="input py-1 text-xs"
+                              >
+                                {acadOptions.map((acad) => (
+                                  <option key={acad} value={acad}>
+                                    {acad}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1088,7 +1332,7 @@ export default function AppointmentOrdersPage({
                 ส่วนที่ 3 · วันที่มีผลบังคับใช้ และผู้ลงนามคำสั่ง
               </h2>
               <p className="mt-0.5 text-xs text-slate-500">
-                ระบุข้อความท้ายคำสั่ง วันที่สั่ง และชื่อ-ตำแหน่งผู้ลงนาม
+                พิมพ์ชื่อค้นหาผู้ลงนาม พร้อมเลือกตำแหน่งบริหารและวิทยฐานะได้ทันที
               </p>
             </div>
 
@@ -1127,58 +1371,86 @@ export default function AppointmentOrdersPage({
                 />
               </div>
 
-              {canEdit && staffList.length > 0 && (
-                <div className="sm:col-span-12">
-                  <label className="mb-1 block text-xs font-medium text-slate-500">
-                    ดึงชื่อผู้บริหาร/ผู้ลงนามจากทะเบียนบุคลากร (ตัวเลือกช่วยกรอก)
-                  </label>
-                  <select
-                    value=""
-                    onChange={(e) => {
-                      const t = staffList.find(
-                        (s) => s.id_user === Number(e.target.value),
-                      );
-                      if (t) {
-                        setDraft((prev) => ({
-                          ...prev,
-                          signer_name: t.fullName,
-                          signer_title: `ผู้อำนวยการ${schoolName}`,
-                        }));
-                      }
-                    }}
-                    className="input py-1.5 text-xs"
-                  >
-                    <option value="">
-                      เลือกชื่อผู้ลงนามจากรายชื่อบุคลากร...
-                    </option>
-                    {staffList.map((t) => (
-                      <option key={t.id_user} value={t.id_user}>
-                        {t.fullName} ({t.officialPosition})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div className="sm:col-span-6">
+              <div className="sm:col-span-12">
                 <label className="mb-1 block text-xs font-medium text-ink">
-                  ชื่อผู้ลงนาม (ในวงเล็บ)
+                  ชื่อผู้ลงนาม (พิมพ์ชื่อค้นหาจากทะเบียนบุคลากร หรือพิมพ์เอง)
                 </label>
-                <input
-                  type="text"
-                  disabled={!canEdit}
+                <SearchableMemberNameInput
                   value={draft.signer_name}
-                  onChange={(e) =>
-                    setDraft((prev) => ({ ...prev, signer_name: e.target.value }))
+                  disabled={!canEdit}
+                  staffList={staffList}
+                  placeholder="พิมพ์ชื่อเพื่อค้นหาผู้บริหาร/บุคลากร..."
+                  onChangeText={(txt) =>
+                    setDraft((prev) => ({ ...prev, signer_name: txt }))
                   }
-                  placeholder="เช่น นายสมชาย ใจดี"
-                  className="input"
+                  onSelectTeacher={(teacher) =>
+                    setDraft((prev) => ({
+                      ...prev,
+                      signer_name: teacher.fullName,
+                      signer_title: teacher.officialPosition,
+                    }))
+                  }
                 />
               </div>
 
               <div className="sm:col-span-6">
                 <label className="mb-1 block text-xs font-medium text-ink">
-                  ตำแหน่งผู้ลงนาม
+                  ตำแหน่งบริหารผู้ลงนาม
+                </label>
+                <select
+                  disabled={!canEdit}
+                  value={signerSplit.admin_position}
+                  onChange={(e) => {
+                    const nextTitle = composeOfficialPosition(
+                      e.target.value,
+                      signerSplit.academic_standing,
+                    );
+                    setDraft((prev) => ({ ...prev, signer_title: nextTitle }));
+                  }}
+                  className="input py-1.5 text-xs"
+                >
+                  <option value="">-- เลือกตำแหน่งบริหาร --</option>
+                  {(signerSplit.admin_position &&
+                  !adminPositions.includes(signerSplit.admin_position)
+                    ? [signerSplit.admin_position, ...adminPositions]
+                    : adminPositions
+                  ).map((pos) => (
+                    <option key={pos} value={pos}>
+                      {pos}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="sm:col-span-6">
+                <label className="mb-1 block text-xs font-medium text-ink">
+                  วิทยฐานะผู้ลงนาม
+                </label>
+                <select
+                  disabled={!canEdit}
+                  value={signerSplit.academic_standing || 'ไม่มีวิทยฐานะ'}
+                  onChange={(e) => {
+                    const acadVal =
+                      e.target.value === 'ไม่มีวิทยฐานะ' ? '' : e.target.value;
+                    const nextTitle = composeOfficialPosition(
+                      signerSplit.admin_position,
+                      acadVal,
+                    );
+                    setDraft((prev) => ({ ...prev, signer_title: nextTitle }));
+                  }}
+                  className="input py-1.5 text-xs"
+                >
+                  {academicStandings.map((acad) => (
+                    <option key={acad} value={acad}>
+                      {acad}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="sm:col-span-12">
+                <label className="mb-1 block text-xs font-medium text-slate-500">
+                  ตำแหน่งที่แสดงใต้ลายเซ็น (ปรับแต่งข้อความเพิ่มเติมได้)
                 </label>
                 <input
                   type="text"
@@ -1191,7 +1463,7 @@ export default function AppointmentOrdersPage({
                     }))
                   }
                   placeholder={`เช่น ผู้อำนวยการ${schoolName}`}
-                  className="input"
+                  className="input py-1.5 text-xs"
                 />
               </div>
             </div>
@@ -1225,6 +1497,181 @@ export default function AppointmentOrdersPage({
           />
         </div>
       </div>
+    </div>
+  );
+}
+
+function memberIdxValue(idx: number): number {
+  return idx;
+}
+
+/**
+ * ช่องพิมพ์ค้นหาบุคลากรแบบรวดเร็วเพื่อกดเพิ่มเข้าชุดคณะทำงาน
+ */
+function QuickTeacherSearchPicker({
+  staffList,
+  placeholder,
+  onSelect,
+}: {
+  staffList: StaffOption[];
+  placeholder: string;
+  onSelect: (teacher: StaffOption) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, []);
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return staffList.slice(0, 30);
+    return staffList.filter(
+      (s) =>
+        s.fullName.toLowerCase().includes(q) ||
+        s.adminPosition.toLowerCase().includes(q) ||
+        s.academicStanding.toLowerCase().includes(q),
+    );
+  }, [staffList, query]);
+
+  return (
+    <div ref={wrapRef} className="relative w-64">
+      <div className="relative">
+        <Search
+          className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-brand-600"
+          strokeWidth={1.5}
+        />
+        <input
+          type="text"
+          value={query}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
+          placeholder={placeholder}
+          className="h-8 w-full rounded-lg border border-brand-200 bg-brand-50/50 pl-8 pr-3 text-xs text-ink placeholder:text-brand-700/70 outline-none focus:border-brand-500 focus:bg-white"
+        />
+      </div>
+
+      {open && (
+        <div className="absolute right-0 z-30 mt-1 max-h-60 w-80 overflow-y-auto rounded-xl border border-line bg-white p-1 shadow-lg">
+          {matches.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-slate-500">
+              ไม่พบบุคลากรที่ตรงกับ "{query}"
+            </p>
+          ) : (
+            matches.map((t) => (
+              <button
+                key={t.id_user}
+                type="button"
+                onClick={() => {
+                  onSelect(t);
+                  setQuery('');
+                  setOpen(false);
+                }}
+                className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-xs hover:bg-brand-50"
+              >
+                <span className="font-medium text-ink">{t.fullName}</span>
+                <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
+                  {t.officialPosition}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * ช่อง ชื่อ-นามสกุล ที่สามารถพิมพ์ค้นหาชื่อครูในโรงเรียนได้แบบ Autocomplete
+ */
+function SearchableMemberNameInput({
+  value,
+  disabled,
+  staffList,
+  placeholder = 'พิมพ์ชื่อค้นหา หรือระบุชื่อ-นามสกุล...',
+  onChangeText,
+  onSelectTeacher,
+}: {
+  value: string;
+  disabled?: boolean;
+  staffList: StaffOption[];
+  placeholder?: string;
+  onChangeText: (text: string) => void;
+  onSelectTeacher: (teacher: StaffOption) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, []);
+
+  const matches = useMemo(() => {
+    const q = value.trim().toLowerCase();
+    if (!q) return staffList.slice(0, 25);
+    return staffList
+      .filter(
+        (s) =>
+          s.fullName.toLowerCase().includes(q) ||
+          s.adminPosition.toLowerCase().includes(q) ||
+          s.academicStanding.toLowerCase().includes(q),
+      )
+      .slice(0, 25);
+  }, [staffList, value]);
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <input
+        type="text"
+        disabled={disabled}
+        value={value}
+        onFocus={() => setOpen(true)}
+        onChange={(e) => {
+          onChangeText(e.target.value);
+          setOpen(true);
+        }}
+        placeholder={placeholder}
+        className="input py-1.5 text-xs"
+      />
+
+      {open && !disabled && matches.length > 0 && (
+        <div className="absolute left-0 z-30 mt-1 max-h-56 w-full min-w-[260px] overflow-y-auto rounded-xl border border-line bg-white p-1 shadow-lg">
+          {matches.map((t) => (
+            <button
+              key={t.id_user}
+              type="button"
+              onClick={() => {
+                onSelectTeacher(t);
+                setOpen(false);
+              }}
+              className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-brand-50"
+            >
+              <span className="font-medium text-ink">{t.fullName}</span>
+              <span className="shrink-0 text-[11px] text-slate-500">
+                {t.officialPosition}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -3,6 +3,8 @@ export interface OrderMemberDraft {
   member_no: number;
   id_user: number | null;
   full_name: string;
+  admin_position?: string;
+  academic_standing?: string;
   official_position: string;
   working_role: string;
 }
@@ -34,6 +36,85 @@ export interface AppointmentOrderRecord {
 
 export interface AppointmentOrderFull extends AppointmentOrderRecord {
   groups: OrderGroupDraft[];
+}
+
+export const DEFAULT_ADMIN_POSITIONS = [
+  'ผู้อำนวยการโรงเรียน',
+  'ผู้อำนวยการสถานศึกษา',
+  'รองผู้อำนวยการโรงเรียน',
+  'รองผู้อำนวยการสถานศึกษา',
+  'หัวหน้าฝ่ายบริหารงานบุคคล',
+  'หัวหน้าฝ่ายวิชาการ',
+  'หัวหน้าฝ่ายบริหารทั่วไป',
+  'หัวหน้าฝ่ายการเงินและพัสดุ',
+  'หัวหน้ากลุ่มสาระการเรียนรู้',
+  'ครู',
+  'ครูผู้ช่วย',
+  'พนักงานราชการ',
+  'ครูอัตราจ้าง',
+  'เจ้าหน้าที่ธุรการ',
+];
+
+export const DEFAULT_ACADEMIC_STANDINGS = [
+  'ไม่มีวิทยฐานะ',
+  'ครูชำนาญการ',
+  'ครูชำนาญการพิเศษ',
+  'ครูเชี่ยวชาญ',
+  'ครูเชี่ยวชาญพิเศษ',
+  'ชำนาญการ',
+  'ชำนาญการพิเศษ',
+  'เชี่ยวชาญ',
+  'เชี่ยวชาญพิเศษ',
+];
+
+/**
+ * รวม "ตำแหน่งบริหาร/ตำแหน่ง" + "วิทยฐานะ" เข้าเป็นข้อความคอลัมน์ตำแหน่งในคำสั่ง
+ */
+export function composeOfficialPosition(
+  adminPos: string,
+  academicStanding: string,
+): string {
+  const cleanPos = adminPos.trim();
+  const cleanAcad = academicStanding.trim();
+  const isNoneAcad =
+    !cleanAcad ||
+    cleanAcad === 'ไม่มีวิทยฐานะ' ||
+    cleanAcad === 'ไม่มี' ||
+    cleanAcad === '-';
+
+  if (isNoneAcad) return cleanPos;
+  if (!cleanPos || cleanPos === 'ไม่มีตำแหน่งบริหาร') return cleanAcad;
+  if (cleanPos.includes(cleanAcad)) return cleanPos;
+  return `${cleanPos} ${cleanAcad}`.trim();
+}
+
+/**
+ * แยกข้อความ official_position เดิมออกเป็น (ตำแหน่งบริหาร/ตำแหน่ง, วิทยฐานะ)
+ */
+export function splitOfficialPosition(
+  officialPosition: string,
+  knownAcademics: string[] = DEFAULT_ACADEMIC_STANDINGS,
+): { admin_position: string; academic_standing: string } {
+  const raw = (officialPosition || '').trim();
+  if (!raw) {
+    return { admin_position: 'ครู', academic_standing: '' };
+  }
+  const sortedAcad = [...knownAcademics]
+    .filter((a) => a && a !== 'ไม่มีวิทยฐานะ' && a !== '-')
+    .sort((a, b) => b.length - a.length);
+
+  for (const acad of sortedAcad) {
+    if (raw === acad) {
+      return { admin_position: '', academic_standing: acad };
+    }
+    if (raw.endsWith(` ${acad}`)) {
+      return {
+        admin_position: raw.slice(0, raw.length - acad.length).trim(),
+        academic_standing: acad,
+      };
+    }
+  }
+  return { admin_position: raw, academic_standing: '' };
 }
 
 export const THAI_MONTHS = [
@@ -145,6 +226,8 @@ export function createDefaultOrderDraft(
             member_no: 1,
             id_user: null,
             full_name: '',
+            admin_position: 'ผู้อำนวยการโรงเรียน',
+            academic_standing: '',
             official_position: 'ผู้อำนวยการโรงเรียน',
             working_role: 'ประธานคณะทำงาน',
           },
@@ -161,6 +244,8 @@ export function createDefaultOrderDraft(
             member_no: 1,
             id_user: null,
             full_name: '',
+            admin_position: 'ครู',
+            academic_standing: '',
             official_position: 'ครู',
             working_role: 'หัวหน้าคณะทำงาน',
           },
