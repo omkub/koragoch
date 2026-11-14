@@ -1,7 +1,10 @@
 import {
+  ALL_ARABIC_DIGITS,
+  ALL_THAI_DIGITS,
   formatDigits,
   formatThaiOrderDate,
   type AppointmentOrderFull,
+  type DigitFormatSettings,
 } from './appointmentOrders';
 
 function xmlEscape(str: string): string {
@@ -61,17 +64,17 @@ function buildZipBlob(files: { path: string; content: string }[]): Blob {
 
   let pos = 0;
   for (const e of entries) {
-    view.setUint32(pos, 0x04034b50, true); // Local file header signature
-    view.setUint16(pos + 4, 20, true); // Version needed
-    view.setUint16(pos + 6, 0x0800, true); // UTF-8 flag
-    view.setUint16(pos + 8, 0, true); // Method 0 = STORE
-    view.setUint16(pos + 10, 0, true); // Mod time
-    view.setUint16(pos + 12, 0x5421, true); // Mod date
-    view.setUint32(pos + 14, e.crc, true); // CRC-32
-    view.setUint32(pos + 18, e.dataBytes.length, true); // Compressed size
-    view.setUint32(pos + 22, e.dataBytes.length, true); // Uncompressed size
-    view.setUint16(pos + 26, e.nameBytes.length, true); // Filename length
-    view.setUint16(pos + 28, 0, true); // Extra field length
+    view.setUint32(pos, 0x04034b50, true);
+    view.setUint16(pos + 4, 20, true);
+    view.setUint16(pos + 6, 0x0800, true);
+    view.setUint16(pos + 8, 0, true);
+    view.setUint16(pos + 10, 0, true);
+    view.setUint16(pos + 12, 0x5421, true);
+    view.setUint32(pos + 14, e.crc, true);
+    view.setUint32(pos + 18, e.dataBytes.length, true);
+    view.setUint32(pos + 22, e.dataBytes.length, true);
+    view.setUint16(pos + 26, e.nameBytes.length, true);
+    view.setUint16(pos + 28, 0, true);
     pos += 30;
     out.set(e.nameBytes, pos);
     pos += e.nameBytes.length;
@@ -81,29 +84,28 @@ function buildZipBlob(files: { path: string; content: string }[]): Blob {
 
   const centralStart = pos;
   for (const e of entries) {
-    view.setUint32(pos, 0x02014b50, true); // Central directory signature
-    view.setUint16(pos + 4, 20, true); // Version made by
-    view.setUint16(pos + 6, 20, true); // Version needed
-    view.setUint16(pos + 8, 0x0800, true); // UTF-8 flag
-    view.setUint16(pos + 10, 0, true); // Method 0 = STORE
-    view.setUint16(pos + 12, 0, true); // Mod time
-    view.setUint16(pos + 14, 0x5421, true); // Mod date
-    view.setUint32(pos + 16, e.crc, true); // CRC-32
-    view.setUint32(pos + 20, e.dataBytes.length, true); // Compressed size
-    view.setUint32(pos + 24, e.dataBytes.length, true); // Uncompressed size
-    view.setUint16(pos + 28, e.nameBytes.length, true); // Filename length
-    view.setUint16(pos + 30, 0, true); // Extra length
-    view.setUint16(pos + 32, 0, true); // Comment length
-    view.setUint16(pos + 34, 0, true); // Disk number
-    view.setUint16(pos + 36, 0, true); // Internal attr
-    view.setUint32(pos + 38, 0, true); // External attr
-    view.setUint32(pos + 42, e.offset, true); // Relative offset of local header
+    view.setUint32(pos, 0x02014b50, true);
+    view.setUint16(pos + 4, 20, true);
+    view.setUint16(pos + 6, 20, true);
+    view.setUint16(pos + 8, 0x0800, true);
+    view.setUint16(pos + 10, 0, true);
+    view.setUint16(pos + 12, 0, true);
+    view.setUint16(pos + 14, 0x5421, true);
+    view.setUint32(pos + 16, e.crc, true);
+    view.setUint32(pos + 20, e.dataBytes.length, true);
+    view.setUint32(pos + 24, e.dataBytes.length, true);
+    view.setUint16(pos + 28, e.nameBytes.length, true);
+    view.setUint16(pos + 30, 0, true);
+    view.setUint16(pos + 32, 0, true);
+    view.setUint16(pos + 34, 0, true);
+    view.setUint16(pos + 36, 0, true);
+    view.setUint32(pos + 38, 0, true);
+    view.setUint32(pos + 42, e.offset, true);
     pos += 46;
     out.set(e.nameBytes, pos);
     pos += e.nameBytes.length;
   }
 
-  // End of Central Directory Record
   view.setUint32(pos, 0x06054b50, true);
   view.setUint16(pos + 4, 0, true);
   view.setUint16(pos + 6, 0, true);
@@ -137,7 +139,6 @@ function paragraphXml(
     leftTwips?: number;
     afterTwips?: number;
     beforeTwips?: number;
-    bottomBorderCenterRule?: boolean;
   } = {},
 ): string {
   const alignTag = opts.align ? `<w:jc w:val="${opts.align}"/>` : '';
@@ -165,18 +166,13 @@ function paragraphXml(
 }
 
 function memberTableXml(
-  groupNoStr: string,
+  groupIndex: number,
   members: AppointmentOrderFull['groups'][number]['members'],
-  useThaiDigits: boolean,
+  useThaiMemberDigits: boolean,
 ): string {
-  // ความกว้างพื้นที่เนื้อหากระดาษ A4 (21.0 ซม. - ซ้าย 3.0 ซม. - ขวา 2.0 ซม. = 16.0 ซม. ≈ 9071 twips)
-  // ย่อหน้าซ้ายของตาราง 720 twips (~1.27 ซม.) เหลือความกว้าง 8351 twips แบ่งเป็น 3 คอลัมน์:
-  // คอลัมน์ 1 (1.1 ชื่อ-นามสกุล): 3850 twips
-  // คอลัมน์ 2 (ตำแหน่ง): 2400 twips
-  // คอลัมน์ 3 (ตำแหน่งทำงาน): 2101 twips
   const rowsXml = members
     .map((m, mIdx) => {
-      const subNo = `${groupNoStr}.${formatDigits(mIdx + 1, useThaiDigits)}`;
+      const subNo = `${formatDigits(groupIndex + 1, useThaiMemberDigits)}.${formatDigits(mIdx + 1, useThaiMemberDigits)}`;
       const fullName = `${subNo}  ${m.full_name.trim() || '....................................'}`;
       const pos = m.official_position.trim() || '........................';
       const role = m.working_role.trim() || 'คณะทำงาน';
@@ -222,19 +218,24 @@ function memberTableXml(
 
 /**
  * สร้างและดาวน์โหลดไฟล์ Microsoft Word (.docx) มาตรฐาน OpenXML
- * รองรับทั้ง Windows (Microsoft Word) และ iOS (Word / Apple Pages / Files)
+ * รองรับการตั้งค่าเลขอารบิก / เลขไทย แยกตามส่วนของเอกสาร
  */
 export async function exportAppointmentOrderToDocx(
   schoolName: string,
   draft: Omit<AppointmentOrderFull, 'id'>,
-  useThaiDigits = false,
+  digitSettingsOrBool: DigitFormatSettings | boolean = ALL_ARABIC_DIGITS,
 ): Promise<void> {
-  const num = (v: string | number) => formatDigits(v, useThaiDigits);
-  const thaiDateInfo = formatThaiOrderDate(draft.order_date, useThaiDigits);
+  const ds: DigitFormatSettings =
+    typeof digitSettingsOrBool === 'boolean'
+      ? digitSettingsOrBool
+        ? ALL_THAI_DIGITS
+        : ALL_ARABIC_DIGITS
+      : digitSettingsOrBool;
 
+  const thaiDateInfo = formatThaiOrderDate(draft.order_date, ds.orderDate);
   const bodyParts: string[] = [];
 
-  // 1) ส่วนหัวคำสั่ง
+  // 1) ส่วนหัวคำสั่ง (ds.header)
   bodyParts.push(
     paragraphXml(`คำสั่ง${schoolName}`, {
       align: 'center',
@@ -244,13 +245,13 @@ export async function exportAppointmentOrderToDocx(
   );
   bodyParts.push(
     paragraphXml(
-      `ที่ ${num(draft.order_no || '...')} / ${num(draft.order_year || '....')}`,
+      `ที่ ${formatDigits(draft.order_no || '...', ds.header)} / ${formatDigits(draft.order_year || '....', ds.header)}`,
       { align: 'center', afterTwips: 40 },
     ),
   );
   bodyParts.push(
     paragraphXml(
-      `เรื่อง ${num(draft.subject || '........................................')}`,
+      `เรื่อง ${formatDigits(draft.subject || '........................................', ds.header)}`,
       { align: 'center', bold: true, afterTwips: 60 },
     ),
   );
@@ -261,12 +262,12 @@ export async function exportAppointmentOrderToDocx(
     }),
   );
 
-  // 2) ข้อความเกริ่นนำ (ย่อหน้า 1417 twips ≈ 2.5 ซม.)
+  // 2) ข้อความเกริ่นนำ (ds.preamble)
   if (draft.preamble.trim()) {
     const paragraphs = draft.preamble.split(/\r?\n/).filter((p) => p.trim());
     for (const p of paragraphs) {
       bodyParts.push(
-        paragraphXml(num(p.trim()), {
+        paragraphXml(formatDigits(p.trim(), ds.preamble), {
           align: 'both',
           firstLineTwips: 1417,
           afterTwips: 120,
@@ -278,20 +279,23 @@ export async function exportAppointmentOrderToDocx(
   // 3) ชุดคณะทำงาน ข้อ 1, 2, 3...
   for (let gIdx = 0; gIdx < draft.groups.length; gIdx++) {
     const g = draft.groups[gIdx];
-    const gNo = num(gIdx + 1);
+    const gHeadingNo = formatDigits(gIdx + 1, ds.groupHeading);
 
-    // หัวข้อชุดคณะทำงาน เช่น "1. คณะทำงานด้านอำนวยการ"
+    // หัวข้อชุดคณะทำงาน (ds.groupHeading)
     bodyParts.push(
-      paragraphXml(`${gNo}. ${num(g.group_title || 'คณะทำงาน........')}`, {
-        bold: true,
-        firstLineTwips: 720,
-        beforeTwips: 100,
-        afterTwips: 60,
-      }),
+      paragraphXml(
+        `${gHeadingNo}. ${formatDigits(g.group_title || 'คณะทำงาน........', ds.groupHeading)}`,
+        {
+          bold: true,
+          firstLineTwips: 720,
+          beforeTwips: 100,
+          afterTwips: 60,
+        },
+      ),
     );
 
-    // ตารางไร้เส้นขอบ 3 คอลัมน์ (1.1 ชื่อ-นามสกุล | ตำแหน่ง | ตำแหน่งทำงาน)
-    bodyParts.push(memberTableXml(gNo, g.members, useThaiDigits));
+    // ตารางไร้เส้นขอบ 3 คอลัมน์ (ds.memberNo)
+    bodyParts.push(memberTableXml(gIdx, g.members, ds.memberNo));
 
     // หัวข้อ "หน้าที่"
     bodyParts.push(
@@ -302,14 +306,14 @@ export async function exportAppointmentOrderToDocx(
       }),
     );
 
-    // รายการหน้าที่ 1, 2, 3...
+    // รายการหน้าที่ 1, 2, 3... (ds.dutyNo)
     for (let dIdx = 0; dIdx < g.duties.length; dIdx++) {
-      const dNo = num(dIdx + 1);
+      const dNo = formatDigits(dIdx + 1, ds.dutyNo);
       const dText =
         g.duties[dIdx]?.trim() ||
         '........................................................';
       bodyParts.push(
-        paragraphXml(`${dNo}. ${num(dText)}`, {
+        paragraphXml(`${dNo}. ${formatDigits(dText, ds.dutyNo)}`, {
           leftTwips: 720,
           afterTwips: 40,
         }),
@@ -317,13 +321,19 @@ export async function exportAppointmentOrderToDocx(
     }
   }
 
-  // 4) ส่วนท้ายคำสั่ง: ทั้งนี้ ตั้งแต่บัดนี้เป็นต้นไป + สั่ง ณ วันที่ ...
+  // 4) ส่วนท้ายคำสั่ง: ทั้งนี้ ตั้งแต่บัดนี้เป็นต้นไป + สั่ง ณ วันที่ ... (ds.orderDate)
   bodyParts.push(
-    paragraphXml(num(draft.effective_text || 'ทั้งนี้ ตั้งแต่บัดนี้เป็นต้นไป'), {
-      firstLineTwips: 1417,
-      beforeTwips: 160,
-      afterTwips: 80,
-    }),
+    paragraphXml(
+      formatDigits(
+        draft.effective_text || 'ทั้งนี้ ตั้งแต่บัดนี้เป็นต้นไป',
+        ds.orderDate,
+      ),
+      {
+        firstLineTwips: 1417,
+        beforeTwips: 160,
+        afterTwips: 80,
+      },
+    ),
   );
   bodyParts.push(
     paragraphXml(thaiDateInfo.fullText, {
@@ -332,7 +342,7 @@ export async function exportAppointmentOrderToDocx(
     }),
   );
 
-  // 5) บล็อกลงนามผู้บริหาร (ชิดขวาเยื้องกลาง)
+  // 5) บล็อกลงนามผู้บริหาร
   bodyParts.push(
     paragraphXml('........................................', {
       leftTwips: 3969,
@@ -361,8 +371,6 @@ export async function exportAppointmentOrderToDocx(
     ),
   );
 
-  // ตั้งค่าหน้ากระดาษ A4 (กว้าง 11906 twips = 21.0 ซม., สูง 16838 twips = 29.7 ซม.)
-  // กั้นหน้าซ้าย 1701 twips (3.0 ซม.), ขวา/บน/ล่าง 1134 twips (2.0 ซม.)
   const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -416,7 +424,6 @@ export async function exportAppointmentOrderToDocx(
   const safeOrderNo = (draft.order_no || '1').replace(/[^a-zA-Z0-9ก-๙_-]/g, '-');
   const fileName = `คำสั่งที่_${safeOrderNo}-${draft.order_year || 2569}.docx`;
 
-  // รองรับทั้งการดาวน์โหลดปกติบน Windows และการแชร์เปิดแอป Word/Pages บน iOS
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

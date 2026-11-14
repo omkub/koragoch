@@ -38,6 +38,33 @@ export interface AppointmentOrderFull extends AppointmentOrderRecord {
   groups: OrderGroupDraft[];
 }
 
+export interface DigitFormatSettings {
+  header: boolean;       // เลขที่คำสั่ง (ที่ ... / ...) และชื่อเรื่อง
+  preamble: boolean;     // ข้อความเกริ่นนำ
+  groupHeading: boolean; // เลขหัวข้อคณะทำงาน (1. คณะทำงาน...)
+  memberNo: boolean;     // เลขลำดับรายชื่อ (1.1, 1.2...)
+  dutyNo: boolean;       // เลขข้อหน้าที่ (1., 2....)
+  orderDate: boolean;    // สั่ง ณ วันที่ ... พ.ศ. ... และข้อความท้ายคำสั่ง
+}
+
+export const ALL_ARABIC_DIGITS: DigitFormatSettings = {
+  header: false,
+  preamble: false,
+  groupHeading: false,
+  memberNo: false,
+  dutyNo: false,
+  orderDate: false,
+};
+
+export const ALL_THAI_DIGITS: DigitFormatSettings = {
+  header: true,
+  preamble: true,
+  groupHeading: true,
+  memberNo: true,
+  dutyNo: true,
+  orderDate: true,
+};
+
 export const DEFAULT_ADMIN_POSITIONS = [
   'ผู้อำนวยการโรงเรียน',
   'ผู้อำนวยการสถานศึกษา',

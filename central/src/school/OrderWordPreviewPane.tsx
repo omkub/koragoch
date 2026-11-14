@@ -1,16 +1,26 @@
 import { useState } from 'react';
-import { Download, FileText, Printer, ZoomIn, ZoomOut } from 'lucide-react';
 import {
+  Download,
+  FileText,
+  Printer,
+  SlidersHorizontal,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react';
+import {
+  ALL_ARABIC_DIGITS,
+  ALL_THAI_DIGITS,
   formatDigits,
   formatThaiOrderDate,
   type AppointmentOrderFull,
+  type DigitFormatSettings,
 } from './appointmentOrders';
 
 interface OrderWordPreviewPaneProps {
   schoolName: string;
   draft: Omit<AppointmentOrderFull, 'id'>;
-  useThaiDigits: boolean;
-  onChangeThaiDigits: (val: boolean) => void;
+  digitSettings: DigitFormatSettings;
+  onChangeDigitSettings: (val: DigitFormatSettings) => void;
   onExportDocx?: () => void;
   exportingDocx?: boolean;
 }
@@ -23,18 +33,47 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
+const DIGIT_SECTION_LABELS: {
+  key: keyof DigitFormatSettings;
+  label: string;
+  example: string;
+}[] = [
+  { key: 'header', label: 'เลขที่คำสั่ง และเรื่อง', example: 'ที่ 1/2569' },
+  { key: 'preamble', label: 'ข้อความเกริ่นนำ', example: 'ย่อหน้าบทนำ' },
+  {
+    key: 'groupHeading',
+    label: 'เลขหัวข้อคณะทำงาน',
+    example: '1. คณะทำงาน...',
+  },
+  {
+    key: 'memberNo',
+    label: 'เลขลำดับรายชื่อในคณะ',
+    example: '1.1, 1.2, 2.1',
+  },
+  { key: 'dutyNo', label: 'เลขข้อหน้าที่', example: 'หน้าที่ 1., 2.' },
+  {
+    key: 'orderDate',
+    label: 'วันที่สั่ง และส่วนท้าย',
+    example: 'สั่ง ณ วันที่ 15 ... พ.ศ. 2569',
+  },
+];
+
 export default function OrderWordPreviewPane({
   schoolName,
   draft,
-  useThaiDigits,
-  onChangeThaiDigits,
+  digitSettings: ds,
+  onChangeDigitSettings,
   onExportDocx,
   exportingDocx = false,
 }: OrderWordPreviewPaneProps) {
   const [zoom, setZoom] = useState<85 | 100 | 115>(100);
+  const [showSectionDigits, setShowSectionDigits] = useState(false);
 
-  const num = (v: string | number) => formatDigits(v, useThaiDigits);
-  const thaiDateInfo = formatThaiOrderDate(draft.order_date, useThaiDigits);
+  const isAllArabic = Object.values(ds).every((v) => !v);
+  const isAllThai = Object.values(ds).every((v) => v);
+  const isMixed = !isAllArabic && !isAllThai;
+
+  const thaiDateInfo = formatThaiOrderDate(draft.order_date, ds.orderDate);
 
   function zoomStep(dir: -1 | 1) {
     setZoom((prev) => {
@@ -43,8 +82,18 @@ export default function OrderWordPreviewPane({
     });
   }
 
+  function updateSectionDigit(
+    key: keyof DigitFormatSettings,
+    useThai: boolean,
+  ) {
+    onChangeDigitSettings({
+      ...ds,
+      [key]: useThai,
+    });
+  }
+
   /**
-   * สั่งพิมพ์กระดาษ A4 หรือบันทึกเป็น PDF (รองรับทั้ง Windows และ iOS AirPrint/Save to Files)
+   * สั่งพิมพ์กระดาษ A4 หรือบันทึกเป็น PDF (รองรับการตั้งค่าตัวเลขรายส่วน)
    */
   function handlePrintA4() {
     const win = window.open('', '_blank');
@@ -52,12 +101,17 @@ export default function OrderWordPreviewPane({
 
     const groupsHtml = draft.groups
       .map((g, gIdx) => {
-        const gNo = num(gIdx + 1);
-        const gTitle = escapeHtml(g.group_title || '........................');
+        const gHeadingNo = formatDigits(gIdx + 1, ds.groupHeading);
+        const gTitle = escapeHtml(
+          formatDigits(
+            g.group_title || '........................',
+            ds.groupHeading,
+          ),
+        );
 
         const membersRows = g.members
           .map((m, mIdx) => {
-            const subNo = `${gNo}.${num(mIdx + 1)}`;
+            const subNo = `${formatDigits(gIdx + 1, ds.memberNo)}.${formatDigits(mIdx + 1, ds.memberNo)}`;
             const fullName = escapeHtml(
               m.full_name.trim() || '....................................',
             );
@@ -77,9 +131,13 @@ export default function OrderWordPreviewPane({
 
         const dutiesRows = g.duties
           .map((d, dIdx) => {
-            const dNo = num(dIdx + 1);
+            const dNo = formatDigits(dIdx + 1, ds.dutyNo);
             const dText = escapeHtml(
-              d.trim() || '................................................................',
+              formatDigits(
+                d.trim() ||
+                  '................................................................',
+                ds.dutyNo,
+              ),
             );
             return `<p class="duty-item"><span class="duty-no">${dNo}.</span>${dText}</p>`;
           })
@@ -87,7 +145,7 @@ export default function OrderWordPreviewPane({
 
         return `
           <div class="group-block">
-            <p class="group-heading">${gNo}. ${gTitle}</p>
+            <p class="group-heading">${gHeadingNo}. ${gTitle}</p>
             <table class="member-table">
               <tbody>${membersRows}</tbody>
             </table>
@@ -161,16 +219,16 @@ export default function OrderWordPreviewPane({
 <body>
   <div class="header">
     <p class="header-title">คำสั่ง${escapeHtml(schoolName)}</p>
-    <p>ที่ ${escapeHtml(num(draft.order_no || '...'))}/${escapeHtml(num(draft.order_year || '....'))}</p>
-    <p class="header-title">เรื่อง ${escapeHtml(num(draft.subject || '........................................'))}</p>
+    <p>ที่ ${escapeHtml(formatDigits(draft.order_no || '...', ds.header))}/${escapeHtml(formatDigits(draft.order_year || '....', ds.header))}</p>
+    <p class="header-title">เรื่อง ${escapeHtml(formatDigits(draft.subject || '........................................', ds.header))}</p>
     <div class="divider"></div>
   </div>
 
-  ${draft.preamble ? `<p class="indent">${escapeHtml(num(draft.preamble))}</p>` : ''}
+  ${draft.preamble ? `<p class="indent">${escapeHtml(formatDigits(draft.preamble, ds.preamble))}</p>` : ''}
 
   ${groupsHtml}
 
-  <p class="effective">${escapeHtml(num(draft.effective_text || 'ทั้งนี้ ตั้งแต่บัดนี้เป็นต้นไป'))}</p>
+  <p class="effective">${escapeHtml(formatDigits(draft.effective_text || 'ทั้งนี้ ตั้งแต่บัดนี้เป็นต้นไป', ds.orderDate))}</p>
   <p class="order-date">${escapeHtml(thaiDateInfo.fullText)}</p>
 
   <div class="sig-box">
@@ -211,32 +269,44 @@ export default function OrderWordPreviewPane({
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
-          {/* Arabic vs Thai Digits Switcher */}
+          {/* Arabic All / Thai All / Custom Per-Section Switcher */}
           <div
             className="inline-flex rounded-lg border border-line bg-white p-0.5"
-            title="รูปแบบตัวเลขในเอกสาร"
+            title="ตั้งค่าตัวเลขอารบิก / เลขไทย"
           >
             <button
               type="button"
-              onClick={() => onChangeThaiDigits(false)}
+              onClick={() => onChangeDigitSettings(ALL_ARABIC_DIGITS)}
               className={`rounded px-2 py-1 text-[11px] font-medium transition-colors ${
-                !useThaiDigits
+                isAllArabic
                   ? 'bg-brand-50 text-brand-700'
                   : 'text-slate-500 hover:text-ink'
               }`}
             >
-              1, 2, 3
+              1, 2, 3 ทั้งหมด
             </button>
             <button
               type="button"
-              onClick={() => onChangeThaiDigits(true)}
+              onClick={() => onChangeDigitSettings(ALL_THAI_DIGITS)}
               className={`rounded px-2 py-1 text-[11px] font-medium transition-colors ${
-                useThaiDigits
+                isAllThai
                   ? 'bg-brand-50 text-brand-700'
                   : 'text-slate-500 hover:text-ink'
               }`}
             >
-              ๑, ๒, ๓
+              ๑, ๒, ๓ ทั้งหมด
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSectionDigits((p) => !p)}
+              className={`inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition-colors ${
+                showSectionDigits || isMixed
+                  ? 'bg-brand-600 text-white'
+                  : 'text-slate-600 hover:text-ink'
+              }`}
+            >
+              <SlidersHorizontal className="h-3 w-3" strokeWidth={1.5} />
+              <span>ระบุรายส่วน</span>
             </button>
           </div>
 
@@ -265,7 +335,7 @@ export default function OrderWordPreviewPane({
             </button>
           </div>
 
-          {/* Print / PDF Button (iOS AirPrint & Windows Print) */}
+          {/* Print / PDF Button */}
           <button
             type="button"
             onClick={handlePrintA4}
@@ -293,6 +363,70 @@ export default function OrderWordPreviewPane({
         </div>
       </div>
 
+      {/* แผงตั้งค่าเลขอารบิก / เลขไทย แยกตามส่วนของเอกสาร */}
+      {showSectionDigits && (
+        <div className="border-b border-line bg-white px-4 py-3">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-semibold text-ink">
+              กำหนดรูปแบบตัวเลข (เลขอารบิก / เลขไทย) แยกตามส่วนของเอกสาร
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowSectionDigits(false)}
+              className="text-[11px] font-medium text-slate-500 hover:text-ink"
+            >
+              ซ่อนหน้าต่างตั้งค่า
+            </button>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            {DIGIT_SECTION_LABELS.map((sec) => {
+              const isThai = ds[sec.key];
+              return (
+                <div
+                  key={sec.key}
+                  className="flex items-center justify-between gap-2 rounded-lg border border-line bg-canvas/60 px-3 py-1.5"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium text-ink">
+                      {sec.label}
+                    </p>
+                    <p className="truncate text-[10px] text-slate-500">
+                      {sec.example}
+                    </p>
+                  </div>
+
+                  <div className="inline-flex shrink-0 rounded-md border border-line bg-white p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => updateSectionDigit(sec.key, false)}
+                      className={`rounded px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                        !isThai
+                          ? 'bg-brand-600 text-white'
+                          : 'text-slate-500 hover:text-ink'
+                      }`}
+                    >
+                      1, 2, 3
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateSectionDigit(sec.key, true)}
+                      className={`rounded px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                        isThai
+                          ? 'bg-brand-600 text-white'
+                          : 'text-slate-500 hover:text-ink'
+                      }`}
+                    >
+                      ๑, ๒, ๓
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Word Top Margin Ruler Bar */}
       <div className="hidden border-b border-slate-200 bg-slate-200/70 px-6 py-1 text-[10px] text-slate-500 sm:flex sm:items-center sm:justify-between">
         <span>กั้นซ้าย 3.0 ซม.</span>
@@ -315,10 +449,15 @@ export default function OrderWordPreviewPane({
           <div className="text-center">
             <p className="font-semibold text-ink">คำสั่ง{schoolName}</p>
             <p className="tabular-nums">
-              ที่ {num(draft.order_no || '...')} / {num(draft.order_year || '....')}
+              ที่ {formatDigits(draft.order_no || '...', ds.header)} /{' '}
+              {formatDigits(draft.order_year || '....', ds.header)}
             </p>
             <p className="font-semibold text-ink">
-              เรื่อง {num(draft.subject || '........................................')}
+              เรื่อง{' '}
+              {formatDigits(
+                draft.subject || '........................................',
+                ds.header,
+              )}
             </p>
             <div className="mx-auto my-3 w-36 border-b border-slate-700" />
           </div>
@@ -326,26 +465,30 @@ export default function OrderWordPreviewPane({
           {/* ข้อความเกริ่นนำ */}
           {draft.preamble && (
             <p className="mt-3 indent-10 text-justify whitespace-pre-line">
-              {num(draft.preamble)}
+              {formatDigits(draft.preamble, ds.preamble)}
             </p>
           )}
 
           {/* ชุดคณะทำงาน ข้อ 1, 2, 3... */}
           <div className="mt-4 space-y-4">
             {draft.groups.map((g, gIdx) => {
-              const gNo = num(gIdx + 1);
+              const gHeadingNo = formatDigits(gIdx + 1, ds.groupHeading);
               return (
                 <div key={gIdx} className="space-y-1">
                   {/* 1. คณะทำงานด้านอำนวยการ */}
                   <p className="indent-6 font-semibold text-ink">
-                    {gNo}. {num(g.group_title || 'คณะทำงาน........')}
+                    {gHeadingNo}.{' '}
+                    {formatDigits(
+                      g.group_title || 'คณะทำงาน........',
+                      ds.groupHeading,
+                    )}
                   </p>
 
                   {/* 1.1 ชื่อ-นามสกุล   ตำแหน่ง   ตำแหน่งทำงาน */}
                   <table className="w-full border-collapse text-[14.5px]">
                     <tbody>
                       {g.members.map((m, mIdx) => {
-                        const subNo = `${gNo}.${num(mIdx + 1)}`;
+                        const subNo = `${formatDigits(gIdx + 1, ds.memberNo)}.${formatDigits(mIdx + 1, ds.memberNo)}`;
                         return (
                           <tr key={mIdx} className="align-top">
                             <td className="w-[45%] py-0.5 pl-8 pr-2">
@@ -376,12 +519,13 @@ export default function OrderWordPreviewPane({
                       {g.duties.map((d, dIdx) => (
                         <p key={dIdx} className="flex items-start">
                           <span className="w-6 shrink-0 tabular-nums">
-                            {num(dIdx + 1)}.
+                            {formatDigits(dIdx + 1, ds.dutyNo)}.
                           </span>
                           <span className="flex-1">
-                            {num(
+                            {formatDigits(
                               d.trim() ||
                                 '........................................................',
+                              ds.dutyNo,
                             )}
                           </span>
                         </p>
@@ -396,7 +540,10 @@ export default function OrderWordPreviewPane({
           {/* ส่วนท้าย: ทั้งนี้ ตั้งแต่บัดนี้เป็นต้นไป + สั่ง ณ วันที่ ... + ผู้ลงนาม */}
           <div className="mt-6 space-y-1.5">
             <p className="indent-10">
-              {num(draft.effective_text || 'ทั้งนี้ ตั้งแต่บัดนี้เป็นต้นไป')}
+              {formatDigits(
+                draft.effective_text || 'ทั้งนี้ ตั้งแต่บัดนี้เป็นต้นไป',
+                ds.orderDate,
+              )}
             </p>
             <p className="indent-16 tabular-nums">{thaiDateInfo.fullText}</p>
 

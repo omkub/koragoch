@@ -12,10 +12,12 @@ import {
 } from 'lucide-react';
 import { supabase } from '../supabase';
 import {
+  ALL_ARABIC_DIGITS,
   composeOfficialPosition,
   createDefaultOrderDraft,
   type AppointmentOrderFull,
   type AppointmentOrderRecord,
+  type DigitFormatSettings,
   type OrderGroupDraft,
   type OrderMemberDraft,
 } from './appointmentOrders';
@@ -66,7 +68,8 @@ export default function AppointmentOrdersPage({
   const [academicOptions, setAcademicOptions] = useState<string[]>([]);
 
   const [mobilePane, setMobilePane] = useState<'editor' | 'preview'>('editor');
-  const [useThaiDigits, setUseThaiDigits] = useState(false);
+  const [digitSettings, setDigitSettings] =
+    useState<DigitFormatSettings>(ALL_ARABIC_DIGITS);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1185,8 +1188,8 @@ export default function AppointmentOrdersPage({
           <OrderWordPreviewPane
             schoolName={schoolName}
             draft={draft}
-            useThaiDigits={useThaiDigits}
-            onChangeThaiDigits={setUseThaiDigits}
+            digitSettings={digitSettings}
+            onChangeDigitSettings={setDigitSettings}
             exportingDocx={exportingDocx}
             onExportDocx={async () => {
               setExportingDocx(true);
@@ -1194,7 +1197,7 @@ export default function AppointmentOrdersPage({
                 await exportAppointmentOrderToDocx(
                   schoolName,
                   draft,
-                  useThaiDigits,
+                  digitSettings,
                 );
               } finally {
                 setExportingDocx(false);
