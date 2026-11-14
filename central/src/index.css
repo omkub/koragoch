@@ -45,6 +45,8 @@
 
   /* ── การ์ดและหมวดหมู่ย่อย ─────────────────────────────────── */
   .card { @apply rounded-2xl border border-line bg-white shadow-card; }
+  .surface-card { @apply rounded-2xl border border-line bg-white shadow-card; }
+  .tabular-nums { font-variant-numeric: tabular-nums; }
   .card-body { @apply p-4 sm:p-5; }
   .card-title {
     @apply flex items-center justify-between gap-3 border-b border-slate-100/90 px-4 py-3.5 text-[15px] font-semibold text-ink sm:px-5;
