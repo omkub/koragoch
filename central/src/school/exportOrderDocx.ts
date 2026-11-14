@@ -37,11 +37,14 @@ function crc32(bytes: Uint8Array): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-function buildZipBlob(files: { path: string; content: string }[]): Blob {
+function buildZipBlob(
+  files: { path: string; content: string | Uint8Array }[],
+): Blob {
   const encoder = new TextEncoder();
   const entries = files.map((f) => {
     const nameBytes = encoder.encode(f.path);
-    const dataBytes = encoder.encode(f.content);
+    const dataBytes =
+      typeof f.content === 'string' ? encoder.encode(f.content) : f.content;
     const crc = crc32(dataBytes);
     return { nameBytes, dataBytes, crc, offset: 0 };
   });
@@ -216,9 +219,92 @@ function memberTableXml(
   </w:tbl>`;
 }
 
+function decodePngDataUrl(dataUrl?: string): {
+  bytes: Uint8Array;
+  width: number;
+  height: number;
+} | null {
+  if (!dataUrl || !dataUrl.includes('base64,')) return null;
+  try {
+    const b64 = dataUrl.split('base64,')[1];
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) {
+      bytes[i] = bin.charCodeAt(i);
+    }
+    let width = 300;
+    let height = 300;
+    // Read PNG IHDR chunk (width at offset 16, height at offset 20)
+    if (
+      bytes.length >= 24 &&
+      bytes[0] === 0x89 &&
+      bytes[1] === 0x50 &&
+      bytes[2] === 0x4e &&
+      bytes[3] === 0x47
+    ) {
+      const view = new DataView(bytes.buffer);
+      const w = view.getUint32(16, false);
+      const h = view.getUint32(20, false);
+      if (w > 0 && h > 0) {
+        width = w;
+        height = h;
+      }
+    }
+    return { bytes, width, height };
+  } catch {
+    return null;
+  }
+}
+
+function emblemDrawingParagraphXml(cxEmu: number, cyEmu: number): string {
+  return `<w:p>
+    <w:pPr>
+      <w:jc w:val="center"/>
+      <w:spacing w:before="0" w:after="60" w:line="240" w:lineRule="auto"/>
+    </w:pPr>
+    <w:r>
+      <w:drawing>
+        <wp:inline distT="0" distB="0" distL="0" distR="0">
+          <wp:extent cx="${cxEmu}" cy="${cyEmu}"/>
+          <wp:effectExtent l="0" t="0" r="0" b="0"/>
+          <wp:docPr id="1" name="GarudaEmblem" descr="ตราครุฑ"/>
+          <wp:cNvGraphicFramePr>
+            <a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/>
+          </wp:cNvGraphicFramePr>
+          <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+            <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+              <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                <pic:nvPicPr>
+                  <pic:cNvPr id="1" name="emblem.png"/>
+                  <pic:cNvPicPr/>
+                </pic:nvPicPr>
+                <pic:blipFill>
+                  <a:blip r:embed="rId2"/>
+                  <a:stretch>
+                    <a:fillRect/>
+                  </a:stretch>
+                </pic:blipFill>
+                <pic:spPr>
+                  <a:xfrm>
+                    <a:off x="0" y="0"/>
+                    <a:ext cx="${cxEmu}" cy="${cyEmu}"/>
+                  </a:xfrm>
+                  <a:prstGeom prst="rect">
+                    <a:avLst/>
+                  </a:prstGeom>
+                </pic:spPr>
+              </pic:pic>
+            </a:graphicData>
+          </a:graphic>
+        </wp:inline>
+      </w:drawing>
+    </w:r>
+  </w:p>`;
+}
+
 /**
  * สร้างและดาวน์โหลดไฟล์ Microsoft Word (.docx) มาตรฐาน OpenXML
- * รองรับการตั้งค่าเลขอารบิก / เลขไทย แยกตามส่วนของเอกสาร
+ * รองรับการตั้งค่าเลขอารบิก / เลขไทย แยกตามส่วนของเอกสาร และฝังรูปตราครุฑ
  */
 export async function exportAppointmentOrderToDocx(
   schoolName: string,
@@ -234,6 +320,14 @@ export async function exportAppointmentOrderToDocx(
 
   const thaiDateInfo = formatThaiOrderDate(draft.order_date, ds.orderDate);
   const bodyParts: string[] = [];
+
+  const emblemPng = decodePngDataUrl(draft.emblem_data_url);
+  if (emblemPng) {
+    const heightCm = draft.emblem_height_cm || 3.0;
+    const cyEmu = Math.round(heightCm * 360000);
+    const cxEmu = Math.round(cyEmu * (emblemPng.width / emblemPng.height));
+    bodyParts.push(emblemDrawingParagraphXml(cxEmu, cyEmu));
+  }
 
   // 1) ส่วนหัวคำสั่ง (ds.header)
   bodyParts.push(
@@ -372,7 +466,12 @@ export async function exportAppointmentOrderToDocx(
   );
 
   const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:document
+  xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+  xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
   <w:body>
     ${bodyParts.join('\n')}
     <w:sectPr>
@@ -399,6 +498,7 @@ export async function exportAppointmentOrderToDocx(
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
 </Types>`;
@@ -411,15 +511,22 @@ export async function exportAppointmentOrderToDocx(
   const docRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  ${emblemPng ? '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/emblem.png"/>' : ''}
 </Relationships>`;
 
-  const blob = buildZipBlob([
+  const zipFiles: { path: string; content: string | Uint8Array }[] = [
     { path: '[Content_Types].xml', content: contentTypesXml },
     { path: '_rels/.rels', content: rootRelsXml },
     { path: 'word/_rels/document.xml.rels', content: docRelsXml },
     { path: 'word/document.xml', content: documentXml },
     { path: 'word/styles.xml', content: stylesXml },
-  ]);
+  ];
+
+  if (emblemPng) {
+    zipFiles.push({ path: 'word/media/emblem.png', content: emblemPng.bytes });
+  }
+
+  const blob = buildZipBlob(zipFiles);
 
   const safeOrderNo = (draft.order_no || '1').replace(/[^a-zA-Z0-9ก-๙_-]/g, '-');
   const fileName = `คำสั่งที่_${safeOrderNo}-${draft.order_year || 2569}.docx`;

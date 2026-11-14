@@ -156,6 +156,11 @@ export default function OrderWordPreviewPane({
       })
       .join('');
 
+    const emblemHeightCm = draft.emblem_height_cm || 3.0;
+    const emblemPrintHtml = draft.emblem_data_url
+      ? `<div class="emblem-wrap"><img src="${draft.emblem_data_url}" alt="ตราครุฑ" class="emblem-img" style="height: ${emblemHeightCm}cm;" /></div>`
+      : '';
+
     const html = `<!DOCTYPE html>
 <html lang="th">
 <head>
@@ -167,7 +172,7 @@ export default function OrderWordPreviewPane({
   <style>
     @page {
       size: A4 portrait;
-      margin: 20mm 20mm 20mm 30mm;
+      margin: 15mm 20mm 20mm 30mm;
     }
     body {
       font-family: "TH SarabunPSK", "TH Sarabun New", "Sarabun", sans-serif;
@@ -179,6 +184,8 @@ export default function OrderWordPreviewPane({
     }
     p { margin: 0 0 4pt 0; }
     .header { text-align: center; margin-bottom: 10pt; }
+    .emblem-wrap { text-align: center; margin-bottom: 4pt; }
+    .emblem-img { width: auto; object-fit: contain; display: inline-block; }
     .header-title { font-weight: 600; }
     .divider {
       width: 120px;
@@ -218,6 +225,7 @@ export default function OrderWordPreviewPane({
 </head>
 <body>
   <div class="header">
+    ${emblemPrintHtml}
     <p class="header-title">คำสั่ง${escapeHtml(schoolName)}</p>
     <p>ที่ ${escapeHtml(formatDigits(draft.order_no || '...', ds.header))}/${escapeHtml(formatDigits(draft.order_year || '....', ds.header))}</p>
     <p class="header-title">เรื่อง ${escapeHtml(formatDigits(draft.subject || '........................................', ds.header))}</p>
@@ -445,8 +453,20 @@ export default function OrderWordPreviewPane({
           }}
           className="mx-auto min-h-[840px] w-full max-w-[680px] rounded-sm border border-slate-300 bg-white pt-10 pb-14 pr-7 pl-10 text-[15px] leading-[1.6] text-ink shadow-sm transition-transform sm:pr-10 sm:pl-14"
         >
-          {/* ส่วนหัว: คำสั่ง / ที่ .../... / เรื่อง..... / เส้นคั่น */}
+          {/* ส่วนหัว: ตราครุฑ / คำสั่ง / ที่ .../... / เรื่อง..... / เส้นคั่น */}
           <div className="text-center">
+            {draft.emblem_data_url && (
+              <div className="mb-2 flex justify-center">
+                <img
+                  src={draft.emblem_data_url}
+                  alt="ตราครุฑ"
+                  style={{
+                    height: `${(draft.emblem_height_cm || 3.0) * 30}px`,
+                  }}
+                  className="w-auto object-contain"
+                />
+              </div>
+            )}
             <p className="font-semibold text-ink">คำสั่ง{schoolName}</p>
             <p className="tabular-nums">
               ที่ {formatDigits(draft.order_no || '...', ds.header)} /{' '}

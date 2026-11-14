@@ -36,6 +36,90 @@ export interface AppointmentOrderRecord {
 
 export interface AppointmentOrderFull extends AppointmentOrderRecord {
   groups: OrderGroupDraft[];
+  emblem_data_url?: string;
+  emblem_height_cm?: number;
+}
+
+const EMBLEM_STORAGE_PREFIX = 'school-order-emblem-v1-';
+
+export function getSavedSchoolEmblem(schoolId: number | null): {
+  dataUrl: string;
+  heightCm: number;
+} {
+  if (!schoolId) return { dataUrl: '', heightCm: 3.0 };
+  try {
+    const raw = localStorage.getItem(`${EMBLEM_STORAGE_PREFIX}${schoolId}`);
+    if (!raw) return { dataUrl: '', heightCm: 3.0 };
+    const parsed = JSON.parse(raw) as { dataUrl?: string; heightCm?: number };
+    return {
+      dataUrl: parsed.dataUrl || '',
+      heightCm: parsed.heightCm || 3.0,
+    };
+  } catch {
+    return { dataUrl: '', heightCm: 3.0 };
+  }
+}
+
+export function saveSchoolEmblem(
+  schoolId: number | null,
+  dataUrl: string,
+  heightCm = 3.0,
+): void {
+  if (!schoolId) return;
+  try {
+    localStorage.setItem(
+      `${EMBLEM_STORAGE_PREFIX}${schoolId}`,
+      JSON.stringify({ dataUrl, heightCm }),
+    );
+  } catch {
+    /* ignore storage quota errors */
+  }
+}
+
+/**
+ * แปลงไฟล์รูปที่อัปโหลด (PNG/JPG/WEBP) ให้เป็น PNG Data URL ขนาดพอเหมาะสำหรับแสดงและฝังใน .docx
+ */
+export function fileToPngDataUrl(
+  file: File,
+  maxSide = 480,
+): Promise<{ dataUrl: string; width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('อ่านไฟล์รูปไม่สำเร็จ'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('รูปแบบไฟล์ภาพไม่ถูกต้อง'));
+      img.onload = () => {
+        let w = img.naturalWidth || 240;
+        let h = img.naturalHeight || 240;
+        if (w > maxSide || h > maxSide) {
+          if (w >= h) {
+            h = Math.round((h * maxSide) / w);
+            w = maxSide;
+          } else {
+            w = Math.round((w * maxSide) / h);
+            h = maxSide;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('ไม่สามารถประมวลผลภาพได้'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve({
+          dataUrl: canvas.toDataURL('image/png'),
+          width: w,
+          height: h,
+        });
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 export interface DigitFormatSettings {

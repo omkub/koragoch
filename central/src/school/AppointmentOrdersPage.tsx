@@ -4,10 +4,12 @@ import {
   ArrowUp,
   Check,
   Filter,
+  ImagePlus,
   Plus,
   Save,
   Search,
   Trash2,
+  Upload,
   UserCheck,
 } from 'lucide-react';
 import { supabase } from '../supabase';
@@ -15,6 +17,9 @@ import {
   ALL_ARABIC_DIGITS,
   composeOfficialPosition,
   createDefaultOrderDraft,
+  fileToPngDataUrl,
+  getSavedSchoolEmblem,
+  saveSchoolEmblem,
   type AppointmentOrderFull,
   type AppointmentOrderRecord,
   type DigitFormatSettings,
@@ -344,6 +349,7 @@ export default function AppointmentOrdersPage({
         };
       });
 
+      const savedEmblem = getSavedSchoolEmblem(header.id_school);
       setDraft({
         id_school: header.id_school,
         division_id: header.division_id,
@@ -356,6 +362,8 @@ export default function AppointmentOrdersPage({
         order_date: header.order_date,
         signer_name: header.signer_name,
         signer_title: header.signer_title,
+        emblem_data_url: savedEmblem.dataUrl,
+        emblem_height_cm: savedEmblem.heightCm,
         groups:
           builtGroups.length > 0
             ? builtGroups
@@ -374,6 +382,7 @@ export default function AppointmentOrdersPage({
     if (!schoolId) return;
     setSelectedOrderId('new');
     setMessage(null);
+    const savedEmblem = getSavedSchoolEmblem(schoolId);
     const base = createDefaultOrderDraft(
       schoolId,
       division.id,
@@ -383,6 +392,8 @@ export default function AppointmentOrdersPage({
     );
     setDraft({
       ...base,
+      emblem_data_url: savedEmblem.dataUrl,
+      emblem_height_cm: savedEmblem.heightCm,
       groups: base.groups.map((g) => ({ ...g, members: [] })),
     });
   }
@@ -390,6 +401,7 @@ export default function AppointmentOrdersPage({
   useEffect(() => {
     if (!schoolId) return;
     setSelectedOrderId('new');
+    const savedEmblem = getSavedSchoolEmblem(schoolId);
     const base = createDefaultOrderDraft(
       schoolId,
       division.id,
@@ -399,9 +411,52 @@ export default function AppointmentOrdersPage({
     );
     setDraft({
       ...base,
+      emblem_data_url: savedEmblem.dataUrl,
+      emblem_height_cm: savedEmblem.heightCm,
       groups: base.groups.map((g) => ({ ...g, members: [] })),
     });
   }, [schoolId, division.id, division.division_key, division.name, nextOrderNo]);
+
+  // --- Garuda Emblem (ตราครุฑ) Upload Handlers ---
+  async function handleUploadEmblem(file?: File | null) {
+    if (!file) return;
+    try {
+      const { dataUrl: pngDataUrl } = await fileToPngDataUrl(file);
+      const heightCm = draft.emblem_height_cm || 3.0;
+      setDraft((prev) => ({
+        ...prev,
+        emblem_data_url: pngDataUrl,
+        emblem_height_cm: heightCm,
+      }));
+      saveSchoolEmblem(schoolId, pngDataUrl, heightCm);
+    } catch (err) {
+      setMessage({
+        type: 'err',
+        text:
+          err instanceof Error
+            ? err.message
+            : 'ไม่สามารถอัปโหลดรูปตราครุฑได้',
+      });
+    }
+  }
+
+  function handleChangeEmblemHeight(heightCm: number) {
+    setDraft((prev) => {
+      saveSchoolEmblem(schoolId, prev.emblem_data_url || '', heightCm);
+      return {
+        ...prev,
+        emblem_height_cm: heightCm,
+      };
+    });
+  }
+
+  function handleRemoveEmblem() {
+    setDraft((prev) => ({
+      ...prev,
+      emblem_data_url: '',
+    }));
+    saveSchoolEmblem(schoolId, '', draft.emblem_height_cm || 3.0);
+  }
 
   // --- Group (ข้อ 1, 2, 3...) Handlers ---
   function addGroup() {
@@ -833,11 +888,97 @@ export default function AppointmentOrdersPage({
           <section className="surface-card space-y-4 p-5">
             <div className="border-b border-line pb-3">
               <h2 className="text-sm font-semibold text-ink">
-                ส่วนที่ 1 · หัวคำสั่งและข้อความเกริ่นนำ
+                ส่วนที่ 1 · หัวคำสั่ง ตราครุฑ และข้อความเกริ่นนำ
               </h2>
               <p className="mt-0.5 text-xs text-slate-500">
-                ระบุเลขที่คำสั่ง ชื่อเรื่อง และย่อหน้าข้อความต้นเรื่อง
+                อัปโหลดรูปตราครุฑสำหรับแสดงหัวคำสั่ง ระบุเลขที่คำสั่ง ชื่อเรื่อง และย่อหน้าข้อความต้นเรื่อง
               </p>
+            </div>
+
+            {/* อัปโหลดรูปตราครุฑ (Garuda Emblem Image Upload) */}
+            <div className="rounded-xl border border-line bg-canvas/60 p-3.5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-line bg-white p-1.5">
+                    {draft.emblem_data_url ? (
+                      <img
+                        src={draft.emblem_data_url}
+                        alt="ตราครุฑ"
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    ) : (
+                      <ImagePlus
+                        className="h-6 w-6 text-slate-400"
+                        strokeWidth={1.5}
+                      />
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-ink">
+                      ตราครุฑหัวคำสั่ง (อัปโหลดรูปภาพ PNG / JPG)
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-slate-500">
+                      จะแสดงกึ่งกลางด้านบนสุดของคำสั่งทั้งในตัวอย่างกระดาษ A4, การสั่งพิมพ์/PDF และฝังลงในไฟล์ Word (.docx)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* เลือกขนาดความสูงตราครุฑตามระเบียบงานสารบรรณ */}
+                  <div
+                    className="inline-flex rounded-lg border border-line bg-white p-0.5"
+                    title="ขนาดความสูงตราครุฑ"
+                  >
+                    {[1.5, 2.5, 3.0].map((cm) => {
+                      const active = (draft.emblem_height_cm || 3.0) === cm;
+                      return (
+                        <button
+                          key={cm}
+                          type="button"
+                          onClick={() => handleChangeEmblemHeight(cm)}
+                          className={`rounded px-2 py-1 text-[11px] font-medium tabular-nums transition-colors ${
+                            active
+                              ? 'bg-brand-600 text-white'
+                              : 'text-slate-600 hover:text-ink'
+                          }`}
+                        >
+                          {cm} ซม.
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <label className="btn-secondary btn-sm cursor-pointer">
+                    <Upload className="h-3.5 w-3.5" strokeWidth={1.5} />
+                    <span>
+                      {draft.emblem_data_url
+                        ? 'เปลี่ยนรูปตราครุฑ'
+                        : 'อัปโหลดรูปตราครุฑ'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        handleUploadEmblem(e.target.files?.[0]);
+                        e.currentTarget.value = '';
+                      }}
+                    />
+                  </label>
+
+                  {draft.emblem_data_url && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveEmblem}
+                      className="btn-secondary btn-sm text-rose-600 hover:bg-rose-50"
+                      title="ลบรูปตราครุฑออก"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-12">
