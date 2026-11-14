@@ -175,10 +175,13 @@ export async function hydrateSsoSession(): Promise<void> {
 
   try {
     const searchParams = new URLSearchParams(window.location.search);
-    const hashStr = window.location.hash.startsWith('#')
+    const rawHash = window.location.hash.startsWith('#')
       ? window.location.hash.slice(1)
       : window.location.hash;
-    const hashParams = new URLSearchParams(hashStr);
+    const isRouteHash = rawHash.startsWith('/');
+    const hashParams = isRouteHash
+      ? new URLSearchParams()
+      : new URLSearchParams(rawHash);
 
     if (searchParams.get('embedded') === '1') {
       sessionStorage.setItem(EMBEDDED_SESSION_KEY, '1');
@@ -209,7 +212,7 @@ export async function hydrateSsoSession(): Promise<void> {
       searchParams.delete('sso_refresh_token');
 
       const nextSearch = searchParams.toString();
-      const nextHash = hashParams.toString();
+      const nextHash = isRouteHash ? rawHash : hashParams.toString();
       const cleanUrl =
         window.location.pathname +
         (nextSearch ? `?${nextSearch}` : '') +
@@ -253,4 +256,106 @@ export function getTargetSchoolIdFromLeaveApp(): number | null {
   if (!raw) return null;
   const parsed = Number.parseInt(raw, 10);
   return Number.isNaN(parsed) ? null : parsed;
+}
+
+
+/**
+ * ซิงก์ Session ขากลับจากเว็บโรงเรียน (/central/) ไปยังแอประบบวันลา (Flutter Web)
+ * เพื่อให้เมื่อกดปุ่ม "เปิด Web ย่อยระบบวันลา" หรือ "กลับระบบวันลา" สามารถเข้าใช้งานได้ทันทีโดยไม่ติดหน้า Login
+ */
+export function syncSessionToLeaveApp(
+  session: { access_token: string; refresh_token: string } | null,
+  userProfile?: { fullName?: string; roleName?: string },
+): void {
+  if (typeof window === 'undefined' || !session) return;
+  try {
+    // 1) ซิงก์คีย์ของ supabase_flutter บนโดเมนเดียวกัน
+    const existingRaw = window.localStorage.getItem(FLUTTER_SUPABASE_STORAGE_KEY);
+    if (!existingRaw) {
+      window.localStorage.setItem(
+        FLUTTER_SUPABASE_STORAGE_KEY,
+        JSON.stringify(session),
+      );
+    }
+
+    // 2) ตั้งค่าสถานะการล็อกอินเบื้องต้นใน SharedPreferences ของ Flutter Web (คีย์ขึ้นต้นด้วย flutter.)
+    window.localStorage.setItem('flutter.isLoggedIn', 'true');
+    window.localStorage.setItem('flutter.loginAt', String(Date.now()));
+    if (userProfile?.fullName) {
+      window.localStorage.setItem(
+        'flutter.currentUser',
+        JSON.stringify(userProfile.fullName),
+      );
+    }
+    if (userProfile?.roleName) {
+      window.localStorage.setItem(
+        'flutter.userRole',
+        JSON.stringify(userProfile.roleName),
+      );
+    }
+  } catch {
+    /* ignore storage errors */
+  }
+}
+
+/**
+ * ล้าง Session ทั้งฝั่งเว็บโรงเรียนและฝั่งแอประบบวันลาเมื่อกดออกจากระบบ
+ */
+export function clearAllSsoSessions(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(FLUTTER_SUPABASE_STORAGE_KEY);
+    window.localStorage.removeItem('koragoch-central-auth');
+    window.localStorage.removeItem('flutter.isLoggedIn');
+    window.localStorage.removeItem('flutter.loginAt');
+    window.localStorage.removeItem('flutter.currentUser');
+    window.localStorage.removeItem('flutter.userRole');
+    window.localStorage.removeItem('flutter.userFullDataJson');
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * สลับไปยังหน้าระบบวันลาในแท็บเบราว์เซอร์เดิม (ไม่เด้งเปิดแท็บใหม่) พร้อมส่งต่อ Session อัตโนมัติ
+ */
+export async function navigateToLeaveApp(customUrl?: string): Promise<void> {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (session) {
+      syncSessionToLeaveApp(session);
+    }
+
+    // หากอยู่บนโดเมนจริง (หรือไม่ได้ระบุ URL นอกโดเมน) ให้สลับไปที่ราก (/) ของโดเมนปัจจุบัน
+    let baseTarget = `${window.location.origin}/`;
+    if (
+      customUrl &&
+      customUrl.startsWith('http') &&
+      !customUrl.includes('rbp-chanikarnn.web.app')
+    ) {
+      baseTarget = customUrl;
+    }
+
+    let finalUrl = baseTarget;
+    if (session?.access_token && session?.refresh_token) {
+      const sep = baseTarget.includes('?') ? '&' : '?';
+      finalUrl = `${baseTarget}${sep}sso_access_token=${encodeURIComponent(
+        session.access_token,
+      )}&sso_refresh_token=${encodeURIComponent(session.refresh_token)}`;
+    }
+
+    // สลับหน้าในแท็บเดิม (หากอยู่ใน iframe ของระบบวันลาอยู่แล้ว ให้สั่งหน้าต่างหลัก)
+    if (window.top && window.top !== window.self) {
+      window.top.location.href = finalUrl;
+    } else {
+      window.location.href = finalUrl;
+    }
+  } catch {
+    window.location.href = '/';
+  }
 }

@@ -23,6 +23,7 @@ import '../mobile/mobile_password_reset_screen.dart';
 import '../user_management_screen.dart';
 import '../../utils/profile_image.dart';
 import '../../utils/school_info.dart';
+import '../../utils/web_platform.dart' as platform;
 import '../../widgets/install_app_button.dart';
 import '../../widgets/push_toggle_tile.dart';
 import 'mobile_pages.dart';
@@ -77,6 +78,7 @@ class _MobileProfileV2State extends State<MobileProfileV2> {
     await prefs.remove('currentUser');
     await prefs.remove('userRole');
     await prefs.remove('userFullDataJson');
+    platform.clearBrowserSsoStorage();
   }
 
   Future<void> _loadUserAndData() async {

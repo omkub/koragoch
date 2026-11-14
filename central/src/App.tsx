@@ -2,10 +2,13 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import {
+  clearAllSsoSessions,
   getTargetSchoolIdFromLeaveApp,
   hydrateSsoSession,
   isEmbeddedInLeaveApp,
+  navigateToLeaveApp,
   supabase,
+  syncSessionToLeaveApp,
   type Access,
 } from './supabase';
 import LoginPage from './pages/LoginPage';
@@ -31,6 +34,12 @@ import {
   type DivisionWithModules,
   type ModuleCatalogItem,
 } from './school/mapping';
+import {
+  fetchRoleDivisionModulePermissions,
+  resolveDivisionAccessLevel,
+  resolveModuleAccessLevel,
+  type RoleDivisionModulePermissions,
+} from './school/roleModulePermissions';
 import { DEFAULT_MODULE_LINKS } from './school/modules';
 import type {
   AcademicTerm,
@@ -54,6 +63,7 @@ export default function App() {
   const [access, setAccess] = useState<Access | null>(null);
   const [userName, setUserName] = useState('ผู้ใช้งาน');
   const [userRoleId, setUserRoleId] = useState<number | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
   const [schools, setSchools] = useState<SchoolBasic[]>([]);
   const [selectedSchoolId, setSelectedSchoolId] = useState<number | null>(null);
@@ -64,6 +74,15 @@ export default function App() {
   const [catalog, setCatalog] = useState<ModuleCatalogItem[]>(FALLBACK_CATALOG);
   const [divisions, setDivisions] = useState<DivisionWithModules[]>([]);
   const [hasDbMapping, setHasDbMapping] = useState(false);
+  const [schoolWebEnabled, setSchoolWebEnabled] = useState(true);
+  const [roleDivModPerms, setRoleDivModPerms] =
+    useState<RoleDivisionModulePermissions>({
+      divisionByRole: {},
+      moduleByRole: {},
+      userTabOverride: {},
+      divisionByUser: {},
+      moduleByUser: {},
+    });
   const [roleAccessRows, setRoleAccessRows] = useState<
     { division_id: number; id_role: number; can_view: boolean; can_edit: boolean }[]
   >([]);
@@ -93,6 +112,7 @@ export default function App() {
       setSchools([]);
       setSelectedSchoolId(null);
       setUserRoleId(null);
+      setCurrentUserId(null);
       return;
     }
     (async () => {
@@ -108,7 +128,7 @@ export default function App() {
         username
           ? supabase
               .from('Teachers')
-              .select('fullName, id_role')
+              .select('id_user, fullName, id_role')
               .eq('username', username)
               .limit(1)
               .maybeSingle()
@@ -128,14 +148,26 @@ export default function App() {
         schoolId,
       });
       const teacherRow = teacherRes.data as {
+        id_user?: number | null;
         fullName?: string | null;
         id_role?: number | null;
       } | null;
-      setUserName(teacherRow?.fullName || username || 'ผู้ใช้งาน');
+      const resolvedFullName = teacherRow?.fullName || username || 'ผู้ใช้งาน';
+      setUserName(resolvedFullName);
       setUserRoleId(
         typeof teacherRow?.id_role === 'number' ? teacherRow.id_role : null,
       );
+      setCurrentUserId(
+        typeof teacherRow?.id_user === 'number' ? teacherRow.id_user : null,
+      );
       setSchools(schoolList);
+
+      // ซิงก์ Session ขากลับไปยังแอประบบวันลาทันที
+      syncSessionToLeaveApp(session, {
+        fullName: resolvedFullName,
+        roleName:
+          isSuperUser || adminRes.data === true ? 'ผู้ดูแลระบบ' : undefined,
+      });
 
       // ผูกเข้ากับโรงเรียนของผู้ใช้เองอัตโนมัติ (หรือโรงเรียนที่ส่งมาจากแท็บแอปวันลา)
       const matchedRequested =
@@ -157,32 +189,34 @@ export default function App() {
   const loadSchoolContext = useCallback(async () => {
     if (!selectedSchoolId) return;
 
-    const [yearRes, termRes, modRes, treeRes, roleAccRes] = await Promise.all([
-      supabase
-        .from('AcademicYears')
-        .select('id, id_school, year_be, label, is_current')
-        .eq('id_school', selectedSchoolId)
-        .eq('is_current', true)
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from('AcademicTerms')
-        .select('id, id_school, academic_year_id, term_no, label, is_current')
-        .eq('id_school', selectedSchoolId)
-        .eq('is_current', true)
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from('SchoolModules')
-        .select('id, module_key, title, description, url, open_mode, category, is_enabled')
-        .eq('id_school', selectedSchoolId)
-        .order('sort_order', { ascending: true }),
-      fetchSchoolDivisionTree(selectedSchoolId),
-      supabase
-        .from('SchoolWebRoleDivisionAccess')
-        .select('division_id, id_role, can_view, can_edit')
-        .eq('id_school', selectedSchoolId),
-    ]);
+    const [yearRes, termRes, modRes, treeRes, roleAccRes, roleModPerms] =
+      await Promise.all([
+        supabase
+          .from('AcademicYears')
+          .select('id, id_school, year_be, label, is_current')
+          .eq('id_school', selectedSchoolId)
+          .eq('is_current', true)
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from('AcademicTerms')
+          .select('id, id_school, academic_year_id, term_no, label, is_current')
+          .eq('id_school', selectedSchoolId)
+          .eq('is_current', true)
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from('SchoolModules')
+          .select('id, module_key, title, description, url, open_mode, category, is_enabled')
+          .eq('id_school', selectedSchoolId)
+          .order('sort_order', { ascending: true }),
+        fetchSchoolDivisionTree(selectedSchoolId),
+        supabase
+          .from('SchoolWebRoleDivisionAccess')
+          .select('division_id, id_role, can_view, can_edit')
+          .eq('id_school', selectedSchoolId),
+        fetchRoleDivisionModulePermissions(selectedSchoolId),
+      ]);
 
     const currentYear = yearRes.data as AcademicYear | null;
     const currentTerm = termRes.data as AcademicTerm | null;
@@ -206,6 +240,8 @@ export default function App() {
     setCatalog(treeRes.catalog);
     setDivisions(treeRes.divisions);
     setHasDbMapping(treeRes.hasDbMapping);
+    setSchoolWebEnabled(treeRes.schoolPackage.schoolWebEnabled);
+    setRoleDivModPerms(roleModPerms);
     setRoleAccessRows(
       (roleAccRes.data as
         | { division_id: number; id_role: number; can_view: boolean; can_edit: boolean }[]
@@ -239,29 +275,139 @@ export default function App() {
   const canEditSchool = access.level === 'super' || access.level === 'school';
   const currentSchool =
     schools.find((s) => s.id_school === selectedSchoolId) ?? null;
+
+  // กรณีที่โรงเรียนถูกตั้งค่าให้ใช้เฉพาะ Web ย่อยระบบวันลา (ปิดการใช้งานเว็บโรงเรียน)
+  if (!schoolWebEnabled && !isSuper) {
+    return (
+      <CenterScreen>
+        <div className="surface-card max-w-md space-y-4 p-8 text-center">
+          <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+            <span className="text-lg font-bold">รร.</span>
+          </div>
+          <h1 className="text-lg font-semibold text-ink">
+            {currentSchool?.fullName || 'โรงเรียนของคุณ'}
+          </h1>
+          <p className="text-xs leading-relaxed text-slate-600">
+            โรงเรียนนี้เปิดใช้งานเฉพาะระบบย่อย (ระบบวันลา ไปราชการ และลงเวลาปฏิบัติงาน)
+            ยังไม่ได้เปิดใช้งานระบบเว็บโรงเรียนส่วนกลาง
+          </p>
+          <div className="flex flex-col gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => navigateToLeaveApp()}
+              className="btn-primary w-full justify-center"
+            >
+              เข้าสู่ Web ย่อยระบบวันลา
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                clearAllSsoSessions();
+                supabase.auth.signOut();
+              }}
+              className="btn-secondary w-full justify-center text-xs"
+            >
+              ออกจากระบบ
+            </button>
+          </div>
+        </div>
+      </CenterScreen>
+    );
+  }
   const roleLabel = isSuper
     ? 'ผู้ดูแลระบบส่วนกลาง'
     : access.level === 'school'
       ? 'ผู้ดูแลระบบโรงเรียน'
       : 'บุคลากรโรงเรียน';
 
-  // กรองฝ่ายที่ผู้ใช้งานคนนี้สามารถเปิดดูได้ตาม Role (แอดมินเห็นทุกฝ่าย)
-  const visibleDivisions = canEditSchool
+  // กรองฝ่ายและ Module ย่อยที่ผู้ใช้งานคนนี้สามารถเปิดดูได้ตาม Role และสิทธิ์รายบุคคล (แอดมินเห็นทุกฝ่ายที่โรงเรียนได้รับอนุญาต)
+  const visibleDivisions: DivisionWithModules[] = canEditSchool
     ? divisions
-    : divisions.filter((div) => {
-        if (userRoleId === null) return true;
-        const rule = roleAccessRows.find(
-          (r) => r.division_id === div.id && r.id_role === userRoleId,
-        );
-        return rule ? rule.can_view : true;
-      });
+    : divisions
+        .map((div) => {
+          const allowedMods = div.modules.filter((mod) => {
+            if (userRoleId === null && currentUserId === null) return true;
+            const modLevel = resolveModuleAccessLevel(
+              roleDivModPerms,
+              userRoleId,
+              div.division_key,
+              mod.module_key,
+              false,
+              currentUserId,
+            );
+            return modLevel !== 'hidden';
+          });
+          return { ...div, modules: allowedMods };
+        })
+        .filter((div) => {
+          if (userRoleId === null && currentUserId === null) return true;
+          // ถ้ามี Module ย่อยที่ถูกเปิดให้เฉพาะบุคคลในฝ่ายนี้ ให้แสดงฝ่ายนี้ด้วย
+          const hasExplicitUserModule =
+            currentUserId !== null &&
+            div.modules.some(
+              (m) =>
+                roleDivModPerms.moduleByUser[
+                  `${currentUserId}:${m.module_key}`
+                ]?.can_view === true,
+            );
+          if (hasExplicitUserModule) return true;
+
+          const level = resolveDivisionAccessLevel(
+            roleDivModPerms,
+            userRoleId,
+            div.division_key,
+            false,
+            currentUserId,
+          );
+          if (level === 'hidden') return false;
+          const legacyRule = roleAccessRows.find(
+            (r) => r.division_id === div.id && r.id_role === userRoleId,
+          );
+          if (legacyRule && !legacyRule.can_view) return false;
+          return true;
+        });
 
   const editableDivisionIds =
-    userRoleId === null
+    userRoleId === null && currentUserId === null
       ? []
-      : roleAccessRows
-          .filter((r) => r.id_role === userRoleId && r.can_edit)
-          .map((r) => r.division_id);
+      : divisions
+          .filter((div) => {
+            const level = resolveDivisionAccessLevel(
+              roleDivModPerms,
+              userRoleId,
+              div.division_key,
+              false,
+              currentUserId,
+            );
+            if (level === 'edit') return true;
+            return roleAccessRows.some(
+              (r) =>
+                r.division_id === div.id &&
+                r.id_role === userRoleId &&
+                r.can_edit,
+            );
+          })
+          .map((div) => div.id);
+
+  const editableModuleKeys: string[] = [];
+  if (userRoleId !== null || currentUserId !== null) {
+    for (const div of divisions) {
+      for (const mod of div.modules) {
+        const modLevel = resolveModuleAccessLevel(
+          roleDivModPerms,
+          userRoleId,
+          div.division_key,
+          mod.module_key,
+          false,
+          currentUserId,
+        );
+        if (modLevel === 'edit') {
+          editableModuleKeys.push(mod.module_key);
+          editableModuleKeys.push(`${div.division_key}:${mod.module_key}`);
+        }
+      }
+    }
+  }
 
   return (
     <UnifiedShell
@@ -274,7 +420,10 @@ export default function App() {
       selectedSchoolId={selectedSchoolId}
       canSwitchSchool={isSuper}
       onSelectSchool={setSelectedSchoolId}
-      onSignOut={() => supabase.auth.signOut()}
+      onSignOut={() => {
+        clearAllSsoSessions();
+        supabase.auth.signOut();
+      }}
       divisions={visibleDivisions}
       isEmbedded={isEmbeddedInLeaveApp()}
     >
@@ -302,6 +451,7 @@ export default function App() {
               schoolName={currentSchool?.fullName || 'โรงเรียน'}
               canEdit={canEditSchool}
               editableDivisionIds={editableDivisionIds}
+              editableModuleKeys={editableModuleKeys}
               access={access}
               divisions={visibleDivisions}
             />
@@ -315,6 +465,7 @@ export default function App() {
               schoolName={currentSchool?.fullName || 'โรงเรียน'}
               canEdit={canEditSchool}
               editableDivisionIds={editableDivisionIds}
+              editableModuleKeys={editableModuleKeys}
               access={access}
               divisions={visibleDivisions}
             />
@@ -331,6 +482,7 @@ export default function App() {
                   school={currentSchool}
                   schoolId={selectedSchoolId}
                   canEdit={canEditSchool}
+                  isSuper={isSuper}
                   catalog={catalog}
                   divisions={divisions}
                   hasDbMapping={hasDbMapping}
@@ -345,6 +497,7 @@ export default function App() {
                   school={currentSchool}
                   schoolId={selectedSchoolId}
                   canEdit={canEditSchool}
+                  isSuper={isSuper}
                   divisions={divisions}
                   hasDbMapping={hasDbMapping}
                   onReload={loadSchoolContext}

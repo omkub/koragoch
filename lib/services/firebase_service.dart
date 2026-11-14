@@ -1,4 +1,4 @@
-﻿import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../utils/admin_position.dart';
@@ -2657,6 +2657,51 @@ class FirebaseService {
   }
 
   // ── Permissions doc (for menu access) ────────────────────────────
+
+  /// ตรวจสอบว่าโรงเรียนนี้ได้รับอนุญาตจากส่วนกลางให้เปิดใช้ "เว็บโรงเรียน" หรือไม่ (menu_id = -100)
+  Future<bool> isSchoolWebEnabledForSchool() async {
+    final client = _supabaseIfReady;
+    if (client == null) return true;
+    try {
+      final rows = await inSchool(client
+          .from('Permissions')
+          .select('status')
+          .eq('id_role', 22)
+          .eq('menu_id', -100));
+      if ((rows as List).isEmpty) return true;
+      final status = rows.first['status'];
+      return status == true ||
+          status == 1 ||
+          status.toString() == '1' ||
+          status.toString().toUpperCase() == 'TRUE';
+    } catch (e) {
+      debugPrint('⚠️  isSchoolWebEnabledForSchool error: $e');
+      return true;
+    }
+  }
+
+  /// ตรวจสอบสิทธิ์การเห็นแท็บ "เว็บโรงเรียน" ที่กำหนดเฉพาะบุคคล (null = ใช้ตามบทบาท)
+  Future<bool?> getUserSchoolWebTabOverride(dynamic idUser) async {
+    final client = _supabaseIfReady;
+    final parsedId = int.tryParse(idUser?.toString() ?? '');
+    if (client == null || parsedId == null || parsedId <= 0) return null;
+    try {
+      final menuId = -(100000 + parsedId * 100);
+      final rows = await inSchool(client
+          .from('Permissions')
+          .select('status')
+          .eq('id_role', 22)
+          .eq('menu_id', menuId));
+      if ((rows as List).isEmpty) return null;
+      final status = rows.first['status'];
+      return status == true ||
+          status == 1 ||
+          status.toString() == '1' ||
+          status.toString().toUpperCase() == 'TRUE';
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<Map<String, dynamic>?> getPermissionDocFromSupabase(
       String collection, String role) async {

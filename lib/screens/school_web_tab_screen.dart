@@ -125,48 +125,93 @@ class _SchoolWebTabScreenState extends State<SchoolWebTabScreen> {
         tabVis[roleId] = allowed;
       }
 
-      // 3) โหลดรายการฝ่ายของเว็บโรงเรียน (SchoolWebDivisions) และสิทธิ์รายฝ่าย (SchoolWebRoleDivisionAccess)
-      var divList = <Map<String, dynamic>>[];
+      // 3) โหลดรายการฝ่ายของเว็บโรงเรียนและสิทธิ์รายฝ่าย (เชื่อมกับ Permissions -201..-204 / -301..-304 และ SchoolWebRoleDivisionAccess)
+      var divList = <Map<String, dynamic>>[
+        {
+          'id': 1,
+          'division_key': 'hr',
+          'name': 'ฝ่ายบริหารงานบุคคล',
+          'view_menu_id': -201,
+          'edit_menu_id': -301,
+        },
+        {
+          'id': 2,
+          'division_key': 'academic',
+          'name': 'ฝ่ายบริหารงานวิชาการ',
+          'view_menu_id': -202,
+          'edit_menu_id': -302,
+        },
+        {
+          'id': 3,
+          'division_key': 'admin',
+          'name': 'ฝ่ายบริหารงานทั่วไป',
+          'view_menu_id': -203,
+          'edit_menu_id': -303,
+        },
+        {
+          'id': 4,
+          'division_key': 'finance',
+          'name': 'ฝ่ายบริหารงานงบประมาณ',
+          'view_menu_id': -204,
+          'edit_menu_id': -304,
+        },
+      ];
       final divAccMap = <String, Map<String, bool>>{};
+
+      for (final d in divList) {
+        final dId = d['id'];
+        for (final r in rolesList) {
+          final rId = r['id_role'] as int;
+          final isAdminRole =
+              (r['name'] as String).contains('ผู้ดูแลระบบ') ||
+                  (r['name'] as String).contains('ผู้บริหาร');
+          divAccMap['${dId}_$rId'] = {
+            'can_view': true,
+            'can_edit': isAdminRole,
+          };
+        }
+      }
 
       if (schoolId != null) {
         try {
-          final divRows = await client
-              .from('SchoolWebDivisions')
-              .select('id, division_key, name, is_enabled')
-              .eq('id_school', schoolId)
-              .order('sort_order', ascending: true);
-          divList = List<Map<String, dynamic>>.from(divRows as List);
+          final roleDivPermRows = await _firebaseService.inSchool(
+            client
+                .from('Permissions')
+                .select('id_role, menu_id, status')
+                .lte('menu_id', -201)
+                .gte('menu_id', -304),
+          );
+          for (final row in (roleDivPermRows as List)) {
+            final rId = int.tryParse(row['id_role']?.toString() ?? '');
+            final mId = int.tryParse(row['menu_id']?.toString() ?? '');
+            if (rId == null || mId == null) continue;
+            final st = row['status'];
+            final allowed = st == true ||
+                st == 1 ||
+                st.toString() == '1' ||
+                st.toString().toUpperCase() == 'TRUE';
 
-          final accRows = await client
-              .from('SchoolWebRoleDivisionAccess')
-              .select('division_id, id_role, can_view, can_edit')
-              .eq('id_school', schoolId);
-
-          for (final d in divList) {
-            final dId = d['id'];
-            for (final r in rolesList) {
-              final rId = r['id_role'] as int;
-              final isAdminRole =
-                  (r['name'] as String).contains('ผู้ดูแลระบบ') ||
-                      (r['name'] as String).contains('ผู้บริหาร');
-              divAccMap['${dId}_$rId'] = {
-                'can_view': true,
-                'can_edit': isAdminRole,
-              };
+            for (final d in divList) {
+              final dId = d['id'];
+              if (d['view_menu_id'] == mId) {
+                final cur = divAccMap['${dId}_$rId'] ??
+                    {'can_view': true, 'can_edit': false};
+                divAccMap['${dId}_$rId'] = {
+                  'can_view': allowed,
+                  'can_edit': allowed ? (cur['can_edit'] ?? false) : false,
+                };
+              } else if (d['edit_menu_id'] == mId) {
+                final cur = divAccMap['${dId}_$rId'] ??
+                    {'can_view': true, 'can_edit': false};
+                divAccMap['${dId}_$rId'] = {
+                  'can_view': allowed ? true : (cur['can_view'] ?? true),
+                  'can_edit': allowed,
+                };
+              }
             }
           }
-
-          for (final row in (accRows as List)) {
-            final dId = row['division_id'];
-            final rId = row['id_role'];
-            divAccMap['${dId}_$rId'] = {
-              'can_view': row['can_view'] == true,
-              'can_edit': row['can_edit'] == true,
-            };
-          }
         } catch (e) {
-          debugPrint('ℹ️ โหลดตารางฝ่ายของเว็บโรงเรียนไม่สำเร็จ: $e');
+          debugPrint('ℹ️ โหลดสิทธิ์ฝ่ายจาก Permissions ไม่สำเร็จ: $e');
         }
       }
 
@@ -217,33 +262,40 @@ class _SchoolWebTabScreenState extends State<SchoolWebTabScreen> {
             .upsert(permRecords, onConflict: 'id_school,id_role,menu_id');
       }
 
-      // 2) บันทึกสิทธิ์การมองเห็นและแก้ไขแต่ละฝ่ายในเว็บโรงเรียน (SchoolWebRoleDivisionAccess)
+      // 2) บันทึกสิทธิ์การมองเห็นและแก้ไขแต่ละฝ่ายในเว็บโรงเรียนลง Permissions (-201..-204 / -301..-304)
       if (schoolId != null && _schoolDivisions.isNotEmpty) {
-        final divAccessRecords = <Map<String, dynamic>>[];
+        final divPermRecords = <Map<String, dynamic>>[];
         for (final d in _schoolDivisions) {
           final dId = d['id'] as int;
+          final viewMenuId = d['view_menu_id'] as int?;
+          final editMenuId = d['edit_menu_id'] as int?;
+          if (viewMenuId == null || editMenuId == null) continue;
+
           for (final r in _schoolRoles) {
             final rId = r['id_role'] as int;
             final entry = _divisionAccessMap['${dId}_$rId'];
             final canView = entry?['can_view'] ?? true;
             final canEdit = canView ? (entry?['can_edit'] ?? false) : false;
 
-            divAccessRecords.add({
-              'id_school': schoolId,
-              'division_id': dId,
+            divPermRecords.add(FirebaseService.withSchool('Permissions', {
               'id_role': rId,
-              'can_view': canView,
-              'can_edit': canEdit,
-              'updated_at': now,
-            });
+              'menu_id': viewMenuId,
+              'status': canView ? '1' : '0',
+              'updatedAt': now,
+            }));
+            divPermRecords.add(FirebaseService.withSchool('Permissions', {
+              'id_role': rId,
+              'menu_id': editMenuId,
+              'status': canEdit ? '1' : '0',
+              'updatedAt': now,
+            }));
           }
         }
 
-        if (divAccessRecords.isNotEmpty) {
-          await client.from('SchoolWebRoleDivisionAccess').upsert(
-                divAccessRecords,
-                onConflict: 'id_school,division_id,id_role',
-              );
+        if (divPermRecords.isNotEmpty) {
+          await client
+              .from('Permissions')
+              .upsert(divPermRecords, onConflict: 'id_school,id_role,menu_id');
         }
       }
 
@@ -359,7 +411,7 @@ class _SchoolWebTabScreenState extends State<SchoolWebTabScreen> {
                 OutlinedButton.icon(
                   onPressed: () {
                     setState(() {
-                      _subPath = 'division/personnel/appointment-orders';
+                      _subPath = 'division/hr/appointment-orders';
                       _reloadCounter++;
                     });
                   },
@@ -706,22 +758,62 @@ class _SchoolWebTabScreenState extends State<SchoolWebTabScreen> {
                             ),
                           ],
                         ),
-                        OutlinedButton.icon(
-                          onPressed: () {
-                            setState(() {
-                              _subPath = 'admin/mapping';
-                              _activeView = 0;
-                              _reloadCounter++;
-                            });
-                          },
-                          icon: const Icon(Icons.tune_rounded, size: 16),
-                          label: Text(
-                            'ตั้งค่า Module รายฝ่าย',
-                            style: GoogleFonts.sarabun(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _subPath = 'admin/division-permissions';
+                                  _activeView = 0;
+                                  _reloadCounter++;
+                                });
+                              },
+                              icon: const Icon(Icons.lock_outline_rounded, size: 16),
+                              label: Text(
+                                'สิทธิ์ราย Module ย่อย',
+                                style: GoogleFonts.sarabun(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
-                          ),
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _subPath = 'user-permissions';
+                                  _activeView = 0;
+                                  _reloadCounter++;
+                                });
+                              },
+                              icon: const Icon(Icons.person_outline_rounded, size: 16),
+                              label: Text(
+                                'กำหนดสิทธิ์รายบุคคล',
+                                style: GoogleFonts.sarabun(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _subPath = 'admin/mapping';
+                                  _activeView = 0;
+                                  _reloadCounter++;
+                                });
+                              },
+                              icon: const Icon(Icons.tune_rounded, size: 16),
+                              label: Text(
+                                'จับคู่ Module รายฝ่าย',
+                                style: GoogleFonts.sarabun(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

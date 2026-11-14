@@ -9,6 +9,7 @@ import '../services/firebase_service.dart';
 import '../services/form_template_service.dart';
 import '../services/push_service.dart';
 import '../utils/school_info.dart';
+import '../utils/web_platform.dart' as platform;
 import 'dashboard_screen.dart';
 import 'leave_form_screen.dart';
 import 'leave_history_screen.dart';
@@ -47,6 +48,8 @@ class _MainLayoutState extends State<MainLayout> {
   Map<String, dynamic>? _permissionData;
   // เมนูลงเวลาแสดงเมื่อโรงเรียนเปิดใช้ระบบที่ web แล้วเท่านั้น
   bool _attendanceEnabled = false;
+  bool _schoolWebEnabled = true;
+  bool? _userSchoolWebTabOverride;
   final _firebaseService = FirebaseService();
   late final List<Widget> _cachedScreens = _buildScreens();
 
@@ -118,6 +121,7 @@ class _MainLayoutState extends State<MainLayout> {
     await prefs.remove('currentUser');
     await prefs.remove('userRole');
     await prefs.remove('userFullDataJson');
+    platform.clearBrowserSsoStorage();
   }
 
   @override
@@ -238,9 +242,19 @@ class _MainLayoutState extends State<MainLayout> {
   }
 
   Future<void> _loadPermissions() async {
-    final data = await _firebaseService.getPermissionDocFromSupabase(
-        'Permissions', _userRole);
-    if (mounted) setState(() => _permissionData = data);
+    // โหลดสิทธิ์การเข้าถึงเมนูและสถานะการเปิดเว็บโรงเรียนของโรงเรียนนี้
+    final results = await Future.wait([
+      _firebaseService.getPermissionDocFromSupabase('Permissions', _userRole),
+      _firebaseService.isSchoolWebEnabledForSchool(),
+      _firebaseService.getUserSchoolWebTabOverride(_cachedIdUser),
+    ]);
+    if (mounted) {
+      setState(() {
+        _permissionData = results[0] as Map<String, dynamic>?;
+        _schoolWebEnabled = results[1] as bool;
+        _userSchoolWebTabOverride = results[2] as bool?;
+      });
+    }
   }
 
   Future<void> _logout() async {
@@ -374,6 +388,15 @@ class _MainLayoutState extends State<MainLayout> {
                 effectiveIndex = 2;
               }
               if (!_attendanceEnabled) defaultAllowed.remove(10);
+              if (_userSchoolWebTabOverride == true &&
+                  (_schoolWebEnabled || SchoolInfo.isSuperAdmin)) {
+                if (!defaultAllowed.contains(6)) defaultAllowed.add(6);
+              } else if (_userSchoolWebTabOverride == false) {
+                defaultAllowed.remove(6);
+              }
+              if (!_schoolWebEnabled && !SchoolInfo.isSuperAdmin) {
+                defaultAllowed.remove(6);
+              }
               if (defaultAllowed.contains(9)) defaultAllowed.add(_tripFormIndex);
               return Row(
                 children: [
@@ -443,6 +466,15 @@ class _MainLayoutState extends State<MainLayout> {
               if (!allowed.contains(6)) allowed.add(6);
             }
             if (!_attendanceEnabled) allowed.remove(10);
+            if (_userSchoolWebTabOverride == true &&
+                (_schoolWebEnabled || SchoolInfo.isSuperAdmin)) {
+              if (!allowed.contains(6)) allowed.add(6);
+            } else if (_userSchoolWebTabOverride == false) {
+              allowed.remove(6);
+            }
+            if (!_schoolWebEnabled && !SchoolInfo.isSuperAdmin) {
+              allowed.remove(6);
+            }
             if (allowed.contains(9)) allowed.add(_tripFormIndex);
             allowed.sort();
             // สรุปผลเปิด/ปิดตามหน้ากำหนดสิทธิ์ (เดิมซ่อนจากชื่อ "ครู" ตายตัว)

@@ -18,6 +18,7 @@ const MENUS: Record<Device, { id: number; label: string }[]> = {
     { id: 3, label: 'ประวัติการลา' },
     { id: 4, label: 'จัดการระบบ' },
     { id: 5, label: 'บุคลากร (กลุ่มสาระ)' },
+    { id: 6, label: 'เว็บโรงเรียน' },
     { id: 7, label: 'ประวัติการเข้าใช้งาน' },
     { id: 8, label: 'ปฏิทินกิจกรรมส่วนกลาง' },
     { id: 9, label: 'ไปราชการ / ประชุม' },

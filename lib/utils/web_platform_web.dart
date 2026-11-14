@@ -271,14 +271,11 @@ String resolveSchoolWebUrl({
 }) {
   final origin = web.window.location.origin;
   final cleanSub = subPath.startsWith('/') ? subPath.substring(1) : subPath;
-  final basePath = '$origin/central/$cleanSub';
+  final basePath = '$origin/central/';
 
   final queryParts = <String>[
     'embedded=${embedded ? '1' : '0'}',
     if (schoolId != null) 'school_id=$schoolId',
-  ];
-
-  final hashParts = <String>[
     if (accessToken != null && accessToken.isNotEmpty)
       'sso_access_token=${Uri.encodeComponent(accessToken)}',
     if (refreshToken != null && refreshToken.isNotEmpty)
@@ -286,11 +283,75 @@ String resolveSchoolWebUrl({
   ];
 
   final queryStr = queryParts.isNotEmpty ? '?${queryParts.join('&')}' : '';
-  final hashStr = hashParts.isNotEmpty ? '#${hashParts.join('&')}' : '';
+  final hashStr = cleanSub.isNotEmpty ? '#/$cleanSub' : '';
   return '$basePath$queryStr$hashStr';
 }
 
 /// เปิดลิงก์เว็บโรงเรียนในแท็บปัจจุบันหรือแท็บใหม่
 void openUrlInBrowser(String url, {bool sameTab = false}) {
   web.window.open(url, sameTab ? '_self' : '_blank');
+}
+
+/// ดึง refresh_token จาก URL (sso_refresh_token) หรือจาก localStorage ของเว็บโรงเรียน (/central/)
+/// เพื่อให้ระบบวันลาเชื่อมเซสชัน (SSO) เข้าหน้าหลักได้ทันทีโดยไม่ต้องล็อกอินซ้ำ
+String? consumeIncomingSsoRefreshToken() {
+  try {
+    String? tokenFromUrl;
+
+    // 1. ตรวจจาก query (?sso_refresh_token=...) และ hash (#sso_refresh_token=...)
+    final search = web.window.location.search;
+    if (search.isNotEmpty) {
+      final cleanSearch = search.startsWith('?') ? search.substring(1) : search;
+      final params = Uri.splitQueryString(cleanSearch);
+      tokenFromUrl = params['sso_refresh_token'];
+    }
+
+    final hash = web.window.location.hash;
+    if ((tokenFromUrl == null || tokenFromUrl.isEmpty) && hash.isNotEmpty) {
+      final cleanHash = hash.startsWith('#') ? hash.substring(1) : hash;
+      final queryPart =
+          cleanHash.contains('?') ? cleanHash.split('?').last : cleanHash;
+      try {
+        final params = Uri.splitQueryString(queryPart);
+        tokenFromUrl = params['sso_refresh_token'];
+      } catch (_) {}
+    }
+
+    if (tokenFromUrl != null && tokenFromUrl.isNotEmpty) {
+      // ล้างพารามิเตอร์ SSO ออกจาก URL บนแถบที่อยู่เพื่อความสะอาดและปลอดภัย
+      try {
+        final cleanPath = web.window.location.pathname;
+        web.window.history.replaceState(null, '', cleanPath);
+      } catch (_) {}
+      return tokenFromUrl;
+    }
+
+    // 2. หากไม่มีใน URL ให้ตรวจจาก localStorage ของเว็บโรงเรียน (koragoch-central-auth)
+    final rawSession = web.window.localStorage.getItem('koragoch-central-auth');
+    if (rawSession != null && rawSession.isNotEmpty) {
+      final decoded = jsonDecode(rawSession);
+      if (decoded is Map) {
+        final directRefresh = decoded['refresh_token']?.toString();
+        if (directRefresh != null && directRefresh.isNotEmpty) {
+          return directRefresh;
+        }
+        final currentSession = decoded['currentSession'];
+        if (currentSession is Map) {
+          final nestedRefresh = currentSession['refresh_token']?.toString();
+          if (nestedRefresh != null && nestedRefresh.isNotEmpty) {
+            return nestedRefresh;
+          }
+        }
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
+/// ล้างเซสชัน SSO ใน localStorage ของเบราว์เซอร์เมื่อผู้ใช้ออกจากระบบ
+void clearBrowserSsoStorage() {
+  try {
+    web.window.localStorage.removeItem('koragoch-central-auth');
+    web.window.localStorage.removeItem('sb-uziajblqlbrvqmxvizsi-auth-token');
+  } catch (_) {}
 }

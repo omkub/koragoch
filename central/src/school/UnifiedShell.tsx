@@ -18,7 +18,7 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
-import { supabase, type Access } from '../supabase';
+import { navigateToLeaveApp, supabase, type Access } from '../supabase';
 import type { DivisionIconName, DivisionWithModules } from './mapping';
 import type { SchoolBasic } from './types';
 
@@ -452,14 +452,15 @@ export default function UnifiedShell({
                 <span className="hidden sm:inline">เปิดเต็มจอ</span>
               </a>
             ) : (
-              <a
-                href="/"
+              <button
+                type="button"
+                onClick={() => navigateToLeaveApp()}
                 className="btn-secondary btn-sm"
                 title="สลับกลับไปยังระบบวันลา"
               >
                 <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.5} />
                 <span>กลับระบบวันลา</span>
-              </a>
+              </button>
             )}
 
             <button

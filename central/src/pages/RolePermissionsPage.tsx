@@ -8,31 +8,38 @@ import {
   type Role,
   type School,
 } from '../supabase';
+import SchoolPackagePanel from '../school/SchoolPackagePanel';
 import MenuVisibilityPanel from './MenuVisibilityPanel';
 import RoleListPanel from './RoleListPanel';
 import { Notice, PageHeader, SectionHeader } from '../ui/components';
 import PermMatrix, { SaveBar } from '../ui/PermMatrix';
 
 type Grid = Record<string, boolean>; // `${id_role}:${item_key}` → allowed
-type TabKey = 'ceiling' | 'menus' | 'roles';
+type TabKey = 'package' | 'ceiling' | 'menus' | 'roles';
 
 const cellKey = (role: number, item: string) => `${role}:${item}`;
 
 const TAB_META: Record<TabKey, { step: string; title: string; subtitle: string }> = {
-  ceiling: {
+  package: {
     step: '1',
+    title: 'สิทธิ์ระดับโรงเรียน (เปิด/ปิดเว็บโรงเรียน & Module ย่อย)',
+    subtitle:
+      'กำหนดว่าโรงเรียนนี้สามารถเปิดใช้งาน "เว็บโรงเรียน" หรือใช้ได้เฉพาะ "Web ย่อยระบบวันลา" และเลือกเปิด/ปิดเฉพาะ Module ย่อยที่อนุญาตให้โรงเรียนนี้มองเห็น',
+  },
+  ceiling: {
+    step: '2',
     title: 'เพดานสิทธิ์สูงสุด (Role Ceiling)',
     subtitle:
       'กำหนดว่าแต่ละสิทธิ์ทำอะไรได้ "มากที่สุด" ในโรงเรียนนี้ — แอดมินโรงเรียนปรับรายคนได้ไม่เกินเพดานนี้ · หากปิดที่นี่ ทุกคนในสิทธิ์นั้นจะเสียสิทธิ์ทันที',
   },
   menus: {
-    step: '2',
+    step: '3',
     title: 'การมองเห็นเมนูในแอป (จอคอม / มือถือ)',
     subtitle:
       'เลือกเมนูที่แต่ละสิทธิ์มองเห็นในแอปของโรงเรียนนี้ (ข้อมูลชุดเดียวกับหน้า จัดการระบบ > กำหนดสิทธิ์เข้าถึง ในแอป)',
   },
   roles: {
-    step: '3',
+    step: '4',
     title: 'รายชื่อสิทธิ์ของโรงเรียน',
     subtitle:
       'จัดการรายชื่อสิทธิ์เพิ่มเติมที่ใช้เฉพาะโรงเรียนนี้ (สิทธิ์หลักของระบบใช้ร่วมทุกโรงเรียน แก้หรือลบไม่ได้)',
@@ -40,10 +47,10 @@ const TAB_META: Record<TabKey, { step: string; title: string; subtitle: string }
 };
 
 /**
- * เพดานของสิทธิ์ (RolePermissions) — จัดหมวดหมู่เป็น 3 แท็บภายใต้โรงเรียนที่เลือก
+ * เพดานของสิทธิ์ (RolePermissions) — จัดหมวดหมู่เป็น 4 แท็บภายใต้โรงเรียนที่เลือก
  */
 export default function RolePermissionsPage() {
-  const [tab, setTab] = useState<TabKey>('ceiling');
+  const [tab, setTab] = useState<TabKey>('package');
   const [schools, setSchools] = useState<School[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [items, setItems] = useState<PermissionItem[]>([]);
@@ -108,6 +115,10 @@ export default function RolePermissionsPage() {
   );
 
   const schoolRoles = useMemo(() => rolesForSchool(roles, schoolId), [roles, schoolId]);
+  const currentSchool = useMemo(
+    () => schools.find((s) => s.id_school === schoolId) ?? null,
+    [schools, schoolId],
+  );
 
   async function save() {
     if (schoolId === null || changed.length === 0) return;
@@ -151,7 +162,7 @@ export default function RolePermissionsPage() {
       <PageHeader
         category="3. สิทธิ์และการเข้าถึง"
         title="เพดานสิทธิ์และการมองเห็นเมนู"
-        description="ตั้งค่ากรอบสิทธิ์สูงสุด การแสดงเมนูในแอป และรายชื่อสิทธิ์ของแต่ละโรงเรียน"
+        description="ตั้งค่าสิทธิ์ระดับโรงเรียน (เว็บโรงเรียน & Module ย่อย) กรอบสิทธิ์สูงสุด การแสดงเมนูในแอป และรายชื่อสิทธิ์ของแต่ละโรงเรียน"
       />
 
       {/* แถบควบคุมหลัก: เลือกโรงเรียน + สลับหมวดหมู่ย่อย */}
@@ -180,20 +191,31 @@ export default function RolePermissionsPage() {
           </select>
         </div>
 
-        <div className="seg">
+        <div className="seg flex-wrap">
+          <button className={tab === 'package' ? 'active' : ''} onClick={() => switchTab('package')}>
+            1. สิทธิ์ระดับโรงเรียน
+          </button>
           <button className={tab === 'ceiling' ? 'active' : ''} onClick={() => switchTab('ceiling')}>
-            1. เพดานสิทธิ์
+            2. เพดานสิทธิ์
           </button>
           <button className={tab === 'menus' ? 'active' : ''} onClick={() => switchTab('menus')}>
-            2. การมองเห็นเมนู
+            3. การมองเห็นเมนู
           </button>
           <button className={tab === 'roles' ? 'active' : ''} onClick={() => switchTab('roles')}>
-            3. รายชื่อสิทธิ์ ({schoolRoles.length})
+            4. รายชื่อสิทธิ์ ({schoolRoles.length})
           </button>
         </div>
       </section>
 
       <SectionHeader step={meta.step} title={meta.title} subtitle={meta.subtitle} />
+
+      {tab === 'package' && schoolId !== null && (
+        <SchoolPackagePanel
+          schoolId={schoolId}
+          schoolName={currentSchool ? schoolName(currentSchool) : `โรงเรียน #${schoolId}`}
+          canManage={true}
+        />
+      )}
 
       {tab === 'roles' && schoolId !== null && (
         <RoleListPanel
@@ -233,7 +255,7 @@ export default function RolePermissionsPage() {
                 })),
               }))}
             />
-            <SaveBar changed={changed.length} busy={busy} onReset={() => setGrid(saved)} onSave={save} />
+            <SaveBar changed={changed.length} busy={busy} onSave={save} onReset={() => setGrid(saved)} />
           </section>
         </>
       )}

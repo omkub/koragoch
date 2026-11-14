@@ -1,4 +1,10 @@
 import { supabase } from '../supabase';
+import {
+  fetchSchoolPackageConfig,
+  isDivisionAllowedForSchool,
+  isModuleAllowedForSchool,
+  type SchoolPackageConfig,
+} from './schoolPackage';
 
 export type DivisionIconName =
   | 'users'
@@ -188,14 +194,15 @@ export const FALLBACK_DIVISIONS: Omit<SchoolDivision, 'id_school'>[] = [
 
 /**
  * โหลดข้อมูล Mapping (โรงเรียน -> ฝ่าย -> Module ย่อย)
- * หากยังไม่ได้รัน SQL หรือโรงเรียนนั้นยังไม่มีข้อมูลในตาราง จะใช้ค่ามาตรฐานแทนโดยไม่พัง
+ * พร้อมกรองตามเพดานสิทธิ์ระดับโรงเรียน (SchoolPackageConfig) ที่กำหนดโดย Super Admin
  */
 export async function fetchSchoolDivisionTree(schoolId: number): Promise<{
   catalog: ModuleCatalogItem[];
   divisions: DivisionWithModules[];
   hasDbMapping: boolean;
+  schoolPackage: SchoolPackageConfig;
 }> {
-  const [catRes, divRes, modRes] = await Promise.all([
+  const [catRes, divRes, modRes, schoolPackage] = await Promise.all([
     supabase
       .from('SchoolWebModuleCatalog')
       .select('*')
@@ -213,6 +220,7 @@ export async function fetchSchoolDivisionTree(schoolId: number): Promise<{
       .eq('id_school', schoolId)
       .order('sort_order', { ascending: true })
       .order('id', { ascending: true }),
+    fetchSchoolPackageConfig(schoolId),
   ]);
 
   const rawCatalog =
@@ -220,19 +228,23 @@ export async function fetchSchoolDivisionTree(schoolId: number): Promise<{
       ? (catRes.data as ModuleCatalogItem[])
       : FALLBACK_CATALOG;
 
-  // รับประกันว่ามี 'appointment-orders' ใน catalog เสมอ แม้ยังไม่ได้รันไฟล์ SQL ใหม่
   const hasOrderCatalog = rawCatalog.some(
     (c) => c.module_key === 'appointment-orders',
   );
-  const catalog = hasOrderCatalog
+  const fullCatalog = hasOrderCatalog
     ? rawCatalog
     : [
         ...rawCatalog,
         FALLBACK_CATALOG.find((c) => c.module_key === 'appointment-orders')!,
       ];
 
+  // กรองเฉพาะ Module ที่ได้รับอนุญาตในระดับโรงเรียน
+  const catalog = fullCatalog.filter((c) =>
+    isModuleAllowedForSchool(schoolPackage, c.module_key),
+  );
+
   const catalogMap = new Map<string, ModuleCatalogItem>();
-  for (const item of catalog) {
+  for (const item of fullCatalog) {
     catalogMap.set(item.module_key, item);
   }
 
@@ -242,53 +254,62 @@ export async function fetchSchoolDivisionTree(schoolId: number): Promise<{
     !modRes.error && modRes.data ? (modRes.data as SchoolDivisionModule[]) : [];
 
   if (dbDivisions.length > 0) {
-    const divisions: DivisionWithModules[] = dbDivisions.map((div) => {
-      const rawMods = dbModules.filter((m) => m.division_id === div.id);
-      const resolved: ResolvedDivisionModule[] = rawMods.map((m) => {
-        const cat = catalogMap.get(m.module_key);
+    const divisions: DivisionWithModules[] = dbDivisions
+      .filter((div) => isDivisionAllowedForSchool(schoolPackage, div.division_key))
+      .map((div) => {
+        const rawMods = dbModules.filter((m) => m.division_id === div.id);
+        const resolved: ResolvedDivisionModule[] = rawMods
+          .filter((m) => isModuleAllowedForSchool(schoolPackage, m.module_key))
+          .map((m) => {
+            const cat = catalogMap.get(m.module_key);
+            return {
+              ...m,
+              title: m.custom_title || cat?.title || m.module_key,
+              description: m.custom_description || cat?.description || '',
+              module_type: cat?.module_type || 'external',
+              resolved_url: m.external_url || cat?.default_url || null,
+            };
+          });
+
+        // หากฝ่ายนี้ยังไม่มี 'appointment-orders' ใน DB และโรงเรียนได้รับอนุญาตใช้ 'appointment-orders'
+        if (
+          isModuleAllowedForSchool(schoolPackage, 'appointment-orders') &&
+          !resolved.some((m) => m.module_key === 'appointment-orders')
+        ) {
+          const orderCat = catalogMap.get('appointment-orders');
+          if (orderCat) {
+            resolved.push({
+              id: -(div.id * 100 + 99),
+              id_school: schoolId,
+              division_id: div.id,
+              module_key: 'appointment-orders',
+              custom_title: null,
+              custom_description: null,
+              external_url: null,
+              open_mode: 'new_tab',
+              sort_order: 10,
+              is_enabled: true,
+              title: orderCat.title,
+              description: orderCat.description || '',
+              module_type: 'builtin',
+              resolved_url: null,
+            });
+          }
+        }
+
         return {
-          ...m,
-          title: m.custom_title || cat?.title || m.module_key,
-          description: m.custom_description || cat?.description || '',
-          module_type: cat?.module_type || 'external',
-          resolved_url: m.external_url || cat?.default_url || null,
+          ...div,
+          modules: resolved,
         };
       });
 
-      // หากฝ่ายนี้ยังไม่มี 'appointment-orders' ใน DB ให้แสดงเป็นค่าเริ่มต้นของทุกฝ่ายทันที
-      if (!resolved.some((m) => m.module_key === 'appointment-orders')) {
-        const orderCat = catalogMap.get('appointment-orders');
-        if (orderCat) {
-          resolved.push({
-            id: -(div.id * 100 + 99),
-            id_school: schoolId,
-            division_id: div.id,
-            module_key: 'appointment-orders',
-            custom_title: null,
-            custom_description: null,
-            external_url: null,
-            open_mode: 'new_tab',
-            sort_order: 10,
-            is_enabled: true,
-            title: orderCat.title,
-            description: orderCat.description || '',
-            module_type: 'builtin',
-            resolved_url: null,
-          });
-        }
-      }
-
-      return {
-        ...div,
-        modules: resolved,
-      };
-    });
-
-    return { catalog, divisions, hasDbMapping: true };
+    return { catalog, divisions, hasDbMapping: true, schoolPackage };
   }
 
-  // Fallback tree when DB has no rows yet
-  const fallbackTree: DivisionWithModules[] = FALLBACK_DIVISIONS.map((div) => {
+  // Fallback tree when DB has no rows yet — กรองตามสิทธิ์ระดับโรงเรียนเช่นกัน
+  const fallbackTree: DivisionWithModules[] = FALLBACK_DIVISIONS.filter((div) =>
+    isDivisionAllowedForSchool(schoolPackage, div.division_key),
+  ).map((div) => {
     const defaultMods = catalog.filter(
       (c) =>
         c.default_division_key === div.division_key ||
@@ -316,5 +337,10 @@ export async function fetchSchoolDivisionTree(schoolId: number): Promise<{
     };
   });
 
-  return { catalog, divisions: fallbackTree, hasDbMapping: false };
+  return {
+    catalog,
+    divisions: fallbackTree,
+    hasDbMapping: false,
+    schoolPackage,
+  };
 }

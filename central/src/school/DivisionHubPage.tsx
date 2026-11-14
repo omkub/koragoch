@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowUpRight, ExternalLink, Layers, Settings2 } from 'lucide-react';
-import { supabase, type Access } from '../supabase';
+import { navigateToLeaveApp, supabase, type Access } from '../supabase';
 import AcademicsPage from './AcademicsPage';
 import AnnouncementsSection from './AnnouncementsSection';
 import AppointmentOrdersPage from './AppointmentOrdersPage';
@@ -17,6 +17,7 @@ interface DivisionHubPageProps {
   schoolName?: string;
   canEdit: boolean;
   editableDivisionIds?: number[];
+  editableModuleKeys?: string[];
   access: Access;
   divisions: DivisionWithModules[];
 }
@@ -26,6 +27,7 @@ export default function DivisionHubPage({
   schoolName = 'โรงเรียน',
   canEdit,
   editableDivisionIds = [],
+  editableModuleKeys = [],
   access,
   divisions,
 }: DivisionHubPageProps) {
@@ -49,6 +51,15 @@ export default function DivisionHubPage({
 
   const canEditThisDivision =
     canEdit || (division ? editableDivisionIds.includes(division.id) : false);
+
+  const canEditActiveModule =
+    canEditThisDivision ||
+    (activeModule && division
+      ? editableModuleKeys.includes(activeModule.module_key) ||
+        editableModuleKeys.includes(
+          `${division.division_key}:${activeModule.module_key}`,
+        )
+      : false);
 
   if (!division) {
     return (
@@ -111,7 +122,7 @@ export default function DivisionHubPage({
         </div>
       ) : (
         <>
-          <div className="border-b border-line pb-3">
+          <div className="flex flex-col gap-2 border-b border-line pb-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-1.5">
               {enabledModules.map((mod) => {
                 const isSelected = activeModule?.module_key === mod.module_key;
@@ -136,6 +147,20 @@ export default function DivisionHubPage({
                 );
               })}
             </div>
+
+            {activeModule && (
+              <span
+                className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                  canEditActiveModule
+                    ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200'
+                    : 'bg-sky-50 text-sky-700 ring-1 ring-inset ring-sky-200'
+                }`}
+              >
+                {canEditActiveModule
+                  ? 'สิทธิ์ของคุณในหน้านี้: แก้ไขและจัดการได้'
+                  : 'สิทธิ์ของคุณในหน้านี้: ดูและดาวน์โหลดอย่างเดียว'}
+              </span>
+            )}
           </div>
 
           {/* Active Module Content */}
@@ -144,7 +169,7 @@ export default function DivisionHubPage({
               schoolId={schoolId}
               schoolName={schoolName}
               division={division}
-              canEdit={canEditThisDivision}
+              canEdit={canEditActiveModule}
               access={access}
               mod={activeModule}
             />
@@ -224,8 +249,6 @@ function LeaveSystemModuleView({
       });
   }, [schoolId]);
 
-  const targetUrl = mod.resolved_url || 'https://rbp-chanikarnn.web.app/';
-
   return (
     <div className="space-y-6">
       <section className="surface-card p-6">
@@ -245,15 +268,14 @@ function LeaveSystemModuleView({
             </p>
           </div>
 
-          <a
-            href={targetUrl}
-            target={mod.open_mode === 'new_tab' ? '_blank' : '_self'}
-            rel={mod.open_mode === 'new_tab' ? 'noreferrer' : undefined}
+          <button
+            type="button"
+            onClick={() => navigateToLeaveApp(mod.resolved_url || undefined)}
             className="btn-primary shrink-0"
           >
             <span>เปิด Web ย่อยระบบวันลา</span>
             <ArrowUpRight className="h-4 w-4" strokeWidth={1.5} />
-          </a>
+          </button>
         </div>
       </section>
 

@@ -76,6 +76,9 @@ export default function SchoolDashboardPage({
     (sum, d) => sum + d.modules.filter((m) => m.is_enabled).length,
     0,
   );
+  const hasAnnouncementsModule = enabledDivisions.some((d) =>
+    d.modules.some((m) => m.module_key === 'announcements' && m.is_enabled),
+  );
 
   return (
     <div className="space-y-6">
@@ -152,7 +155,11 @@ export default function SchoolDashboardPage({
 
       {/* Main Content: Dynamic Divisions + Announcements */}
       <div className="grid gap-6 lg:grid-cols-12">
-        <div className="space-y-6 lg:col-span-7">
+        <div
+          className={`space-y-6 ${
+            hasAnnouncementsModule ? 'lg:col-span-7' : 'lg:col-span-12'
+          }`}
+        >
           <section className="surface-card p-6">
             <h2 className="text-base font-semibold text-ink">
               ฝ่ายงานของโรงเรียน ({enabledDivisions.length})
@@ -225,9 +232,11 @@ export default function SchoolDashboardPage({
           </section>
         </div>
 
-        <div className="lg:col-span-5">
-          <AnnouncementsSection schoolId={schoolId} canEdit={canEdit} />
-        </div>
+        {hasAnnouncementsModule && (
+          <div className="lg:col-span-5">
+            <AnnouncementsSection schoolId={schoolId} canEdit={canEdit} />
+          </div>
+        )}
       </div>
     </div>
   );

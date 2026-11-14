@@ -100,14 +100,11 @@ String resolveSchoolWebUrl({
 }) {
   final cleanSub = subPath.startsWith('/') ? subPath.substring(1) : subPath;
   const baseOrigin = 'https://rbp-chanikarnn.web.app';
-  final basePath = '$baseOrigin/central/$cleanSub';
+  const basePath = '$baseOrigin/central/';
 
   final queryParts = <String>[
     'embedded=${embedded ? '1' : '0'}',
     if (schoolId != null) 'school_id=$schoolId',
-  ];
-
-  final hashParts = <String>[
     if (accessToken != null && accessToken.isNotEmpty)
       'sso_access_token=${Uri.encodeComponent(accessToken)}',
     if (refreshToken != null && refreshToken.isNotEmpty)
@@ -115,7 +112,7 @@ String resolveSchoolWebUrl({
   ];
 
   final queryStr = queryParts.isNotEmpty ? '?${queryParts.join('&')}' : '';
-  final hashStr = hashParts.isNotEmpty ? '#${hashParts.join('&')}' : '';
+  final hashStr = cleanSub.isNotEmpty ? '#/$cleanSub' : '';
   return '$basePath$queryStr$hashStr';
 }
 
@@ -123,3 +120,9 @@ String resolveSchoolWebUrl({
 void openUrlInBrowser(String url, {bool sameTab = false}) {
   debugPrint('openUrlInBrowser ($url): รองรับเฉพาะบนเว็บ');
 }
+
+/// นอกเว็บไม่มี SSO จาก URL/localStorage
+String? consumeIncomingSsoRefreshToken() => null;
+
+/// นอกเว็บไม่มี localStorage ของเบราว์เซอร์
+void clearBrowserSsoStorage() {}

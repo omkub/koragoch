@@ -1,17 +1,19 @@
+import 'dart:convert';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';  // ← เพิ่มบรรทัดนี้
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'firebase_options.dart';
 import 'screens/login_screen.dart';
 import 'screens/responsive_layout.dart';
 import 'theme/app_theme.dart';
-import 'dart:ui';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:thai_buddhist_date/thai_buddhist_date.dart' as tbd;
 import 'services/firebase_service.dart';
 import 'utils/school_info.dart';
 import 'utils/staff_status.dart';
+import 'utils/web_platform.dart' as platform;
 import 'widgets/update_banner.dart';
 
 Future<void> clearSessionPrefs(SharedPreferences prefs) async {
@@ -20,6 +22,7 @@ Future<void> clearSessionPrefs(SharedPreferences prefs) async {
   await prefs.remove('currentUser');
   await prefs.remove('userRole');
   await prefs.remove('userFullDataJson');
+  platform.clearBrowserSsoStorage();
 }
 
 Future<void> main() async {
@@ -66,60 +69,170 @@ class _MyAppState extends State<MyApp> {
   Future<void> _initializeSupabaseInBackground() {
     return Supabase.initialize(
       url: 'https://uziajblqlbrvqmxvizsi.supabase.co',
-      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV6aWFqYmxxbGJydnFteHZpenNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2Njc1MzIsImV4cCI6MjA5OTI0MzUzMn0.cpnt8uctNacuJWNelYx5C_oP0xEPtUhzvNDgyWkg0ZA',
+      anonKey:
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV6aWFqYmxxbGJydnFteHZpenNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2Njc1MzIsImV4cCI6MjA5OTI0MzUzMn0.cpnt8uctNacuJWNelYx5C_oP0xEPtUhzvNDgyWkg0ZA',
     )
         .then((_) => debugPrint('✅ Supabase initialized'))
         .catchError((e) => debugPrint("❌ Supabase Initialize Error: $e"));
+  }
+
+  String _resolveEffectiveRole(Iterable<dynamic> values) {
+    final roles = values
+        .where((value) => value != null)
+        .map((value) => value.toString().trim())
+        .where((value) => value.isNotEmpty)
+        .toList();
+
+    if (roles.contains('ผู้ดูแลระบบ')) return 'ผู้ดูแลระบบ';
+    if (roles.contains('ผู้บริหาร')) return 'ผู้บริหาร';
+    if (roles.contains('ครู')) return 'ครู';
+    return roles.isNotEmpty ? roles.first : 'ครู';
+  }
+
+  Future<String> _resolveRoleFromSupabase(
+    SupabaseClient supabase,
+    Map<String, dynamic> userData,
+  ) async {
+    final direct = _resolveEffectiveRole([
+      userData['role'],
+      userData['permission'],
+    ]);
+    if (direct != 'ครู') return direct;
+
+    final idRole = userData['id_role'];
+    if (idRole != null) {
+      try {
+        final rows = await supabase
+            .from('roles')
+            .select('Accessrights')
+            .eq('ID_Roles', idRole)
+            .limit(1);
+        if (rows.isNotEmpty) {
+          final name = (rows.first['Accessrights'] ?? '').toString().trim();
+          if (name.isNotEmpty) return _resolveEffectiveRole([name]);
+        }
+      } catch (e) {
+        debugPrint('resolve role error: $e');
+      }
+    }
+    return direct;
+  }
+
+  /// เติมข้อมูลผู้ใช้ลง SharedPreferences อัตโนมัติจาก Supabase Session (สำหรับ SSO จากเว็บโรงเรียน /central/)
+  Future<bool> _hydratePrefsFromSupabaseSession(SharedPreferences prefs) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final authUid = supabase.auth.currentUser?.id;
+      if (authUid == null || authUid.isEmpty) return false;
+
+      final rows = await supabase
+          .from('Teachers')
+          .select()
+          .eq('auth_uid', authUid)
+          .limit(1);
+      if (rows.isEmpty) return false;
+
+      final userData = Map<String, dynamic>.from(rows.first as Map);
+      final teacherPk = userData['id_user'];
+      final teacherDocId =
+          (userData['firebase_uid'] ?? teacherPk ?? '').toString();
+      final effectiveRole = await _resolveRoleFromSupabase(supabase, userData);
+
+      userData['role'] = effectiveRole;
+      userData['permission'] = effectiveRole;
+      userData['id'] = teacherDocId;
+
+      final firebaseService = FirebaseService();
+      final enrichedUser = await firebaseService.enrichTeacher(userData);
+
+      final safeJson = jsonEncode({
+        ...enrichedUser,
+        'id': teacherDocId,
+        'role': effectiveRole,
+        'permission': effectiveRole,
+      }, toEncodable: (item) {
+        if (item is DateTime) return item.toIso8601String();
+        return item.toString();
+      });
+
+      await prefs.setBool('isLoggedIn', true);
+      await prefs.setInt('loginAt', DateTime.now().millisecondsSinceEpoch);
+      await prefs.setString('currentUser',
+          (userData['fullName'] ?? userData['name'] ?? 'ผู้ใช้งาน').toString());
+      await prefs.setString('userRole', effectiveRole);
+      await prefs.setString('userFullDataJson', safeJson);
+      return true;
+    } catch (e) {
+      debugPrint('SSO Hydrate Error: $e');
+      return false;
+    }
   }
 
   Future<void> _handleBackgroundStartup() async {
     try {
       final prefs = await SharedPreferences.getInstance();
 
+      try {
+        await _supabaseReady?.timeout(const Duration(seconds: 10));
+      } catch (e) {
+        debugPrint('⚠️  รอ Supabase ไม่สำเร็จ: $e');
+      }
+
+      final supabase = Supabase.instance.client;
+
+      // 🔗 ตรวจรับ SSO Session จากเว็บโรงเรียน (/central/) ทั้งจาก URL และ localStorage
+      final ssoRefreshToken = platform.consumeIncomingSsoRefreshToken();
+      if (ssoRefreshToken != null &&
+          ssoRefreshToken.isNotEmpty &&
+          supabase.auth.currentSession == null) {
+        try {
+          await supabase.auth.setSession(ssoRefreshToken);
+          debugPrint('✅ รับ SSO Session จากเว็บโรงเรียนสำเร็จ');
+        } catch (e) {
+          debugPrint('⚠️  ตั้งค่า SSO Session ไม่สำเร็จ: $e');
+        }
+      }
+
       final bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
       final int? loginAt = prefs.getInt('loginAt');
+      final String? cachedUserJson = prefs.getString('userFullDataJson');
+      final bool isPrefsFresh = isLoggedIn &&
+          loginAt != null &&
+          cachedUserJson != null &&
+          cachedUserJson.isNotEmpty &&
+          (DateTime.now().millisecondsSinceEpoch - loginAt) <
+              (2 * 60 * 60 * 1000);
 
-      if (isLoggedIn && loginAt != null) {
-        // 🚀 จำ session จาก SharedPreferences ล้วน (เลิกพึ่ง FirebaseAuth)
-        // ตรวจสอบอายุการล็อกอิน (ตัวอย่าง 2 ชั่วโมง)
-        if ((DateTime.now().millisecondsSinceEpoch - loginAt) <
-            (2 * 60 * 60 * 1000)) {
-          // ยังไม่หมดอายุ — แต่ต้องมี session ของ Supabase Auth อยู่จริงด้วย
-          //
-          // หลังเปิด RLS ถ้าเข้าหน้าหลักโดยไม่มี session จะอ่านฐานข้อมูลไม่ได้
-          // สักตาราง หน้าจอจะว่างเปล่าโดยไม่บอกสาเหตุ — เช็กตรงนี้แล้วเด้งกลับ
-          // ไปหน้า Login ให้ล็อกอินใหม่จะชัดเจนกว่า
-          try {
-            // ใส่ timeout กันแอปค้างที่หน้าเปล่าถ้า Supabase ไม่ตอบ
-            await _supabaseReady?.timeout(const Duration(seconds: 10));
-          } catch (e) {
-            // ต่อ Supabase ไม่ได้ — ปล่อยให้ตกไปทางล้าง session ข้างล่าง
-            debugPrint('⚠️  รอ Supabase ไม่สำเร็จ: $e');
-          }
-          var hasSession =
-              Supabase.instance.client.auth.currentSession != null;
-          // ถูกตั้งเป็นพ้นสภาพระหว่างที่ยังล็อกอินค้างอยู่ — ออกจากระบบ
-          // (ฐานข้อมูลไม่ให้อ่านอะไรอยู่แล้ว ถ้าปล่อยไว้จะเจอหน้าว่างเปล่า)
-          if (hasSession) {
-            final status = await FirebaseService.myEmploymentStatus();
-            if (status != null && status != StaffStatus.active) {
-              await Supabase.instance.client.auth.signOut();
-              hasSession = false;
-            }
-          }
-          if (hasSession) {
-            // ชื่อโรงเรียนมาจากตาราง Schools ต้องโหลดก่อนวาดใบลา
-            // ถ้าโหลดไม่ได้จะใช้ค่าสำรอง ไม่บล็อกการเข้าแอป
-            await SchoolInfo.load();
-            if (mounted) setState(() => _homeWidget = const ResponsiveLayout());
-          } else {
-            debugPrint('ℹ️  ไม่พบ session ของ Supabase Auth — กลับไปหน้า Login');
-            await clearSessionPrefs(prefs);
-          }
-        } else {
-          // หมดอายุ → ล้าง session แล้วกลับไปหน้า Login
+      var hasSession = supabase.auth.currentSession != null;
+
+      if (hasSession) {
+        // ตรวจสถานะปฏิบัติงาน (ต้องยังปฏิบัติงานอยู่)
+        final status = await FirebaseService.myEmploymentStatus();
+        if (status != null && status != StaffStatus.active) {
+          await supabase.auth.signOut();
           await clearSessionPrefs(prefs);
+          return;
         }
+
+        // ถ้ามี session ใน Supabase อยู่แล้ว (เช่น กดสลับมาจากเว็บโรงเรียน /central/)
+        // แต่ใน SharedPreferences ยังไม่มีข้อมูลหรือหมดอายุ ให้ดึงข้อมูลจาก Teachers มาเติมให้อัตโนมัติ
+        var readyToEnter = isPrefsFresh;
+        if (!readyToEnter) {
+          readyToEnter = await _hydratePrefsFromSupabaseSession(prefs);
+        }
+
+        if (readyToEnter) {
+          await SchoolInfo.load(force: !isPrefsFresh);
+          if (mounted) {
+            setState(() => _homeWidget = const ResponsiveLayout());
+          }
+          return;
+        }
+      }
+
+      if (isLoggedIn) {
+        debugPrint('ℹ️  ไม่พบ session ที่ใช้งานได้ — ล้างค่าและแสดงหน้า Login');
+        await clearSessionPrefs(prefs);
       }
     } catch (e) {
       debugPrint("Startup Error: $e");

@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -11,6 +11,7 @@ import 'mobile_password_reset_screen.dart'; // 🔐 เพิ่ม Import ส�
 import '../user_management_screen.dart'; // 👤 เพิ่มหน้าจัดการผู้ใช้ครับ
 import '../../utils/profile_image.dart';
 import '../../utils/school_info.dart';
+import '../../utils/web_platform.dart' as platform;
 import '../../widgets/install_app_button.dart';
 import '../../widgets/push_toggle_tile.dart';
 class MobileProfileScreen extends StatefulWidget {
@@ -45,6 +46,7 @@ class _MobileProfileScreenState extends State<MobileProfileScreen> {
     await prefs.remove('currentUser');
     await prefs.remove('userRole');
     await prefs.remove('userFullDataJson');
+    platform.clearBrowserSsoStorage();
   }
 
   // Controllers for editing

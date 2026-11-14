@@ -15,12 +15,14 @@ import type {
   ModuleCatalogItem,
   ResolvedDivisionModule,
 } from './mapping';
+import SchoolPackagePanel from './SchoolPackagePanel';
 import type { SchoolBasic } from './types';
 
 interface DivisionMappingPageProps {
   school: SchoolBasic | null;
   schoolId: number | null;
   canEdit: boolean;
+  isSuper?: boolean;
   catalog: ModuleCatalogItem[];
   divisions: DivisionWithModules[];
   hasDbMapping: boolean;
@@ -39,6 +41,7 @@ export default function DivisionMappingPage({
   school,
   schoolId,
   canEdit,
+  isSuper = false,
   catalog,
   divisions,
   hasDbMapping,
@@ -340,6 +343,16 @@ export default function DivisionMappingPage({
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
           {message}
         </div>
+      )}
+
+      {/* ส่วนกำหนดสิทธิ์ระดับโรงเรียน (เฉพาะ Super Admin แก้ไขได้) */}
+      {isSuper && (
+        <SchoolPackagePanel
+          schoolId={schoolId}
+          schoolName={school?.fullName || `โรงเรียน #${schoolId ?? '-'}`}
+          canManage={isSuper}
+          onUpdated={onReload}
+        />
       )}
 
       {/* Asymmetric 5 + 7 Mapping Grid */}
