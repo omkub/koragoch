@@ -5,7 +5,8 @@ A staff leave management system used in production at [Romburipittayakhom Ratcha
 - **Staff** submit leave requests and official trip requests, check in by face scan, and view their history.
 - **School administrators** approve requests, manage personnel and roles, and track leave per fiscal year on a live dashboard.
 - **Central administrators** manage schools, permissions, LINE notifications, attendance devices, and the printed form templates.
-- **Stack:** Flutter (web) app + React/TypeScript central admin web, both on **Supabase** (Postgres, Auth, RLS, Edge Functions). Firebase is kept read-only for the legacy data import tool.
+- **School web:** the central web is also the school's own portal — 4 divisions with sub-modules (staff, students, documents, budget, appointment orders with .docx export), 4-tier permissions, and two-way SSO with the app.
+- **Stack:** Flutter (web) app + React/TypeScript central web, both on **Supabase** (Postgres, Auth, RLS, Edge Functions). Firebase is kept read-only for the legacy data import tool.
 - **Live:** https://rbp-chanikarnn.web.app/ (app) and https://rbp-chanikarnn.web.app/central/ (central admin) on Firebase Hosting, deployed automatically with GitHub Actions. The old https://omkub.github.io/koragoch/ redirects there.
 
 Documentation below is in Thai.
@@ -19,7 +20,7 @@ Documentation below is in Thai.
 | เรียกว่า | คืออะไร | โค้ด | URL | ผู้ใช้ |
 |---|---|---|---|---|
 | **app** | แอป Flutter (build เป็นเว็บ) | `lib/` (+ `web/` ไฟล์ประกอบของ Flutter) | https://rbp-chanikarnn.web.app/ | ครู / บุคลากร / แอดมินโรงเรียน |
-| **web** | เว็บผู้ดูแลระบบส่วนกลาง (React + TypeScript + Vite) | `central/` | https://rbp-chanikarnn.web.app/central/ | ผู้ดูแลส่วนกลาง / แอดมินโรงเรียน |
+| **web** | เว็บโรงเรียน (4 ฝ่าย) + ส่วนดูแลระบบวันลา (React + TypeScript + Vite) | `central/` | https://rbp-chanikarnn.web.app/central/ | ครู / ผู้บริหาร / แอดมินโรงเรียน / ผู้ดูแลส่วนกลาง |
 
 > โฟลเดอร์ `web/` เป็นไฟล์ประกอบของแอป Flutter (`index.html`, ไอคอน) **ไม่ใช่** "web" ในตารางข้างบน
 
@@ -37,10 +38,19 @@ Documentation below is in Thai.
 - **บันทึกไปราชการ / ประชุม** (ฟอร์มซ้าย + พรีวิวเอกสารขวา) และ **ประวัติไปราชการ / ประชุม** (อนุมัติ / รายงานผล / พิมพ์)
 - **ลงเวลา**: ดูสถานะรายวัน รายงานรายเดือน นำเข้าไฟล์จากเครื่องสแกน
 - จัดการบุคลากร ผู้ใช้ สิทธิ์เมนู ประวัติการเข้าใช้งาน
-- มือถือ (จอแคบกว่า 1100px) ใช้หน้าจอชุด `lib/screens/mobile/`
+- มือถือ (จอแคบกว่า 1100px) ใช้หน้าจอชุด `lib/screens/mobile_v2/` (แบบใหม่) หรือ `lib/screens/mobile/` (แบบเดิม) ตามที่โรงเรียนตั้ง
+- app PC มีแท็บ **เว็บโรงเรียน** ฝัง web ไว้ในแอป เข้าได้โดยไม่ต้องล็อกอินซ้ำ (SSO)
 
-**web**
-- โรงเรียน / ผู้ดูแลโรงเรียน / เพดานสิทธิ์ / สิทธิ์ผู้ใช้
+**web — เว็บโรงเรียน** (`central/src/school/`)
+- โรงเรียน → **ฝ่าย 4 ฝ่าย** (บุคคล / วิชาการ / บริหารทั่วไป / งบประมาณ) → **Module ย่อย**
+  - บุคคล: ระบบวันลา, ทะเบียนบุคลากร, กลุ่มสาระ/ฝ่าย · วิชาการ: นักเรียน/ห้องเรียน, หลักสูตร/ตารางสอน · บริหารทั่วไป: หนังสือราชการ, ประกาศ · งบประมาณ: งบประมาณ/โครงการ/พัสดุ
+  - **คำสั่งแต่งตั้ง** (ทุกฝ่าย): ฟอร์มซ้าย + ตัวอย่าง A4 ขวา ส่งออก .docx พร้อมตราครุฑ เลือกเลขไทย/อารบิกได้
+- **สิทธิ์ 4 ระดับ**: ผู้ใช้งาน (เห็นเฉพาะฝ่ายที่สังกัด) / ผู้บริหาร (ทุกฝ่าย) / Admin โรงเรียน (จัดการทุกฝ่าย) / Super Admin (ทุกโรงเรียน + เพดานแพ็กเกจ)
+- map บุคลากรเข้าฝ่าย (`/admin/mapping`) และสิทธิ์ฝ่าย/Module ตามบทบาทและรายบุคคล (`/admin/division-permissions`, `/user-permissions`)
+- **SSO 2 ทาง** กับ app (ส่ง session ผ่าน URL / localStorage โดเมนเดียวกัน) — รายละเอียดใน `CLAUDE.md`
+
+**web — ดูแลระบบวันลา**
+- ภาพรวมระบบวันลา (`/leave-admin`) / โรงเรียน / ผู้ดูแลโรงเรียน / เพดานสิทธิ์ / สิทธิ์ผู้ใช้
 - LINE แจ้งเตือน (ต่อโรงเรียน) / ลงเวลา (เครื่องสแกนหน้า + สรุป LINE ประจำวัน)
 - **แบบฟอร์ม**: ออกแบบใบลาและใบขออนุญาตไปราชการ (ดูหัวข้อถัดไป)
 
@@ -171,6 +181,20 @@ gh pr create --base main
 - ตัวเชื่อมเครื่องสแกนลงเวลา: `tools/attendance-connector/` (ดู README ในโฟลเดอร์)
 - สร้างบัญชี Auth ให้ครูที่ยังไม่มี: `tools/create_auth_users.mjs`
 
+### SQL ของเว็บโรงเรียน (รันตามลำดับ)
+
+ทุกไฟล์รันซ้ำได้ สร้างเฉพาะตารางใหม่ ไม่แตะตารางของระบบวันลา (ต้องรัน SQL ของระบบวันลามาก่อน — RLS ใช้ `can_see_school` / `is_admin` / `is_super_admin` / `current_school_id`)
+
+| ลำดับ | ไฟล์ | ตาราง |
+|---|---|---|
+| 1 | `school_web_core.sql` | `AcademicYears`, `AcademicTerms`, `SchoolDepartments`, `SchoolModules` |
+| 2 | `school_web_academic.sql` | `SchoolWebClassrooms`, `SchoolWebStudents`, `SchoolWebSubjects`, `SchoolWebTeachingSchedules` |
+| 3 | `school_web_admin.sql` | `SchoolWebDocuments`, `SchoolWebAnnouncements` |
+| 4 | `school_web_part4_permissions_finance.sql` | `SchoolWebModuleCatalog`, `SchoolWebDivisions`, `SchoolWebDivisionModules`, `SchoolWebRoleDivisionAccess`, `SchoolWebFinanceItems` + `seed_school_web_divisions()` (รวม `school_web_mapping.sql` ไว้แล้ว) |
+| 5 | `school_web_appointment_orders.sql` | `SchoolWebOrders`, `SchoolWebOrderGroups`, `SchoolWebOrderMembers` |
+
+สิทธิ์ฝ่าย / Module / แพ็กเกจโรงเรียน ไม่มีตารางใหม่ — เก็บในตาราง `Permissions` เดิมด้วย `menu_id` พิเศษ
+
 ### นำเข้าข้อมูลเก่าจาก Firebase
 
 เมนู **จัดการระบบ → แท็บ "นำเข้าข้อมูล"** (ผู้ดูแลระบบ)
@@ -204,7 +228,12 @@ gh release create <version> --title <version> --notes-file RELEASE_NOTES_<versio
 | app: บริการข้อมูล | `lib/services/` (ใบลา/บุคลากร `firebase_service.dart` — ชื่อเดิม แต่ใช้ Supabase, ไปราชการ, ลงเวลา, แม่แบบฟอร์ม) |
 | app: แม่แบบฟอร์ม + ตัววาด | `lib/forms/` |
 | app: ข้อมูลโรงเรียนปัจจุบัน | `lib/utils/school_info.dart` |
-| web: หน้าเว็บ | `central/src/pages/` |
+| app: แท็บเว็บโรงเรียน + SSO | `lib/screens/school_web_tab_screen.dart`, `lib/widgets/school_web_frame*.dart`, `lib/utils/web_platform_web.dart` |
+| app: ชุดสี / ตัวอักษรกลาง | `lib/theme/` |
+| web: เส้นทางทั้งหมด | `central/src/App.tsx` |
+| web: เว็บโรงเรียน (ฝ่าย / Module / สิทธิ์ / คำสั่งแต่งตั้ง) | `central/src/school/` |
+| web: SSO / เชื่อม Supabase | `central/src/supabase.ts` |
+| web: หน้าดูแลระบบวันลา | `central/src/pages/` |
 | web: แม่แบบฟอร์ม + ตัวแก้ไข | `central/src/forms/` |
 | สคริปต์ส่งออกแม่แบบให้ app | `central/scripts/` |
 | ฐานข้อมูล / Edge Functions | `supabase/` |
