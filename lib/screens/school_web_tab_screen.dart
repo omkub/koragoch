@@ -92,7 +92,7 @@ class _SchoolWebTabScreenState extends State<SchoolWebTabScreen> {
       final schoolId = SchoolInfo.currentSchoolId;
 
       // 1) โหลดบทบาทของโรงเรียน (roles)
-      final rolesRows = await _firebaseService.rolesInSchool(
+      final rolesRows = await FirebaseService.rolesInSchool(
         client.from('roles').select('ID_Roles, Accessrights, id_school'),
       );
       final rolesList = <Map<String, dynamic>>[];
@@ -105,7 +105,7 @@ class _SchoolWebTabScreenState extends State<SchoolWebTabScreen> {
       }
 
       // 2) โหลดสิทธิ์การมองเห็นแท็บเว็บโรงเรียน (Permissions.menu_id = 6)
-      final permRows = await _firebaseService.inSchool(
+      final permRows = await FirebaseService.inSchool(
         client.from('Permissions').select('id_role, menu_id, status').eq('menu_id', 6),
       );
       final tabVis = <int, bool>{};
@@ -174,7 +174,7 @@ class _SchoolWebTabScreenState extends State<SchoolWebTabScreen> {
 
       if (schoolId != null) {
         try {
-          final roleDivPermRows = await _firebaseService.inSchool(
+          final roleDivPermRows = await FirebaseService.inSchool(
             client
                 .from('Permissions')
                 .select('id_role, menu_id, status')
