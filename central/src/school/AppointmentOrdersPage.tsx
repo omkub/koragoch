@@ -27,6 +27,13 @@ import {
   type OrderMemberDraft,
   DEFAULT_EFFECTIVE_TEXT,
   WORKING_ROLE_OPTIONS,
+  GROUP_KIND_LABELS,
+  PERSON_DUTY_INTRO,
+  computeHeadingLabels,
+  groupKind,
+  groupLevel,
+  groupNumbered,
+  type OrderGroupKind,
 } from './appointmentOrders';
 import { exportAppointmentOrderToDocx } from './exportOrderDocx';
 import type { DivisionWithModules } from './mapping';
@@ -92,6 +99,11 @@ export default function AppointmentOrdersPage({
       groups: base.groups.map((g) => ({ ...g, members: [] })),
     };
   });
+  // เลขข้อของทุกหัวข้อ (ป้ายในฟอร์ม ใช้เลขอารบิก)
+  const headingLabels = useMemo(
+    () => computeHeadingLabels(draft.groups, false),
+    [draft.groups],
+  );
 
   // Load staff list + master filter options + existing orders
   const loadInitialData = useCallback(async () => {
@@ -308,6 +320,9 @@ export default function AppointmentOrdersPage({
           group_no: number;
           group_title: string;
           duties: unknown;
+          kind?: OrderGroupKind | null;
+          level?: number | null;
+          numbered?: boolean | null;
         }[] | null) ?? [];
       const rawMembers =
         (membersRes.data as {
@@ -340,6 +355,9 @@ export default function AppointmentOrdersPage({
           group_title: g.group_title,
           duties: gDuties.length > 0 ? gDuties : [''],
           members: gMembers,
+          kind: g.kind ?? 'committee',
+          level: g.level === 2 ? 2 : 1,
+          numbered: g.numbered ?? true,
         };
       });
 
@@ -356,6 +374,7 @@ export default function AppointmentOrdersPage({
         order_date: header.order_date,
         signer_name: header.signer_name,
         signer_title: header.signer_title,
+        sign_first: header.sign_first ?? false,
         emblem_data_url: savedEmblem.dataUrl,
         emblem_height_cm: savedEmblem.heightCm,
         groups:
@@ -453,21 +472,49 @@ export default function AppointmentOrdersPage({
   }
 
   // --- Group (ข้อ 1, 2, 3...) Handlers ---
-  function addGroup() {
+  function addGroup(kind: OrderGroupKind = 'committee') {
     setDraft((prev) => {
       const nextNo = prev.groups.length + 1;
+      const preset: Record<OrderGroupKind, { title: string; duties: string[]; numbered: boolean }> = {
+        section: { title: 'กลุ่มบริหาร........', duties: [], numbered: false },
+        committee: {
+          title: 'งาน........ ประกอบด้วย',
+          duties: ['ดำเนินการตามภารกิจที่ได้รับมอบหมายให้เป็นไปด้วยความเรียบร้อย'],
+          numbered: true,
+        },
+        person: {
+          title: 'รองผู้อำนวยการกลุ่มบริหาร........',
+          duties: ['ปฏิบัติหน้าที่อื่น ๆ ตามที่ได้รับมอบหมาย'],
+          numbered: false,
+        },
+      };
+      const p = preset[kind];
       return {
         ...prev,
         groups: [
           ...prev.groups,
           {
             group_no: nextNo,
-            group_title: `คณะทำงานชุดที่ ${nextNo}`,
+            group_title: p.title,
             members: [],
-            duties: ['ดำเนินการตามภารกิจที่ได้รับมอบหมายให้เป็นไปด้วยความเรียบร้อย'],
+            duties: p.duties,
+            kind,
+            level: 1,
+            numbered: p.numbered,
           },
         ],
       };
+    });
+  }
+
+  function updateGroupLayout(
+    groupIdx: number,
+    patch: Partial<Pick<OrderGroupDraft, 'kind' | 'level' | 'numbered'>>,
+  ) {
+    setDraft((prev) => {
+      const copy = [...prev.groups];
+      copy[groupIdx] = { ...copy[groupIdx], ...patch };
+      return { ...prev, groups: copy };
     });
   }
 
@@ -636,25 +683,49 @@ export default function AppointmentOrdersPage({
         order_date: draft.order_date,
         signer_name: draft.signer_name.trim(),
         signer_title: draft.signer_title.trim(),
+        sign_first: draft.sign_first ?? false,
         updated_at: new Date().toISOString(),
+      };
+      // ยังไม่ได้รัน supabase/school_web_appointment_orders_part2.sql → คอลัมน์ใหม่ไม่มี
+      const isMissingColumn = (msg?: string) =>
+        !!msg && /column|schema cache/i.test(msg) && /(sign_first|kind|level|numbered)/.test(msg);
+      let legacySchema = false;
+      const withoutNewOrderCols = () => {
+        const { sign_first: _omit, ...rest } = orderPayload;
+        return rest;
       };
 
       if (selectedOrderId === 'new') {
-        const { data: insOrder, error: insErr } = await supabase
+        let { data: insOrder, error: insErr } = await supabase
           .from('SchoolWebOrders')
           .insert(orderPayload)
           .select('id')
           .single();
+        if (insErr && isMissingColumn(insErr.message)) {
+          legacySchema = true;
+          ({ data: insOrder, error: insErr } = await supabase
+            .from('SchoolWebOrders')
+            .insert(withoutNewOrderCols())
+            .select('id')
+            .single());
+        }
         if (insErr || !insOrder) {
           throw new Error(insErr?.message || 'ไม่สามารถสร้างคำสั่งได้');
         }
         targetOrderId = insOrder.id;
       } else {
         targetOrderId = selectedOrderId;
-        const { error: updErr } = await supabase
+        let { error: updErr } = await supabase
           .from('SchoolWebOrders')
           .update(orderPayload)
           .eq('id', targetOrderId);
+        if (updErr && isMissingColumn(updErr.message)) {
+          legacySchema = true;
+          ({ error: updErr } = await supabase
+            .from('SchoolWebOrders')
+            .update(withoutNewOrderCols())
+            .eq('id', targetOrderId));
+        }
         if (updErr) throw new Error(updErr.message);
 
         await supabase
@@ -667,23 +738,38 @@ export default function AppointmentOrdersPage({
         const g = draft.groups[gIdx];
         const cleanDuties = g.duties.map((d) => d.trim()).filter(Boolean);
 
-        const { data: insGroup, error: gErr } = await supabase
+        const baseGroupRow = {
+          id_school: schoolId,
+          order_id: targetOrderId,
+          group_no: gIdx + 1,
+          group_title: g.group_title.trim() || `คณะทำงานชุดที่ ${gIdx + 1}`,
+          duties: groupKind(g) === 'section' ? [] : cleanDuties,
+        };
+        const layoutCols = {
+          kind: groupKind(g),
+          level: groupLevel(g),
+          numbered: groupNumbered(g),
+        };
+        let { data: insGroup, error: gErr } = await supabase
           .from('SchoolWebOrderGroups')
-          .insert({
-            id_school: schoolId,
-            order_id: targetOrderId,
-            group_no: gIdx + 1,
-            group_title: g.group_title.trim() || `คณะทำงานชุดที่ ${gIdx + 1}`,
-            duties: cleanDuties,
-          })
+          .insert(legacySchema ? baseGroupRow : { ...baseGroupRow, ...layoutCols })
           .select('id')
           .single();
+        if (gErr && isMissingColumn(gErr.message)) {
+          legacySchema = true;
+          ({ data: insGroup, error: gErr } = await supabase
+            .from('SchoolWebOrderGroups')
+            .insert(baseGroupRow)
+            .select('id')
+            .single());
+        }
 
         if (gErr || !insGroup) {
           throw new Error(gErr?.message || 'บันทึกชุดคณะทำงานไม่สำเร็จ');
         }
 
-        const validMembers = g.members.filter((m) => m.full_name.trim());
+        const validMembers =
+          groupKind(g) === 'section' ? [] : g.members.filter((m) => m.full_name.trim());
         if (validMembers.length > 0) {
           const memberRows = validMembers.map((m, mIdx) => ({
             id_school: schoolId,
@@ -693,7 +779,7 @@ export default function AppointmentOrdersPage({
             id_user: m.id_user,
             full_name: m.full_name.trim(),
             official_position: m.official_position.trim(),
-            working_role: m.working_role.trim() || 'คณะทำงาน',
+            working_role: m.working_role.trim() || 'กรรมการ',
           }));
 
           const { error: mErr } = await supabase
@@ -705,10 +791,17 @@ export default function AppointmentOrdersPage({
 
       await loadInitialData();
       setSelectedOrderId(targetOrderId);
-      setMessage({
-        type: 'ok',
-        text: `บันทึกคำสั่งที่ ${orderPayload.order_no}/${orderPayload.order_year} เรียบร้อยแล้ว`,
-      });
+      setMessage(
+        legacySchema
+          ? {
+              type: 'err',
+              text: `บันทึกคำสั่งที่ ${orderPayload.order_no}/${orderPayload.order_year} แล้ว แต่ชนิดหัวข้อ / ข้อย่อย / ลงนามหน้าแรก ยังไม่ถูกบันทึก — ให้ผู้ดูแลรัน supabase/school_web_appointment_orders_part2.sql`,
+            }
+          : {
+              type: 'ok',
+              text: `บันทึกคำสั่งที่ ${orderPayload.order_no}/${orderPayload.order_year} เรียบร้อยแล้ว`,
+            },
+      );
     } catch (err) {
       setMessage({
         type: 'err',
@@ -1061,38 +1154,56 @@ export default function AppointmentOrdersPage({
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-semibold text-ink">
-                  ส่วนที่ 2 · ชุดคณะทำงานและหน้าที่ ({draft.groups.length} คณะ)
+                  ส่วนที่ 2 · หัวข้อ คณะ และหน้าที่ ({draft.groups.length} หัวข้อ)
                 </h2>
                 <p className="text-xs text-slate-500">
-                  กรองบุคลากรทั้งโรงเรียนแบบ Real-time ติ๊กเลือกรายชื่อ เลือกตำแหน่งในคณะ แล้วกดบันทึกเข้าข้อนั้น
+                  จัดเป็นชั้นได้: หัวข้อกลุ่ม → คณะ/งาน (ข้อหลัก ๖.) → งานย่อย (๖.๑) · เลขข้อนับใหม่ทุกหัวข้อกลุ่ม
                 </p>
               </div>
               {canEdit && (
-                <button
-                  type="button"
-                  onClick={addGroup}
-                  className="btn-primary btn-sm"
-                >
-                  <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
-                  <span>เพิ่มชุดคณะทำงาน (ข้อ {draft.groups.length + 1})</span>
-                </button>
+                <div className="flex flex-wrap justify-end gap-1.5">
+                  <button type="button" onClick={() => addGroup('section')} className="btn-secondary btn-sm">
+                    <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
+                    <span>หัวข้อกลุ่ม</span>
+                  </button>
+                  <button type="button" onClick={() => addGroup('person')} className="btn-secondary btn-sm">
+                    <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
+                    <span>รายบุคคล</span>
+                  </button>
+                  <button type="button" onClick={() => addGroup('committee')} className="btn-primary btn-sm">
+                    <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
+                    <span>คณะ / งาน</span>
+                  </button>
+                </div>
               )}
             </div>
 
-            {draft.groups.map((group, gIdx) => (
-              <div key={gIdx} className="surface-card space-y-4 p-5">
+            {draft.groups.map((group, gIdx) => {
+              const kind = groupKind(group);
+              const label = headingLabels[gIdx];
+              return (
+              <div
+                key={gIdx}
+                className={`surface-card space-y-4 p-5 ${groupLevel(group) === 2 && kind !== 'section' ? 'ml-6 border-l-2 border-l-brand-200' : ''} ${kind === 'section' ? 'bg-slate-50' : ''}`}
+              >
                 {/* หัวข้อชุดคณะทำงาน เช่น 1. คณะทำงานด้านอำนวยการ (ยังเหมือนเดิม) */}
                 <div className="flex flex-col gap-2 border-b border-line pb-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-1 items-center gap-2">
-                    <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-50 font-semibold tabular-nums text-xs text-brand-700">
-                      {gIdx + 1}.
+                    <span className="inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-lg bg-brand-50 px-1 font-semibold tabular-nums text-xs text-brand-700">
+                      {label || '–'}
                     </span>
                     <input
                       type="text"
                       disabled={!canEdit}
                       value={group.group_title}
                       onChange={(e) => updateGroupTitle(gIdx, e.target.value)}
-                      placeholder="เช่น คณะทำงานด้านอำนวยการ"
+                      placeholder={
+                        kind === 'section'
+                          ? 'เช่น กลุ่มบริหารวิชาการ'
+                          : kind === 'person'
+                            ? 'ตำแหน่งที่แสดงหลังชื่อ เช่น รองผู้อำนวยการกลุ่มบริหารวิชาการ'
+                            : 'เช่น งานพัฒนาหลักสูตรสถานศึกษา ประกอบด้วย'
+                      }
                       className="input font-medium"
                     />
                   </div>
@@ -1131,6 +1242,64 @@ export default function AppointmentOrdersPage({
                   )}
                 </div>
 
+                {/* ชนิดหัวข้อ / ชั้น / เลขข้อ */}
+                <div className="flex flex-wrap items-center gap-3 text-xs">
+                  <select
+                    disabled={!canEdit}
+                    value={kind}
+                    onChange={(e) => {
+                      const k = e.target.value as OrderGroupKind;
+                      updateGroupLayout(gIdx, {
+                        kind: k,
+                        numbered: k === 'committee',
+                      });
+                    }}
+                    className="input w-auto py-1 text-xs"
+                  >
+                    {(Object.keys(GROUP_KIND_LABELS) as OrderGroupKind[]).map((k) => (
+                      <option key={k} value={k}>
+                        {GROUP_KIND_LABELS[k]}
+                      </option>
+                    ))}
+                  </select>
+                  {kind !== 'section' && (
+                    <>
+                      <select
+                        disabled={!canEdit}
+                        value={groupLevel(group)}
+                        onChange={(e) =>
+                          updateGroupLayout(gIdx, {
+                            level: Number(e.target.value) === 2 ? 2 : 1,
+                          })
+                        }
+                        className="input w-auto py-1 text-xs"
+                      >
+                        <option value={1}>ข้อหลัก (๖.)</option>
+                        <option value={2}>ข้อย่อย (๖.๑)</option>
+                      </select>
+                      <label className="inline-flex items-center gap-1.5 text-slate-600">
+                        <input
+                          type="checkbox"
+                          className="checkbox"
+                          disabled={!canEdit}
+                          checked={groupNumbered(group)}
+                          onChange={(e) =>
+                            updateGroupLayout(gIdx, { numbered: e.target.checked })
+                          }
+                        />
+                        แสดงเลขข้อ
+                      </label>
+                    </>
+                  )}
+                  {kind === 'person' && (
+                    <span className="text-slate-500">
+                      ใช้รายชื่อคนแรก แสดงเป็น "ชื่อ ⇥ ตำแหน่ง" ตามด้วย "{PERSON_DUTY_INTRO}"
+                    </span>
+                  )}
+                </div>
+
+                {kind !== 'section' && (
+                <>
                 {/* ส่วนของ รายชื่อในข้อที่ ... (Filter ด้านบน + ตารางติ๊กเลือก + บันทึกเข้าข้อนี้) */}
                 <GroupMemberSelectorSection
                   groupNo={gIdx + 1}
@@ -1154,7 +1323,7 @@ export default function AppointmentOrdersPage({
                 <div className="space-y-2 border-t border-line pt-3">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-medium text-slate-600">
-                      หน้าที่ (ของข้อ {gIdx + 1}. {group.group_title})
+                      หน้าที่ (ของ {label ? `ข้อ ${label} ` : ''}{group.group_title})
                     </p>
                     {canEdit && (
                       <button
@@ -1195,8 +1364,11 @@ export default function AppointmentOrdersPage({
                     ))}
                   </div>
                 </div>
+                </>
+                )}
               </div>
-            ))}
+              );
+            })}
           </section>
 
           {/* 3) ส่วนท้ายคำสั่ง วันที่สั่ง และผู้ลงนาม */}
@@ -1209,6 +1381,23 @@ export default function AppointmentOrdersPage({
                 ระบุข้อความท้ายคำสั่ง วันที่สั่ง และผู้ลงนามคำสั่ง
               </p>
             </div>
+
+            <label className="flex items-start gap-2 rounded-lg border border-line p-3 text-xs text-slate-700">
+              <input
+                type="checkbox"
+                className="checkbox mt-0.5"
+                disabled={!canEdit}
+                checked={draft.sign_first ?? false}
+                onChange={(e) =>
+                  setDraft((prev) => ({ ...prev, sign_first: e.target.checked }))
+                }
+              />
+              <span>
+                <span className="font-medium text-ink">ลงนามหน้าแรก แล้วต่อด้วยรายละเอียดแนบท้าย</span>
+                <br />
+                ข้อความท้าย วันที่สั่ง และผู้ลงนาม อยู่ต่อจากคำเกริ่น (เหมือนคำสั่งแต่งตั้งประจำภาคเรียน) รายชื่อคณะทั้งหมดตามมาหลังลายเซ็น
+              </span>
+            </label>
 
             <div className="grid gap-3 sm:grid-cols-12">
               <div className="sm:col-span-7">
