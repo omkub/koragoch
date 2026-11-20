@@ -5,6 +5,8 @@ import {
   formatThaiOrderDate,
   type AppointmentOrderFull,
   type DigitFormatSettings,
+  DEFAULT_EFFECTIVE_TEXT,
+  splitParagraphs,
 } from './appointmentOrders';
 
 function xmlEscape(str: string): string {
@@ -123,6 +125,15 @@ function buildZipBlob(
   });
 }
 
+// ขอบกระดาษตามไฟล์ต้นฉบับคำสั่งแต่งตั้ง (twips: 1 ซม. = 567)
+const PAGE_W = 11906; // A4
+const PAGE_H = 16838;
+const MARGIN_TOP = 851; // 1.5 ซม.
+const MARGIN_BOTTOM = 851;
+const MARGIN_LEFT = 1134; // 2 ซม.
+const MARGIN_RIGHT = 851;
+const TEXT_WIDTH_TWIPS = PAGE_W - MARGIN_LEFT - MARGIN_RIGHT;
+
 // --- OpenXML Paragraph & Table Builders (TH SarabunPSK 16pt) ---
 function runPropsXml(bold = false): string {
   return `<w:rPr>
@@ -170,39 +181,40 @@ function paragraphXml(
   </w:p>`;
 }
 
+/**
+ * ตารางรายชื่อไร้เส้น 4 คอลัมน์ (ตามไฟล์ต้นฉบับคำสั่งแต่งตั้งของโรงเรียน):
+ * ลำดับ (นับใหม่ทุกคณะ) | ชื่อ-นามสกุล | ตำแหน่ง | หน้าที่ในคณะ
+ * ความกว้างรวม = ความกว้างพื้นที่พิมพ์ A4 หลังหักขอบ (TEXT_WIDTH_TWIPS)
+ */
+const MEMBER_COLS = [624, 3240, 3870, 2187] as const;
+
 function memberTableXml(
-  groupIndex: number,
   members: AppointmentOrderFull['groups'][number]['members'],
   useThaiMemberDigits: boolean,
 ): string {
+  const cell = (w: number, text: string) => `<w:tc>
+          <w:tcPr><w:tcW w:w="${w}" w:type="dxa"/></w:tcPr>
+          ${paragraphXml(text, { afterTwips: 0 })}
+        </w:tc>`;
   const rowsXml = members
     .map((m, mIdx) => {
-      const subNo = `${formatDigits(groupIndex + 1, useThaiMemberDigits)}.${formatDigits(mIdx + 1, useThaiMemberDigits)}`;
-      const fullName = `${subNo}  ${m.full_name.trim() || '....................................'}`;
+      const no = `${formatDigits(mIdx + 1, useThaiMemberDigits)}.`;
+      const fullName = m.full_name.trim() || '....................................';
       const pos = m.official_position.trim() || '........................';
-      const role = m.working_role.trim() || 'คณะทำงาน';
-
+      const role = m.working_role.trim() || 'กรรมการ';
       return `<w:tr>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="3850" w:type="dxa"/></w:tcPr>
-          ${paragraphXml(fullName, { afterTwips: 40 })}
-        </w:tc>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="2400" w:type="dxa"/></w:tcPr>
-          ${paragraphXml(pos, { afterTwips: 40 })}
-        </w:tc>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="2101" w:type="dxa"/></w:tcPr>
-          ${paragraphXml(role, { afterTwips: 40 })}
-        </w:tc>
+        ${cell(MEMBER_COLS[0], no)}
+        ${cell(MEMBER_COLS[1], fullName)}
+        ${cell(MEMBER_COLS[2], pos)}
+        ${cell(MEMBER_COLS[3], role)}
       </w:tr>`;
     })
     .join('');
 
   return `<w:tbl>
     <w:tblPr>
-      <w:tblW w:w="8351" w:type="dxa"/>
-      <w:tblInd w:w="720" w:type="dxa"/>
+      <w:tblW w:w="${TEXT_WIDTH_TWIPS}" w:type="dxa"/>
+      <w:tblLayout w:type="fixed"/>
       <w:tblBorders>
         <w:top w:val="none" w:sz="0" w:space="0" w:color="auto"/>
         <w:left w:val="none" w:sz="0" w:space="0" w:color="auto"/>
@@ -213,13 +225,11 @@ function memberTableXml(
       </w:tblBorders>
       <w:tblCellMar>
         <w:left w:w="0" w:type="dxa"/>
-        <w:right w:w="160" w:type="dxa"/>
+        <w:right w:w="113" w:type="dxa"/>
       </w:tblCellMar>
     </w:tblPr>
     <w:tblGrid>
-      <w:gridCol w:w="3850"/>
-      <w:gridCol w:w="2400"/>
-      <w:gridCol w:w="2101"/>
+      ${MEMBER_COLS.map((w) => `<w:gridCol w:w="${w}"/>`).join('')}
     </w:tblGrid>
     ${rowsXml}
   </w:tbl>`;
@@ -364,7 +374,7 @@ export async function exportAppointmentOrderToDocx(
 
   // 2) ข้อความเกริ่นนำ (ds.preamble)
   if (draft.preamble.trim()) {
-    const paragraphs = draft.preamble.split(/\r?\n/).filter((p) => p.trim());
+    const paragraphs = splitParagraphs(draft.preamble);
     for (const p of paragraphs) {
       bodyParts.push(
         paragraphXml(formatDigits(p.trim(), ds.preamble), {
@@ -395,11 +405,11 @@ export async function exportAppointmentOrderToDocx(
     );
 
     // ตารางไร้เส้นขอบ 3 คอลัมน์ (ds.memberNo)
-    bodyParts.push(memberTableXml(gIdx, g.members, ds.memberNo));
+    bodyParts.push(memberTableXml(g.members, ds.memberNo));
 
     // หัวข้อ "หน้าที่"
     bodyParts.push(
-      paragraphXml('หน้าที่', {
+      paragraphXml('ให้มีหน้าที่', {
         bold: true,
         beforeTwips: 60,
         afterTwips: 40,
@@ -422,19 +432,16 @@ export async function exportAppointmentOrderToDocx(
   }
 
   // 4) ส่วนท้ายคำสั่ง: ทั้งนี้ ตั้งแต่บัดนี้เป็นต้นไป + สั่ง ณ วันที่ ... (ds.orderDate)
-  bodyParts.push(
-    paragraphXml(
-      formatDigits(
-        draft.effective_text || 'ทั้งนี้ ตั้งแต่บัดนี้เป็นต้นไป',
-        ds.orderDate,
-      ),
-      {
+  splitParagraphs(draft.effective_text || DEFAULT_EFFECTIVE_TEXT).forEach((p, i) => {
+    bodyParts.push(
+      paragraphXml(formatDigits(p, ds.orderDate), {
+        align: 'both',
         firstLineTwips: 1417,
-        beforeTwips: 160,
+        beforeTwips: i === 0 ? 160 : 0,
         afterTwips: 80,
-      },
-    ),
-  );
+      }),
+    );
+  });
   bodyParts.push(
     paragraphXml(thaiDateInfo.fullText, {
       firstLineTwips: 2268,
@@ -481,8 +488,10 @@ export async function exportAppointmentOrderToDocx(
   <w:body>
     ${bodyParts.join('\n')}
     <w:sectPr>
-      <w:pgSz w:w="11906" w:h="16838"/>
-      <w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1701" w:header="708" w:footer="708" w:gutter="0"/>
+      <w:headerReference w:type="default" r:id="rIdHeader"/>
+      <w:pgSz w:w="${PAGE_W}" w:h="${PAGE_H}"/>
+      <w:pgMar w:top="${MARGIN_TOP}" w:right="${MARGIN_RIGHT}" w:bottom="${MARGIN_BOTTOM}" w:left="${MARGIN_LEFT}" w:header="454" w:footer="454" w:gutter="0"/>
+      <w:titlePg/>
     </w:sectPr>
   </w:body>
 </w:document>`;
@@ -502,6 +511,20 @@ export async function exportAppointmentOrderToDocx(
   </w:docDefaults>
 </w:styles>`;
 
+  // หัวกระดาษ: เลขหน้ากึ่งกลาง (\* ThaiArabic = เลขไทย ตามการตั้งค่าเลขส่วนหัว)
+  const pageField = ds.header ? 'PAGE \\* ThaiArabic' : 'PAGE';
+  const headerXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:p>
+    <w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="0"/></w:pPr>
+    <w:r>${runPropsXml()}<w:fldChar w:fldCharType="begin"/></w:r>
+    <w:r>${runPropsXml()}<w:instrText xml:space="preserve"> ${pageField} </w:instrText></w:r>
+    <w:r>${runPropsXml()}<w:fldChar w:fldCharType="separate"/></w:r>
+    <w:r>${runPropsXml()}<w:t>${ds.header ? '๒' : '2'}</w:t></w:r>
+    <w:r>${runPropsXml()}<w:fldChar w:fldCharType="end"/></w:r>
+  </w:p>
+</w:hdr>`;
+
   const settingsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:hideSpellingErrors/>
@@ -516,6 +539,7 @@ export async function exportAppointmentOrderToDocx(
   <Default Extension="png" ContentType="image/png"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>
   <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
 </Types>`;
 
@@ -527,6 +551,7 @@ export async function exportAppointmentOrderToDocx(
   const docRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rIdHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
   <Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
   ${emblemPng ? '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/emblem.png"/>' : ''}
 </Relationships>`;
@@ -538,6 +563,7 @@ export async function exportAppointmentOrderToDocx(
     { path: 'word/document.xml', content: documentXml },
     { path: 'word/styles.xml', content: stylesXml },
     { path: 'word/settings.xml', content: settingsXml },
+    { path: 'word/header1.xml', content: headerXml },
   ];
 
   if (emblemPng) {

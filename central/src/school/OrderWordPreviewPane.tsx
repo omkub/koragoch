@@ -14,6 +14,8 @@ import {
   formatThaiOrderDate,
   type AppointmentOrderFull,
   type DigitFormatSettings,
+  DEFAULT_EFFECTIVE_TEXT,
+  splitParagraphs,
 } from './appointmentOrders';
 
 interface OrderWordPreviewPaneProps {
@@ -111,17 +113,18 @@ export default function OrderWordPreviewPane({
 
         const membersRows = g.members
           .map((m, mIdx) => {
-            const subNo = `${formatDigits(gIdx + 1, ds.memberNo)}.${formatDigits(mIdx + 1, ds.memberNo)}`;
+            const subNo = `${formatDigits(mIdx + 1, ds.memberNo)}.`;
             const fullName = escapeHtml(
               m.full_name.trim() || '....................................',
             );
             const pos = escapeHtml(
               m.official_position.trim() || '........................',
             );
-            const role = escapeHtml(m.working_role.trim() || 'คณะทำงาน');
+            const role = escapeHtml(m.working_role.trim() || 'กรรมการ');
             return `
               <tr>
-                <td class="col-name"><span class="sub-no">${subNo}</span>${fullName}</td>
+                <td class="col-no">${subNo}</td>
+                <td class="col-name">${fullName}</td>
                 <td class="col-pos">${pos}</td>
                 <td class="col-role">${role}</td>
               </tr>
@@ -149,7 +152,7 @@ export default function OrderWordPreviewPane({
             <table class="member-table">
               <tbody>${membersRows}</tbody>
             </table>
-            <p class="duty-heading">หน้าที่</p>
+            <p class="duty-heading">ให้มีหน้าที่</p>
             <div class="duty-list">${dutiesRows}</div>
           </div>
         `;
@@ -172,7 +175,7 @@ export default function OrderWordPreviewPane({
   <style>
     @page {
       size: A4 portrait;
-      margin: 15mm 20mm 20mm 30mm;
+      margin: 15mm 15mm 15mm 20mm;
     }
     body {
       font-family: "TH SarabunPSK", "TH Sarabun New", "Sarabun", sans-serif;
@@ -205,10 +208,10 @@ export default function OrderWordPreviewPane({
       vertical-align: top;
       font-size: 16pt;
     }
-    .col-name { width: 45%; padding-left: 20mm !important; }
-    .sub-no { display: inline-block; width: 12mm; }
-    .col-pos { width: 30%; }
-    .col-role { width: 25%; }
+    .col-no { width: 6%; white-space: nowrap; }
+    .col-name { width: 32%; }
+    .col-pos { width: 40%; }
+    .col-role { width: 22%; }
     .duty-heading { font-weight: 600; margin-top: 2pt; }
     .duty-list { padding-left: 20mm; }
     .duty-item { margin-bottom: 2pt; }
@@ -232,11 +235,11 @@ export default function OrderWordPreviewPane({
     <div class="divider"></div>
   </div>
 
-  ${draft.preamble ? `<p class="indent">${escapeHtml(formatDigits(draft.preamble, ds.preamble))}</p>` : ''}
+  ${splitParagraphs(draft.preamble).map((p) => `<p class="indent">${escapeHtml(formatDigits(p, ds.preamble))}</p>`).join('')}
 
   ${groupsHtml}
 
-  <p class="effective">${escapeHtml(formatDigits(draft.effective_text || 'ทั้งนี้ ตั้งแต่บัดนี้เป็นต้นไป', ds.orderDate))}</p>
+  ${splitParagraphs(draft.effective_text || DEFAULT_EFFECTIVE_TEXT).map((p) => `<p class="effective">${escapeHtml(formatDigits(p, ds.orderDate))}</p>`).join('')}
   <p class="order-date">${escapeHtml(thaiDateInfo.fullText)}</p>
 
   <div class="sig-box">
@@ -437,11 +440,11 @@ export default function OrderWordPreviewPane({
 
       {/* Word Top Margin Ruler Bar */}
       <div className="hidden border-b border-slate-200 bg-slate-200/70 px-6 py-1 text-[10px] text-slate-500 sm:flex sm:items-center sm:justify-between">
-        <span>กั้นซ้าย 3.0 ซม.</span>
+        <span>กั้นซ้าย 2.0 ซม.</span>
         <span className="tabular-nums">
           กระดาษ A4 (21.0 × 29.7 ซม.) · TH SarabunPSK 16 pt
         </span>
-        <span>กั้นขวา 2.0 ซม.</span>
+        <span>กั้นขวา 1.5 ซม.</span>
       </div>
 
       {/* Scrollable Paper Workspace */}
@@ -483,11 +486,11 @@ export default function OrderWordPreviewPane({
           </div>
 
           {/* ข้อความเกริ่นนำ */}
-          {draft.preamble && (
-            <p className="mt-3 indent-10 text-justify whitespace-pre-line">
-              {formatDigits(draft.preamble, ds.preamble)}
+          {splitParagraphs(draft.preamble).map((p, i) => (
+            <p key={i} className="mt-3 indent-10 text-justify">
+              {formatDigits(p, ds.preamble)}
             </p>
-          )}
+          ))}
 
           {/* ชุดคณะทำงาน ข้อ 1, 2, 3... */}
           <div className="mt-4 space-y-4">
@@ -508,23 +511,19 @@ export default function OrderWordPreviewPane({
                   <table className="w-full border-collapse text-[14.5px]">
                     <tbody>
                       {g.members.map((m, mIdx) => {
-                        const subNo = `${formatDigits(gIdx + 1, ds.memberNo)}.${formatDigits(mIdx + 1, ds.memberNo)}`;
+                        const subNo = `${formatDigits(mIdx + 1, ds.memberNo)}.`;
                         return (
                           <tr key={mIdx} className="align-top">
-                            <td className="w-[45%] py-0.5 pl-8 pr-2">
-                              <span className="inline-block w-8 tabular-nums">
-                                {subNo}
-                              </span>
-                              <span>
-                                {m.full_name.trim() ||
-                                  'ชื่อ-นามสกุล....................'}
-                              </span>
+                            <td className="w-[6%] whitespace-nowrap py-0.5 tabular-nums">{subNo}</td>
+                            <td className="w-[32%] py-0.5 pr-2">
+                              {m.full_name.trim() ||
+                                'ชื่อ-นามสกุล....................'}
                             </td>
-                            <td className="w-[30%] py-0.5 px-2">
+                            <td className="w-[40%] py-0.5 px-2">
                               {m.official_position.trim() || 'ตำแหน่ง............'}
                             </td>
-                            <td className="w-[25%] py-0.5 pl-2">
-                              {m.working_role.trim() || 'ตำแหน่งทำงาน'}
+                            <td className="w-[22%] py-0.5 pl-2">
+                              {m.working_role.trim() || 'กรรมการ'}
                             </td>
                           </tr>
                         );
@@ -534,7 +533,7 @@ export default function OrderWordPreviewPane({
 
                   {/* หน้าที่ 1, 2, 3... */}
                   <div className="pt-1">
-                    <p className="font-semibold text-ink">หน้าที่</p>
+                    <p className="font-semibold text-ink">ให้มีหน้าที่</p>
                     <div className="space-y-0.5 pl-8">
                       {g.duties.map((d, dIdx) => (
                         <p key={dIdx} className="flex items-start">
@@ -559,12 +558,13 @@ export default function OrderWordPreviewPane({
 
           {/* ส่วนท้าย: ทั้งนี้ ตั้งแต่บัดนี้เป็นต้นไป + สั่ง ณ วันที่ ... + ผู้ลงนาม */}
           <div className="mt-6 space-y-1.5">
-            <p className="indent-10">
-              {formatDigits(
-                draft.effective_text || 'ทั้งนี้ ตั้งแต่บัดนี้เป็นต้นไป',
-                ds.orderDate,
-              )}
-            </p>
+            {splitParagraphs(draft.effective_text || DEFAULT_EFFECTIVE_TEXT).map(
+              (p, i) => (
+                <p key={i} className="indent-10 text-justify">
+                  {formatDigits(p, ds.orderDate)}
+                </p>
+              ),
+            )}
             <p className="indent-16 tabular-nums">{thaiDateInfo.fullText}</p>
 
             <div className="mt-10 ml-auto w-64 text-center">
