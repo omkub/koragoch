@@ -60,6 +60,8 @@
 
 - หน้า 2 ฝั่ง: ฟอร์มซ้าย + ตัวอย่าง A4 ขวา (`AppointmentOrdersPage.tsx`, `OrderWordPreviewPane.tsx`)
 - ข้อมูล: `appointmentOrders.ts` → ตาราง `SchoolWebOrders`, `SchoolWebOrderGroups`, `SchoolWebOrderMembers`
+- หัวข้อ 3 ชนิด (`kind`): `section` หัวข้อกลุ่ม · `committee` คณะ/งาน + ตาราง · `person` รายบุคคล · ชั้น `level` 1 = ๖. 2 = ๖.๑ · เลขข้อคำนวณที่ `computeHeadingLabels()` ที่เดียว (นับใหม่ทุกหัวข้อกลุ่ม) · `sign_first` = ลงนามหน้าแรก + แนบท้าย
+- รูปแบบอ้างอิง: ไฟล์ต้นฉบับคำสั่งแต่งตั้งของโรงเรียน (ตาราง 4 คอลัมน์ ลำดับ | ชื่อ | ตำแหน่ง | หน้าที่ในคณะ, หน้าที่ในคณะใช้คำว่า "กรรมการ")
 - ส่งออก .docx สร้างเองในเบราว์เซอร์ (ZIP + OpenXML, ฝังตราครุฑ, ตัวเลขไทย/อารบิกต่อส่วน): `exportOrderDocx.ts`
 
 ## ฐานข้อมูลของ web โรงเรียน

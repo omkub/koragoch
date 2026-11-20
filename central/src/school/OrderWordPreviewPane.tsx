@@ -16,6 +16,11 @@ import {
   type DigitFormatSettings,
   DEFAULT_EFFECTIVE_TEXT,
   splitParagraphs,
+  PERSON_DUTY_INTRO,
+  computeHeadingLabels,
+  groupKind,
+  groupLevel,
+  personHeading,
 } from './appointmentOrders';
 
 interface OrderWordPreviewPaneProps {
@@ -101,63 +106,64 @@ export default function OrderWordPreviewPane({
     const win = window.open('', '_blank');
     if (!win) return;
 
+    const labels = computeHeadingLabels(draft.groups, ds.groupHeading);
+    const dutiesHtml = (duties: string[]) =>
+      duties
+        .map((d) => d.trim())
+        .filter(Boolean)
+        .map(
+          (d, dIdx) =>
+            `<p class="duty-item"><span class="duty-no">${formatDigits(dIdx + 1, ds.dutyNo)}.</span>${escapeHtml(formatDigits(d, ds.dutyNo))}</p>`,
+        )
+        .join('');
     const groupsHtml = draft.groups
       .map((g, gIdx) => {
-        const gHeadingNo = formatDigits(gIdx + 1, ds.groupHeading);
-        const gTitle = escapeHtml(
-          formatDigits(
-            g.group_title || '........................',
-            ds.groupHeading,
-          ),
+        const kind = groupKind(g);
+        const label = labels[gIdx];
+        const title = escapeHtml(
+          formatDigits(g.group_title.trim() || '........................', ds.groupHeading),
         );
-
+        if (kind === 'section') {
+          return `<p class="section-title">${title}</p>`;
+        }
+        const duties = dutiesHtml(g.duties);
+        if (kind === 'person') {
+          const p = personHeading(g);
+          return `
+          <div class="group-block">
+            <p class="person-line"><span class="person-name">${escapeHtml([label, p.name || '....................................'].filter(Boolean).join(' '))}</span>${title}</p>
+            <p class="duty-intro">${PERSON_DUTY_INTRO}</p>
+            <div class="duty-list">${duties}</div>
+          </div>`;
+        }
         const membersRows = g.members
           .map((m, mIdx) => {
-            const subNo = `${formatDigits(mIdx + 1, ds.memberNo)}.`;
-            const fullName = escapeHtml(
-              m.full_name.trim() || '....................................',
-            );
-            const pos = escapeHtml(
-              m.official_position.trim() || '........................',
-            );
-            const role = escapeHtml(m.working_role.trim() || 'กรรมการ');
+            const no = `${formatDigits(mIdx + 1, ds.memberNo)}.`;
             return `
               <tr>
-                <td class="col-no">${subNo}</td>
-                <td class="col-name">${fullName}</td>
-                <td class="col-pos">${pos}</td>
-                <td class="col-role">${role}</td>
-              </tr>
-            `;
+                <td class="col-no">${no}</td>
+                <td class="col-name">${escapeHtml(m.full_name.trim() || '....................................')}</td>
+                <td class="col-pos">${escapeHtml(m.official_position.trim() || '........................')}</td>
+                <td class="col-role">${escapeHtml(m.working_role.trim() || 'กรรมการ')}</td>
+              </tr>`;
           })
           .join('');
-
-        const dutiesRows = g.duties
-          .map((d, dIdx) => {
-            const dNo = formatDigits(dIdx + 1, ds.dutyNo);
-            const dText = escapeHtml(
-              formatDigits(
-                d.trim() ||
-                  '................................................................',
-                ds.dutyNo,
-              ),
-            );
-            return `<p class="duty-item"><span class="duty-no">${dNo}.</span>${dText}</p>`;
-          })
-          .join('');
-
         return `
           <div class="group-block">
-            <p class="group-heading">${gHeadingNo}. ${gTitle}</p>
-            <table class="member-table">
-              <tbody>${membersRows}</tbody>
-            </table>
-            <p class="duty-heading">ให้มีหน้าที่</p>
-            <div class="duty-list">${dutiesRows}</div>
-          </div>
-        `;
+            <p class="group-heading ${groupLevel(g) === 2 ? 'level-2' : ''}">${escapeHtml([label, ''].join(label ? ' ' : ''))}${title}</p>
+            ${membersRows ? `<table class="member-table"><tbody>${membersRows}</tbody></table>` : ''}
+            ${duties ? `<p class="duty-heading">ให้มีหน้าที่</p><div class="duty-list">${duties}</div>` : ''}
+          </div>`;
       })
       .join('');
+
+    const footerHtml = `
+  ${splitParagraphs(draft.effective_text || DEFAULT_EFFECTIVE_TEXT).map((p) => `<p class="effective">${escapeHtml(formatDigits(p, ds.orderDate))}</p>`).join('')}
+  <p class="order-date">${escapeHtml(thaiDateInfo.fullText)}</p>
+  <div class="sig-box">
+    <p>(${escapeHtml(draft.signer_name || '........................................')})</p>
+    <p>${escapeHtml(draft.signer_title || 'ตำแหน่ง................................')}</p>
+  </div>`;
 
     const emblemHeightCm = draft.emblem_height_cm || 3.0;
     const emblemPrintHtml = draft.emblem_data_url
@@ -197,7 +203,12 @@ export default function OrderWordPreviewPane({
     }
     .indent { text-indent: 25mm; text-align: justify; }
     .group-block { margin-top: 8pt; }
-    .group-heading { text-indent: 15mm; font-weight: 600; }
+    .group-heading { text-indent: 10mm; font-weight: 600; margin-top: 10pt; }
+    .group-heading.level-2 { text-indent: 20mm; }
+    .section-title { text-align: center; font-weight: 600; margin-top: 14pt; }
+    .person-line { font-weight: 600; margin-top: 10pt; }
+    .person-name { display: inline-block; min-width: 50mm; }
+    .duty-intro { text-indent: 10mm; }
     .member-table {
       width: 100%;
       border-collapse: collapse;
@@ -217,11 +228,10 @@ export default function OrderWordPreviewPane({
     .duty-item { margin-bottom: 2pt; }
     .duty-no { display: inline-block; width: 8mm; }
     .effective { text-indent: 25mm; margin-top: 12pt; }
-    .order-date { text-indent: 40mm; margin-top: 4pt; }
+    .order-date { text-align: center; margin-top: 12pt; }
     .sig-box {
-      margin-top: 28pt;
-      margin-left: auto;
-      width: 75mm;
+      margin-top: 36pt;
+      margin-bottom: 12pt;
       text-align: center;
     }
   </style>
@@ -237,16 +247,7 @@ export default function OrderWordPreviewPane({
 
   ${splitParagraphs(draft.preamble).map((p) => `<p class="indent">${escapeHtml(formatDigits(p, ds.preamble))}</p>`).join('')}
 
-  ${groupsHtml}
-
-  ${splitParagraphs(draft.effective_text || DEFAULT_EFFECTIVE_TEXT).map((p) => `<p class="effective">${escapeHtml(formatDigits(p, ds.orderDate))}</p>`).join('')}
-  <p class="order-date">${escapeHtml(thaiDateInfo.fullText)}</p>
-
-  <div class="sig-box">
-    <p>........................................</p>
-    <p>(${escapeHtml(draft.signer_name || '........................................')})</p>
-    <p>(${escapeHtml(draft.signer_title || 'ตำแหน่ง................................')})</p>
-  </div>
+  ${draft.sign_first ? footerHtml + groupsHtml : groupsHtml + footerHtml}
   <script>
     window.onload = function() {
       setTimeout(function() { window.print(); }, 250);
@@ -259,6 +260,103 @@ export default function OrderWordPreviewPane({
     win.document.write(html);
     win.document.close();
   }
+
+  // ── หัวข้อ 3 ชนิด (ตัวอย่างกระดาษ) ──
+  const labels = computeHeadingLabels(draft.groups, ds.groupHeading);
+  const dutyList = (duties: string[]) => {
+    const items = duties.map((d) => d.trim()).filter(Boolean);
+    if (items.length === 0) return null;
+    return (
+      <div className="space-y-0.5 pl-8">
+        {items.map((d, dIdx) => (
+          <p key={dIdx} className="flex items-start">
+            <span className="w-6 shrink-0 tabular-nums">{formatDigits(dIdx + 1, ds.dutyNo)}.</span>
+            <span className="flex-1">{formatDigits(d, ds.dutyNo)}</span>
+          </p>
+        ))}
+      </div>
+    );
+  };
+  const groupsJsx = (
+    <div className="mt-4 space-y-3">
+      {draft.groups.map((g, gIdx) => {
+        const kind = groupKind(g);
+        const label = labels[gIdx];
+        const title = formatDigits(g.group_title.trim() || '........................', ds.groupHeading);
+        if (kind === 'section') {
+          return (
+            <p key={gIdx} className="pt-2 text-center font-semibold text-ink">
+              {title}
+            </p>
+          );
+        }
+        if (kind === 'person') {
+          const p = personHeading(g);
+          return (
+            <div key={gIdx} className="space-y-0.5">
+              <p className="font-semibold text-ink">
+                <span className="inline-block min-w-[45%]">
+                  {[label, p.name || 'ชื่อ-นามสกุล....................'].filter(Boolean).join(' ')}
+                </span>
+                {title}
+              </p>
+              <p className="indent-6">{PERSON_DUTY_INTRO}</p>
+              {dutyList(g.duties)}
+            </div>
+          );
+        }
+        const duties = dutyList(g.duties);
+        return (
+          <div key={gIdx} className="space-y-1">
+            <p className={`font-semibold text-ink ${groupLevel(g) === 2 ? 'indent-10' : 'indent-6'}`}>
+              {label ? `${label} ` : ''}
+              {title}
+            </p>
+            {g.members.length > 0 && (
+              <table className="w-full border-collapse text-sm">
+                <tbody>
+                  {g.members.map((m, mIdx) => (
+                    <tr key={mIdx} className="align-top">
+                      <td className="w-[6%] whitespace-nowrap py-0.5 tabular-nums">
+                        {formatDigits(mIdx + 1, ds.memberNo)}.
+                      </td>
+                      <td className="w-[32%] py-0.5 pr-2">
+                        {m.full_name.trim() || 'ชื่อ-นามสกุล....................'}
+                      </td>
+                      <td className="w-[40%] py-0.5 px-2">
+                        {m.official_position.trim() || 'ตำแหน่ง............'}
+                      </td>
+                      <td className="w-[22%] py-0.5 pl-2">{m.working_role.trim() || 'กรรมการ'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {duties && (
+              <div className="pt-1">
+                <p className="font-semibold text-ink">ให้มีหน้าที่</p>
+                {duties}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+  const footerJsx = (
+    <div className="mt-6 space-y-1.5">
+      {splitParagraphs(draft.effective_text || DEFAULT_EFFECTIVE_TEXT).map((p, i) => (
+        <p key={i} className="indent-10 text-justify">
+          {formatDigits(p, ds.orderDate)}
+        </p>
+      ))}
+      <p className="pt-2 text-center tabular-nums">{thaiDateInfo.fullText}</p>
+      <div className="pt-10 pb-4 text-center">
+        <p>({draft.signer_name.trim() || '........................................'})</p>
+        <p>{draft.signer_title.trim() || 'ตำแหน่ง................................'}</p>
+      </div>
+    </div>
+  );
 
   return (
     <div className="surface-card overflow-hidden">
@@ -492,93 +590,17 @@ export default function OrderWordPreviewPane({
             </p>
           ))}
 
-          {/* ชุดคณะทำงาน ข้อ 1, 2, 3... */}
-          <div className="mt-4 space-y-4">
-            {draft.groups.map((g, gIdx) => {
-              const gHeadingNo = formatDigits(gIdx + 1, ds.groupHeading);
-              return (
-                <div key={gIdx} className="space-y-1">
-                  {/* 1. คณะทำงานด้านอำนวยการ */}
-                  <p className="indent-6 font-semibold text-ink">
-                    {gHeadingNo}.{' '}
-                    {formatDigits(
-                      g.group_title || 'คณะทำงาน........',
-                      ds.groupHeading,
-                    )}
-                  </p>
-
-                  {/* 1.1 ชื่อ-นามสกุล   ตำแหน่ง   ตำแหน่งทำงาน */}
-                  <table className="w-full border-collapse text-[14.5px]">
-                    <tbody>
-                      {g.members.map((m, mIdx) => {
-                        const subNo = `${formatDigits(mIdx + 1, ds.memberNo)}.`;
-                        return (
-                          <tr key={mIdx} className="align-top">
-                            <td className="w-[6%] whitespace-nowrap py-0.5 tabular-nums">{subNo}</td>
-                            <td className="w-[32%] py-0.5 pr-2">
-                              {m.full_name.trim() ||
-                                'ชื่อ-นามสกุล....................'}
-                            </td>
-                            <td className="w-[40%] py-0.5 px-2">
-                              {m.official_position.trim() || 'ตำแหน่ง............'}
-                            </td>
-                            <td className="w-[22%] py-0.5 pl-2">
-                              {m.working_role.trim() || 'กรรมการ'}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-
-                  {/* หน้าที่ 1, 2, 3... */}
-                  <div className="pt-1">
-                    <p className="font-semibold text-ink">ให้มีหน้าที่</p>
-                    <div className="space-y-0.5 pl-8">
-                      {g.duties.map((d, dIdx) => (
-                        <p key={dIdx} className="flex items-start">
-                          <span className="w-6 shrink-0 tabular-nums">
-                            {formatDigits(dIdx + 1, ds.dutyNo)}.
-                          </span>
-                          <span className="flex-1">
-                            {formatDigits(
-                              d.trim() ||
-                                '........................................................',
-                              ds.dutyNo,
-                            )}
-                          </span>
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* ส่วนท้าย: ทั้งนี้ ตั้งแต่บัดนี้เป็นต้นไป + สั่ง ณ วันที่ ... + ผู้ลงนาม */}
-          <div className="mt-6 space-y-1.5">
-            {splitParagraphs(draft.effective_text || DEFAULT_EFFECTIVE_TEXT).map(
-              (p, i) => (
-                <p key={i} className="indent-10 text-justify">
-                  {formatDigits(p, ds.orderDate)}
-                </p>
-              ),
-            )}
-            <p className="indent-16 tabular-nums">{thaiDateInfo.fullText}</p>
-
-            <div className="mt-10 ml-auto w-64 text-center">
-              <p className="tracking-widest text-slate-500">
-                ........................................
-              </p>
-              <p className="mt-1">
-                ({draft.signer_name.trim() || '........................................'})
-              </p>
-              <p>
-                ({draft.signer_title.trim() || 'ตำแหน่ง................................'})
-              </p>
-            </div>
-          </div>
+          {draft.sign_first ? (
+            <>
+              {footerJsx}
+              {groupsJsx}
+            </>
+          ) : (
+            <>
+              {groupsJsx}
+              {footerJsx}
+            </>
+          )}
         </div>
       </div>
     </div>
