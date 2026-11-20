@@ -21,7 +21,12 @@ const isLineTarget = (v: string) => /^[CUR][0-9a-fA-F]{32,}$/.test(v.trim());
  * 1. สะพานเชื่อมระบบกลาง (Apps Script & ค้นหา Group ID)
  * 2. ตั้งค่ากลุ่ม LINE แยกตามโรงเรียน
  */
-export default function LinePage() {
+export default function LinePage({
+  lockedSchoolId = null,
+}: {
+  /** โรงเรียนที่กำลังจัดการ — ส่งมาแล้วแสดงเฉพาะโรงเรียนนี้ และซ่อนการตั้งค่าที่ใช้ร่วมทุกโรงเรียน */
+  lockedSchoolId?: number | null;
+} = {}) {
   const [schools, setSchools] = useState<School[]>([]);
   const [rows, setRows] = useState<Record<number, LineRow>>({});
   const [editing, setEditing] = useState<LineRow | null>(null);
@@ -42,7 +47,12 @@ export default function LinePage() {
       setMessage({ text: `โหลดไม่สำเร็จ: ${failed.message} (รัน line_per_school.sql แล้วหรือยัง?)`, error: true });
       return;
     }
-    setSchools(s.data as School[]);
+    const allSchools = s.data as School[];
+    setSchools(
+      lockedSchoolId != null
+        ? allSchools.filter((x) => x.id_school === lockedSchoolId)
+        : allSchools,
+    );
     const byId: Record<number, LineRow> = {};
     for (const r of (l.data ?? []) as LineRow[]) byId[r.id_school] = r;
     setRows(byId);
@@ -54,7 +64,8 @@ export default function LinePage() {
 
   useEffect(() => {
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lockedSchoolId]);
 
   async function saveBridgeUrl() {
     setMessage(null);
@@ -161,7 +172,8 @@ export default function LinePage() {
       />
       <Notice message={message} />
 
-      {/* หมวดที่ 1: สะพานเชื่อมระบบกลาง */}
+      {/* หมวดที่ 1: สะพานเชื่อมระบบกลาง — ใช้ร่วมทุกโรงเรียน แสดงเฉพาะศูนย์ส่วนกลาง */}
+      {lockedSchoolId == null && (
       <div className="mb-6">
         <SectionHeader
           step="1"
@@ -213,6 +225,7 @@ export default function LinePage() {
           </div>
         </section>
       </div>
+      )}
 
       {/* กล่องแก้ไขของโรงเรียนที่เลือก */}
       {editing && (

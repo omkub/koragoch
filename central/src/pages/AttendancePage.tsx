@@ -81,10 +81,18 @@ function thaiDateTime(iso: string | null): string {
  *   2) เครื่องสแกนใบหน้า
  *   3) รหัสบุคลากรในเครื่องสแกน
  */
-export default function AttendancePage() {
+export default function AttendancePage({
+  lockedSchoolId = null,
+}: {
+  /** โรงเรียนที่กำลังจัดการ (มาจากแถบหัว) — ส่งมาแล้วจะไม่มีตัวเลือกโรงเรียนในหน้า */
+  lockedSchoolId?: number | null;
+} = {}) {
   const [tab, setTab] = useState<AttendanceTab>('time');
   const [schools, setSchools] = useState<School[]>([]);
-  const [schoolId, setSchoolId] = useState<number | null>(null);
+  const [schoolId, setSchoolId] = useState<number | null>(lockedSchoolId);
+  useEffect(() => {
+    if (lockedSchoolId != null) setSchoolId(lockedSchoolId);
+  }, [lockedSchoolId]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
@@ -105,7 +113,7 @@ export default function AttendancePage() {
         return;
       }
       setSchools(data as School[]);
-      if (data?.length) setSchoolId((data[0] as School).id_school);
+      if (data?.length && lockedSchoolId == null) setSchoolId((data[0] as School).id_school);
     })();
   }, []);
 
@@ -456,18 +464,27 @@ export default function AttendancePage() {
       <section className="card mb-6 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="flex flex-wrap items-center gap-2.5">
           <span className="text-[13px] font-semibold text-slate-600">โรงเรียนที่กำลังตั้งค่า:</span>
-          <select
-            className="input w-auto max-w-full font-semibold"
-            value={schoolId ?? ''}
-            onChange={(e) => setSchoolId(Number(e.target.value))}
-            aria-label="เลือกโรงเรียน"
-          >
-            {schools.map((s) => (
-              <option key={s.id_school} value={s.id_school}>
-                {schoolName(s)}
-              </option>
-            ))}
-          </select>
+          {lockedSchoolId != null ? (
+            <span className="text-sm font-semibold text-ink">
+              {(() => {
+                const cur = schools.find((x) => x.id_school === schoolId);
+                return cur ? schoolName(cur) : '';
+              })()}
+            </span>
+          ) : (
+            <select
+              className="input w-auto max-w-full font-semibold"
+              value={schoolId ?? ''}
+              onChange={(e) => setSchoolId(Number(e.target.value))}
+              aria-label="เลือกโรงเรียน"
+            >
+              {schools.map((s) => (
+                <option key={s.id_school} value={s.id_school}>
+                  {schoolName(s)}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div className="seg">

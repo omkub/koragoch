@@ -64,9 +64,17 @@ function holdsOn(p: Period, t: Teacher | undefined, day: string) {
   return (!p.start_date || p.start_date <= day) && (!p.end_date || day < p.end_date);
 }
 
-export default function AdminPositionsPage() {
+export default function AdminPositionsPage({
+  lockedSchoolId = null,
+}: {
+  /** โรงเรียนที่กำลังจัดการ (มาจากแถบหัว) — ส่งมาแล้วจะไม่มีตัวเลือกโรงเรียนในหน้า */
+  lockedSchoolId?: number | null;
+} = {}) {
   const [schools, setSchools] = useState<School[]>([]);
-  const [schoolId, setSchoolId] = useState<number | null>(null);
+  const [schoolId, setSchoolId] = useState<number | null>(lockedSchoolId);
+  useEffect(() => {
+    if (lockedSchoolId != null) setSchoolId(lockedSchoolId);
+  }, [lockedSchoolId]);
   const [roles, setRoles] = useState<AdminRole[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [periods, setPeriods] = useState<Period[]>([]);
@@ -86,7 +94,7 @@ export default function AdminPositionsPage() {
         return;
       }
       setSchools(s.data as School[]);
-      if (s.data?.length) setSchoolId((s.data[0] as School).id_school);
+      if (s.data?.length && lockedSchoolId == null) setSchoolId((s.data[0] as School).id_school);
     })();
   }, []);
 
@@ -215,18 +223,27 @@ export default function AdminPositionsPage() {
         title="ตำแหน่งบริหาร"
         description="ใครดำรงตำแหน่งอะไร ตั้งแต่เมื่อไร · ชื่อผู้ลงนามในใบลาใช้ผู้ที่ดำรงตำแหน่งในวันที่ส่งใบลา · ตั้งล่วงหน้าได้ มีผลตามวันที่"
         actions={
-          <select
-            className="input w-auto max-w-full"
-            value={schoolId ?? ''}
-            onChange={(e) => setSchoolId(Number(e.target.value))}
-            aria-label="เลือกโรงเรียน"
-          >
-            {schools.map((s) => (
-              <option key={s.id_school} value={s.id_school}>
-                {schoolName(s)}
-              </option>
-            ))}
-          </select>
+          lockedSchoolId != null ? (
+            <span className="text-sm font-semibold text-ink">
+              {(() => {
+                const cur = schools.find((x) => x.id_school === schoolId);
+                return cur ? schoolName(cur) : '';
+              })()}
+            </span>
+          ) : (
+            <select
+              className="input w-auto max-w-full"
+              value={schoolId ?? ''}
+              onChange={(e) => setSchoolId(Number(e.target.value))}
+              aria-label="เลือกโรงเรียน"
+            >
+              {schools.map((s) => (
+                <option key={s.id_school} value={s.id_school}>
+                  {schoolName(s)}
+                </option>
+              ))}
+            </select>
+          )
         }
       />
       {!ready && (

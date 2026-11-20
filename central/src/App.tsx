@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import {
   clearAllSsoSessions,
@@ -61,6 +61,9 @@ function extractUsername(email: string | undefined | null): string {
 }
 
 export default function App() {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const [landedSuper, setLandedSuper] = useState(false);
   const [hydratingSso, setHydratingSso] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
   const [access, setAccess] = useState<Access | null>(null);
@@ -202,6 +205,14 @@ export default function App() {
     })();
   }, [session]);
 
+  useEffect(() => {
+    if (landedSuper || !access) return;
+    setLandedSuper(true);
+    if (access.level === 'super' && pathname === '/' && !isEmbeddedInLeaveApp()) {
+      navigate('/hq', { replace: true });
+    }
+  }, [access, landedSuper, pathname, navigate]);
+
   const loadSchoolContext = useCallback(async () => {
     if (!selectedSchoolId) return;
 
@@ -333,15 +344,15 @@ export default function App() {
       <CenterScreen>
         <div className="surface-card max-w-md space-y-4 p-8 text-center">
           <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
-            <span className="text-lg font-bold">รร.</span>
+            <span className="text-lg font-semibold">รร.</span>
           </div>
           <h1 className="text-lg font-semibold text-ink">
             {currentSchool?.fullName || 'โรงเรียนของคุณ'}
           </h1>
-          <p className="text-xs leading-relaxed text-slate-600">
+          <p className="text-sm leading-relaxed text-slate-600">
             {!schoolWebEnabled
-              ? 'โรงเรียนนี้เปิดใช้งานเฉพาะระบบย่อย (ระบบวันลา ไปราชการ และลงเวลาปฏิบัติงาน) ยังไม่ได้เปิดใช้งานระบบเว็บโรงเรียนส่วนกลาง'
-              : 'บัญชีของคุณได้รับสิทธิ์ให้ใช้งานเฉพาะระบบย่อย (ระบบวันลาและไปราชการ) สามารถกดปุ่มด้านล่างเพื่อเข้าใช้งานได้ทันที'}
+              ? 'โรงเรียนนี้ยังไม่ได้เปิดใช้เว็บโรงเรียน ใช้งานได้เฉพาะระบบวันลา'
+              : 'บัญชีของคุณยังไม่ได้รับสิทธิ์ใช้เว็บโรงเรียน ติดต่อแอดมินโรงเรียนเพื่อขอสิทธิ์ · ระหว่างนี้ใช้ระบบวันลาได้ตามปกติ'}
           </p>
           <div className="flex flex-col gap-2 pt-2">
             <button
@@ -349,7 +360,7 @@ export default function App() {
               onClick={() => navigateToLeaveApp()}
               className="btn-primary w-full justify-center"
             >
-              เข้าสู่ Web ย่อยระบบวันลา
+              เปิดระบบวันลา
             </button>
             <button
               type="button"
@@ -456,7 +467,7 @@ export default function App() {
           }
         />
 
-        {/* โหมด Web หลัก: ส่วนผู้ดูแลระบบกลาง */}
+        {/* ② ตั้งค่าโรงเรียน — แอดมินโรงเรียน (โรงเรียนตัวเอง) / ส่วนกลาง (โรงเรียนที่เลือกในศูนย์ส่วนกลาง) */}
         {canEditSchool && (
           <>
             <Route
@@ -490,22 +501,52 @@ export default function App() {
             />
             <Route
               path="/user-permissions"
-              element={<UserPermissionsPage access={access} />}
+              element={
+                <UserPermissionsPage access={access} lockedSchoolId={selectedSchoolId} />
+              }
             />
           </>
         )}
+        {/* ② หน้าตั้งค่าระบบวันลาของโรงเรียน — ใช้โรงเรียนจากที่เดียว (selectedSchoolId)
+            ฐานข้อมูลยังให้เขียนได้เฉพาะส่วนกลาง จึงเปิดเฉพาะส่วนกลางไปก่อน */}
         {isSuper && (
           <>
-            <Route path="/leave-admin" element={<DashboardPage />} />
+            <Route path="/staff" element={<StaffPage lockedSchoolId={selectedSchoolId} />} />
+            <Route
+              path="/admin-positions"
+              element={<AdminPositionsPage lockedSchoolId={selectedSchoolId} />}
+            />
+            <Route path="/line" element={<LinePage lockedSchoolId={selectedSchoolId} />} />
+            <Route
+              path="/attendance"
+              element={<AttendancePage lockedSchoolId={selectedSchoolId} />}
+            />
+            <Route
+              path="/forms"
+              element={
+                selectedSchoolId ? (
+                  <FormDesignerPage fixedScope={selectedSchoolId} />
+                ) : (
+                  <Navigate to="/hq" replace />
+                )
+              }
+            />
+            <Route path="/forms/leave" element={<Navigate to="/forms" replace />} />
+          </>
+        )}
+        {/* ③ ศูนย์ผู้ดูแลส่วนกลาง */}
+        {isSuper && (
+          <>
+            <Route path="/hq" element={<DashboardPage />} />
+            <Route path="/hq/forms" element={<FormDesignerPage fixedScope="global" />} />
+            <Route path="/hq/line" element={<LinePage />} />
+            <Route path="/leave-admin" element={<Navigate to="/hq" replace />} />
             <Route path="/schools" element={<SchoolsPage />} />
             <Route path="/admins" element={<SchoolAdminsPage />} />
-            <Route path="/staff" element={<StaffPage />} />
-            <Route path="/admin-positions" element={<AdminPositionsPage />} />
-            <Route path="/line" element={<LinePage />} />
-            <Route path="/role-permissions" element={<RolePermissionsPage />} />
-            <Route path="/attendance" element={<AttendancePage />} />
-            <Route path="/forms" element={<FormDesignerPage />} />
-            <Route path="/forms/leave" element={<Navigate to="/forms" replace />} />
+            <Route
+              path="/role-permissions"
+              element={<RolePermissionsPage lockedSchoolId={selectedSchoolId} />}
+            />
           </>
         )}
 

@@ -37,10 +37,18 @@ function thaiDate(iso: string | null | undefined) {
 /**
  * บุคลากรของแต่ละโรงเรียน — ตั้งสถานะ ลาออก / เกษียณ / ย้าย (supabase/staff_status.sql)
  */
-export default function StaffPage() {
+export default function StaffPage({
+  lockedSchoolId = null,
+}: {
+  /** โรงเรียนที่กำลังจัดการ (มาจากแถบหัว) — ส่งมาแล้วจะไม่มีตัวเลือกโรงเรียนในหน้า */
+  lockedSchoolId?: number | null;
+} = {}) {
   const [schools, setSchools] = useState<School[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
-  const [schoolId, setSchoolId] = useState<number | null>(null);
+  const [schoolId, setSchoolId] = useState<number | null>(lockedSchoolId);
+  useEffect(() => {
+    if (lockedSchoolId != null) setSchoolId(lockedSchoolId);
+  }, [lockedSchoolId]);
   const [staff, setStaff] = useState<StaffRow[]>([]);
   const [hasStatus, setHasStatus] = useState(true);
   const [showInactive, setShowInactive] = useState(false);
@@ -61,7 +69,7 @@ export default function StaffPage() {
       }
       setSchools(s.data as School[]);
       if (!r.error) setRoles(r.data as Role[]);
-      if (s.data?.length) setSchoolId((s.data[0] as School).id_school);
+      if (s.data?.length && lockedSchoolId == null) setSchoolId((s.data[0] as School).id_school);
     })();
   }, []);
 
@@ -176,18 +184,27 @@ export default function StaffPage() {
         actions={
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-slate-500">โรงเรียน:</span>
-            <select
-              className="input w-auto max-w-full font-medium"
-              value={schoolId ?? ''}
-              onChange={(e) => setSchoolId(Number(e.target.value))}
-              aria-label="เลือกโรงเรียน"
-            >
-              {schools.map((s) => (
-                <option key={s.id_school} value={s.id_school}>
-                  {schoolName(s)}
-                </option>
-              ))}
-            </select>
+            {lockedSchoolId != null ? (
+              <span className="text-sm font-semibold text-ink">
+                {(() => {
+                  const cur = schools.find((x) => x.id_school === schoolId);
+                  return cur ? schoolName(cur) : '';
+                })()}
+              </span>
+            ) : (
+              <select
+                className="input w-auto max-w-full font-medium"
+                value={schoolId ?? ''}
+                onChange={(e) => setSchoolId(Number(e.target.value))}
+                aria-label="เลือกโรงเรียน"
+              >
+                {schools.map((s) => (
+                  <option key={s.id_school} value={s.id_school}>
+                    {schoolName(s)}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         }
       />
