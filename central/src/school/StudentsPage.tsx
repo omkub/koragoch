@@ -42,7 +42,7 @@ export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
   const loadAll = useCallback(async () => {
     if (!schoolId) return;
     setLoading(true);
-    const [stuRes, clsRes, tchRes] = await Promise.all([
+    const [stuRes, clsRes, tchRes, guardRes] = await Promise.all([
       supabase
         .from('SchoolWebStudents')
         .select(
@@ -62,10 +62,34 @@ export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
         .select('id_user, fullName')
         .eq('id_school', schoolId)
         .order('fullName', { ascending: true }),
+      // ข้อมูลผู้ปกครองแยกตาราง (supabase/school_web_security_fix1.sql)
+      // RLS ส่งกลับเฉพาะแถวที่ผู้ใช้มีสิทธิ์: แอดมิน / ส่วนกลาง / ครูที่ปรึกษาของห้อง
+      supabase
+        .from('SchoolWebStudentGuardians')
+        .select('student_id, guardian_name, guardian_phone')
+        .eq('id_school', schoolId),
     ]);
 
     if (stuRes.error) setError(stuRes.error.message);
-    else setStudents((stuRes.data as Student[] | null) ?? []);
+    else {
+      const rows = (stuRes.data as Student[] | null) ?? [];
+      // ยังไม่ได้รัน SQL (ไม่มีตาราง) → ใช้ค่าจากตารางเดิมตามเดิม
+      const guardians = guardRes.error
+        ? null
+        : new Map(
+            ((guardRes.data as { student_id: number; guardian_name: string | null; guardian_phone: string | null }[] | null) ?? []).map(
+              (g) => [g.student_id, g],
+            ),
+          );
+      setStudents(
+        guardians
+          ? rows.map((r) => {
+              const g = guardians.get(r.id);
+              return { ...r, guardian_name: g?.guardian_name ?? null, guardian_phone: g?.guardian_phone ?? null };
+            })
+          : rows,
+      );
+    }
 
     if (!clsRes.error) setClassrooms((clsRes.data as Classroom[] | null) ?? []);
     if (!tchRes.error) setTeachers((tchRes.data as TeacherOption[] | null) ?? []);
