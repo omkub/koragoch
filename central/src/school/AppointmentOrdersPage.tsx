@@ -25,6 +25,8 @@ import {
   type DigitFormatSettings,
   type OrderGroupDraft,
   type OrderMemberDraft,
+  DEFAULT_EFFECTIVE_TEXT,
+  WORKING_ROLE_OPTIONS,
 } from './appointmentOrders';
 import { exportAppointmentOrderToDocx } from './exportOrderDocx';
 import type { DivisionWithModules } from './mapping';
@@ -47,14 +49,6 @@ export interface StaffOption {
   displayPosition: string;    // ตำแหน่งที่แสดงในคำสั่งแต่งตั้ง
 }
 
-const WORKING_ROLE_OPTIONS = [
-  'ประธานคณะทำงาน',
-  'รองประธานคณะทำงาน',
-  'หัวหน้าคณะทำงาน',
-  'คณะทำงาน',
-  'คณะทำงานและเลขานุการ',
-  'คณะทำงานและผู้ช่วยเลขานุการ',
-];
 
 export default function AppointmentOrdersPage({
   schoolId,
@@ -638,7 +632,7 @@ export default function AppointmentOrdersPage({
         subject: draft.subject.trim(),
         preamble: draft.preamble.trim(),
         effective_text:
-          draft.effective_text.trim() || 'ทั้งนี้ ตั้งแต่บัดนี้เป็นต้นไป',
+          draft.effective_text.trim() || DEFAULT_EFFECTIVE_TEXT,
         order_date: draft.order_date,
         signer_name: draft.signer_name.trim(),
         signer_title: draft.signer_title.trim(),
@@ -1219,10 +1213,10 @@ export default function AppointmentOrdersPage({
             <div className="grid gap-3 sm:grid-cols-12">
               <div className="sm:col-span-7">
                 <label className="mb-1 block text-xs font-medium text-ink">
-                  ข้อความผลบังคับใช้
+                  ข้อความท้ายคำสั่ง (1 บรรทัด = 1 ย่อหน้า)
                 </label>
-                <input
-                  type="text"
+                <textarea
+                  rows={4}
                   disabled={!canEdit}
                   value={draft.effective_text}
                   onChange={(e) =>
@@ -1231,7 +1225,7 @@ export default function AppointmentOrdersPage({
                       effective_text: e.target.value,
                     }))
                   }
-                  placeholder="ทั้งนี้ ตั้งแต่บัดนี้เป็นต้นไป"
+                  placeholder={DEFAULT_EFFECTIVE_TEXT}
                   className="input"
                 />
               </div>

@@ -228,6 +228,38 @@ export function splitOfficialPosition(
   return { admin_position: raw, academic_standing: '' };
 }
 
+/**
+ * ข้อความท้ายคำสั่ง (ก่อน "สั่ง ณ วันที่") — 1 บรรทัด = 1 ย่อหน้า
+ * ตามแบบคำสั่งแต่งตั้งของโรงเรียน: ย่อหน้ากำชับการปฏิบัติ + ย่อหน้าวันที่มีผล
+ */
+export const DEFAULT_EFFECTIVE_TEXT =
+  'ให้ผู้ที่ได้รับคำสั่งปฏิบัติหน้าที่อย่างเต็มกำลัง ความรู้ และความสามารถ เพื่อให้บังเกิดประสิทธิผล และมีประสิทธิภาพก่อเกิดประโยชน์สูงสุดแก่โรงเรียนและทางราชการสืบไป\n' +
+  'ทั้งนี้ ตั้งแต่บัดนี้เป็นต้นไป';
+
+/** แยกข้อความหลายย่อหน้า (บรรทัดว่างถูกตัดทิ้ง) */
+export function splitParagraphs(text: string): string[] {
+  return text
+    .split(/\r?\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
+/** หน้าที่ในคณะ — คำที่ใช้ในคำสั่งแต่งตั้งของโรงเรียน (กรรมการ) ก่อน แล้วตามด้วยแบบคณะทำงาน */
+export const WORKING_ROLE_OPTIONS = [
+  'ที่ปรึกษา',
+  'ประธานกรรมการ',
+  'รองประธานกรรมการ',
+  'กรรมการ',
+  'กรรมการและเลขานุการ',
+  'กรรมการและผู้ช่วยเลขานุการ',
+  'ประธานคณะทำงาน',
+  'รองประธานคณะทำงาน',
+  'หัวหน้าคณะทำงาน',
+  'คณะทำงาน',
+  'คณะทำงานและเลขานุการ',
+  'คณะทำงานและผู้ช่วยเลขานุการ',
+];
+
 export const THAI_MONTHS = [
   'มกราคม',
   'กุมภาพันธ์',
@@ -266,7 +298,7 @@ export function formatDigits(
 }
 
 /**
- * แปลงวันที่ YYYY-MM-DD เป็นข้อความ "สั่ง ณ วันที่ ... เดือน ... พ.ศ. ...."
+ * แปลงวันที่ YYYY-MM-DD เป็นข้อความ "สั่ง ณ วันที่ ... (เดือน) พ.ศ. ...." ตามแบบคำสั่งราชการ (ไม่มีคำว่า "เดือน")
  */
 export function formatThaiOrderDate(
   isoDate: string,
@@ -282,7 +314,7 @@ export function formatThaiOrderDate(
       day: '...',
       month: '.........',
       yearBe: '....',
-      fullText: 'สั่ง ณ วันที่ ... เดือน ......... พ.ศ. ....',
+      fullText: 'สั่ง ณ วันที่ ... ......... พ.ศ. ....',
     };
   }
   const parts = isoDate.split('-').map(Number);
@@ -291,7 +323,7 @@ export function formatThaiOrderDate(
       day: '...',
       month: '.........',
       yearBe: '....',
-      fullText: 'สั่ง ณ วันที่ ... เดือน ......... พ.ศ. ....',
+      fullText: 'สั่ง ณ วันที่ ... ......... พ.ศ. ....',
     };
   }
   const [y, m, d] = parts;
@@ -302,7 +334,7 @@ export function formatThaiOrderDate(
     day,
     month,
     yearBe,
-    fullText: `สั่ง ณ วันที่ ${day} เดือน ${month} พ.ศ. ${yearBe}`,
+    fullText: `สั่ง ณ วันที่ ${day} ${month} พ.ศ. ${yearBe}`,
   };
 }
 
@@ -324,7 +356,7 @@ export function createDefaultOrderDraft(
     order_year: currentYearBe,
     subject: `แต่งตั้งคณะทำงานดำเนินงานของ${divisionName}`,
     preamble: `เพื่อให้การบริหารจัดการและการดำเนินงานของ${divisionName} เป็นไปด้วยความเรียบร้อย มีประสิทธิภาพ และบรรลุตามวัตถุประสงค์ของสถานศึกษา จึงแต่งตั้งคณะทำงานปฏิบัติหน้าที่ดังต่อไปนี้`,
-    effective_text: 'ทั้งนี้ ตั้งแต่บัดนี้เป็นต้นไป',
+    effective_text: DEFAULT_EFFECTIVE_TEXT,
     order_date: todayIso,
     signer_name: '',
     signer_title: 'ผู้อำนวยการสถานศึกษา',
