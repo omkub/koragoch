@@ -50,10 +50,18 @@ function thaiDateTime(iso: string) {
 /**
  * แบบฟอร์ม — ออกแบบใบลา / ใบขออนุญาตไปราชการ (เฉพาะผู้ดูแลส่วนกลาง)
  */
-export default function FormDesignerPage() {
+export default function FormDesignerPage({
+  fixedScope,
+}: {
+  /** ขอบเขตจากพื้นที่ที่เปิดหน้านี้: เลขโรงเรียน = ตั้งค่าโรงเรียน · 'global' = แม่แบบกลาง (ศูนย์ส่วนกลาง) */
+  fixedScope?: Scope;
+} = {}) {
   const [formType, setFormType] = useState<FormType>('leave');
   const [schools, setSchools] = useState<School[]>([]);
-  const [scope, setScope] = useState<Scope>('global');
+  const [scope, setScope] = useState<Scope>(fixedScope ?? 'global');
+  useEffect(() => {
+    if (fixedScope !== undefined) setScope(fixedScope);
+  }, [fixedScope]);
   const [dataSchoolId, setDataSchoolId] = useState<number | null>(null);
 
   const [draft, setDraft] = useState<FormTemplate>(() => builtInTemplate('leave'));
@@ -323,6 +331,16 @@ export default function FormDesignerPage() {
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <Field label="ขอบเขตแม่แบบที่กำลังแก้ไข" className="sm:w-64">
+              {fixedScope !== undefined ? (
+                <span className="input flex items-center font-semibold">
+                  {scope === 'global'
+                    ? 'แม่แบบกลาง (ใช้ร่วมทุกโรงเรียน)'
+                    : (() => {
+                        const cur = schools.find((x) => x.id_school === scope);
+                        return cur ? schoolName(cur) : '';
+                      })()}
+                </span>
+              ) : (
               <select
                 className="input font-semibold"
                 value={scope === 'global' ? 'global' : String(scope)}
@@ -338,6 +356,7 @@ export default function FormDesignerPage() {
                   </option>
                 ))}
               </select>
+              )}
             </Field>
             <div className="flex flex-wrap items-center gap-2 pb-1.5">
               <span className={source === 'school' ? 'badge-green' : 'badge-brand'}>

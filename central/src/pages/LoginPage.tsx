@@ -34,9 +34,7 @@ export default function LoginPage() {
           <div className="grid h-12 w-12 place-items-center rounded-xl bg-brand-600 text-white">
             <Building2 className="h-5 w-5" strokeWidth={1.5} />
           </div>
-          <p className="mt-3 text-xs font-medium text-brand-600">
-            ระบบบริหารจัดการสถานศึกษาและส่วนกลาง
-          </p>
+          <p className="mt-3 text-xs font-medium text-brand-600">ระบบงานโรงเรียน</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">
             เข้าสู่ระบบโรงเรียน
           </h1>

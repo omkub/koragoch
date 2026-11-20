@@ -76,10 +76,22 @@ const USER_LEVEL_OPTIONS: {
 /**
  * สิทธิ์รายคน (UserPermissions) — กำหนดสิทธิ์เจาะจงรายบุคคลทั้งในเว็บโรงเรียน (Module ย่อย) และระบบวันลา
  */
-export default function UserPermissionsPage({ access }: { access: Access }) {
+export default function UserPermissionsPage({
+  access,
+  lockedSchoolId = null,
+}: {
+  access: Access;
+  /** โรงเรียนที่กำลังจัดการ (มาจากแถบหัว) — ส่งมาแล้วจะไม่มีตัวเลือกโรงเรียนในหน้า */
+  lockedSchoolId?: number | null;
+}) {
   const isSuper = access.level === 'super';
   const [schools, setSchools] = useState<School[]>([]);
-  const [schoolId, setSchoolId] = useState<number | null>(access.schoolId);
+  const [schoolId, setSchoolId] = useState<number | null>(
+    lockedSchoolId ?? access.schoolId,
+  );
+  useEffect(() => {
+    if (lockedSchoolId != null) setSchoolId(lockedSchoolId);
+  }, [lockedSchoolId]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [items, setItems] = useState<PermissionItem[]>([]);
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
@@ -334,7 +346,7 @@ export default function UserPermissionsPage({ access }: { access: Access }) {
         title="กำหนดสิทธิ์รายบุคคล"
         description="กำหนดสิทธิ์เจาะจงรายคนทั้งการเข้าถึง Module ย่อยในเว็บโรงเรียน (ซ่อน / ดูอย่างเดียว / แก้ไขได้) และสิทธิ์ในระบบวันลา"
         actions={
-          isSuper ? (
+          isSuper && lockedSchoolId == null ? (
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold text-slate-500">
                 โรงเรียน:

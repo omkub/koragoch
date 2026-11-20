@@ -49,12 +49,20 @@ const TAB_META: Record<TabKey, { step: string; title: string; subtitle: string }
 /**
  * เพดานของสิทธิ์ (RolePermissions) — จัดหมวดหมู่เป็น 4 แท็บภายใต้โรงเรียนที่เลือก
  */
-export default function RolePermissionsPage() {
+export default function RolePermissionsPage({
+  lockedSchoolId = null,
+}: {
+  /** โรงเรียนที่กำลังจัดการ (มาจากแถบหัว) — ส่งมาแล้วจะไม่มีตัวเลือกโรงเรียนในหน้า */
+  lockedSchoolId?: number | null;
+} = {}) {
   const [tab, setTab] = useState<TabKey>('package');
   const [schools, setSchools] = useState<School[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [items, setItems] = useState<PermissionItem[]>([]);
-  const [schoolId, setSchoolId] = useState<number | null>(null);
+  const [schoolId, setSchoolId] = useState<number | null>(lockedSchoolId);
+  useEffect(() => {
+    if (lockedSchoolId != null) setSchoolId(lockedSchoolId);
+  }, [lockedSchoolId]);
   const [saved, setSaved] = useState<Grid>({});
   const [grid, setGrid] = useState<Grid>({});
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
@@ -75,7 +83,7 @@ export default function RolePermissionsPage() {
       setSchools(s.data as School[]);
       setRoles(r.data as Role[]);
       setItems(i.data as PermissionItem[]);
-      if (s.data?.length) setSchoolId((s.data[0] as School).id_school);
+      if (s.data?.length && lockedSchoolId == null) setSchoolId((s.data[0] as School).id_school);
     })();
   }, []);
 
@@ -169,26 +177,35 @@ export default function RolePermissionsPage() {
       <section className="card mb-6 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="flex flex-wrap items-center gap-2.5">
           <span className="text-[13px] font-semibold text-slate-600">โรงเรียนที่กำลังตั้งค่า:</span>
-          <select
-            className="input w-auto max-w-full font-semibold"
-            value={schoolId ?? ''}
-            onChange={(e) => {
-              if (
-                tab === 'ceiling' &&
-                changed.length &&
-                !confirm('ยังไม่ได้บันทึกเพดานที่แก้ไว้ — ทิ้งการแก้แล้วเปลี่ยนโรงเรียน?')
-              )
-                return;
-              setSchoolId(Number(e.target.value));
-            }}
-            aria-label="เลือกโรงเรียน"
-          >
-            {schools.map((s) => (
-              <option key={s.id_school} value={s.id_school}>
-                {schoolName(s)}
-              </option>
-            ))}
-          </select>
+          {lockedSchoolId != null ? (
+            <span className="text-sm font-semibold text-ink">
+              {(() => {
+                const cur = schools.find((x) => x.id_school === schoolId);
+                return cur ? schoolName(cur) : '';
+              })()}
+            </span>
+          ) : (
+            <select
+              className="input w-auto max-w-full font-semibold"
+              value={schoolId ?? ''}
+              onChange={(e) => {
+                if (
+                  tab === 'ceiling' &&
+                  changed.length &&
+                  !confirm('ยังไม่ได้บันทึกเพดานที่แก้ไว้ — ทิ้งการแก้แล้วเปลี่ยนโรงเรียน?')
+                )
+                  return;
+                setSchoolId(Number(e.target.value));
+              }}
+              aria-label="เลือกโรงเรียน"
+            >
+              {schools.map((s) => (
+                <option key={s.id_school} value={s.id_school}>
+                  {schoolName(s)}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div className="seg flex-wrap">
