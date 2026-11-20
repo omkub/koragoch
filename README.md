@@ -192,6 +192,7 @@ gh pr create --base main
 | 3 | `school_web_admin.sql` | `SchoolWebDocuments`, `SchoolWebAnnouncements` |
 | 4 | `school_web_part4_permissions_finance.sql` | `SchoolWebModuleCatalog`, `SchoolWebDivisions`, `SchoolWebDivisionModules`, `SchoolWebRoleDivisionAccess`, `SchoolWebFinanceItems` + `seed_school_web_divisions()` (รวม `school_web_mapping.sql` ไว้แล้ว) |
 | 5 | `school_web_appointment_orders.sql` | `SchoolWebOrders`, `SchoolWebOrderGroups`, `SchoolWebOrderMembers` |
+| 6 | `school_web_appointment_orders_part2.sql` | เพิ่มคอลัมน์ `kind` / `level` / `numbered` (หัวข้อ 3 ชั้น) และ `sign_first` (ลงนามหน้าแรก) |
 
 สิทธิ์ฝ่าย / Module / แพ็กเกจโรงเรียน ไม่มีตารางใหม่ — เก็บในตาราง `Permissions` เดิมด้วย `menu_id` พิเศษ
 

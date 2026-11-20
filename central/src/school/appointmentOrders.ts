@@ -9,13 +9,75 @@ export interface OrderMemberDraft {
   working_role: string;
 }
 
+/**
+ * ชนิดของหัวข้อในคำสั่ง (ตามไฟล์ต้นฉบับคำสั่งแต่งตั้งของโรงเรียน)
+ * - section   : หัวข้อกลุ่ม เช่น "กลุ่มบริหารวิชาการ" — ตัวหนากึ่งกลาง ไม่มีเลข เริ่มนับเลขข้อใหม่
+ * - committee : คณะ/งาน + ตารางรายชื่อ + ให้มีหน้าที่ เช่น "๑. งานพัฒนาหลักสูตร ประกอบด้วย"
+ * - person    : รายบุคคล "ชื่อ ⇥ ตำแหน่ง(หัวข้อ)" + "ให้มีหน้าที่รับผิดชอบในขอบข่ายต่อไปนี้" (ไม่มีตาราง)
+ */
+export type OrderGroupKind = 'section' | 'committee' | 'person';
+
 export interface OrderGroupDraft {
   id?: number;
   group_no: number;
   group_title: string;
   duties: string[];
   members: OrderMemberDraft[];
+  /** ไม่ระบุ = committee (ข้อมูลเดิมก่อนมีคอลัมน์ kind) */
+  kind?: OrderGroupKind;
+  /** 1 = ข้อหลัก (๖.) · 2 = ข้อย่อย (๖.๑) */
+  level?: 1 | 2;
+  /** แสดงเลขข้อหรือไม่ (เช่น "คณะกรรมการอำนวยการ" ไม่มีเลข) */
+  numbered?: boolean;
 }
+
+export const GROUP_KIND_LABELS: Record<OrderGroupKind, string> = {
+  section: 'หัวข้อกลุ่ม (กึ่งกลาง ไม่มีรายชื่อ)',
+  committee: 'คณะ / งาน (ตารางรายชื่อ)',
+  person: 'รายบุคคล (ชื่อ + ตำแหน่ง + หน้าที่)',
+};
+
+export const groupKind = (g: OrderGroupDraft): OrderGroupKind => g.kind ?? 'committee';
+export const groupLevel = (g: OrderGroupDraft): 1 | 2 => (g.level === 2 ? 2 : 1);
+export const groupNumbered = (g: OrderGroupDraft): boolean =>
+  groupKind(g) === 'section' ? false : g.numbered ?? groupKind(g) === 'committee';
+
+/**
+ * เลขข้อของทุกหัวข้อ (ใช้ร่วมกันทั้งฟอร์ม / ตัวอย่างกระดาษ / พิมพ์ / .docx)
+ * - นับข้อหลักใหม่ทุกครั้งที่เจอหัวข้อกลุ่ม (section)
+ * - ข้อหลัก = "๖."  ข้อย่อย = "๖.๑" (ต่อจากข้อหลักล่าสุด)
+ * - หัวข้อที่ไม่แสดงเลข / หัวข้อกลุ่ม = ''
+ */
+export function computeHeadingLabels(
+  groups: OrderGroupDraft[],
+  useThaiDigits: boolean,
+): string[] {
+  let main = 0;
+  let sub = 0;
+  return groups.map((g) => {
+    if (groupKind(g) === 'section') {
+      main = 0;
+      sub = 0;
+      return '';
+    }
+    if (!groupNumbered(g)) return '';
+    if (groupLevel(g) === 2) {
+      sub++;
+      return `${formatDigits(Math.max(main, 1), useThaiDigits)}.${formatDigits(sub, useThaiDigits)}`;
+    }
+    main++;
+    sub = 0;
+    return `${formatDigits(main, useThaiDigits)}.`;
+  });
+}
+
+/** หัวข้อรายบุคคล: บรรทัดชื่อ ⇥ ตำแหน่ง (ใช้สมาชิกคนแรก ถ้าไม่มีใช้หัวข้ออย่างเดียว) */
+export function personHeading(g: OrderGroupDraft): { name: string; title: string } {
+  const m = g.members[0];
+  return { name: m?.full_name.trim() ?? '', title: g.group_title.trim() };
+}
+
+export const PERSON_DUTY_INTRO = 'ให้มีหน้าที่รับผิดชอบในขอบข่ายต่อไปนี้';
 
 export interface AppointmentOrderRecord {
   id: number;
@@ -30,6 +92,8 @@ export interface AppointmentOrderRecord {
   order_date: string;
   signer_name: string;
   signer_title: string;
+  /** ลงนามหน้าแรก แล้วตามด้วยรายละเอียดแนบท้าย (แบบคำสั่งแต่งตั้งประจำภาคเรียน) */
+  sign_first?: boolean;
   created_at?: string;
   updated_at?: string;
 }

@@ -7,6 +7,11 @@ import {
   type DigitFormatSettings,
   DEFAULT_EFFECTIVE_TEXT,
   splitParagraphs,
+  PERSON_DUTY_INTRO,
+  computeHeadingLabels,
+  groupKind,
+  groupLevel,
+  personHeading,
 } from './appointmentOrders';
 
 function xmlEscape(str: string): string {
@@ -149,10 +154,11 @@ function runPropsXml(bold = false): string {
 function paragraphXml(
   text: string,
   opts: {
-    align?: 'left' | 'center' | 'right' | 'both';
+    align?: 'left' | 'center' | 'right' | 'both' | 'thaiDistribute';
     bold?: boolean;
     firstLineTwips?: number;
     leftTwips?: number;
+    hangingTwips?: number;
     afterTwips?: number;
     beforeTwips?: number;
   } = {},
@@ -161,6 +167,7 @@ function paragraphXml(
   const indAttrs = [
     opts.leftTwips ? `w:left="${opts.leftTwips}"` : '',
     opts.firstLineTwips ? `w:firstLine="${opts.firstLineTwips}"` : '',
+    opts.hangingTwips ? `w:hanging="${opts.hangingTwips}"` : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -178,6 +185,23 @@ function paragraphXml(
       ${runPropsXml(opts.bold)}
       <w:t xml:space="preserve">${xmlEscape(text)}</w:t>
     </w:r>
+  </w:p>`;
+}
+
+/** ย่อหน้า "ข้อความซ้าย ⇥ ข้อความขวา" (บรรทัดรายบุคคล: ชื่อ ⇥ ตำแหน่ง) */
+function tabbedParagraphXml(
+  left: string,
+  right: string,
+  opts: { bold?: boolean; tabTwips: number; beforeTwips?: number },
+): string {
+  return `<w:p>
+    <w:pPr>
+      <w:tabs><w:tab w:val="left" w:pos="${opts.tabTwips}"/></w:tabs>
+      <w:spacing w:before="${opts.beforeTwips ?? 0}" w:after="0" w:line="260" w:lineRule="auto"/>
+      ${runPropsXml(opts.bold)}
+    </w:pPr>
+    <w:r>${runPropsXml(opts.bold)}<w:t xml:space="preserve">${xmlEscape(left)}</w:t></w:r>
+    <w:r>${runPropsXml(opts.bold)}<w:tab/><w:t xml:space="preserve">${xmlEscape(right)}</w:t></w:r>
   </w:p>`;
 }
 
@@ -378,7 +402,7 @@ export async function exportAppointmentOrderToDocx(
     for (const p of paragraphs) {
       bodyParts.push(
         paragraphXml(formatDigits(p.trim(), ds.preamble), {
-          align: 'both',
+          align: 'thaiDistribute',
           firstLineTwips: 1417,
           afterTwips: 120,
         }),
@@ -386,97 +410,95 @@ export async function exportAppointmentOrderToDocx(
     }
   }
 
-  // 3) ชุดคณะทำงาน ข้อ 1, 2, 3...
-  for (let gIdx = 0; gIdx < draft.groups.length; gIdx++) {
-    const g = draft.groups[gIdx];
-    const gHeadingNo = formatDigits(gIdx + 1, ds.groupHeading);
+  // 3) หัวข้อ / คณะ / รายบุคคล (เลขข้อ 3 ชั้น: นับใหม่ทุกหัวข้อกลุ่ม · ข้อย่อย ๖.๑)
+  const labels = computeHeadingLabels(draft.groups, ds.groupHeading);
+  const groupParts: string[] = [];
+  draft.groups.forEach((g, gIdx) => {
+    const kind = groupKind(g);
+    const label = labels[gIdx];
+    const indent = groupLevel(g) === 2 ? 1134 : 567;
+    const titleText = formatDigits(g.group_title.trim() || '........................', ds.groupHeading);
 
-    // หัวข้อชุดคณะทำงาน (ds.groupHeading)
-    bodyParts.push(
-      paragraphXml(
-        `${gHeadingNo}. ${formatDigits(g.group_title || 'คณะทำงาน........', ds.groupHeading)}`,
-        {
+    if (kind === 'section') {
+      groupParts.push(paragraphXml(titleText, { align: 'center', bold: true, beforeTwips: 240, afterTwips: 0 }));
+      return;
+    }
+
+    if (kind === 'person') {
+      const p = personHeading(g);
+      groupParts.push(
+        tabbedParagraphXml(
+          [label, p.name || '....................................'].filter(Boolean).join(' '),
+          formatDigits(p.title || '........................', ds.groupHeading),
+          { bold: true, tabTwips: 2835, beforeTwips: 240 },
+        ),
+      );
+      groupParts.push(paragraphXml(PERSON_DUTY_INTRO, { firstLineTwips: 567, afterTwips: 0 }));
+    } else {
+      groupParts.push(
+        paragraphXml([label, titleText].filter(Boolean).join(' '), {
           bold: true,
-          firstLineTwips: 720,
-          beforeTwips: 100,
-          afterTwips: 60,
-        },
-      ),
-    );
-
-    // ตารางไร้เส้นขอบ 3 คอลัมน์ (ds.memberNo)
-    bodyParts.push(memberTableXml(g.members, ds.memberNo));
-
-    // หัวข้อ "หน้าที่"
-    bodyParts.push(
-      paragraphXml('ให้มีหน้าที่', {
-        bold: true,
-        beforeTwips: 60,
-        afterTwips: 40,
-      }),
-    );
-
-    // รายการหน้าที่ 1, 2, 3... (ds.dutyNo)
-    for (let dIdx = 0; dIdx < g.duties.length; dIdx++) {
-      const dNo = formatDigits(dIdx + 1, ds.dutyNo);
-      const dText =
-        g.duties[dIdx]?.trim() ||
-        '........................................................';
-      bodyParts.push(
-        paragraphXml(`${dNo}. ${formatDigits(dText, ds.dutyNo)}`, {
-          leftTwips: 720,
-          afterTwips: 40,
+          firstLineTwips: indent,
+          beforeTwips: 240,
+          afterTwips: 0,
         }),
       );
+      if (g.members.length > 0) {
+        groupParts.push(memberTableXml(g.members, ds.memberNo));
+      }
     }
-  }
 
-  // 4) ส่วนท้ายคำสั่ง: ทั้งนี้ ตั้งแต่บัดนี้เป็นต้นไป + สั่ง ณ วันที่ ... (ds.orderDate)
+    const duties = g.duties.map((d) => d.trim()).filter(Boolean);
+    if (duties.length > 0) {
+      if (kind === 'committee') {
+        groupParts.push(paragraphXml('ให้มีหน้าที่', { bold: true, beforeTwips: 120, afterTwips: 0 }));
+      }
+      duties.forEach((d, dIdx) => {
+        groupParts.push(
+          paragraphXml(`${formatDigits(dIdx + 1, ds.dutyNo)}. ${formatDigits(d, ds.dutyNo)}`, {
+            leftTwips: 851,
+            hangingTwips: 284,
+            afterTwips: 0,
+          }),
+        );
+      });
+    }
+  });
+
+  // 4) ส่วนท้ายคำสั่ง: ข้อความท้าย (หลายย่อหน้า) + สั่ง ณ วันที่ + ผู้ลงนาม
+  const footerParts: string[] = [];
   splitParagraphs(draft.effective_text || DEFAULT_EFFECTIVE_TEXT).forEach((p, i) => {
-    bodyParts.push(
+    footerParts.push(
       paragraphXml(formatDigits(p, ds.orderDate), {
-        align: 'both',
+        align: 'thaiDistribute',
         firstLineTwips: 1417,
-        beforeTwips: i === 0 ? 160 : 0,
-        afterTwips: 80,
+        beforeTwips: i === 0 ? 240 : 120,
+        afterTwips: 0,
       }),
     );
   });
-  bodyParts.push(
-    paragraphXml(thaiDateInfo.fullText, {
-      firstLineTwips: 2268,
-      afterTwips: 360,
+  footerParts.push(paragraphXml(thaiDateInfo.fullText, { align: 'center', beforeTwips: 240, afterTwips: 720 }));
+  footerParts.push(
+    paragraphXml(`(${draft.signer_name.trim() || '........................................'})`, {
+      align: 'center',
+      afterTwips: 0,
+    }),
+  );
+  footerParts.push(
+    paragraphXml(draft.signer_title.trim() || 'ตำแหน่ง................................', {
+      align: 'center',
+      afterTwips: 0,
     }),
   );
 
-  // 5) บล็อกลงนามผู้บริหาร
-  bodyParts.push(
-    paragraphXml('........................................', {
-      leftTwips: 3969,
-      align: 'center',
-      afterTwips: 40,
-    }),
-  );
-  bodyParts.push(
-    paragraphXml(
-      `(${draft.signer_name.trim() || '........................................'})`,
-      {
-        leftTwips: 3969,
-        align: 'center',
-        afterTwips: 40,
-      },
-    ),
-  );
-  bodyParts.push(
-    paragraphXml(
-      `(${draft.signer_title.trim() || 'ตำแหน่ง................................'})`,
-      {
-        leftTwips: 3969,
-        align: 'center',
-        afterTwips: 80,
-      },
-    ),
-  );
+  // ลงนามหน้าแรก (sign_first): คำเกริ่น → ส่วนท้าย + ลายเซ็น → รายละเอียดแนบท้าย
+  if (draft.sign_first) {
+    bodyParts.push(...footerParts);
+    bodyParts.push(paragraphXml('', { afterTwips: 0 }));
+    bodyParts.push(...groupParts);
+  } else {
+    bodyParts.push(...groupParts, ...footerParts);
+  }
 
   const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document
