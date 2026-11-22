@@ -31,7 +31,7 @@
 | #108 | F10: CI `flutter analyze` บล็อก deploy เมื่อมี error (warning / info ไม่บล็อก) | — |
 | #109 | F4: สิทธิ์ "แก้ไข" ฝ่าย / ระบบงาน บังคับในฐานข้อมูล (`can_edit_school_web`) · F5: สิทธิ์ของ web เหลือแหล่งเดียวคือ `Permissions` (เลิกใช้ `SchoolWebRoleDivisionAccess`) · F9: ตาราง `SchemaMigrations` · แก้กฎ `Permissions_menu_id_range` (เดิม 0–10 ทำให้สิทธิ์ web ทุกตัวบันทึกไม่ลง) | `schema_migrations.sql` ✅ · `school_web_division_edit.sql` ✅ |
 | #111 | หน้า `/public` รุ่นแรก (ข้อมูลตัวอย่าง) | — |
-| #112 | หน้าเว็บโรงเรียนสาธารณะสำหรับคนนอกดู (`#/public`, `#/public/:schoolId`) ครบ 6 หน้าตามต้นฉบับ `webschool.html` + หน้าตั้งค่าข้อมูลเว็บสาธารณะ (`#/public-web-settings`) สำหรับ 3 กลุ่มสิทธิ์ (ผู้ดูแลส่วนกลาง / แอดมินโรงเรียน / ครูผู้ดูแลเว็บโรงเรียน) · กล่องข้อความติดต่อเก็บในฐานข้อมูล (`SchoolPublicWebMessages`) | `school_public_web.sql` |
+| #112 | หน้าเว็บโรงเรียนสาธารณะสำหรับคนนอกดู (`#/public`, `#/public/:schoolId`) ครบ 6 หน้าตามต้นฉบับ `webschool.html` + หน้าตั้งค่าข้อมูลเว็บสาธารณะ (`#/public-web-settings`) สำหรับ 3 กลุ่มสิทธิ์ (ผู้ดูแลส่วนกลาง / แอดมินโรงเรียน / ครูผู้ดูแลเว็บโรงเรียน) · กล่องข้อความติดต่อเก็บในฐานข้อมูล (`SchoolPublicWebMessages`) | `school_public_web.sql` ✅ |
 
 ### โครง web 3 พื้นที่ (`central/src/school/UnifiedShell.tsx`)
 
