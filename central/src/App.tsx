@@ -508,8 +508,8 @@ export default function App() {
           </>
         )}
         {/* ② หน้าตั้งค่าระบบวันลาของโรงเรียน — ใช้โรงเรียนจากที่เดียว (selectedSchoolId)
-            ฐานข้อมูลยังให้เขียนได้เฉพาะส่วนกลาง จึงเปิดเฉพาะส่วนกลางไปก่อน */}
-        {isSuper && (
+            แอดมินโรงเรียน = โรงเรียนตัวเองเสมอ (ต้องรัน supabase/school_admin_leave_settings.sql) */}
+        {canEditSchool && (
           <>
             <Route path="/staff" element={<StaffPage lockedSchoolId={selectedSchoolId} />} />
             <Route
