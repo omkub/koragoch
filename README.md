@@ -200,6 +200,7 @@ gh pr create --base main
 | 11 | `school_web_division_edit.sql` | F4 + F5: ผู้ที่ได้สิทธิ์ "แก้ไข" ฝ่าย/ระบบงานบันทึกข้อมูลได้จริง (`can_edit_school_web`) · ย้าย `SchoolWebRoleDivisionAccess` เข้า `Permissions` (web เลิกใช้ตารางเก่า) |
 | 12 | `school_public_web.sql` | เว็บโรงเรียนสาธารณะ: ตาราง `SchoolPublicWebConfigs` (ทุกคนอ่านได้) + `SchoolPublicWebMessages` (คนนอกส่งได้อย่างเดียว) + ระบบงาน `public-web-settings` |
 | 13 | `school_web_sgs_grades.sql` | แฟ้มประวัตินักเรียน (`SchoolWebStudentProfiles` อ่านได้เฉพาะผู้มีสิทธิ์แก้ไขนักเรียน) + คะแนน SGS (`SchoolWebSgsGrades`) |
+| 14 | `school_web_realtime_public.sql` | เว็บสาธารณะดึงข้อมูลจริง (โรงเรียน / บุคลากร / สถิตินักเรียน / ประกาศ) + ตรวจผลการเรียนออนไลน์ (รหัสนักเรียน + เลขบัตร 13 หลัก, จำกัดการลองผิด) |
 
 ตั้งแต่ไฟล์ 10 เป็นต้นไป ไฟล์ SQL ใหม่ทุกไฟล์จบด้วย `insert into "SchemaMigrations"(name) values ('<ไฟล์>.sql') on conflict do nothing;` · ดูว่ารันอะไรไปแล้ว: `select * from "SchemaMigrations" order by applied_at;`
 

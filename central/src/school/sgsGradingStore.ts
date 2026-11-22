@@ -773,3 +773,159 @@ export function downloadSgsGradebookCsv(params: {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+export interface PublicSgsStudentInfo {
+  id: number;
+  id_school: number;
+  student_code: string;
+  prefix: string | null;
+  first_name: string;
+  last_name: string;
+  classroom_name: string;
+  grade_level: string;
+  seat_no: number | null;
+  study_plan: string;
+}
+
+export async function lookupPublicStudentSgsTranscript(params: {
+  schoolId: number | null;
+  studentCode: string;
+  verifyCode: string;
+}): Promise<{
+  ok: boolean;
+  error?: string;
+  student?: PublicSgsStudentInfo;
+  transcript?: StudentMultiYearTranscript;
+}> {
+  const cleanCode = params.studentCode.trim();
+  const cleanVerify = params.verifyCode.trim();
+  if (!cleanCode) {
+    return { ok: false, error: 'กรุณากรอกรหัสประจำตัวนักเรียน' };
+  }
+
+  // 1) เรียกผ่าน RPC lookup_public_student_sgs_grades (รองรับทั้งคนนอกที่ไม่ล็อกอินและบุคลากร)
+  try {
+    const rpcRes = await supabase.rpc('lookup_public_student_sgs_grades', {
+      target_school: params.schoolId,
+      p_student_code: cleanCode,
+      p_verify_code: cleanVerify,
+    });
+    if (!rpcRes.error && rpcRes.data) {
+      const payload = rpcRes.data as {
+        ok?: boolean;
+        error?: string;
+        student?: PublicSgsStudentInfo;
+        grades?: SgsScoreRecord[];
+      };
+      if (!payload.ok) {
+        return {
+          ok: false,
+          error: payload.error || 'ไม่พบข้อมูลนักเรียนตามรหัสที่ระบุ',
+        };
+      }
+      const grades = Array.isArray(payload.grades) ? payload.grades : [];
+      return {
+        ok: true,
+        student: payload.student,
+        transcript: computeStudentMultiYearTranscript(grades),
+      };
+    }
+  } catch {
+    // fallback ด้านล่างหากยังไม่ได้รัน school_web_realtime_public.sql
+  }
+
+  // 2) Fallback ค้นหาจากตารางโดยตรง (กรณีล็อกอินอยู่)
+  try {
+    let q = supabase
+      .from('SchoolWebStudents')
+      .select('id, id_school, student_code, prefix, first_name, last_name, classroom_id')
+      .ilike('student_code', cleanCode)
+      .limit(1);
+    if (params.schoolId) {
+      q = q.eq('id_school', params.schoolId);
+    }
+    const { data: stuData, error: stuErr } = await q.maybeSingle();
+    if (stuErr || !stuData) {
+      return {
+        ok: false,
+        error: 'ไม่พบรหัสนักเรียนนี้ในระบบโรงเรียน',
+      };
+    }
+
+    const stu = stuData as {
+      id: number;
+      id_school: number;
+      student_code: string;
+      prefix: string | null;
+      first_name: string;
+      last_name: string;
+      classroom_id: number | null;
+    };
+
+    const [clsRes, profRes, gradesRes] = await Promise.all([
+      stu.classroom_id
+        ? supabase
+            .from('SchoolWebClassrooms')
+            .select('name, grade_level')
+            .eq('id', stu.classroom_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      supabase
+        .from('SchoolWebStudentProfiles')
+        .select('seat_no, citizen_id, study_plan')
+        .eq('student_id', stu.id)
+        .maybeSingle(),
+      supabase
+        .from('SchoolWebSgsGrades')
+        .select('*')
+        .eq('student_id', stu.id),
+    ]);
+
+    const prof = profRes.data as {
+      seat_no?: number;
+      citizen_id?: string | null;
+      study_plan?: string | null;
+    } | null;
+
+    const storedCitizen = (prof?.citizen_id ?? '').replace(/[^0-9]/g, '');
+    const userVerifyDigits = cleanVerify.replace(/[^0-9A-Za-z]/g, '');
+    if (storedCitizen && userVerifyDigits) {
+      if (
+        userVerifyDigits !== storedCitizen &&
+        storedCitizen.slice(-4) !== userVerifyDigits.slice(-4) &&
+        userVerifyDigits.toLowerCase() !== cleanCode.toLowerCase()
+      ) {
+        return {
+          ok: false,
+          error:
+            'รหัสยืนยัน (เลขบัตรประชาชน 13 หลัก หรือ 4 ตัวท้าย) ไม่ตรงกับข้อมูลในระบบ',
+        };
+      }
+    }
+
+    const cls = clsRes.data as { name?: string; grade_level?: string } | null;
+    const grades = (gradesRes.data as SgsScoreRecord[] | null) ?? [];
+
+    return {
+      ok: true,
+      student: {
+        id: stu.id,
+        id_school: stu.id_school,
+        student_code: stu.student_code,
+        prefix: stu.prefix,
+        first_name: stu.first_name,
+        last_name: stu.last_name,
+        classroom_name: cls?.name || 'ยังไม่ระบุห้อง',
+        grade_level: cls?.grade_level || 'ม.1',
+        seat_no: prof?.seat_no ?? 1,
+        study_plan: prof?.study_plan || 'ทั่วไป',
+      },
+      transcript: computeStudentMultiYearTranscript(grades),
+    };
+  } catch {
+    return {
+      ok: false,
+      error: 'ไม่สามารถเชื่อมต่อระบบตรวจสอบผลการเรียนได้ในขณะนี้',
+    };
+  }
+}

@@ -117,10 +117,24 @@ export default function App() {
   useEffect(() => {
     if (!session) {
       setAccess(null);
-      setSchools([]);
-      setSelectedSchoolId(null);
       setUserRoleId(null);
       setCurrentUserId(null);
+      (async () => {
+        const rpcRes = await supabase.rpc('list_public_schools');
+        if (!rpcRes.error && Array.isArray(rpcRes.data) && rpcRes.data.length > 0) {
+          const pubList = rpcRes.data as SchoolBasic[];
+          setSchools(pubList);
+          setSelectedSchoolId((prev) => prev ?? pubList[0]?.id_school ?? null);
+          return;
+        }
+        const tblRes = await supabase
+          .from('Schools')
+          .select('*')
+          .order('id_school');
+        const tblList = (tblRes.data as SchoolBasic[] | null) ?? [];
+        setSchools(tblList);
+        setSelectedSchoolId((prev) => prev ?? tblList[0]?.id_school ?? null);
+      })();
       return;
     }
     (async () => {
@@ -132,7 +146,7 @@ export default function App() {
           supabase.rpc('current_school_id'),
           supabase
             .from('Schools')
-            .select('id_school, fullName, affiliation')
+            .select('*')
             .order('id_school'),
           username
             ? supabase

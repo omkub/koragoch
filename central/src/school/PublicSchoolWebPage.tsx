@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { logoSrc } from '../ui/SchoolLogo';
 import {
   fetchPublicSchoolWebConfig,
   loadLocalPublicWebConfig,
@@ -9,6 +10,11 @@ import {
   type PublicSchoolWebConfig,
   type StaffDeptFilter,
 } from './publicWebConfig';
+import {
+  lookupPublicStudentSgsTranscript,
+  type PublicSgsStudentInfo,
+  type StudentMultiYearTranscript,
+} from './sgsGradingStore';
 import type { SchoolBasic } from './types';
 
 interface PublicSchoolWebPageProps {
@@ -103,6 +109,39 @@ export default function PublicSchoolWebPage({
   const [contactSubmittedName, setContactSubmittedName] = useState<
     string | null
   >(null);
+
+  // SGS Online Student Grade Lookup Modal state
+  const [sgsModalOpen, setSgsModalOpen] = useState(false);
+  const [sgsCodeInput, setSgsCodeInput] = useState('');
+  const [sgsVerifyInput, setSgsVerifyInput] = useState('');
+  const [sgsLoading, setSgsLoading] = useState(false);
+  const [sgsError, setSgsError] = useState<string | null>(null);
+  const [sgsStudentResult, setSgsStudentResult] =
+    useState<PublicSgsStudentInfo | null>(null);
+  const [sgsTranscriptResult, setSgsTranscriptResult] =
+    useState<StudentMultiYearTranscript | null>(null);
+
+  const handleLookupSgsOnline = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSgsLoading(true);
+    setSgsError(null);
+    const res = await lookupPublicStudentSgsTranscript({
+      schoolId: activeSchoolId,
+      studentCode: sgsCodeInput,
+      verifyCode: sgsVerifyInput,
+    });
+    setSgsLoading(false);
+    if (!res.ok || !res.student || !res.transcript) {
+      setSgsError(res.error || 'ไม่พบข้อมูลผลการเรียนของรหัสนักเรียนที่ระบุ');
+      setSgsStudentResult(null);
+      setSgsTranscriptResult(null);
+      return;
+    }
+    setSgsStudentResult(res.student);
+    setSgsTranscriptResult(res.transcript);
+  };
+
+  const resolvedSchoolLogo = logoSrc(activeSchool?.logo);
 
   // Home page quick stats counter animation
   const [statsCount, setStatsCount] = useState(() => ({
@@ -296,12 +335,20 @@ export default function PublicSchoolWebPage({
             <button
               type="button"
               onClick={() => switchTab('home')}
-              className="w-11 h-11 rounded-xl bg-primary-container flex items-center justify-center shrink-0 hover:bg-primary transition-colors"
+              className="w-11 h-11 rounded-xl bg-primary-container flex items-center justify-center shrink-0 hover:bg-primary transition-colors overflow-hidden"
               title="กลับหน้าแรก"
             >
-              <span className="material-symbols-outlined text-on-primary text-[24px]">
-                school
-              </span>
+              {resolvedSchoolLogo ? (
+                <img
+                  src={resolvedSchoolLogo}
+                  alt={schoolDisplayName}
+                  className="w-full h-full object-contain bg-white p-0.5"
+                />
+              ) : (
+                <span className="material-symbols-outlined text-on-primary text-[24px]">
+                  school
+                </span>
+              )}
             </button>
             <div className="flex flex-col text-left">
               <div className="flex items-center gap-2">
@@ -806,7 +853,10 @@ export default function PublicSchoolWebPage({
 
                       <button
                         type="button"
-                        onClick={() => switchTab('students')}
+                        onClick={() => {
+                          setSgsError(null);
+                          setSgsModalOpen(true);
+                        }}
                         className="text-left bg-surface-container-lowest rounded-xl p-5 shadow-[0_12px_32px_rgba(13,28,46,0.04)] hover:bg-primary-container hover:text-on-primary group transition-colors flex flex-col justify-between h-36"
                       >
                         <div className="w-10 h-10 rounded-lg bg-primary-fixed group-hover:bg-surface-container-lowest/20 flex items-center justify-center">
@@ -1844,15 +1894,19 @@ export default function PublicSchoolWebPage({
                       </p>
                     </div>
                   </div>
-                  <a
-                    href="#student-downloads"
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSgsError(null);
+                      setSgsModalOpen(true);
+                    }}
                     className="inline-flex items-center justify-between w-full px-4 py-3 rounded-xl bg-primary-container hover:bg-primary text-on-primary font-label-lg text-label-lg transition-colors"
                   >
                     <span>เข้าสู่ระบบ SGS นักเรียน</span>
                     <span className="material-symbols-outlined text-[20px]">
                       open_in_new
                     </span>
-                  </a>
+                  </button>
                 </div>
 
                 <div className="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow flex flex-col justify-between gap-6 hover:-translate-y-1 transition-transform">
@@ -3135,16 +3189,318 @@ export default function PublicSchoolWebPage({
         </div>
       )}
 
+      {/* ── Modal ระบบตรวจสอบผลการเรียนออนไลน์ (SGS Online Portal) ──────── */}
+      {sgsModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-on-surface/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6"
+          onClick={() => setSgsModalOpen(false)}
+        >
+          <div
+            className="bg-surface-container-lowest rounded-2xl max-w-5xl w-full max-h-[92vh] overflow-y-auto shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="sticky top-0 z-10 bg-gradient-to-r from-primary via-primary-container to-tertiary-container text-on-primary px-6 py-5 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-surface-container-lowest/15 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-secondary-container text-[24px]">
+                    fact_check
+                  </span>
+                </div>
+                <div>
+                  <span className="font-label-sm text-label-sm text-primary-fixed uppercase tracking-wider">
+                    SGS ONLINE • ระบบวัดและประเมินผลการเรียน
+                  </span>
+                  <h2 className="font-headline-sm text-headline-sm text-on-primary">
+                    ตรวจสอบผลการเรียนและคะแนนสะสมทุกชั้นปี ({schoolDisplayName})
+                  </h2>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSgsModalOpen(false)}
+                className="w-10 h-10 rounded-full bg-surface-container-lowest/15 hover:bg-surface-container-lowest/25 text-on-primary flex items-center justify-center transition-colors"
+                aria-label="ปิดหน้าต่าง SGS"
+              >
+                <span className="material-symbols-outlined text-[22px]">
+                  close
+                </span>
+              </button>
+            </div>
+
+            <div className="p-6 sm:p-8 space-y-6">
+              {/* Search Form */}
+              <form
+                onSubmit={handleLookupSgsOnline}
+                className="bg-surface-container-low rounded-2xl p-5 grid grid-cols-1 sm:grid-cols-12 gap-4 items-end"
+              >
+                <div className="sm:col-span-5">
+                  <label className="block font-label-lg text-label-lg text-on-surface mb-1.5">
+                    รหัสประจำตัวนักเรียน <span className="text-error">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={sgsCodeInput}
+                    onChange={(e) => setSgsCodeInput(e.target.value)}
+                    placeholder="เช่น 5902116"
+                    className="w-full px-4 py-2.5 rounded-xl bg-surface-container-lowest border border-outline-variant/40 text-on-surface font-body-sm text-body-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+
+                <div className="sm:col-span-5">
+                  <label className="block font-label-lg text-label-lg text-on-surface mb-1.5">
+                    เลขบัตรประชาชน 13 หลัก
+                  </label>
+                  <input
+                    type="text"
+                    value={sgsVerifyInput}
+                    onChange={(e) => setSgsVerifyInput(e.target.value)}
+                    placeholder="เลขบัตรประชาชน 13 หลักของนักเรียน"
+                        inputMode="numeric"
+                        required
+                    className="w-full px-4 py-2.5 rounded-xl bg-surface-container-lowest border border-outline-variant/40 text-on-surface font-body-sm text-body-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <button
+                    type="submit"
+                    disabled={sgsLoading}
+                    className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary-container hover:bg-primary text-on-primary font-label-lg text-label-lg transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">
+                      search
+                    </span>
+                    <span>{sgsLoading ? 'กำลังค้นหา...' : 'ดูผลการเรียน'}</span>
+                  </button>
+                </div>
+              </form>
+
+              {sgsError && (
+                <div className="p-4 rounded-xl bg-error-container text-on-error-container flex items-center gap-2 font-body-sm text-body-sm">
+                  <span className="material-symbols-outlined text-[20px]">
+                    error
+                  </span>
+                  <span>{sgsError}</span>
+                </div>
+              )}
+
+              {/* Student Result & Transcript */}
+              {sgsStudentResult && sgsTranscriptResult && (
+                <div className="space-y-6">
+                  {/* Student Profile & Summary KPIs */}
+                  <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-6 space-y-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-outline-variant/20 pb-4">
+                      <div>
+                        <span className="px-3 py-1 rounded-full bg-primary-fixed text-primary font-label-sm text-label-sm">
+                          รหัสนักเรียน {sgsStudentResult.student_code} • ชั้น{' '}
+                          {sgsStudentResult.classroom_name} (เลขที่{' '}
+                          {sgsStudentResult.seat_no ?? '-'})
+                        </span>
+                        <h3 className="font-headline-md text-headline-md text-on-surface mt-2">
+                          {sgsStudentResult.prefix ?? ''}
+                          {sgsStudentResult.first_name}{' '}
+                          {sgsStudentResult.last_name}
+                        </h3>
+                        <p className="font-body-sm text-body-sm text-on-surface-variant">
+                          แผนการเรียน: {sgsStudentResult.study_plan}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => window.print()}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-surface-container-low hover:bg-surface-container text-primary font-label-lg text-label-lg transition-colors w-fit"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">
+                          print
+                        </span>
+                        <span>พิมพ์ใบรายงานผลการเรียน</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="rounded-xl bg-primary-fixed/40 p-4">
+                        <p className="font-label-md text-label-md text-primary">
+                          เกรดเฉลี่ยสะสมทุกชั้นปี (GPAX)
+                        </p>
+                        <p className="font-headline-lg text-headline-lg text-primary mt-1 tabular-nums">
+                          {sgsTranscriptResult.overallGpax.toFixed(2)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-surface-container-low p-4">
+                        <p className="font-label-md text-label-md text-on-surface-variant">
+                          หน่วยกิตที่สอบผ่าน / ลงทะเบียนสะสม
+                        </p>
+                        <p className="font-headline-lg text-headline-lg text-on-surface mt-1 tabular-nums">
+                          {sgsTranscriptResult.totalCreditsEarned.toFixed(1)} /{' '}
+                          {sgsTranscriptResult.totalCreditsAttempted.toFixed(1)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-secondary-fixed/50 p-4">
+                        <p className="font-label-md text-label-md text-secondary">
+                          จำนวนภาคเรียนที่มีผลการเรียน
+                        </p>
+                        <p className="font-headline-lg text-headline-lg text-secondary mt-1 tabular-nums">
+                          {sgsTranscriptResult.terms.length} ภาคเรียน
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Term-by-Term Score & Grade Tables */}
+                  {sgsTranscriptResult.terms.length === 0 ? (
+                    <div className="rounded-2xl bg-surface-container-low p-10 text-center">
+                      <span className="material-symbols-outlined text-on-surface-variant text-[40px] mb-2">
+                        assignment_late
+                      </span>
+                      <p className="font-title-md text-title-md text-on-surface">
+                        พบข้อมูลนักเรียนในระบบ แต่ยังไม่มีรายการคะแนนที่ประกาศในภาคเรียนนี้
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-5">
+                      {sgsTranscriptResult.terms.map((term) => (
+                        <div
+                          key={`${term.gradeLevel}-${term.termNo}-${term.yearBe}`}
+                          className="rounded-2xl border border-outline-variant/30 bg-surface-container-lowest overflow-hidden"
+                        >
+                          <div className="bg-surface-container-low px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="px-3 py-1 rounded-full bg-primary-container text-on-primary font-label-md text-label-md">
+                                ชั้น {term.gradeLevel}
+                              </span>
+                              <span className="font-title-md text-title-md text-on-surface">
+                                ภาคเรียนที่ {term.termNo} / ปีการศึกษา{' '}
+                                {term.yearBe}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 font-label-md text-label-md">
+                              <span className="px-3 py-1 rounded-full bg-surface-container-lowest text-on-surface">
+                                หน่วยกิต: {term.termCreditsEarned}/
+                                {term.termCreditsAttempted}
+                              </span>
+                              <span className="px-3 py-1 rounded-full bg-primary-fixed text-primary">
+                                GPA ประจำภาค: {term.termGpa.toFixed(2)}
+                              </span>
+                              <span className="px-3 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed">
+                                GPAX สะสม:{' '}
+                                {term.cumulativeGpaxAfterTerm.toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse text-xs">
+                              <thead>
+                                <tr className="border-b border-outline-variant/20 bg-surface text-on-surface-variant">
+                                  <th className="px-4 py-2.5">รหัสวิชา</th>
+                                  <th className="px-4 py-2.5">ชื่อรายวิชา</th>
+                                  <th className="px-3 py-2.5 text-center">
+                                    หน่วยกิต
+                                  </th>
+                                  <th className="px-3 py-2.5 text-center">
+                                    คะแนนเก็บ
+                                  </th>
+                                  <th className="px-3 py-2.5 text-center">
+                                    คะแนนสมุด
+                                  </th>
+                                  <th className="px-3 py-2.5 text-center">
+                                    กลางภาค
+                                  </th>
+                                  <th className="px-3 py-2.5 text-center">
+                                    ปลายภาค
+                                  </th>
+                                  <th className="px-3 py-2.5 text-center">
+                                    รวม (100)
+                                  </th>
+                                  <th className="px-3 py-2.5 text-center">
+                                    เกรด
+                                  </th>
+                                  <th className="px-3 py-2.5 text-center">
+                                    เวลาเรียน
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-outline-variant/15">
+                                {term.rows.map(({ record, computed }) => (
+                                  <tr
+                                    key={record.subject_code}
+                                    className="hover:bg-surface-container-low/50"
+                                  >
+                                    <td className="px-4 py-2.5 font-mono font-semibold text-primary">
+                                      {record.subject_code}
+                                    </td>
+                                    <td className="px-4 py-2.5 font-medium text-on-surface">
+                                      {record.subject_name}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-center tabular-nums">
+                                      {record.subject_type === 'กิจกรรม'
+                                        ? '-'
+                                        : record.credits.toFixed(1)}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-center tabular-nums">
+                                      {record.pre_mid_work +
+                                        record.post_mid_work +
+                                        record.affective_score}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-center tabular-nums">
+                                      {computed.totalNotebook}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-center tabular-nums">
+                                      {record.midterm_score}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-center tabular-nums">
+                                      {record.final_score}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-center font-mono font-bold text-on-surface tabular-nums">
+                                      {computed.totalScore}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-center">
+                                      <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full bg-primary-fixed text-primary font-bold">
+                                        {computed.displayGrade}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2.5 text-center tabular-nums text-on-surface-variant">
+                                      {computed.attendancePercent}%
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Footer (ตรงตาม webschool.html) ───────────────────────────────── */}
       <footer className="bg-on-surface text-inverse-on-surface pt-16 pb-10">
         <div className="max-w-7xl mx-auto px-6 lg:px-12">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 pb-12 border-b border-outline-variant/20">
             <div className="lg:col-span-5 flex flex-col gap-space-md">
               <div className="flex items-center gap-space-md">
-                <div className="w-11 h-11 rounded-xl bg-primary-container flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-on-primary text-[24px]">
-                    school
-                  </span>
+                <div className="w-11 h-11 rounded-xl bg-primary-container flex items-center justify-center shrink-0 overflow-hidden">
+                  {resolvedSchoolLogo ? (
+                    <img
+                      src={resolvedSchoolLogo}
+                      alt={schoolDisplayName}
+                      className="w-full h-full object-contain bg-white p-0.5"
+                    />
+                  ) : (
+                    <span className="material-symbols-outlined text-on-primary text-[24px]">
+                      school
+                    </span>
+                  )}
                 </div>
                 <div>
                   <p className="font-title-lg text-title-lg text-on-primary">
