@@ -196,6 +196,10 @@ gh pr create --base main
 | 7 | `school_web_security_fix1.sql` | กันแพ็กเกจโรงเรียนใน `Permissions` (แก้ได้เฉพาะส่วนกลาง) · คำสั่งแต่งตั้งแก้ได้เฉพาะแอดมิน + บันทึกผู้สร้าง/ผู้แก้ · ข้อมูลผู้ปกครองย้ายไป `SchoolWebStudentGuardians` (แอดมิน / ครูที่ปรึกษาเท่านั้น) |
 | 8 | `school_admin_leave_settings.sql` | แอดมินโรงเรียนตั้งค่า LINE / แบบฟอร์มของโรงเรียน / ลงเวลา / เครื่องสแกน ของโรงเรียนตัวเองได้ (เดิมเฉพาะส่วนกลาง) |
 | 9 | `master_data_lock.sql` | F7: ข้อมูลกลางแก้ได้เฉพาะส่วนกลาง · ตารางที่มี `id_school` แอดมินแก้ได้เฉพาะโรงเรียนตัวเอง |
+| 10 | `schema_migrations.sql` | F9: ตาราง `SchemaMigrations` บันทึกว่าไฟล์ไหนรันแล้ว (ใส่แถว 1–9 ให้แล้ว) |
+| 11 | `school_web_division_edit.sql` | F4 + F5: ผู้ที่ได้สิทธิ์ "แก้ไข" ฝ่าย/ระบบงานบันทึกข้อมูลได้จริง (`can_edit_school_web`) · ย้าย `SchoolWebRoleDivisionAccess` เข้า `Permissions` (web เลิกใช้ตารางเก่า) |
+
+ตั้งแต่ไฟล์ 10 เป็นต้นไป ไฟล์ SQL ใหม่ทุกไฟล์จบด้วย `insert into "SchemaMigrations"(name) values ('<ไฟล์>.sql') on conflict do nothing;` · ดูว่ารันอะไรไปแล้ว: `select * from "SchemaMigrations" order by applied_at;`
 
 สิทธิ์ฝ่าย / Module / แพ็กเกจโรงเรียน ไม่มีตารางใหม่ — เก็บในตาราง `Permissions` เดิมด้วย `menu_id` พิเศษ
 

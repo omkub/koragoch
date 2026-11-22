@@ -45,6 +45,8 @@
 - สังกัดฝ่ายของบุคลากร (บุคลากร ↔ ฝ่าย ↔ Module): หน้า `/admin/mapping` (`DivisionMappingPage.tsx`)
 - สิทธิ์ฝ่าย / Module / แท็บ "เว็บโรงเรียน" ตามบทบาท + รายบุคคล: `/admin/division-permissions`, `/user-permissions` — โค้ด `roleModulePermissions.ts`
 - เพดานระดับโรงเรียน (แพ็กเกจ + Module ที่อนุญาต) โดย Super Admin: `schoolPackage.ts`
+- สิทธิ์ "แก้ไข" ฝ่าย / ระบบงาน บังคับในฐานข้อมูลด้วย `can_edit_school_web(id_school, division_key, module_key)` (`supabase/school_web_division_edit.sql`) — แก้ลำดับตัดสินสิทธิ์ใน web ต้องแก้ฟังก์ชันนี้ให้ตรงกันด้วย
+- ตาราง `SchoolWebRoleDivisionAccess` เลิกใช้แล้ว (ย้ายเข้า `Permissions`)
 - **ไม่มีตารางสิทธิ์ใหม่** — สิทธิ์ทั้งหมดเก็บในตาราง `Permissions` เดิม `(id_school, id_role, menu_id, status)` ด้วย `menu_id` พิเศษ (ดูค่าคงที่ใน `schoolPackage.ts` / `roleModulePermissions.ts`) เพื่อผ่าน RLS เดิมได้ทันที ห้ามใช้ `menu_id` ชนกับเมนูของ app
 - ตัวกันสิทธิ์จริงคือ RLS ในฐานข้อมูล ฝั่งเว็บแค่ซ่อนเมนู
 

@@ -51,12 +51,12 @@
 1. ~~**รวมหน้าสิทธิ์ 3 หน้าเป็นหน้าเดียว** (`/admin/division-permissions`, `/user-permissions`, แผงแพ็กเกจใน `/role-permissions`) และเปลี่ยนคำเป็นภาษาผู้ใช้ (เลิกใช้ "Module" / "Tab")~~ ✅ เสร็จแล้ว
 2. ~~**หน้าซับซ้อนใช้บนมือถือได้** (ตารางสิทธิ์, คำสั่งแต่งตั้ง ฯลฯ)~~ ✅ เสร็จแล้ว
 3. **ความปลอดภัยที่ค้าง**
-   - F6 SSO ส่ง token ทาง URL + refresh token ใช้ร่วม → อาจต้องแก้ `lib/` **ต้องถามเจ้าของก่อน**
+   - F6 SSO ส่ง token ทาง URL + refresh token ใช้ร่วม → ต้องแก้ `lib/` · **เจ้าของสั่งข้ามไว้ก่อน** (2026-11-22)
    - ~~F7 ข้อมูลกลาง (master data) แอดมินโรงเรียนไหนก็แก้ได้~~ → `master_data_lock.sql` ✅ (Settings, Subjects, UserRoles แก้ได้เฉพาะส่วนกลาง · ยกเว้น FiscalRounds: แอปให้แอดมินโรงเรียนเพิ่ม/ลบรอบปีงบ และไม่มี id_school — ปิดได้ต้องแก้แอป)
-   - F4 สิทธิ์แก้ไขฝ่ายยังไม่บังคับในฐานข้อมูล
-   - F5 ระบบสิทธิ์ซ้อนกัน 4 ชุด (เก็บใน `menu_id` พิเศษ)
-   - F8 ตารางซ้ำ (`SchoolDepartments` vs `departments`, `SchoolModules`)
-   - F9 ไม่มี migration
+   - ~~F4 สิทธิ์แก้ไขฝ่ายยังไม่บังคับในฐานข้อมูล~~ → `school_web_division_edit.sql` (`can_edit_school_web`) ✅ · พบและแก้: กฎ `Permissions_menu_id_range` (0–10) ทำให้สิทธิ์ทุกตัวของ web บันทึกไม่ลงมาตลอด → เปิดช่วง ≤ -100
+   - ~~F5 ระบบสิทธิ์ซ้อนกัน 4 ชุด~~ → ชุดของ web เหลือแหล่งเดียวคือ `Permissions` (ย้าย `SchoolWebRoleDivisionAccess` เข้ามา, web เลิกอ่าน/เขียนตารางเก่า) · `MobilePermissions` และ `Permissions` menu_id บวก เป็นของแอป คงไว้
+   - F8 ตารางซ้ำ: ตรวจแล้ว **ไม่รวม** · `SchoolModules` = ลิงก์ระบบภายนอก (หน้า ปีการศึกษาและลิงก์) ไม่ซ้ำกับ `SchoolWebDivisionModules` · `departments` (กลุ่มสาระของแอป) กับ `SchoolDepartments` (กลุ่มงานของ web มีหมวดบริหาร) รวมได้ต้องแก้แอป
+   - ~~F9 ไม่มี migration~~ → ตาราง `SchemaMigrations` (`schema_migrations.sql`) บันทึกไฟล์ที่รันแล้ว ✅
    - ~~F10 CI `flutter analyze || true`~~ ✅ error บล็อก deploy แล้ว (warning / info ไม่บล็อก) · web ตรวจ type ใน `npm run build` อยู่แล้ว
 4. ~~ระดับสิทธิ์ (`SchoolRoleTier`) ยังเดาจากชื่อบทบาท (`staffDivisionMapping.ts`)~~ ✅ เสร็จแล้ว (บันทึกและตั้งค่าระดับสิทธิ์หลักผูกกับ `id_role` ลงฐานข้อมูลได้)
 

@@ -91,9 +91,6 @@ export default function App() {
       divisionByUser: {},
       moduleByUser: {},
     });
-  const [roleAccessRows, setRoleAccessRows] = useState<
-    { division_id: number; id_role: number; can_view: boolean; can_edit: boolean }[]
-  >([]);
 
   useEffect(() => {
     let mounted = true;
@@ -214,7 +211,7 @@ export default function App() {
   const loadSchoolContext = useCallback(async () => {
     if (!selectedSchoolId) return;
 
-    const [yearRes, termRes, modRes, treeRes, roleAccRes, roleModPerms, webTabPermRes] =
+    const [yearRes, termRes, modRes, treeRes, roleModPerms, webTabPermRes] =
       await Promise.all([
         supabase
           .from('AcademicYears')
@@ -236,10 +233,6 @@ export default function App() {
           .eq('id_school', selectedSchoolId)
           .order('sort_order', { ascending: true }),
         fetchSchoolDivisionTree(selectedSchoolId),
-        supabase
-          .from('SchoolWebRoleDivisionAccess')
-          .select('division_id, id_role, can_view, can_edit')
-          .eq('id_school', selectedSchoolId),
         fetchRoleDivisionModulePermissions(selectedSchoolId),
         supabase
           .from('Permissions')
@@ -283,11 +276,6 @@ export default function App() {
     setSchoolWebEnabled(treeRes.schoolPackage.schoolWebEnabled);
     setRoleDivModPerms(roleModPerms);
     setRoleWebAccessByRole(webMap);
-    setRoleAccessRows(
-      (roleAccRes.data as
-        | { division_id: number; id_role: number; can_view: boolean; can_edit: boolean }[]
-        | null) ?? [],
-    );
   }, [selectedSchoolId]);
 
   useEffect(() => {
@@ -395,13 +383,7 @@ export default function App() {
   const editableDivisionIds = divisions
     .filter(
       (div) =>
-        staffFiltered.editableDivisionKeys.has(div.division_key) ||
-        roleAccessRows.some(
-          (r) =>
-            r.division_id === div.id &&
-            r.id_role === userRoleId &&
-            r.can_edit,
-        ),
+        staffFiltered.editableDivisionKeys.has(div.division_key),
     )
     .map((div) => div.id);
 

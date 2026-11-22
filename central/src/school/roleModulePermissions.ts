@@ -158,38 +158,13 @@ export async function fetchRoleDivisionModulePermissions(
   };
 
   try {
-    const [permRes, legacyDivRes, divRowsRes] = await Promise.all([
-      supabase
-        .from('Permissions')
-        .select('id_role, menu_id, status')
-        .eq('id_school', schoolId)
-        .lt('menu_id', -199),
-      supabase
-        .from('SchoolWebRoleDivisionAccess')
-        .select('division_id, id_role, can_view, can_edit')
-        .eq('id_school', schoolId),
-      supabase
-        .from('SchoolWebDivisions')
-        .select('id, division_key')
-        .eq('id_school', schoolId),
-    ]);
-
-    // 1. อ่านค่าเดิมจาก SchoolWebRoleDivisionAccess (ถ้ามี)
-    const divKeyById = new Map<number, string>();
-    for (const d of (divRowsRes.data as { id: number; division_key: string }[] | null) ?? []) {
-      divKeyById.set(d.id, d.division_key);
-    }
-    for (const row of (legacyDivRes.data as
-      | { division_id: number; id_role: number; can_view: boolean; can_edit: boolean }[]
-      | null) ?? []) {
-      const dKey = divKeyById.get(row.division_id);
-      if (dKey) {
-        result.divisionByRole[`${row.id_role}:${dKey}`] = {
-          can_view: row.can_view,
-          can_edit: row.can_edit,
-        };
-      }
-    }
+    // แหล่งเดียว: ตาราง Permissions (ตารางเก่า SchoolWebRoleDivisionAccess ย้ายเข้ามาแล้ว
+    // ด้วย supabase/school_web_division_edit.sql)
+    const permRes = await supabase
+      .from('Permissions')
+      .select('id_role, menu_id, status')
+      .eq('id_school', schoolId)
+      .lt('menu_id', -199);
 
     // 2. อ่านค่าจากตาราง Permissions (menu_id < -199)
     const divKeyByViewMenu = new Map<number, string>();
@@ -326,7 +301,7 @@ export async function saveRoleDivisionAccessLevel(params: {
   divisionId?: number;
   level: AccessLevel;
 }): Promise<{ error: string | null }> {
-  const { schoolId, roleId, divisionKey, divisionId, level } = params;
+  const { schoolId, roleId, divisionKey, level } = params;
   const canView = level !== 'hidden';
   const canEdit = level === 'edit';
   const now = new Date().toISOString();
@@ -352,22 +327,6 @@ export async function saveRoleDivisionAccessLevel(params: {
     .from('Permissions')
     .upsert(rows, { onConflict: 'id_school,id_role,menu_id' });
 
-  if (!error && divisionId && divisionId > 0) {
-    await supabase
-      .from('SchoolWebRoleDivisionAccess')
-      .upsert(
-        {
-          id_school: schoolId,
-          division_id: divisionId,
-          id_role: roleId,
-          can_view: canView,
-          can_edit: canEdit,
-          updated_at: now,
-        },
-        { onConflict: 'division_id,id_role' },
-      )
-      .then(() => {});
-  }
 
   return { error: error ? error.message : null };
 }
