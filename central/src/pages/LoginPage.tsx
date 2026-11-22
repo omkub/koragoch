@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
-import { Building2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Building2, Globe } from 'lucide-react';
 import { authEmailForUsername, supabase } from '../supabase';
 import { Field } from '../ui/components';
 
@@ -75,6 +76,16 @@ export default function LoginPage() {
             {busy ? 'กำลังตรวจสอบสิทธิ์...' : 'เข้าสู่ระบบ'}
           </button>
         </form>
+
+        <div className="mt-4 text-center">
+          <Link
+            to="/public"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-brand-200 bg-white px-4 py-2.5 text-xs font-semibold text-brand-700 shadow-sm transition-colors hover:bg-brand-50"
+          >
+            <Globe className="h-4 w-4 text-brand-600" strokeWidth={1.75} />
+            <span>เข้าชมหน้าเว็บโรงเรียน (สำหรับบุคคลภายนอก · ไม่ต้องล็อกอิน)</span>
+          </Link>
+        </div>
       </div>
     </div>
   );

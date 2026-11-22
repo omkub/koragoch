@@ -8,6 +8,7 @@ import {
   ExternalLink,
   FileText,
   Folder,
+  Globe,
   GraduationCap,
   Layers,
   LayoutDashboard,
@@ -237,6 +238,13 @@ export default function UnifiedShell({
           <LayoutDashboard className="h-[18px] w-[18px] shrink-0 text-slate-500" strokeWidth={1.5} />
           <span className="truncate">หน้าหลักโรงเรียน</span>
         </NavLink>
+        <Link
+          to={selectedSchoolId ? `/public/${selectedSchoolId}` : '/public'}
+          className={navClass(false)}
+        >
+          <Globe className="h-[18px] w-[18px] shrink-0 text-brand-600" strokeWidth={1.5} />
+          <span className="truncate">เว็บโรงเรียน (คนนอกดู)</span>
+        </Link>
         <button
           type="button"
           onClick={() => navigateToLeaveApp()}
@@ -320,6 +328,13 @@ export default function UnifiedShell({
         <Link to="/" className={navClass(false)}>
           <LayoutDashboard className="h-[18px] w-[18px] shrink-0 text-slate-500" strokeWidth={1.5} />
           <span className="truncate">ดูหน้าโรงเรียนนี้</span>
+        </Link>
+        <Link
+          to={selectedSchoolId ? `/public/${selectedSchoolId}` : '/public'}
+          className={navClass(false)}
+        >
+          <Globe className="h-[18px] w-[18px] shrink-0 text-brand-600" strokeWidth={1.5} />
+          <span className="truncate">ดูเว็บสาธารณะ (คนนอกดู)</span>
         </Link>
       </div>
     </div>
