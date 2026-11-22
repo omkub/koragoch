@@ -92,7 +92,7 @@ interface NavItem {
   to: string;
   label: string;
   icon: typeof Layers;
-  /** หน้าที่ฐานข้อมูลยังให้เขียนได้เฉพาะส่วนกลาง (จะเปิดให้แอดมินโรงเรียนใน PR ถัดไป) */
+  /** เฉพาะผู้ดูแลส่วนกลาง */
   superOnly?: boolean;
 }
 
@@ -108,11 +108,11 @@ const MANAGE_NAV: { label: string; items: NavItem[] }[] = [
   {
     label: 'ระบบวันลา',
     items: [
-      { to: '/staff', label: 'สถานะบุคลากร', icon: Users, superOnly: true },
-      { to: '/admin-positions', label: 'ตำแหน่งบริหาร', icon: ShieldCheck, superOnly: true },
-      { to: '/forms', label: 'แบบฟอร์มใบลาของโรงเรียน', icon: FileText, superOnly: true },
-      { to: '/line', label: 'LINE แจ้งเตือน', icon: MessageCircle, superOnly: true },
-      { to: '/attendance', label: 'เครื่องสแกนลงเวลา', icon: ScanFace, superOnly: true },
+      { to: '/staff', label: 'สถานะบุคลากร', icon: Users },
+      { to: '/admin-positions', label: 'ตำแหน่งบริหาร', icon: ShieldCheck },
+      { to: '/forms', label: 'แบบฟอร์มใบลาของโรงเรียน', icon: FileText },
+      { to: '/line', label: 'LINE แจ้งเตือน', icon: MessageCircle },
+      { to: '/attendance', label: 'เครื่องสแกนลงเวลา', icon: ScanFace },
     ],
   },
   {
