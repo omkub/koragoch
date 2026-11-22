@@ -26,8 +26,10 @@
 | #103 | ความปลอดภัยรอบ 1: กันข้ามเพดานแพ็กเกจ, RLS คำสั่งแต่งตั้ง, ข้อมูลผู้ปกครอง (ทุกคนเห็นชื่อ ซ่อนเบอร์) | `school_web_security_fix1.sql` ✅ |
 | #104 | แยก web เป็น 3 พื้นที่ + เลือกโรงเรียนได้ที่เดียว (ดูด้านล่าง) | — |
 | #105 | แอดมินโรงเรียนตั้งค่าระบบวันลาของโรงเรียนตัวเองได้ (บุคลากร, ตำแหน่งบริหาร, แบบฟอร์ม, LINE, ลงเวลา) | `school_admin_leave_settings.sql` ✅ |
-| ล่าสุด | รวมหน้าสิทธิ์ 3 หน้า (`/admin/division-permissions`, `/user-permissions`, `/role-permissions`) เป็นหน้าเดียว (`สิทธิ์การใช้งาน`) และเปลี่ยนคำเป็นภาษาผู้ใช้ (ใช้คำว่า "ระบบงาน" / "เมนู" แทน "Module" / "Tab") | — |
-| ล่าสุด | ปรับหน้าซับซ้อนให้ใช้บนมือถือได้ (ตารางสิทธิ์ `PermMatrix` เลือกดูทีละบทบาทบนมือถือ, ตารางเลือกบุคลากรและตัวอย่างกระดาษคำสั่งแต่งตั้ง) + บันทึกระดับสิทธิ์ (`SchoolRoleTier`) ผูกกับบทบาทลงฐานข้อมูลได้โดยไม่ต้องเดาจากชื่อบทบาท | — |
+| #106 | F7: ข้อมูลกลางแก้ได้เฉพาะส่วนกลาง (Settings, Subjects, UserRoles) | `master_data_lock.sql` ✅ |
+| #107 | รวมหน้าสิทธิ์ 3 หน้าเป็นหน้า "สิทธิ์การใช้งาน" + คำภาษาผู้ใช้ ("ระบบงาน" / "เมนู") · หน้าซับซ้อนใช้บนมือถือได้ · ระดับสิทธิ์ (`SchoolRoleTier`) ผูกกับบทบาทในฐานข้อมูล (menu_id -601 / -602) | — |
+| #108 | F10: CI `flutter analyze` บล็อก deploy เมื่อมี error (warning / info ไม่บล็อก) | — |
+| #109 | F4: สิทธิ์ "แก้ไข" ฝ่าย / ระบบงาน บังคับในฐานข้อมูล (`can_edit_school_web`) · F5: สิทธิ์ของ web เหลือแหล่งเดียวคือ `Permissions` (เลิกใช้ `SchoolWebRoleDivisionAccess`) · F9: ตาราง `SchemaMigrations` · แก้กฎ `Permissions_menu_id_range` (เดิม 0–10 ทำให้สิทธิ์ web ทุกตัวบันทึกไม่ลง) | `schema_migrations.sql` ✅ · `school_web_division_edit.sql` ✅ |
 
 ### โครง web 3 พื้นที่ (`central/src/school/UnifiedShell.tsx`)
 
@@ -45,20 +47,21 @@
 
 - ปุ่ม "ทดลองส่ง" LINE / สรุปลงเวลา ยังใช้ได้เฉพาะส่วนกลาง (ตรวจใน Edge Function)
 - สะพานเชื่อม LINE กลาง (`Settings.webhookUrl`) อยู่ที่ `/hq/line` ใช้ร่วมทุกโรงเรียน
+- ถ้ารัน `attendance_permissions.sql` / `official_trips_permissions.sql` ซ้ำ กฎ `Permissions_menu_id_range` จะกลับเป็น 0–10 → ต้องรัน `school_web_division_edit.sql` ซ้ำ
+- ลำดับตัดสินสิทธิ์อยู่ 2 ที่: web (`roleModulePermissions.ts` / `staffDivisionMapping.ts`) และฐานข้อมูล (`can_edit_school_web`) แก้ที่หนึ่งต้องแก้อีกที่ให้ตรงกัน
+- SQL ใหม่ทุกไฟล์จบด้วย `insert into "SchemaMigrations"(name) ...` (ดู README)
 
-## งานที่เหลือ
+## รอทดสอบหลัง deploy
 
-1. ~~**รวมหน้าสิทธิ์ 3 หน้าเป็นหน้าเดียว** (`/admin/division-permissions`, `/user-permissions`, แผงแพ็กเกจใน `/role-permissions`) และเปลี่ยนคำเป็นภาษาผู้ใช้ (เลิกใช้ "Module" / "Tab")~~ ✅ เสร็จแล้ว
-2. ~~**หน้าซับซ้อนใช้บนมือถือได้** (ตารางสิทธิ์, คำสั่งแต่งตั้ง ฯลฯ)~~ ✅ เสร็จแล้ว
-3. **ความปลอดภัยที่ค้าง**
-   - F6 SSO ส่ง token ทาง URL + refresh token ใช้ร่วม → ต้องแก้ `lib/` · **เจ้าของสั่งข้ามไว้ก่อน** (2026-11-22)
-   - ~~F7 ข้อมูลกลาง (master data) แอดมินโรงเรียนไหนก็แก้ได้~~ → `master_data_lock.sql` ✅ (Settings, Subjects, UserRoles แก้ได้เฉพาะส่วนกลาง · ยกเว้น FiscalRounds: แอปให้แอดมินโรงเรียนเพิ่ม/ลบรอบปีงบ และไม่มี id_school — ปิดได้ต้องแก้แอป)
-   - ~~F4 สิทธิ์แก้ไขฝ่ายยังไม่บังคับในฐานข้อมูล~~ → `school_web_division_edit.sql` (`can_edit_school_web`) ✅ · พบและแก้: กฎ `Permissions_menu_id_range` (0–10) ทำให้สิทธิ์ทุกตัวของ web บันทึกไม่ลงมาตลอด → เปิดช่วง ≤ -100
-   - ~~F5 ระบบสิทธิ์ซ้อนกัน 4 ชุด~~ → ชุดของ web เหลือแหล่งเดียวคือ `Permissions` (ย้าย `SchoolWebRoleDivisionAccess` เข้ามา, web เลิกอ่าน/เขียนตารางเก่า) · `MobilePermissions` และ `Permissions` menu_id บวก เป็นของแอป คงไว้
-   - F8 ตารางซ้ำ: ตรวจแล้ว **ไม่รวม** · `SchoolModules` = ลิงก์ระบบภายนอก (หน้า ปีการศึกษาและลิงก์) ไม่ซ้ำกับ `SchoolWebDivisionModules` · `departments` (กลุ่มสาระของแอป) กับ `SchoolDepartments` (กลุ่มงานของ web มีหมวดบริหาร) รวมได้ต้องแก้แอป
-   - ~~F9 ไม่มี migration~~ → ตาราง `SchemaMigrations` (`schema_migrations.sql`) บันทึกไฟล์ที่รันแล้ว ✅
-   - ~~F10 CI `flutter analyze || true`~~ ✅ error บล็อก deploy แล้ว (warning / info ไม่บล็อก) · web ตรวจ type ใน `npm run build` อยู่แล้ว
-4. ~~ระดับสิทธิ์ (`SchoolRoleTier`) ยังเดาจากชื่อบทบาท (`staffDivisionMapping.ts`)~~ ✅ เสร็จแล้ว (บันทึกและตั้งค่าระดับสิทธิ์หลักผูกกับ `id_role` ลงฐานข้อมูลได้)
+- หน้า "สิทธิ์การใช้งาน" บันทึกแล้วค่ายังอยู่ (ก่อน #109 บันทึกไม่ลงในฐานข้อมูลจริง)
+- ครูที่ได้สิทธิ์ "แก้ไข" ฝ่ายวิชาการ แก้ข้อมูลนักเรียนได้ · แก้ฝ่ายอื่นไม่ได้
+- แอดมินโรงเรียน: LINE / แบบฟอร์ม / เครื่องสแกน ของโรงเรียนตัวเอง (#105)
+
+## งานที่เหลือ (ทุกข้อติดที่ต้องแก้แอป `lib/`)
+
+- **F6** SSO ส่ง token ทาง URL + refresh token ใช้ร่วม · เจ้าของสั่งข้ามไว้ก่อน (2026-11-22)
+- **F7 ส่วนที่เหลือ** `FiscalRounds` แอดมินโรงเรียนไหนก็แก้ได้ (แอปให้แอดมินเพิ่ม/ลบรอบปีงบ และตารางไม่มี `id_school`)
+- **F8** ตรวจแล้วไม่รวมตาราง · `SchoolModules` = ลิงก์ระบบภายนอก ไม่ซ้ำกับ `SchoolWebDivisionModules` · `departments` (กลุ่มสาระของแอป) กับ `SchoolDepartments` (กลุ่มงานของ web) รวมได้ต้องแก้แอป
 
 ## หมายเหตุเครื่องมือ
 
