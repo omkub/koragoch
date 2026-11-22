@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Calculator, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '../supabase';
 import type {
   Classroom,
@@ -207,29 +208,39 @@ export default function AcademicsPage({ schoolId, canEdit }: AcademicsPageProps)
           </p>
         </div>
 
-        <div className="inline-flex rounded-lg border border-line bg-white p-1">
-          <button
-            type="button"
-            onClick={() => setTab('subjects')}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              tab === 'subjects'
-                ? 'bg-brand-50 text-brand-700'
-                : 'text-slate-600 hover:text-ink'
-            }`}
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to="/division/academic/students-classrooms"
+            className="btn-secondary btn-sm"
           >
-            รายวิชา
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('schedules')}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              tab === 'schedules'
-                ? 'bg-brand-50 text-brand-700'
-                : 'text-slate-600 hover:text-ink'
-            }`}
-          >
-            ตารางสอน
-          </button>
+            <Calculator className="h-3.5 w-3.5 text-brand-600" />
+            <span>ไปหน้าบันทึกคะแนนและผลการเรียน SGS</span>
+          </Link>
+
+          <div className="inline-flex rounded-lg border border-line bg-white p-1">
+            <button
+              type="button"
+              onClick={() => setTab('subjects')}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                tab === 'subjects'
+                  ? 'bg-brand-50 text-brand-700'
+                  : 'text-slate-600 hover:text-ink'
+              }`}
+            >
+              รายวิชา
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('schedules')}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                tab === 'schedules'
+                  ? 'bg-brand-50 text-brand-700'
+                  : 'text-slate-600 hover:text-ink'
+              }`}
+            >
+              ตารางสอน
+            </button>
+          </div>
         </div>
       </div>
 
