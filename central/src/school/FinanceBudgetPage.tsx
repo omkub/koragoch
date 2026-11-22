@@ -165,10 +165,10 @@ export default function FinanceBudgetPage({
         <section className="surface-card flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-ink">
-              ระบบ Web ย่อยของ{mod.title}
+              ลิงก์ระบบภายนอกของ{mod.title}
             </p>
             <p className="mt-0.5 text-xs text-slate-500">
-              เชื่อมต่อกับ Web ย่อยภายนอกของฝ่ายการเงินและพัสดุ
+              เชื่อมต่อกับระบบภายนอกของฝ่ายการเงินและพัสดุ
             </p>
           </div>
           <a
@@ -177,7 +177,7 @@ export default function FinanceBudgetPage({
             rel={mod.open_mode === 'new_tab' ? 'noreferrer' : undefined}
             className="btn-primary shrink-0"
           >
-            <span>เปิด Web ย่อยการเงิน/พัสดุ</span>
+            <span>เปิดลิงก์การเงิน/พัสดุ</span>
             <ArrowUpRight className="h-4 w-4" strokeWidth={1.5} />
           </a>
         </section>

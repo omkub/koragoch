@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Check,
@@ -7,28 +7,53 @@ import {
   Search,
   ShieldCheck,
   Sliders,
+  UserCog,
   Users,
 } from 'lucide-react';
 import MenuVisibilityPanel from '../pages/MenuVisibilityPanel';
-import { rolesForSchool, supabase, type Role } from '../supabase';
+import RoleListPanel from '../pages/RoleListPanel';
+import {
+  ADMIN_ROLE_ID,
+  groupItems,
+  rolesForSchool,
+  supabase,
+  type PermissionItem,
+  type Role,
+} from '../supabase';
+import { EmptyState, Notice } from '../ui/components';
+import PermMatrix, { SaveBar } from '../ui/PermMatrix';
 import type { DivisionWithModules } from './mapping';
 import {
   fetchRoleDivisionModulePermissions,
+  resolveModuleAccessLevel,
+  resolveUserModuleOverrideLevel,
+  saveUserModuleOverride,
   saveUserSchoolWebTabOverride,
+  type AccessLevel,
   type RoleDivisionModulePermissions,
+  type UserOverrideLevel,
   type UserTabOverride,
 } from './roleModulePermissions';
 import SchoolPackagePanel from './SchoolPackagePanel';
+import {
+  fetchSchoolPackageConfig,
+  isModuleAllowedForSchool,
+  SCHOOL_MODULE_META,
+  type SchoolPackageConfig,
+} from './schoolPackage';
 import {
   fetchSchoolStaffMembers,
   getStaffAssignedDivisionKeys,
   inferRoleTierFromRoleName,
   ROLE_TIER_META,
+  saveRoleTierForRole,
   updateStaffRoleId,
   type SchoolRoleTier,
   type SchoolStaffMember,
 } from './staffDivisionMapping';
 import type { SchoolBasic } from './types';
+
+export type PermissionsSectionTab = 'roles' | 'individual' | 'package_ceiling';
 
 interface DivisionPermissionsPageProps {
   school: SchoolBasic | null;
@@ -38,9 +63,46 @@ interface DivisionPermissionsPageProps {
   divisions: DivisionWithModules[];
   hasDbMapping: boolean;
   onReload: () => Promise<void>;
+  initialSection?: PermissionsSectionTab;
 }
 
-type MainSectionTab = 'web_access' | 'tabs_access' | 'leave_ceiling';
+type Flags = Record<string, boolean>; // item_key → เปิด/ปิด (รายบุคคล)
+type CeilingGrid = Record<string, boolean>; // `${id_role}:${item_key}` → allowed
+
+const cellKey = (role: number, item: string) => `${role}:${item}`;
+
+const LEVEL_LABEL: Record<AccessLevel, string> = {
+  hidden: 'ซ่อน',
+  view: 'ดูอย่างเดียว',
+  edit: 'แก้ไขได้',
+};
+
+const USER_LEVEL_OPTIONS: {
+  value: UserOverrideLevel;
+  label: string;
+  activeClass: string;
+}[] = [
+  {
+    value: 'inherit',
+    label: 'ตามบทบาท',
+    activeClass: 'border-brand-600 bg-brand-600 text-white',
+  },
+  {
+    value: 'hidden',
+    label: 'ซ่อน',
+    activeClass: 'border-slate-700 bg-slate-700 text-white',
+  },
+  {
+    value: 'view',
+    label: 'ดูอย่างเดียว',
+    activeClass: 'border-sky-600 bg-sky-600 text-white',
+  },
+  {
+    value: 'edit',
+    label: 'แก้ไขได้',
+    activeClass: 'border-emerald-600 bg-emerald-600 text-white',
+  },
+];
 
 export default function DivisionPermissionsPage({
   school,
@@ -49,11 +111,23 @@ export default function DivisionPermissionsPage({
   isSuper = false,
   divisions,
   onReload,
+  initialSection = 'roles',
 }: DivisionPermissionsPageProps) {
-  const [activeSection, setActiveSection] =
-    useState<MainSectionTab>('web_access');
+  const [activeSection, setActiveSection] = useState<PermissionsSectionTab>(
+    initialSection === 'package_ceiling' && !isSuper ? 'roles' : initialSection,
+  );
+
+  useEffect(() => {
+    setActiveSection(
+      initialSection === 'package_ceiling' && !isSuper ? 'roles' : initialSection,
+    );
+  }, [initialSection, isSuper]);
+
   const [roles, setRoles] = useState<Role[]>([]);
   const [staffList, setStaffList] = useState<SchoolStaffMember[]>([]);
+  const [items, setItems] = useState<PermissionItem[]>([]);
+  const [schoolPackage, setSchoolPackage] =
+    useState<SchoolPackageConfig | null>(null);
   const [tabVisibleByRole, setTabVisibleByRole] = useState<
     Record<number, boolean>
   >({});
@@ -64,6 +138,21 @@ export default function DivisionPermissionsPage({
     divisionByUser: {},
     moduleByUser: {},
   });
+
+  // เพดานสิทธิ์ตามบทบาท (RolePermissions)
+  const [savedCeiling, setSavedCeiling] = useState<CeilingGrid>({});
+  const [ceilingGrid, setCeilingGrid] = useState<CeilingGrid>({});
+  const [savingCeiling, setSavingCeiling] = useState(false);
+
+  // สิทธิ์รายบุคคล (UserPermissions + สิทธิ์ระบบงานในเว็บโรงเรียน)
+  const [selectedStaff, setSelectedStaff] = useState<SchoolStaffMember | null>(
+    null,
+  );
+  const [savedUserFlags, setSavedUserFlags] = useState<Flags>({});
+  const [userFlags, setUserFlags] = useState<Flags>({});
+  const [savingUserFlags, setSavingUserFlags] = useState(false);
+  const detailRef = useRef<HTMLDivElement>(null);
+
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [staffSearch, setStaffSearch] = useState('');
@@ -94,7 +183,15 @@ export default function DivisionPermissionsPage({
   const loadData = useCallback(async () => {
     if (!schoolId) return;
     setLoading(true);
-    const [rolesRes, permRes, staff, roleDivModPerms] = await Promise.all([
+    const [
+      rolesRes,
+      permRes,
+      staff,
+      roleDivModPerms,
+      itemsRes,
+      ceilingRes,
+      pkgConfig,
+    ] = await Promise.all([
       supabase
         .from('roles')
         .select('ID_Roles, Accessrights, id_school')
@@ -112,12 +209,32 @@ export default function DivisionPermissionsPage({
           : ['hr', 'academic', 'admin', 'finance'],
         allModuleKeys.length > 0 ? allModuleKeys : undefined,
       ),
+      supabase
+        .from('PermissionItems')
+        .select('key, group, label, sort')
+        .order('sort', { ascending: true }),
+      supabase
+        .from('RolePermissions')
+        .select('id_role, item_key, allowed')
+        .eq('id_school', schoolId),
+      fetchSchoolPackageConfig(schoolId),
     ]);
 
     const allRoles = (rolesRes.data as Role[] | null) ?? [];
     const schoolRoles = rolesForSchool(allRoles, schoolId);
     setRoles(schoolRoles);
     setStaffList(staff);
+    setItems((itemsRes.data as PermissionItem[] | null) ?? []);
+    setSchoolPackage(pkgConfig);
+
+    const nextCeiling: CeilingGrid = {};
+    for (const row of (ceilingRes.data as
+      | { id_role: number; item_key: string; allowed: boolean }[]
+      | null) ?? []) {
+      nextCeiling[cellKey(row.id_role, row.item_key)] = row.allowed;
+    }
+    setSavedCeiling(nextCeiling);
+    setCeilingGrid(nextCeiling);
 
     const tabMap: Record<number, boolean> = {};
     for (const r of schoolRoles) {
@@ -139,8 +256,57 @@ export default function DivisionPermissionsPage({
   }, [schoolId, allDivisionKeys, allModuleKeys]);
 
   useEffect(() => {
+    setSelectedStaff(null);
     loadData();
   }, [loadData]);
+
+  const inCeiling = useCallback(
+    (staff: SchoolStaffMember, itemKey: string) =>
+      staff.id_role != null &&
+      ceilingGrid[cellKey(staff.id_role, itemKey)] === true,
+    [ceilingGrid],
+  );
+
+  const openStaffPermissions = useCallback(
+    async (staff: SchoolStaffMember) => {
+      setMessage(null);
+      setSelectedStaff(staff);
+      const { data, error } = await supabase
+        .from('UserPermissions')
+        .select('item_key, allowed')
+        .eq('id_user', staff.id_user);
+      if (error) {
+        setMessage({ type: 'err', text: error.message });
+        return;
+      }
+      const overrides: Flags = {};
+      for (const row of (data as { item_key: string; allowed: boolean }[] | null) ?? []) {
+        overrides[row.item_key] = row.allowed;
+      }
+      const effective: Flags = {};
+      for (const item of items) {
+        effective[item.key] =
+          inCeiling(staff, item.key) && (overrides[item.key] ?? true);
+      }
+      setSavedUserFlags(effective);
+      setUserFlags(effective);
+    },
+    [items, inCeiling],
+  );
+
+  function pickStaff(staff: SchoolStaffMember) {
+    openStaffPermissions(staff);
+    if (window.matchMedia('(max-width: 1023px)').matches) {
+      setTimeout(
+        () =>
+          detailRef.current?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+          }),
+        50,
+      );
+    }
+  }
 
   async function toggleRoleSchoolWebAccess(roleId: number, nextVisible: boolean) {
     if (!schoolId || !canEdit) return;
@@ -163,7 +329,7 @@ export default function DivisionPermissionsPage({
     if (error) {
       setMessage({
         type: 'err',
-        text: `บันทึกสิทธิ์เข้าถึง Web โรงเรียนไม่สำเร็จ: ${error.message}`,
+        text: `บันทึกสิทธิ์เข้าใช้เว็บโรงเรียนไม่สำเร็จ: ${error.message}`,
       });
       return;
     }
@@ -174,11 +340,52 @@ export default function DivisionPermissionsPage({
     }));
     setMessage({
       type: 'ok',
-      text: 'อัปเดตสิทธิ์การเข้าถึง Web โรงเรียนตามกลุ่มบทบาทเรียบร้อยแล้ว',
+      text: 'อัปเดตสิทธิ์การเข้าใช้เว็บโรงเรียนตามบทบาทเรียบร้อยแล้ว',
     });
   }
 
-  async function handleChangeStaffRole(staff: SchoolStaffMember, nextRoleId: number) {
+  async function handleChangeRoleTier(
+    role: Role,
+    nextTier: 'user' | 'executive' | 'school_admin',
+  ) {
+    if (!schoolId || !canEdit || role.ID_Roles === ADMIN_ROLE_ID) return;
+    const key = `roletier:${role.ID_Roles}`;
+    setBusyKey(key);
+    setMessage(null);
+
+    const { error } = await saveRoleTierForRole({
+      schoolId,
+      roleId: role.ID_Roles,
+      tier: nextTier,
+    });
+
+    setBusyKey(null);
+    if (error) {
+      setMessage({
+        type: 'err',
+        text: `บันทึกระดับสิทธิ์ของบทบาทไม่สำเร็จ: ${error}`,
+      });
+      return;
+    }
+
+    setPermState((prev) => ({
+      ...prev,
+      roleTierByRole: {
+        ...(prev.roleTierByRole ?? {}),
+        [role.ID_Roles]: nextTier,
+      },
+    }));
+    setMessage({
+      type: 'ok',
+      text: `ตั้งค่าระดับสิทธิ์ของบทบาท "${role.Accessrights}" เป็น "${ROLE_TIER_META[nextTier].shortLabel}" เรียบร้อยแล้ว`,
+    });
+    await onReload();
+  }
+
+  async function handleChangeStaffRole(
+    staff: SchoolStaffMember,
+    nextRoleId: number,
+  ) {
     if (!schoolId || !canEdit) return;
     const key = `role:${staff.id_user}`;
     setBusyKey(key);
@@ -194,20 +401,24 @@ export default function DivisionPermissionsPage({
     if (error) {
       setMessage({
         type: 'err',
-        text: `เปลี่ยนระดับสิทธิ์ไม่สำเร็จ: ${error}`,
+        text: `เปลี่ยนบทบาทไม่สำเร็จ: ${error}`,
       });
       return;
     }
 
     const roleObj = roles.find((r) => r.ID_Roles === nextRoleId);
     const nextRoleName = roleObj?.Accessrights ?? 'ผู้ใช้งาน';
+    const updatedStaff = {
+      ...staff,
+      id_role: nextRoleId,
+      roleName: nextRoleName,
+    };
     setStaffList((prev) =>
-      prev.map((s) =>
-        s.id_user === staff.id_user
-          ? { ...s, id_role: nextRoleId, roleName: nextRoleName }
-          : s,
-      ),
+      prev.map((s) => (s.id_user === staff.id_user ? updatedStaff : s)),
     );
+    if (selectedStaff?.id_user === staff.id_user) {
+      openStaffPermissions(updatedStaff);
+    }
     setMessage({
       type: 'ok',
       text: `เปลี่ยนบทบาทของ "${staff.fullName}" เป็น "${nextRoleName}" เรียบร้อยแล้ว`,
@@ -233,7 +444,7 @@ export default function DivisionPermissionsPage({
     if (error) {
       setMessage({
         type: 'err',
-        text: `บันทึกสิทธิ์เข้าถึง Web โรงเรียนรายบุคคลไม่สำเร็จ: ${error}`,
+        text: `บันทึกสิทธิ์เข้าใช้เว็บโรงเรียนรายบุคคลไม่สำเร็จ: ${error}`,
       });
       return;
     }
@@ -252,15 +463,152 @@ export default function DivisionPermissionsPage({
     });
     setMessage({
       type: 'ok',
-      text: `อัปเดตสิทธิ์เข้าถึง Web โรงเรียนของ "${staff.fullName}" เรียบร้อยแล้ว`,
+      text: `อัปเดตสิทธิ์เข้าใช้เว็บโรงเรียนของ "${staff.fullName}" เรียบร้อยแล้ว`,
     });
     await onReload();
   }
 
+  async function handleSaveUserSystemLevel(
+    staff: SchoolStaffMember,
+    systemKey: string,
+    systemTitle: string,
+    level: UserOverrideLevel,
+  ) {
+    if (!schoolId || !canEdit) return;
+    setBusyKey(`mod:${systemKey}`);
+    setMessage(null);
+
+    const { error } = await saveUserModuleOverride({
+      schoolId,
+      idUser: staff.id_user,
+      moduleKey: systemKey,
+      level,
+    });
+
+    if (error) {
+      setBusyKey(null);
+      setMessage({ type: 'err', text: `บันทึกไม่สำเร็จ: ${error}` });
+      return;
+    }
+
+    const updated = await fetchRoleDivisionModulePermissions(
+      schoolId,
+      allDivisionKeys.length > 0
+        ? allDivisionKeys
+        : ['hr', 'academic', 'admin', 'finance'],
+      allModuleKeys.length > 0 ? allModuleKeys : undefined,
+    );
+    setPermState(updated);
+    setBusyKey(null);
+    setMessage({
+      type: 'ok',
+      text: `อัปเดตสิทธิ์ระบบงาน "${systemTitle}" ของ ${staff.fullName} เรียบร้อยแล้ว`,
+    });
+    await onReload();
+  }
+
+  const changedUserFlagKeys = useMemo(
+    () =>
+      items
+        .filter((i) => userFlags[i.key] !== savedUserFlags[i.key])
+        .map((i) => i.key),
+    [userFlags, savedUserFlags, items],
+  );
+
+  async function saveSelectedUserLeaveFlags() {
+    if (!selectedStaff || changedUserFlagKeys.length === 0) return;
+    setSavingUserFlags(true);
+    const toDisable = changedUserFlagKeys.filter((k) => !userFlags[k]);
+    const toEnable = changedUserFlagKeys.filter((k) => userFlags[k]);
+    const results = await Promise.all([
+      toDisable.length
+        ? supabase.from('UserPermissions').upsert(
+            toDisable.map((k) => ({
+              id_user: selectedStaff.id_user,
+              item_key: k,
+              allowed: false,
+            })),
+          )
+        : Promise.resolve({ error: null }),
+      toEnable.length
+        ? supabase
+            .from('UserPermissions')
+            .delete()
+            .eq('id_user', selectedStaff.id_user)
+            .in('item_key', toEnable)
+        : Promise.resolve({ error: null }),
+    ]);
+    setSavingUserFlags(false);
+    const failed = results.find((r) => r.error)?.error;
+    if (failed) {
+      setMessage({ type: 'err', text: `บันทึกไม่สำเร็จ: ${failed.message}` });
+      return;
+    }
+    setMessage({
+      type: 'ok',
+      text: `บันทึกสิทธิ์ระบบวันลาของ "${selectedStaff.fullName}" เรียบร้อยแล้ว`,
+    });
+    openStaffPermissions(selectedStaff);
+  }
+
+  // เพดานสิทธิ์ตามบทบาท (เฉพาะผู้ดูแลส่วนกลาง)
+  const changedCeilingKeys = useMemo(
+    () =>
+      Object.keys(ceilingGrid).filter(
+        (k) => ceilingGrid[k] !== (savedCeiling[k] ?? false),
+      ),
+    [ceilingGrid, savedCeiling],
+  );
+
+  async function saveCeilingGrid() {
+    if (!schoolId || changedCeilingKeys.length === 0) return;
+    setSavingCeiling(true);
+    const rows = changedCeilingKeys.map((k) => {
+      const [role, ...rest] = k.split(':');
+      return {
+        id_school: schoolId,
+        id_role: Number(role),
+        item_key: rest.join(':'),
+        allowed: ceilingGrid[k],
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    const { error } = await supabase.from('RolePermissions').upsert(rows);
+    setSavingCeiling(false);
+    if (error) {
+      setMessage({
+        type: 'err',
+        text: `บันทึกเพดานสิทธิ์ไม่สำเร็จ: ${error.message}`,
+      });
+      return;
+    }
+    setSavedCeiling(ceilingGrid);
+    setMessage({
+      type: 'ok',
+      text: `บันทึกเพดานสิทธิ์แล้ว ${rows.length} รายการ`,
+    });
+  }
+
+  const toggleCeilingCell = (roleId: number, itemKey: string) => {
+    const k = cellKey(roleId, itemKey);
+    setCeilingGrid((prev) => ({
+      ...prev,
+      [k]: !(prev[k] ?? false),
+    }));
+  };
+
+  const countCeilingForRole = (roleId: number) =>
+    items.filter((i) => ceilingGrid[cellKey(roleId, i.key)]).length;
+
   const filteredStaff = useMemo(() => {
     const q = staffSearch.trim().toLowerCase();
     return staffList.filter((s) => {
-      const tier = inferRoleTierFromRoleName(s.roleName, s.is_super_admin);
+      const tier = inferRoleTierFromRoleName(
+        s.roleName,
+        s.is_super_admin,
+        s.id_role,
+        permState,
+      );
       if (tierFilter !== 'all' && tier !== tierFilter) return false;
       if (!q) return true;
       return (
@@ -269,75 +617,94 @@ export default function DivisionPermissionsPage({
         s.roleName.toLowerCase().includes(q)
       );
     });
-  }, [staffList, staffSearch, tierFilter]);
+  }, [staffList, staffSearch, tierFilter, permState]);
+
+  const allowedSchoolSystems = useMemo(
+    () =>
+      SCHOOL_MODULE_META.filter((m) =>
+        isModuleAllowedForSchool(schoolPackage, m.key),
+      ),
+    [schoolPackage],
+  );
+
+  const selectedStaffWebOverride: UserTabOverride = useMemo(() => {
+    if (!selectedStaff) return 'inherit';
+    if (selectedStaff.id_user in permState.userTabOverride) {
+      return permState.userTabOverride[selectedStaff.id_user]
+        ? 'visible'
+        : 'hidden';
+    }
+    return 'inherit';
+  }, [selectedStaff, permState]);
+
+  const ceilingCountForStaff = (staff: SchoolStaffMember) =>
+    items.filter((i) => inCeiling(staff, i.key)).length;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-medium text-brand-600">
-            ศูนย์รวมการจัดการสิทธิ์ (รวมศูนย์ในจุดเดียว)
+            ตั้งค่าโรงเรียน · จัดการสิทธิ์การใช้งานทั้งหมดในหน้าเดียว
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">
-            สิทธิ์เข้าถึง Web โรงเรียน, การใช้ Tab และระดับสิทธิ์ 4 ระดับ
+            สิทธิ์การใช้งาน ({school?.fullName || 'โรงเรียน'})
           </h1>
           <p className="mt-1 text-sm text-slate-600">
-            กำหนดว่าใครสามารถเข้าใช้ Web โรงเรียนของ{' '}
-            <span className="font-medium text-ink">
-              {school?.fullName || 'โรงเรียน'}
-            </span>{' '}
-            ได้บ้าง เมื่อเข้าได้แล้วมีสิทธิ์ใช้ Tab ไหน และจัดการระดับสิทธิ์ (ผู้ใช้งาน / ผู้บริหาร / Admin / Super Admin)
+            กำหนดสิทธิ์ตามบทบาท เมนูที่แสดงในแอป และปรับสิทธิ์รายบุคคลได้ครบในหน้าเดียว
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Link to="/admin/mapping" className="btn-primary btn-sm shrink-0">
+          <Link to="/admin/mapping" className="btn-secondary btn-sm shrink-0">
             <Users className="h-3.5 w-3.5" strokeWidth={1.75} />
-            <span>ไปหน้าจัดสังกัดบุคลากรเข้าฝ่าย</span>
+            <span>ไปหน้าฝ่ายและบุคลากร</span>
           </Link>
         </div>
       </div>
 
-      {/* แถบเลือกหมวดหมู่หลัก 3 ขั้นตอนในหน้าเดียว */}
+      {/* แถบเลือกหมวดในหน้าเดียว */}
       <div className="flex flex-wrap gap-2 border-b border-line pb-3">
         <button
           type="button"
-          onClick={() => setActiveSection('web_access')}
+          onClick={() => setActiveSection('roles')}
           className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-colors ${
-            activeSection === 'web_access'
+            activeSection === 'roles'
               ? 'bg-brand-600 text-white shadow-sm'
               : 'border border-line bg-white text-slate-600 hover:bg-slate-50'
           }`}
         >
           <ShieldCheck className="h-4 w-4" strokeWidth={1.75} />
-          <span>1. สิทธิ์เข้าถึง Web โรงเรียน & ระดับสิทธิ์ผู้ใช้งาน</span>
+          <span>1. สิทธิ์ตามบทบาทและเมนูที่แสดง</span>
         </button>
 
         <button
           type="button"
-          onClick={() => setActiveSection('tabs_access')}
+          onClick={() => setActiveSection('individual')}
           className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-colors ${
-            activeSection === 'tabs_access'
+            activeSection === 'individual'
               ? 'bg-brand-600 text-white shadow-sm'
               : 'border border-line bg-white text-slate-600 hover:bg-slate-50'
           }`}
         >
-          <LayoutGrid className="h-4 w-4" strokeWidth={1.75} />
-          <span>2. สิทธิ์การใช้ Tab เมนูต่างๆ (เมื่อเข้าใช้ได้แล้ว)</span>
+          <UserCog className="h-4 w-4" strokeWidth={1.75} />
+          <span>2. สิทธิ์รายบุคคล ({staffList.length} คน)</span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveSection('leave_ceiling')}
-          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-colors ${
-            activeSection === 'leave_ceiling'
-              ? 'bg-brand-600 text-white shadow-sm'
-              : 'border border-line bg-white text-slate-600 hover:bg-slate-50'
-          }`}
-        >
-          <Sliders className="h-4 w-4" strokeWidth={1.75} />
-          <span>3. ตั้งค่าสิทธิ์ย่อยระบบวันลา (เพิ่มเติม)</span>
-        </button>
+        {isSuper && (
+          <button
+            type="button"
+            onClick={() => setActiveSection('package_ceiling')}
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-colors ${
+              activeSection === 'package_ceiling'
+                ? 'bg-brand-600 text-white shadow-sm'
+                : 'border border-line bg-white text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <Sliders className="h-4 w-4" strokeWidth={1.75} />
+            <span>3. ขอบเขตโรงเรียนและเพดานสิทธิ์ (ส่วนกลาง)</span>
+          </button>
+        )}
       </div>
 
       {message && (
@@ -352,27 +719,18 @@ export default function DivisionPermissionsPage({
         </div>
       )}
 
-      {activeSection === 'web_access' && (
+      {/* ─── หมวดที่ 1: สิทธิ์ตามบทบาทและเมนูที่แสดง ───────────────────────── */}
+      {activeSection === 'roles' && (
         <div className="space-y-6">
-          {/* 1.1 สิทธิ์ระดับโรงเรียน: เปิด/ปิดเว็บโรงเรียน และเลือก Module ย่อยที่อนุญาตให้โรงเรียนนี้เห็น */}
-          {isSuper && (
-            <SchoolPackagePanel
-              schoolId={schoolId}
-              schoolName={school?.fullName || `โรงเรียน #${schoolId ?? '-'}`}
-              canManage={isSuper}
-              onUpdated={onReload}
-            />
-          )}
-
-          {/* 1.2 สรุประดับสิทธิ์มาตรฐาน 4 ระดับ + ความเชื่อมโยงกับสังกัดฝ่าย */}
+          {/* 1.1 สรุประดับสิทธิ์ 4 ระดับ + ความเชื่อมโยงกับสังกัดฝ่าย */}
           <div className="surface-card p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-base font-semibold text-ink">
-                  โครงสร้างระดับสิทธิ์ 4 ระดับ และการมองเห็น Module ตามฝ่ายของตัวเอง
+                  ระดับสิทธิ์หลัก 4 ระดับ และการเห็นระบบงานตามฝ่ายที่สังกัด
                 </h2>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  ไม่ต้องตั้งค่าสิทธิ์ราย Module ซ้ำซ้อน — บุคลากรอยู่ฝ่ายไหนจะมองเห็น Module ที่ผูกกับฝ่ายนั้นโดยอัตโนมัติ
+                  บุคลากรอยู่ฝ่ายไหนจะมองเห็นระบบงานของฝ่ายนั้นโดยอัตโนมัติ (จัดสังกัดฝ่ายได้ที่หน้า &ldquo;ฝ่ายและบุคลากร&rdquo;)
                 </p>
               </div>
               <Link
@@ -380,7 +738,7 @@ export default function DivisionPermissionsPage({
                 className="btn-secondary btn-sm shrink-0"
               >
                 <Layers className="h-3.5 w-3.5" strokeWidth={1.5} />
-                <span>จัดการฝ่าย / ผูกบุคลากรเข้าฝ่าย</span>
+                <span>จัดบุคลากรเข้าฝ่าย</span>
               </Link>
             </div>
 
@@ -408,71 +766,115 @@ export default function DivisionPermissionsPage({
             </div>
           </div>
 
-          {/* 1.3 สิทธิ์เข้าถึง Web โรงเรียนตามกลุ่มบทบาท */}
+          {/* 1.2 การเข้าใช้เว็บโรงเรียนตามบทบาท */}
           <div className="surface-card p-6">
             <div className="mb-4">
               <h2 className="text-base font-semibold text-ink">
-                ขั้นที่ 1: สิทธิ์เข้าถึง Web โรงเรียน ตามกลุ่มบทบาท (สามารถเข้าใช้ได้หรือไม่)
+                การเข้าใช้งานเว็บโรงเรียนตามบทบาท
               </h2>
               <p className="mt-0.5 text-xs text-slate-500">
-                กำหนดว่ากลุ่มบทบาทใดในโรงเรียนสามารถเข้าใช้งาน &ldquo;Web โรงเรียน&rdquo; ได้บ้าง (เมื่อเปิดแล้ว จึงกำหนดสิทธิ์การใช้แต่ละ Tab ในหัวข้อที่ 2)
+                เลือกว่าบทบาทใดในโรงเรียนสามารถเข้าใช้งาน &ldquo;เว็บโรงเรียน&rdquo; ได้บ้าง
               </p>
             </div>
 
             {loading ? (
               <p className="py-4 text-sm text-slate-500">กำลังโหลดข้อมูล...</p>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {roles.map((role) => {
-                  const isAdminRole = role.Accessrights.includes('ผู้ดูแลระบบ');
+                  const isAdminRole =
+                    role.ID_Roles === ADMIN_ROLE_ID ||
+                    role.Accessrights.includes('ผู้ดูแลระบบ');
                   const isVisible = isAdminRole
                     ? true
                     : (tabVisibleByRole[role.ID_Roles] ?? true);
                   const isBusy = busyKey === `tab:${role.ID_Roles}`;
-                  const tier = inferRoleTierFromRoleName(role.Accessrights, false);
+                  const tier = inferRoleTierFromRoleName(
+                    role.Accessrights,
+                    false,
+                    role.ID_Roles,
+                    permState,
+                  );
 
                   return (
                     <div
                       key={role.ID_Roles}
-                      className={`flex items-center justify-between gap-3 rounded-xl border p-3.5 transition-colors ${
+                      className={`flex flex-col justify-between gap-3 rounded-xl border p-3.5 transition-colors ${
                         isVisible
                           ? 'border-brand-200 bg-brand-50/40'
                           : 'border-line bg-canvas/50'
                       }`}
                     >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <p className="truncate text-sm font-semibold text-ink">
-                            {role.Accessrights}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <p className="truncate text-sm font-semibold text-ink">
+                              {role.Accessrights}
+                            </p>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${ROLE_TIER_META[tier].badgeClass}`}
+                            >
+                              {ROLE_TIER_META[tier].shortLabel}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-[11px] text-slate-500">
+                            {isVisible
+                              ? 'เข้าใช้เว็บโรงเรียนได้'
+                              : 'ไม่อนุญาตให้เข้าเว็บโรงเรียน'}
                           </p>
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${ROLE_TIER_META[tier].badgeClass}`}
-                          >
-                            {ROLE_TIER_META[tier].shortLabel}
-                          </span>
                         </div>
-                        <p className="mt-0.5 text-[11px] text-slate-500">
-                          {isVisible
-                            ? 'เข้าใช้ Web โรงเรียนได้'
-                            : 'ไม่อนุญาตให้เข้า Web โรงเรียน'}
-                        </p>
+
+                        <button
+                          type="button"
+                          disabled={!canEdit || isAdminRole || isBusy}
+                          onClick={() =>
+                            toggleRoleSchoolWebAccess(role.ID_Roles, !isVisible)
+                          }
+                          className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                            isVisible
+                              ? 'border-brand-600 bg-brand-600 text-white'
+                              : 'border-slate-300 bg-white text-transparent hover:border-slate-400'
+                          } disabled:opacity-50`}
+                          aria-label={`เปิดหรือปิดสิทธิ์เข้าใช้เว็บโรงเรียนสำหรับ ${role.Accessrights}`}
+                        >
+                          <Check className="h-3.5 w-3.5" strokeWidth={2} />
+                        </button>
                       </div>
 
-                      <button
-                        type="button"
-                        disabled={!canEdit || isAdminRole || isBusy}
-                        onClick={() =>
-                          toggleRoleSchoolWebAccess(role.ID_Roles, !isVisible)
-                        }
-                        className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
-                          isVisible
-                            ? 'border-brand-600 bg-brand-600 text-white'
-                            : 'border-slate-300 bg-white text-transparent hover:border-slate-400'
-                        } disabled:opacity-50`}
-                        aria-label={`เปิดหรือปิดสิทธิ์เข้าใช้เว็บโรงเรียนสำหรับ ${role.Accessrights}`}
-                      >
-                        <Check className="h-3.5 w-3.5" strokeWidth={2} />
-                      </button>
+                      <div className="flex items-center justify-between gap-2 border-t border-line/70 pt-2.5">
+                        <span className="text-[11px] text-slate-500">
+                          ขอบเขตการมองเห็นฝ่าย:
+                        </span>
+                        <select
+                          disabled={
+                            !canEdit ||
+                            role.ID_Roles === ADMIN_ROLE_ID ||
+                            busyKey === `roletier:${role.ID_Roles}`
+                          }
+                          value={tier === 'super_admin' ? 'school_admin' : tier}
+                          onChange={(e) =>
+                            handleChangeRoleTier(
+                              role,
+                              e.target.value as
+                                | 'user'
+                                | 'executive'
+                                | 'school_admin',
+                            )
+                          }
+                          aria-label={`ขอบเขตการมองเห็นฝ่ายของ ${role.Accessrights}`}
+                          className="input w-auto py-1 text-[11px] font-medium"
+                        >
+                          <option value="user">
+                            ผู้ใช้งาน (เห็นเฉพาะฝ่ายตัวเอง)
+                          </option>
+                          <option value="executive">
+                            ผู้บริหาร (เห็นครบทุกฝ่าย)
+                          </option>
+                          <option value="school_admin">
+                            แอดมินโรงเรียน (จัดการได้ทุกฝ่าย)
+                          </option>
+                        </select>
+                      </div>
                     </div>
                   );
                 })}
@@ -480,27 +882,48 @@ export default function DivisionPermissionsPage({
             )}
           </div>
 
-          {/* 1.4 ตารางกำหนดระดับสิทธิ์ & สิทธิ์เข้าใช้ Web โรงเรียนรายบุคลากร */}
-          <div className="surface-card p-6">
-            <div className="flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-base font-semibold text-ink">
-                  กำหนดระดับสิทธิ์และสิทธิ์เข้าถึง Web โรงเรียนรายบุคลากร ({staffList.length} คน)
-                </h2>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  ปรับระดับสิทธิ์ของบุคลากรแต่ละคน (ผู้ใช้งาน / ผู้บริหาร / Admin) และกำหนดสิทธิ์เข้าถึง Web โรงเรียนรายบุคคลได้ในตารางเดียว
-                </p>
+          {/* 1.3 เมนูที่แสดงในแอประบบวันลา (จอคอม / มือถือ) */}
+          {schoolId !== null && (
+            <div className="surface-card p-6">
+              <div className="mb-4 flex items-center gap-2">
+                <LayoutGrid className="h-4 w-4 text-brand-600" />
+                <div>
+                  <h2 className="text-base font-semibold text-ink">
+                    เมนูที่แสดงในแอประบบวันลา (จอคอม / มือถือ)
+                  </h2>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    เลือกว่าแต่ละบทบาทจะมองเห็นเมนูใดบ้างเมื่อเปิดใช้งานแอประบบวันลาบนจอคอมและบนมือถือ
+                  </p>
+                </div>
               </div>
+              <MenuVisibilityPanel roles={roles} schoolId={schoolId} />
+            </div>
+          )}
+        </div>
+      )}
 
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="relative min-w-[220px]">
+      {/* ─── หมวดที่ 2: สิทธิ์รายบุคคล (รวมเว็บโรงเรียน + ระบบวันลา) ─────────── */}
+      {activeSection === 'individual' && (
+        <div className="grid items-start gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
+          {/* คอลัมน์ซ้าย: ค้นหาและเลือกบุคลากร */}
+          <div className="surface-card overflow-hidden">
+            <div className="border-b border-line bg-slate-50/60 p-4">
+              <h2 className="text-sm font-semibold text-ink">
+                1. เลือกบุคลากร ({filteredStaff.length} คน)
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                คลิกเลือกชื่อบุคลากรเพื่อปรับบทบาทหรือกำหนดสิทธิ์เฉพาะบุคคล
+              </p>
+
+              <div className="mt-3 space-y-2">
+                <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
                     value={staffSearch}
                     onChange={(e) => setStaffSearch(e.target.value)}
-                    placeholder="ค้นหาชื่อบุคลากร หรือชื่อผู้ใช้..."
-                    className="input pl-9 py-1.5 text-xs"
+                    placeholder="ค้นหาชื่อ หรือชื่อผู้ใช้..."
+                    className="input py-1.5 pl-9 text-xs"
                   />
                 </div>
 
@@ -509,31 +932,34 @@ export default function DivisionPermissionsPage({
                   onChange={(e) =>
                     setTierFilter(e.target.value as 'all' | SchoolRoleTier)
                   }
-                  className="input w-auto py-1.5 text-xs"
+                  className="input py-1.5 text-xs"
                   aria-label="กรองตามระดับสิทธิ์"
                 >
                   <option value="all">ทุกระดับสิทธิ์</option>
                   <option value="user">เฉพาะผู้ใช้งาน</option>
                   <option value="executive">เฉพาะผู้บริหาร</option>
-                  <option value="school_admin">เฉพาะ Admin โรงเรียน</option>
+                  <option value="school_admin">เฉพาะแอดมินโรงเรียน</option>
                 </select>
               </div>
             </div>
 
-            {loading ? (
-              <p className="py-8 text-center text-sm text-slate-500">
-                กำลังโหลดรายชื่อบุคลากร...
-              </p>
-            ) : filteredStaff.length === 0 ? (
-              <p className="py-8 text-center text-sm text-slate-500">
-                ไม่พบบุคลากรตามเงื่อนไขที่ค้นหา
-              </p>
-            ) : (
-              <div className="mt-4 divide-y divide-line rounded-xl border border-line">
-                {filteredStaff.map((staff) => {
+            <div className="max-h-[340px] divide-y divide-line overflow-y-auto lg:max-h-[70vh]">
+              {loading ? (
+                <p className="p-6 text-center text-xs text-slate-500">
+                  กำลังโหลดรายชื่อบุคลากร...
+                </p>
+              ) : filteredStaff.length === 0 ? (
+                <p className="p-6 text-center text-xs text-slate-500">
+                  ไม่พบบุคลากรตามเงื่อนไขที่ค้นหา
+                </p>
+              ) : (
+                filteredStaff.map((staff) => {
+                  const active = selectedStaff?.id_user === staff.id_user;
                   const tier = inferRoleTierFromRoleName(
                     staff.roleName,
                     staff.is_super_admin,
+                    staff.id_role,
+                    permState,
                   );
                   const tierMeta = ROLE_TIER_META[tier];
                   const assignedDivKeys = getStaffAssignedDivisionKeys(
@@ -541,180 +967,370 @@ export default function DivisionPermissionsPage({
                     staff.id_user,
                     allDivisionKeys,
                   );
-
-                  const rawOverride = permState.userTabOverride[staff.id_user];
-                  const currentOverride: UserTabOverride =
-                    rawOverride === undefined
-                      ? 'inherit'
-                      : rawOverride
-                        ? 'visible'
-                        : 'hidden';
-
-                  const roleDefaultAccess =
-                    staff.id_role != null
-                      ? (tabVisibleByRole[staff.id_role] ?? true)
-                      : true;
+                  const hasCustomSystem = Object.keys(
+                    permState.moduleByUser,
+                  ).some((k) => k.startsWith(`${staff.id_user}:`));
 
                   return (
-                    <div
+                    <button
                       key={staff.id_user}
-                      className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between"
+                      type="button"
+                      onClick={() => pickStaff(staff)}
+                      className={`flex w-full flex-col items-start gap-1 px-4 py-3 text-left transition-colors ${
+                        active
+                          ? 'bg-brand-50/70 text-brand-700'
+                          : 'bg-white hover:bg-slate-50'
+                      }`}
                     >
-                      <div className="min-w-0 space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-semibold text-ink">
-                            {staff.fullName}
-                          </span>
-                          {staff.username && (
-                            <span className="text-xs text-slate-400">
-                              @{staff.username}
-                            </span>
-                          )}
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${tierMeta.badgeClass}`}
-                          >
-                            {tierMeta.shortLabel}
-                          </span>
-                        </div>
+                      <div className="flex w-full items-center justify-between gap-2">
+                        <span className="truncate text-sm font-semibold text-ink">
+                          {staff.fullName}
+                        </span>
+                        <span
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${tierMeta.badgeClass}`}
+                        >
+                          {tierMeta.shortLabel}
+                        </span>
+                      </div>
 
-                        {/* แสดงสังกัดฝ่ายของบุคลากร */}
-                        {tier === 'super_admin' || tier === 'school_admin' ? (
-                          <p className="text-xs text-emerald-700">
-                            เห็นและแก้ไขได้ทุกฝ่าย/ทุก Module ในโรงเรียน
-                          </p>
-                        ) : tier === 'executive' ? (
-                          <p className="text-xs text-amber-700">
-                            เห็นข้อมูลครบทุกฝ่ายของโรงเรียน (ระดับผู้บริหาร)
-                          </p>
-                        ) : assignedDivKeys.length > 0 ? (
-                          <div className="flex flex-wrap items-center gap-1 pt-0.5">
-                            <span className="text-[11px] text-slate-500">
-                              สังกัดฝ่าย (เห็น Module ตามฝ่ายนี้):
-                            </span>
-                            {assignedDivKeys.map((dk) => (
-                              <span
-                                key={dk}
-                                className="rounded-md bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-700 ring-1 ring-inset ring-brand-200"
-                              >
-                                {divisionNameByKey.get(dk) || dk}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-slate-400">
-                            ยังไม่ได้ระบุสังกัดฝ่าย (ตั้งค่าได้ที่หน้าจัดการฝ่าย & บุคลากร)
-                          </p>
+                      <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                        <span>{staff.roleName}</span>
+                        {assignedDivKeys.length > 0 && (
+                          <span>
+                            ·{' '}
+                            {assignedDivKeys
+                              .map((dk) => divisionNameByKey.get(dk) || dk)
+                              .join(', ')}
+                          </span>
+                        )}
+                        {hasCustomSystem && (
+                          <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                            ตั้งค่าเฉพาะคน
+                          </span>
                         )}
                       </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
 
-                      <div className="flex flex-wrap items-center gap-3">
-                        {/* เปลี่ยนบทบาท / ระดับสิทธิ์ */}
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs text-slate-500">ระดับสิทธิ์:</span>
-                          <select
+          {/* คอลัมน์ขวา: รายละเอียดสิทธิ์ของบุคลากรที่เลือก */}
+          <div ref={detailRef} className="scroll-mt-20 space-y-6">
+            {!selectedStaff ? (
+              <div className="surface-card p-10 text-center">
+                <p className="text-sm font-medium text-ink">
+                  เลือกรายชื่อบุคลากรทางด้านซ้าย
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  เพื่อปรับบทบาทหลัก การเข้าใช้เว็บโรงเรียน สิทธิ์แต่ละระบบงาน และสิทธิ์ในระบบวันลา
+                </p>
+              </div>
+            ) : selectedStaff.is_super_admin ? (
+              <div className="surface-card p-8 text-center">
+                <EmptyState>
+                  ผู้ดูแลส่วนกลางได้รับสิทธิ์ทุกรายการโดยอัตโนมัติ (ไม่สามารถปิดรายรายการได้)
+                </EmptyState>
+              </div>
+            ) : (
+              <>
+                {/* กล่องที่ 1: บทบาทหลัก, สังกัดฝ่าย และการเข้าใช้เว็บโรงเรียน */}
+                <div className="surface-card p-6 space-y-5">
+                  <div className="flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h2 className="text-base font-semibold text-ink">
+                        2.1 บทบาทและการเข้าใช้เว็บโรงเรียนของ: {selectedStaff.fullName}
+                      </h2>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        ชื่อผู้ใช้: @{selectedStaff.username || '-'}
+                      </p>
+                    </div>
+
+                    {/* เปลี่ยนบทบาทหลัก */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-slate-600">
+                        บทบาทหลัก:
+                      </span>
+                      <select
+                        disabled={
+                          !canEdit || busyKey === `role:${selectedStaff.id_user}`
+                        }
+                        value={selectedStaff.id_role ?? ''}
+                        onChange={(e) =>
+                          handleChangeStaffRole(
+                            selectedStaff,
+                            Number(e.target.value),
+                          )
+                        }
+                        className="input w-auto py-1.5 text-xs font-semibold"
+                        aria-label={`บทบาทหลักของ ${selectedStaff.fullName}`}
+                      >
+                        {roles.map((r) => (
+                          <option key={r.ID_Roles} value={r.ID_Roles}>
+                            {r.Accessrights}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* การเข้าใช้เว็บโรงเรียนเฉพาะคน */}
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-ink">
+                        สิทธิ์เข้าใช้งาน &ldquo;เว็บโรงเรียน&rdquo;
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        เปิดหรือปิดการเข้าใช้เว็บโรงเรียนเฉพาะบุคคลนี้ (แม้บทบาทหลักจะถูกปิดไว้)
+                      </p>
+                    </div>
+
+                    <div className="inline-flex flex-wrap items-center gap-1.5">
+                      {(
+                        [
+                          { val: 'inherit', label: 'ตามบทบาท' },
+                          { val: 'visible', label: 'อนุญาตให้เข้าใช้' },
+                          { val: 'hidden', label: 'ไม่อนุญาต' },
+                        ] as { val: UserTabOverride; label: string }[]
+                      ).map((opt) => {
+                        const active = selectedStaffWebOverride === opt.val;
+                        return (
+                          <button
+                            key={opt.val}
+                            type="button"
                             disabled={
                               !canEdit ||
-                              staff.is_super_admin ||
-                              busyKey === `role:${staff.id_user}`
+                              busyKey === `uweb:${selectedStaff.id_user}`
                             }
-                            value={staff.id_role ?? ''}
-                            onChange={(e) =>
-                              handleChangeStaffRole(
-                                staff,
-                                Number(e.target.value),
-                              )
+                            onClick={() =>
+                              handleChangeUserWebAccess(selectedStaff, opt.val)
                             }
-                            className="input w-auto py-1 text-xs font-medium"
-                            aria-label={`ระดับสิทธิ์ของ ${staff.fullName}`}
+                            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                              active
+                                ? opt.val === 'hidden'
+                                  ? 'border-slate-700 bg-slate-700 text-white'
+                                  : 'border-brand-600 bg-brand-600 text-white'
+                                : 'border-line bg-white text-slate-600 hover:bg-slate-50'
+                            } disabled:opacity-50`}
                           >
-                            {roles.map((r) => (
-                              <option key={r.ID_Roles} value={r.ID_Roles}>
-                                {r.Accessrights}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* สิทธิ์เข้าถึง Web โรงเรียนรายบุคคล */}
-                        <div className="inline-flex items-center gap-1 rounded-lg border border-line bg-canvas p-0.5">
-                          {(
-                            [
-                              {
-                                value: 'inherit',
-                                label: `ตามบทบาท (${roleDefaultAccess ? 'เข้าได้' : 'ปิด'})`,
-                              },
-                              { value: 'visible', label: 'เข้า Web รร. ได้' },
-                              { value: 'hidden', label: 'ไม่อนุญาต' },
-                            ] as const
-                          ).map((opt) => {
-                            const active = currentOverride === opt.value;
-                            return (
-                              <button
-                                key={opt.value}
-                                type="button"
-                                disabled={
-                                  !canEdit ||
-                                  staff.is_super_admin ||
-                                  busyKey === `uweb:${staff.id_user}`
-                                }
-                                onClick={() =>
-                                  handleChangeUserWebAccess(staff, opt.value)
-                                }
-                                className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                                  active
-                                    ? opt.value === 'hidden'
-                                      ? 'bg-slate-700 text-white'
-                                      : 'bg-brand-600 text-white'
-                                    : 'text-slate-600 hover:text-ink'
-                                } disabled:opacity-50`}
-                              >
-                                {opt.label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
+                            {opt.label}
+                          </button>
+                        );
+                      })}
                     </div>
-                  );
-                })}
+                  </div>
+
+                  {/* สิทธิ์รายระบบงานในเว็บโรงเรียนเฉพาะคน */}
+                  <div className="border-t border-line pt-4">
+                    <p className="mb-3 text-xs font-semibold text-slate-600">
+                      กำหนดสิทธิ์แต่ละระบบงานในเว็บโรงเรียนเฉพาะบุคคลนี้ ({allowedSchoolSystems.length} ระบบงาน)
+                    </p>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {allowedSchoolSystems.map((sys) => {
+                        const userOverride = resolveUserModuleOverrideLevel(
+                          permState,
+                          selectedStaff.id_user,
+                          sys.key,
+                        );
+                        const roleDefaultLevel = resolveModuleAccessLevel(
+                          permState,
+                          selectedStaff.id_role,
+                          sys.divisionKey === 'all' ? 'hr' : sys.divisionKey,
+                          sys.key,
+                          selectedStaff.roleName.includes('ผู้ดูแลระบบ'),
+                          null,
+                        );
+                        const effectiveLevel =
+                          userOverride === 'inherit'
+                            ? roleDefaultLevel
+                            : userOverride;
+                        const isBusy = busyKey === `mod:${sys.key}`;
+
+                        return (
+                          <div
+                            key={sys.key}
+                            className="flex flex-col justify-between gap-2.5 rounded-xl border border-line bg-slate-50/40 p-3.5"
+                          >
+                            <div>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-semibold text-ink">
+                                  {sys.title}
+                                </span>
+                                <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 ring-1 ring-line">
+                                  ผลลัพธ์: {LEVEL_LABEL[effectiveLevel]}
+                                </span>
+                              </div>
+                              <p className="mt-0.5 text-[11px] text-slate-500">
+                                ค่าตามบทบาท ({selectedStaff.roleName}):{' '}
+                                <strong>{LEVEL_LABEL[roleDefaultLevel]}</strong>
+                              </p>
+                            </div>
+
+                            <div className="grid grid-cols-4 gap-1">
+                              {USER_LEVEL_OPTIONS.map((opt) => {
+                                const active = userOverride === opt.value;
+                                return (
+                                  <button
+                                    key={opt.value}
+                                    type="button"
+                                    disabled={!canEdit || isBusy}
+                                    onClick={() =>
+                                      handleSaveUserSystemLevel(
+                                        selectedStaff,
+                                        sys.key,
+                                        sys.title,
+                                        opt.value,
+                                      )
+                                    }
+                                    className={`rounded-md border px-1.5 py-1 text-[11px] font-medium transition-colors ${
+                                      active
+                                        ? opt.activeClass
+                                        : 'border-line bg-white text-slate-600 hover:bg-slate-50'
+                                    } disabled:opacity-50`}
+                                  >
+                                    {opt.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* กล่องที่ 2: สิทธิ์การปฏิบัติงานในระบบวันลารายบุคคล */}
+                <div className="card overflow-hidden">
+                  <div className="card-title flex-wrap bg-slate-50/50">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-ink">
+                        2.2 สิทธิ์การปฏิบัติงานในระบบวันลา ({selectedStaff.fullName})
+                      </span>
+                    </div>
+                    <span className="badge-green">
+                      เปิดใช้งาน {items.filter((i) => userFlags[i.key]).length} / เพดาน{' '}
+                      {ceilingCountForStaff(selectedStaff)} รายการ
+                    </span>
+                  </div>
+
+                  <PermMatrix
+                    firstHeader="หมวดหมู่และรายการสิทธิ์ในระบบวันลา"
+                    groups={groupItems(items).map(([group, list]) => ({
+                      group,
+                      rows: list.map((item) => {
+                        const allowedByRole = inCeiling(selectedStaff, item.key);
+                        return {
+                          key: item.key,
+                          label: item.label,
+                          note: allowedByRole ? undefined : 'อยู่นอกเพดานสิทธิ์ของบทบาท',
+                          muted: !allowedByRole,
+                          cells: [
+                            {
+                              key: item.key,
+                              checked: userFlags[item.key] ?? false,
+                              dirty:
+                                userFlags[item.key] !== savedUserFlags[item.key],
+                              disabled: !allowedByRole || !canEdit,
+                              onChange: () =>
+                                setUserFlags((prev) => ({
+                                  ...prev,
+                                  [item.key]: !prev[item.key],
+                                })),
+                            },
+                          ],
+                        };
+                      }),
+                    }))}
+                  />
+                  <SaveBar
+                    changed={changedUserFlagKeys.length}
+                    busy={savingUserFlags}
+                    onReset={() => setUserFlags(savedUserFlags)}
+                    onSave={saveSelectedUserLeaveFlags}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── หมวดที่ 3: ขอบเขตโรงเรียนและเพดานสิทธิ์ (เฉพาะผู้ดูแลส่วนกลาง) ──── */}
+      {activeSection === 'package_ceiling' && isSuper && (
+        <div className="space-y-6">
+          {/* 3.1 ขอบเขตระบบงานของโรงเรียน (SchoolPackagePanel) */}
+          <SchoolPackagePanel
+            schoolId={schoolId}
+            schoolName={school?.fullName || `โรงเรียน #${schoolId ?? '-'}`}
+            canManage={isSuper}
+            onUpdated={async () => {
+              await loadData();
+              await onReload();
+            }}
+          />
+
+          {/* 3.2 เพดานสิทธิ์สูงสุดตามบทบาท (RolePermissions) */}
+          <div className="surface-card overflow-hidden">
+            <div className="border-b border-line bg-slate-50/60 px-6 py-4">
+              <h2 className="text-base font-semibold text-ink">
+                เพดานสิทธิ์สูงสุดตามบทบาท (ระบบวันลา)
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                กำหนดว่าแต่ละบทบาททำอะไรได้มากที่สุดในโรงเรียนนี้ — แอดมินโรงเรียนปรับสิทธิ์รายบุคคลได้ไม่เกินเพดานนี้
+              </p>
+            </div>
+
+            <PermMatrix
+              firstHeader="รายการสิทธิ์การทำงาน"
+              roles={roles}
+              countLabel={(r) => `${countCeilingForRole(r.ID_Roles)}/${items.length}`}
+              groups={groupItems(items).map(([group, list]) => ({
+                group,
+                rows: list.map((item) => ({
+                  key: item.key,
+                  label: item.label,
+                  cells: roles.map((r) => {
+                    const k = cellKey(r.ID_Roles, item.key);
+                    return {
+                      key: k,
+                      checked: ceilingGrid[k] ?? false,
+                      dirty: (ceilingGrid[k] ?? false) !== (savedCeiling[k] ?? false),
+                      onChange: () => toggleCeilingCell(r.ID_Roles, item.key),
+                    };
+                  }),
+                })),
+              }))}
+            />
+            <SaveBar
+              changed={changedCeilingKeys.length}
+              busy={savingCeiling}
+              onSave={saveCeilingGrid}
+              onReset={() => setCeilingGrid(savedCeiling)}
+            />
+          </div>
+
+          {/* 3.3 รายชื่อบทบาทเพิ่มเติมของโรงเรียน (RoleListPanel) */}
+          {schoolId !== null && (
+            <div className="surface-card p-6">
+              <div className="mb-4">
+                <h2 className="text-base font-semibold text-ink">
+                  รายชื่อบทบาทของโรงเรียน ({roles.length} บทบาท)
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  จัดการรายชื่อบทบาทเพิ่มเติมที่ใช้เฉพาะโรงเรียนนี้ (บทบาทหลักของระบบใช้ร่วมกันทุกโรงเรียน)
+                </p>
               </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {activeSection === 'tabs_access' && schoolId !== null && (
-        <div className="space-y-4">
-          <div className="surface-card p-6">
-            <h2 className="text-base font-semibold text-ink">
-              ขั้นที่ 2: เมื่อมีสิทธิ์เข้าใช้งานแล้ว → มีสิทธิ์ใช้ Tab เมนูไหนได้บ้าง
-            </h2>
-            <p className="mt-1 mb-4 text-xs text-slate-500">
-              กำหนดว่าแต่ละกลุ่มสิทธิ์สามารถมองเห็นและกดใช้งาน Tab เมนูใดได้บ้าง ทั้งบนหน้าจอคอมพิวเตอร์ (PC) และบนมือถือ
-            </p>
-            <MenuVisibilityPanel roles={roles} schoolId={schoolId} />
-          </div>
-        </div>
-      )}
-
-      {activeSection === 'leave_ceiling' && (
-        <div className="surface-card p-6 space-y-4">
-          <h2 className="text-base font-semibold text-ink">
-            ขั้นที่ 3: การตั้งค่าเพดานสิทธิ์ย่อยของระบบวันลา (เพิ่มเติม)
-          </h2>
-          <p className="text-xs text-slate-600">
-            สำหรับการตั้งค่าปลีกย่อยภายในระบบวันลา (เช่น สิทธิ์การอนุมัติใบลาแต่ละขั้น หรือการเปิด/ปิดฟีเจอร์ย่อยของระบบวันลารายคน) สามารถจัดการได้จากหน้าตั้งค่าเชิงลึกด้านล่างนี้:
-          </p>
-          <div className="flex flex-wrap gap-3 pt-2">
-            <Link to="/user-permissions" className="btn-secondary">
-              เปิดหน้าตั้งค่าสิทธิ์ย่อยรายบุคคล (ระบบวันลา)
-            </Link>
-            {isSuper && (
-              <Link to="/role-permissions" className="btn-secondary">
-                เปิดหน้าเพดานสิทธิ์ระบบวันลาและจัดการรายชื่อบทบาท
-              </Link>
-            )}
-          </div>
+              <Notice message={ null } />
+              <RoleListPanel
+                roles={roles}
+                schoolId={schoolId}
+                onChanged={loadData}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

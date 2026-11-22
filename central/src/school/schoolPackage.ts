@@ -70,8 +70,8 @@ export const SCHOOL_MODULE_META: SchoolPackageItemMeta[] = [
   {
     key: 'leave-system',
     menuId: -101,
-    title: 'ระบบวันลาและไปราชการ (Web ย่อย)',
-    description: 'เปิดใช้งานเชื่อมต่อไปยัง Web ย่อยระบบวันลาและไปราชการ',
+    title: 'ระบบวันลาและไปราชการ',
+    description: 'เชื่อมต่อไปยังระบบวันลาและไปราชการของโรงเรียน',
     divisionKey: 'hr',
   },
   {

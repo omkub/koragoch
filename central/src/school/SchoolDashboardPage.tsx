@@ -85,7 +85,7 @@ export default function SchoolDashboardPage({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-medium text-brand-600">
-            Web โรงเรียน · โครงสร้างแยกตามฝ่ายงาน
+            เว็บโรงเรียน · แยกตามฝ่ายงาน
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">
             {school?.fullName || 'ภาพรวมโรงเรียน'}
@@ -103,11 +103,11 @@ export default function SchoolDashboardPage({
               className="btn-secondary btn-sm"
             >
               <ShieldCheck className="h-3.5 w-3.5" strokeWidth={1.5} />
-              <span>สิทธิ์เข้าถึงแต่ละฝ่าย</span>
+              <span>สิทธิ์การใช้งาน</span>
             </Link>
             <Link to="/admin/mapping" className="btn-secondary btn-sm">
               <Layers className="h-3.5 w-3.5" strokeWidth={1.5} />
-              <span>จัดการฝ่ายและ Module</span>
+              <span>ฝ่ายและบุคลากร</span>
             </Link>
           </div>
         )}
@@ -133,7 +133,7 @@ export default function SchoolDashboardPage({
 
         <div className="surface-card p-5">
           <p className="text-xs font-medium text-slate-500">
-            ฝ่ายที่เปิดใช้งาน / Module ย่อย
+            ฝ่ายที่เปิดใช้งาน / ระบบงาน
           </p>
           <p className="mt-2 text-2xl font-semibold tabular-nums text-ink">
             {enabledDivisions.length.toLocaleString('th-TH')}{' '}
@@ -141,7 +141,7 @@ export default function SchoolDashboardPage({
               / {totalEnabledModules.toLocaleString('th-TH')}
             </span>
           </p>
-          <p className="mt-1 text-xs text-slate-500">ฝ่าย / ระบบย่อย</p>
+          <p className="mt-1 text-xs text-slate-500">ฝ่าย / ระบบงาน</p>
         </div>
 
         <div className="surface-card p-5">
@@ -165,7 +165,7 @@ export default function SchoolDashboardPage({
               ฝ่ายงานของโรงเรียน ({enabledDivisions.length})
             </h2>
             <p className="mt-1 text-sm text-slate-600">
-              คลิกที่ชื่อฝ่าย หรือเลือก Module ย่อยภายในฝ่ายเพื่อเข้าใช้งานได้ทันที
+              คลิกที่ชื่อฝ่าย หรือเลือกระบบงานภายในฝ่ายเพื่อเข้าใช้งานได้ทันที
             </p>
 
             {enabledDivisions.length === 0 ? (
@@ -204,7 +204,7 @@ export default function SchoolDashboardPage({
                       <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line/70 pt-3">
                         {activeMods.length === 0 ? (
                           <span className="text-[11px] text-slate-400">
-                            ยังไม่มี Module ในฝ่ายนี้
+                            ยังไม่มีระบบงานในฝ่ายนี้
                           </span>
                         ) : (
                           activeMods.map((m) => (

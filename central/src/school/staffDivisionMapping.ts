@@ -4,6 +4,8 @@ import {
   getUserDivisionEditMenuId,
   getUserDivisionViewMenuId,
   getUserSchoolWebTabMenuId,
+  ROLE_TIER_ADMIN_MENU_ID,
+  ROLE_TIER_EXECUTIVE_MENU_ID,
   type AccessLevel,
   type RoleDivisionModulePermissions,
 } from './roleModulePermissions';
@@ -42,42 +44,42 @@ export interface TabPermissionItem {
   description: string;
 }
 
-/** รายการ Tab เมนูหลักที่ใช้ควบคุมสิทธิ์เมื่อเข้าใช้งานได้แล้ว */
+/** รายการเมนูหลักที่ใช้ควบคุมสิทธิ์เมื่อเข้าใช้งานได้แล้ว */
 export const SYSTEM_TABS: TabPermissionItem[] = [
   {
     menuId: 6,
     key: 'school_web',
-    label: 'แท็บเว็บโรงเรียน (School Web)',
+    label: 'เมนูเว็บโรงเรียน',
     description: 'เข้าใช้งานหน้าเว็บโรงเรียน 4 ฝ่าย คำสั่งแต่งตั้ง และระบบบริหารงานโรงเรียน',
   },
   {
     menuId: 1,
     key: 'leave_home',
-    label: 'แท็บหน้าหลัก / ยื่นใบลา',
+    label: 'เมนูหน้าหลัก / ยื่นใบลา',
     description: 'หน้ายื่นใบลา ดูสถานะใบลา และปฏิทินการลาของตนเอง',
   },
   {
     menuId: 4,
     key: 'executive_overview',
-    label: 'แท็บภาพรวมผู้บริหาร / การอนุมัติ',
+    label: 'เมนูภาพรวมผู้บริหาร / การอนุมัติ',
     description: 'หน้าพิจารณาอนุมัติใบลาและดูสรุปภาพรวมสำหรับผู้บริหาร',
   },
   {
     menuId: 2,
     key: 'reports',
-    label: 'แท็บรายงานและสถิติ',
+    label: 'เมนูรายงานและสถิติ',
     description: 'ดูรายงานสรุปวันลา สถิติบุคลากร และพิมพ์เอกสารรายงาน',
   },
   {
     menuId: 3,
     key: 'staff_manage',
-    label: 'แท็บจัดการบุคลากรและผู้ใช้',
+    label: 'เมนูจัดการบุคลากรและผู้ใช้',
     description: 'เพิ่ม/แก้ไขข้อมูลบุคลากร รหัสผ่าน และโครงสร้างผู้ใช้งาน',
   },
   {
     menuId: 5,
     key: 'system_settings',
-    label: 'แท็บตั้งค่าระบบ',
+    label: 'เมนูตั้งค่าระบบ',
     description: 'ตั้งค่าข้อมูลโรงเรียน ปีการศึกษา ประเภทการลา และสิทธิ์ระบบ',
   },
 ];
@@ -94,7 +96,7 @@ export const ROLE_TIER_META: Record<
   user: {
     label: 'ผู้ใช้งาน (ครู/บุคลากร)',
     shortLabel: 'ผู้ใช้งาน',
-    description: 'มองเห็นเฉพาะฝ่ายที่ตัวเองสังกัด และใช้งาน Module ตามฝ่ายของตัวเอง',
+    description: 'มองเห็นเฉพาะฝ่ายที่ตัวเองสังกัด และใช้งานระบบงานตามฝ่ายของตัวเอง',
     badgeClass: 'bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200',
   },
   executive: {
@@ -104,27 +106,34 @@ export const ROLE_TIER_META: Record<
     badgeClass: 'bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200',
   },
   school_admin: {
-    label: 'Admin โรงเรียน',
-    shortLabel: 'Admin โรงเรียน',
-    description: 'เข้าถึงและแก้ไขได้ทุกฝ่าย/ทุก Module ในโรงเรียน และจัดบุคลากรเข้าฝ่ายได้',
+    label: 'แอดมินโรงเรียน',
+    shortLabel: 'แอดมินโรงเรียน',
+    description: 'เข้าถึงและแก้ไขได้ทุกฝ่ายและทุกระบบงานในโรงเรียน และจัดบุคลากรเข้าฝ่ายได้',
     badgeClass: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200',
   },
   super_admin: {
-    label: 'Super Admin (ส่วนกลาง)',
-    shortLabel: 'Super Admin',
-    description: 'ดูแลทุกโรงเรียน เปิด/ปิด Web โรงเรียน และกำหนด Module ที่แต่ละโรงเรียนใช้ได้',
+    label: 'ผู้ดูแลส่วนกลาง',
+    shortLabel: 'ผู้ดูแลส่วนกลาง',
+    description: 'ดูแลทุกโรงเรียน เปิด/ปิดเว็บโรงเรียน และกำหนดระบบงานที่แต่ละโรงเรียนใช้ได้',
     badgeClass: 'bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-200',
   },
 };
 
 /**
- * แปลงชื่อบทบาท (roles.Accessrights) และสถานะ is_super_admin ให้เป็นระดับสิทธิ์ 4 ระดับ
+ * หาค่าเริ่มต้นของระดับสิทธิ์ 4 ระดับจากรหัสบทบาท (id_role = 22), ค่าที่บันทึกไว้ในฐานข้อมูล (roleTierByRole),
+ * หรือชื่อบทบาท (สำหรับกรณีที่ยังไม่ได้บันทึกค่าเฉพาะเจาะจง)
  */
 export function inferRoleTierFromRoleName(
   roleName: string | null | undefined,
   isSuperAdmin = false,
+  roleId?: number | null,
+  perms?: RoleDivisionModulePermissions | null,
 ): SchoolRoleTier {
   if (isSuperAdmin) return 'super_admin';
+  if (roleId === ADMIN_ROLE_ID) return 'school_admin';
+  if (roleId != null && perms?.roleTierByRole?.[roleId]) {
+    return perms.roleTierByRole[roleId];
+  }
   const text = (roleName ?? '').trim();
   if (
     text.includes('ผู้ดูแลระบบ') ||
@@ -140,6 +149,42 @@ export function inferRoleTierFromRoleName(
     return 'executive';
   }
   return 'user';
+}
+
+/**
+ * บันทึกระดับสิทธิ์หลัก (ผู้ใช้งาน / ผู้บริหาร / แอดมินโรงเรียน) ผูกกับบทบาท (id_role) ลงฐานข้อมูล
+ * ทำให้โรงเรียนที่เพิ่มบทบาทใหม่สามารถเลือกระดับสิทธิ์ได้โดยไม่ต้องพึ่งการเดาจากชื่อบทบาท
+ */
+export async function saveRoleTierForRole(params: {
+  schoolId: number;
+  roleId: number;
+  tier: 'user' | 'executive' | 'school_admin';
+}): Promise<{ error: string | null }> {
+  const { schoolId, roleId, tier } = params;
+  const now = new Date().toISOString();
+  const isAdminTier = tier === 'school_admin';
+  const isExecTier = tier === 'executive';
+
+  const { error } = await supabase.from('Permissions').upsert(
+    [
+      {
+        id_school: schoolId,
+        id_role: roleId,
+        menu_id: ROLE_TIER_EXECUTIVE_MENU_ID,
+        status: isExecTier ? '1' : '0',
+        updatedAt: now,
+      },
+      {
+        id_school: schoolId,
+        id_role: roleId,
+        menu_id: ROLE_TIER_ADMIN_MENU_ID,
+        status: isAdminTier ? '1' : '0',
+        updatedAt: now,
+      },
+    ],
+    { onConflict: 'id_school,id_role,menu_id' },
+  );
+  return { error: error ? error.message : null };
 }
 
 /**

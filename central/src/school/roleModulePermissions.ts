@@ -125,11 +125,16 @@ function isStatusOn(status: unknown): boolean {
   );
 }
 
+export const ROLE_TIER_EXECUTIVE_MENU_ID = -601;
+export const ROLE_TIER_ADMIN_MENU_ID = -602;
+
 export interface RoleDivisionModulePermissions {
   /** key: `${id_role}:${division_key}` -> { can_view, can_edit } */
   divisionByRole: Record<string, { can_view: boolean; can_edit: boolean }>;
   /** key: `${id_role}:${module_key}` -> { can_view, can_edit } */
   moduleByRole: Record<string, { can_view: boolean; can_edit: boolean }>;
+  /** key: `${id_role}` -> 'user' | 'executive' | 'school_admin' (ระดับสิทธิ์หลักที่ตั้งค่าผูกกับบทบาท) */
+  roleTierByRole?: Record<number, 'user' | 'executive' | 'school_admin'>;
   /** key: `${id_user}` -> boolean (เปิด/ปิดแท็บเว็บโรงเรียนรายคน) */
   userTabOverride: Record<number, boolean>;
   /** key: `${id_user}:${division_key}` -> { can_view, can_edit } */
@@ -146,6 +151,7 @@ export async function fetchRoleDivisionModulePermissions(
   const result: RoleDivisionModulePermissions = {
     divisionByRole: {},
     moduleByRole: {},
+    roleTierByRole: {},
     userTabOverride: {},
     divisionByUser: {},
     moduleByUser: {},
@@ -263,6 +269,23 @@ export async function fetchRoleDivisionModulePermissions(
             const prev = result.divisionByUser[k] ?? { can_view: true, can_edit: false };
             result.divisionByUser[k] = { ...prev, can_edit: on };
           }
+        }
+        continue;
+      }
+
+      if (menuId === ROLE_TIER_ADMIN_MENU_ID) {
+        if (on) {
+          result.roleTierByRole![roleId] = 'school_admin';
+        } else if (!result.roleTierByRole![roleId]) {
+          result.roleTierByRole![roleId] = 'user';
+        }
+        continue;
+      }
+      if (menuId === ROLE_TIER_EXECUTIVE_MENU_ID) {
+        if (on && result.roleTierByRole![roleId] !== 'school_admin') {
+          result.roleTierByRole![roleId] = 'executive';
+        } else if (!on && !result.roleTierByRole![roleId]) {
+          result.roleTierByRole![roleId] = 'user';
         }
         continue;
       }

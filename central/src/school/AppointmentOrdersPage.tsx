@@ -1841,8 +1841,8 @@ function GroupMemberSelectorSection({
                       </label>
                     </th>
                     <th className="px-2.5 py-2">ชื่อ-นามสกุล</th>
-                    <th className="px-2.5 py-2">ตำแหน่ง</th>
-                    <th className="w-52 px-2.5 py-1.5">
+                    <th className="hidden px-2.5 py-2 sm:table-cell">ตำแหน่ง</th>
+                    <th className="w-36 px-2.5 py-1.5 sm:w-52">
                       <div className="flex flex-col gap-1">
                         <span>ตำแหน่งในคณะ (เลือกเอง)</span>
                         {checkedCount > 1 && (
@@ -1910,6 +1910,9 @@ function GroupMemberSelectorSection({
                             className="cursor-pointer px-2.5 py-2 font-medium text-ink"
                           >
                             <div>{staff.fullName}</div>
+                            <div className="mt-0.5 text-[11px] font-normal text-slate-500 sm:hidden">
+                              {staff.displayPosition}
+                            </div>
                             {(staff.departmentName || alreadyInGroup) && (
                               <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-slate-500">
                                 {staff.departmentName && (
@@ -1923,7 +1926,7 @@ function GroupMemberSelectorSection({
                               </div>
                             )}
                           </td>
-                          <td className="px-2.5 py-2 text-slate-600">
+                          <td className="hidden px-2.5 py-2 text-slate-600 sm:table-cell">
                             {staff.displayPosition}
                           </td>
                           <td className="px-2.5 py-2">
@@ -1963,14 +1966,14 @@ function GroupMemberSelectorSection({
           )}
 
           {/* ปุ่มกดบันทึกรายชื่อที่ติ๊กเลือกเข้าข้อนี้ */}
-          <div className="flex items-center justify-between pt-1">
+          <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
             <span className="tabular-nums text-xs text-slate-500">
               กรองพบ {filteredStaff.length} คน · ติ๊กเลือกไว้ {checkedCount} คน
             </span>
             <button
               type="button"
               onClick={handleConfirmSaveSelection}
-              className="btn-primary btn-sm"
+              className="btn-primary btn-sm justify-center"
             >
               <UserCheck className="h-3.5 w-3.5" strokeWidth={1.5} />
               <span>
@@ -1991,58 +1994,65 @@ function GroupMemberSelectorSection({
             ยังไม่มีรายชื่อในข้อที่ {groupNo} กรุณาติ๊กเลือกบุคลากรจากตารางด้านบนแล้วกดบันทึก
           </div>
         ) : (
-          <table className="w-full border-collapse text-left text-xs">
-            <thead className="border-b border-line bg-slate-50/70 text-[11px] font-medium text-slate-500">
-              <tr>
-                <th className="w-12 px-3 py-2">ข้อ</th>
-                <th className="px-3 py-2">ชื่อ-นามสกุล</th>
-                <th className="px-3 py-2">ตำแหน่ง</th>
-                <th className="w-44 px-3 py-2">ตำแหน่งในคณะ</th>
-                {canEdit && <th className="w-10 px-2 py-2 text-center">ลบ</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {savedMembers.map((member, mIdx) => (
-                <tr key={mIdx} className="hover:bg-slate-50/60">
-                  <td className="px-3 py-2 font-semibold tabular-nums text-brand-700">
-                    {groupNo}.{mIdx + 1}
-                  </td>
-                  <td className="px-3 py-2 font-medium text-ink">
-                    {member.full_name}
-                  </td>
-                  <td className="px-3 py-2 text-slate-600">
-                    {member.official_position}
-                  </td>
-                  <td className="px-3 py-2">
-                    <select
-                      disabled={!canEdit}
-                      value={member.working_role}
-                      onChange={(e) => onUpdateSavedRole(mIdx, e.target.value)}
-                      className="w-full rounded-md border border-line bg-white px-2 py-1 text-xs text-ink outline-none focus:border-brand-500"
-                    >
-                      {WORKING_ROLE_OPTIONS.map((roleOpt) => (
-                        <option key={roleOpt} value={roleOpt}>
-                          {roleOpt}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  {canEdit && (
-                    <td className="px-2 py-2 text-center">
-                      <button
-                        type="button"
-                        onClick={() => onRemoveSavedMember(mIdx)}
-                        className="rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
-                        title="ลบออกจากข้อนี้"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-                      </button>
-                    </td>
-                  )}
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left text-xs">
+              <thead className="border-b border-line bg-slate-50/70 text-[11px] font-medium text-slate-500">
+                <tr>
+                  <th className="w-12 px-2.5 py-2 sm:px-3">ข้อ</th>
+                  <th className="px-2.5 py-2 sm:px-3">ชื่อ-นามสกุล</th>
+                  <th className="hidden px-3 py-2 sm:table-cell">ตำแหน่ง</th>
+                  <th className="w-36 px-2.5 py-2 sm:w-44 sm:px-3">ตำแหน่งในคณะ</th>
+                  {canEdit && <th className="w-10 px-2 py-2 text-center">ลบ</th>}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {savedMembers.map((member, mIdx) => (
+                  <tr key={mIdx} className="hover:bg-slate-50/60">
+                    <td className="px-2.5 py-2 font-semibold tabular-nums text-brand-700 sm:px-3">
+                      {groupNo}.{mIdx + 1}
+                    </td>
+                    <td className="px-2.5 py-2 font-medium text-ink sm:px-3">
+                      <div>{member.full_name}</div>
+                      {member.official_position && (
+                        <div className="mt-0.5 text-[11px] font-normal text-slate-500 sm:hidden">
+                          {member.official_position}
+                        </div>
+                      )}
+                    </td>
+                    <td className="hidden px-3 py-2 text-slate-600 sm:table-cell">
+                      {member.official_position}
+                    </td>
+                    <td className="px-2.5 py-2 sm:px-3">
+                      <select
+                        disabled={!canEdit}
+                        value={member.working_role}
+                        onChange={(e) => onUpdateSavedRole(mIdx, e.target.value)}
+                        className="w-full rounded-md border border-line bg-white px-2 py-1 text-xs text-ink outline-none focus:border-brand-500"
+                      >
+                        {WORKING_ROLE_OPTIONS.map((roleOpt) => (
+                          <option key={roleOpt} value={roleOpt}>
+                            {roleOpt}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    {canEdit && (
+                      <td className="px-2 py-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => onRemoveSavedMember(mIdx)}
+                          className="rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                          title="ลบออกจากข้อนี้"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
