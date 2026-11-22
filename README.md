@@ -198,6 +198,7 @@ gh pr create --base main
 | 9 | `master_data_lock.sql` | F7: ข้อมูลกลางแก้ได้เฉพาะส่วนกลาง · ตารางที่มี `id_school` แอดมินแก้ได้เฉพาะโรงเรียนตัวเอง |
 | 10 | `schema_migrations.sql` | F9: ตาราง `SchemaMigrations` บันทึกว่าไฟล์ไหนรันแล้ว (ใส่แถว 1–9 ให้แล้ว) |
 | 11 | `school_web_division_edit.sql` | F4 + F5: ผู้ที่ได้สิทธิ์ "แก้ไข" ฝ่าย/ระบบงานบันทึกข้อมูลได้จริง (`can_edit_school_web`) · ย้าย `SchoolWebRoleDivisionAccess` เข้า `Permissions` (web เลิกใช้ตารางเก่า) |
+| 12 | `school_public_web.sql` | เว็บโรงเรียนสาธารณะ: ตาราง `SchoolPublicWebConfigs` (ทุกคนอ่านได้) + `SchoolPublicWebMessages` (คนนอกส่งได้อย่างเดียว) + ระบบงาน `public-web-settings` |
 
 ตั้งแต่ไฟล์ 10 เป็นต้นไป ไฟล์ SQL ใหม่ทุกไฟล์จบด้วย `insert into "SchemaMigrations"(name) values ('<ไฟล์>.sql') on conflict do nothing;` · ดูว่ารันอะไรไปแล้ว: `select * from "SchemaMigrations" order by applied_at;`
 

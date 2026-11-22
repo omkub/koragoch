@@ -9,6 +9,7 @@ import DepartmentsPage from './DepartmentsPage';
 import DocumentsPage from './DocumentsPage';
 import FinanceBudgetPage from './FinanceBudgetPage';
 import type { DivisionWithModules, ResolvedDivisionModule } from './mapping';
+import PublicWebSettingsPage from './PublicWebSettingsPage';
 import SchoolStaffPage from './SchoolStaffPage';
 import StudentsPage from './StudentsPage';
 
@@ -210,6 +211,18 @@ function DivisionModuleRenderer({
       return <DocumentsPage schoolId={schoolId} canEdit={canEdit} />;
     case 'announcements':
       return <AnnouncementsSection schoolId={schoolId} canEdit={canEdit} />;
+    case 'public-web-settings':
+      return (
+        <PublicWebSettingsPage
+          school={
+            schoolId
+              ? { id_school: schoolId, fullName: schoolName, affiliation: null }
+              : null
+          }
+          schoolId={schoolId}
+          canManage={canEdit}
+        />
+      );
     case 'finance-budget':
       return <FinanceBudgetPage schoolId={schoolId} canEdit={canEdit} mod={mod} />;
     case 'appointment-orders':

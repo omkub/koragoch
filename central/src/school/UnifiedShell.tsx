@@ -70,6 +70,7 @@ interface UnifiedShellProps {
   onSelectSchool: (id: number) => void;
   onSignOut: () => void;
   divisions: DivisionWithModules[];
+  canManagePublicWeb?: boolean;
   isEmbedded?: boolean;
   children: ReactNode;
 }
@@ -117,7 +118,10 @@ const MANAGE_NAV: { label: string; items: NavItem[] }[] = [
   },
   {
     label: 'โรงเรียน',
-    items: [{ to: '/settings', label: 'ปีการศึกษาและลิงก์', icon: CalendarDays }],
+    items: [
+      { to: '/public-web-settings', label: 'ตั้งค่าเว็บสาธารณะ (คนนอกดู)', icon: Globe },
+      { to: '/settings', label: 'ปีการศึกษาและลิงก์', icon: CalendarDays },
+    ],
   },
 ];
 
@@ -158,6 +162,7 @@ export default function UnifiedShell({
   onSelectSchool,
   onSignOut,
   divisions,
+  canManagePublicWeb = false,
   isEmbedded = false,
   children,
 }: UnifiedShellProps) {
@@ -245,6 +250,18 @@ export default function UnifiedShell({
           <Globe className="h-[18px] w-[18px] shrink-0 text-brand-600" strokeWidth={1.5} />
           <span className="truncate">เว็บโรงเรียน (คนนอกดู)</span>
         </Link>
+        {canManagePublicWeb && (
+          <NavLink
+            to="/public-web-settings"
+            className={({ isActive }) => navClass(isActive)}
+          >
+            <Settings
+              className="h-[18px] w-[18px] shrink-0 text-emerald-600"
+              strokeWidth={1.5}
+            />
+            <span className="truncate">ตั้งค่าเว็บสาธารณะ</span>
+          </NavLink>
+        )}
         <button
           type="button"
           onClick={() => navigateToLeaveApp()}

@@ -24,6 +24,8 @@ const DIVISION_EDIT_MENU_IDS: Record<string, number> = {
   finance: -304,
 };
 
+export const PUBLIC_WEB_SETTINGS_MODULE_KEY = 'public-web-settings';
+
 const MODULE_VIEW_MENU_IDS: Record<string, number> = {
   'leave-system': -401,
   'staff-registry': -402,
@@ -34,6 +36,7 @@ const MODULE_VIEW_MENU_IDS: Record<string, number> = {
   announcements: -407,
   'finance-budget': -408,
   'appointment-orders': -409,
+  'public-web-settings': -410,
 };
 
 const MODULE_EDIT_MENU_IDS: Record<string, number> = {
@@ -46,6 +49,7 @@ const MODULE_EDIT_MENU_IDS: Record<string, number> = {
   announcements: -507,
   'finance-budget': -508,
   'appointment-orders': -509,
+  'public-web-settings': -510,
 };
 
 const USER_MODULE_SLOT: Record<string, number> = {
@@ -58,6 +62,7 @@ const USER_MODULE_SLOT: Record<string, number> = {
   announcements: 7,
   'finance-budget': 8,
   'appointment-orders': 9,
+  'public-web-settings': 10,
 };
 
 const USER_DIVISION_SLOT: Record<string, number> = {
@@ -518,4 +523,42 @@ export function resolveModuleAccessLevel(
   }
   if (!modEntry.can_view) return 'hidden';
   return modEntry.can_edit ? 'edit' : 'view';
+}
+
+/**
+ * ตรวจสอบว่าผู้ใช้มีสิทธิ์ตั้งค่าหน้าเว็บโรงเรียนสาธารณะ (Public Web) หรือไม่
+ * อนุญาต 3 กลุ่ม:
+ * 1) ผู้ดูแลระบบส่วนกลาง (isSuper)
+ * 2) แอดมินโรงเรียน (isAdminRole / roleTier === 'school_admin')
+ * 3) ครูที่ได้รับมอบหมายหน้าที่ตั้งค่าเว็บโรงเรียนสาธารณะ (รายบุคคล หรือตามบทบาท)
+ */
+export function canUserManagePublicSchoolWeb(params: {
+  perms: RoleDivisionModulePermissions;
+  roleId: number | null;
+  idUser?: number | null;
+  isSuper?: boolean;
+  isAdminRole?: boolean;
+}): boolean {
+  const { perms, roleId, idUser, isSuper = false, isAdminRole = false } = params;
+  if (isSuper || isAdminRole) return true;
+
+  // 1. ตรวจสิทธิ์รายบุคคล (User Override) ก่อนเสมอ
+  if (idUser != null) {
+    const userEntry =
+      perms.moduleByUser[`${idUser}:${PUBLIC_WEB_SETTINGS_MODULE_KEY}`];
+    if (userEntry !== undefined) {
+      return Boolean(userEntry.can_view && userEntry.can_edit);
+    }
+  }
+
+  // 2. ตรวจสิทธิ์ตามบทบาท (Role)
+  if (roleId != null) {
+    const roleEntry =
+      perms.moduleByRole[`${roleId}:${PUBLIC_WEB_SETTINGS_MODULE_KEY}`];
+    if (roleEntry !== undefined) {
+      return Boolean(roleEntry.can_view && roleEntry.can_edit);
+    }
+  }
+
+  return false;
 }

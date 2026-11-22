@@ -24,6 +24,7 @@ export const SCHOOL_MODULE_MENU_IDS: Record<string, number> = {
   announcements: -107,
   'finance-budget': -108,
   'appointment-orders': -109,
+  'public-web-settings': -110,
 };
 
 export interface SchoolPackageItemMeta {
@@ -121,6 +122,14 @@ export const SCHOOL_MODULE_META: SchoolPackageItemMeta[] = [
     menuId: -107,
     title: 'ประกาศโรงเรียน',
     description: 'จัดการข่าวสารและประกาศประชาสัมพันธ์ภายในโรงเรียน',
+    divisionKey: 'admin',
+  },
+  {
+    key: 'public-web-settings',
+    menuId: -110,
+    title: 'ตั้งค่าหน้าเว็บโรงเรียนสาธารณะ',
+    description:
+      'จัดการข่าวประชาสัมพันธ์ ทำเนียบบุคลากร ข้อมูลนักเรียน ข้อมูลโรงเรียน และช่องทางติดต่อบนหน้าเว็บสำหรับบุคคลภายนอก',
     divisionKey: 'admin',
   },
   {
