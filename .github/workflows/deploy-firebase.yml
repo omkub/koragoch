@@ -64,8 +64,9 @@ jobs:
       - name: เทียบตัววาดเอกสาร app กับ web
         run: flutter test test/form_template_test.dart test/form_render_parity_test.dart
 
-      - name: ตรวจสอบโค้ด (ไม่บล็อกการ deploy)
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings || true
+      # มี error = ไม่ deploy (เว็บเดิมยังใช้งานได้) · warning / info ไม่บล็อก
+      - name: ตรวจสอบโค้ด app
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       # Firebase เสิร์ฟที่ราก (/)
       # APP_BUILD + app-version.json: แอปเทียบสองค่านี้แล้วขึ้นแถบ "มีเวอร์ชันใหม่"

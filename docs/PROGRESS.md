@@ -57,7 +57,7 @@
    - F5 ระบบสิทธิ์ซ้อนกัน 4 ชุด (เก็บใน `menu_id` พิเศษ)
    - F8 ตารางซ้ำ (`SchoolDepartments` vs `departments`, `SchoolModules`)
    - F9 ไม่มี migration
-   - F10 CI `flutter analyze || true`
+   - ~~F10 CI `flutter analyze || true`~~ ✅ error บล็อก deploy แล้ว (warning / info ไม่บล็อก) · web ตรวจ type ใน `npm run build` อยู่แล้ว
 4. ~~ระดับสิทธิ์ (`SchoolRoleTier`) ยังเดาจากชื่อบทบาท (`staffDivisionMapping.ts`)~~ ✅ เสร็จแล้ว (บันทึกและตั้งค่าระดับสิทธิ์หลักผูกกับ `id_role` ลงฐานข้อมูลได้)
 
 ## หมายเหตุเครื่องมือ
