@@ -26,6 +26,7 @@ import DivisionHubPage from './school/DivisionHubPage';
 import SchoolSettingsPage from './school/SchoolSettingsPage';
 import DivisionMappingPage from './school/DivisionMappingPage';
 import DivisionPermissionsPage from './school/DivisionPermissionsPage';
+import PublicSchoolWebPage from './school/PublicSchoolWebPage';
 import {
   FALLBACK_CATALOG,
   fetchSchoolDivisionTree,
@@ -281,6 +282,37 @@ export default function App() {
   useEffect(() => {
     loadSchoolContext();
   }, [loadSchoolContext]);
+
+  const currentSchoolPreview =
+    schools.find((s) => s.id_school === selectedSchoolId) ?? null;
+
+  // หน้าเว็บโรงเรียนสำหรับคนนอกดู (Public Web) — เข้าดูได้ทันทีโดยไม่ต้องล็อกอิน
+  if (pathname === '/public' || pathname.startsWith('/public/')) {
+    return (
+      <Routes>
+        <Route
+          path="/public"
+          element={
+            <PublicSchoolWebPage
+              school={currentSchoolPreview}
+              schools={schools}
+              isLoggedIn={Boolean(session)}
+            />
+          }
+        />
+        <Route
+          path="/public/:schoolId"
+          element={
+            <PublicSchoolWebPage
+              school={currentSchoolPreview}
+              schools={schools}
+              isLoggedIn={Boolean(session)}
+            />
+          }
+        />
+      </Routes>
+    );
+  }
 
   if (hydratingSso) {
     return (

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, ExternalLink, Layers, ShieldCheck } from 'lucide-react';
+import { ArrowRight, ExternalLink, Globe, Layers, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../supabase';
 import AnnouncementsSection from './AnnouncementsSection';
@@ -96,21 +96,30 @@ export default function SchoolDashboardPage({
           </p>
         </div>
 
-        {canEdit && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              to="/admin/division-permissions"
-              className="btn-secondary btn-sm"
-            >
-              <ShieldCheck className="h-3.5 w-3.5" strokeWidth={1.5} />
-              <span>สิทธิ์การใช้งาน</span>
-            </Link>
-            <Link to="/admin/mapping" className="btn-secondary btn-sm">
-              <Layers className="h-3.5 w-3.5" strokeWidth={1.5} />
-              <span>ฝ่ายและบุคลากร</span>
-            </Link>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to={schoolId ? `/public/${schoolId}` : '/public'}
+            className="btn-primary btn-sm"
+          >
+            <Globe className="h-3.5 w-3.5" strokeWidth={1.5} />
+            <span>ดูหน้าเว็บสาธารณะ (คนนอกดู)</span>
+          </Link>
+          {canEdit && (
+            <>
+              <Link
+                to="/admin/division-permissions"
+                className="btn-secondary btn-sm"
+              >
+                <ShieldCheck className="h-3.5 w-3.5" strokeWidth={1.5} />
+                <span>สิทธิ์การใช้งาน</span>
+              </Link>
+              <Link to="/admin/mapping" className="btn-secondary btn-sm">
+                <Layers className="h-3.5 w-3.5" strokeWidth={1.5} />
+                <span>ฝ่ายและบุคลากร</span>
+              </Link>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Stat Row */}
