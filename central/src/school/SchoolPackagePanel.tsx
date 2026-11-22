@@ -66,7 +66,7 @@ export default function SchoolPackagePanel({
       type: 'ok',
       text: nextEnabled
         ? `เปิดใช้งาน "เว็บโรงเรียน" สำหรับ ${schoolName} เรียบร้อยแล้ว`
-        : `ตั้งค่าให้ ${schoolName} ใช้งานเฉพาะ Web ย่อยระบบวันลา (ซ่อนเว็บโรงเรียน) เรียบร้อยแล้ว`,
+        : `ตั้งค่าให้ ${schoolName} ใช้งานเฉพาะระบบวันลา (ซ่อนเว็บโรงเรียน) เรียบร้อยแล้ว`,
     });
     await onUpdated?.();
   }
@@ -98,7 +98,7 @@ export default function SchoolPackagePanel({
     });
     setFeedback({
       type: 'ok',
-      text: `อัปเดตการมองเห็นฝ่ายงานของ ${schoolName} เรียบร้อยแล้ว`,
+      text: `อัปเดตฝ่ายงานของ ${schoolName} เรียบร้อยแล้ว`,
     });
     await onUpdated?.();
   }
@@ -130,7 +130,7 @@ export default function SchoolPackagePanel({
     });
     setFeedback({
       type: 'ok',
-      text: `อัปเดตสิทธิ์การมองเห็น Module ย่อยของ ${schoolName} เรียบร้อยแล้ว`,
+      text: `อัปเดตระบบงานของ ${schoolName} เรียบร้อยแล้ว`,
     });
     await onUpdated?.();
   }
@@ -190,10 +190,10 @@ export default function SchoolPackagePanel({
       type: 'ok',
       text:
         preset === 'leave_subweb_only'
-          ? `ตั้งค่าให้ ${schoolName} ใช้งานเฉพาะ Web ย่อยระบบวันลาอย่างเดียว (ปิดเว็บโรงเรียน) แล้ว`
+          ? `ตั้งค่าให้ ${schoolName} ใช้งานเฉพาะระบบวันลาอย่างเดียว (ปิดเว็บโรงเรียน) แล้ว`
           : preset === 'hr_only'
-            ? `ตั้งค่าให้ ${schoolName} เห็นเว็บโรงเรียนเฉพาะฝ่ายบริหารงานบุคคลและคำสั่งแต่งตั้งแล้ว`
-            : `เปิดใช้งานเว็บโรงเรียนและทุก Module ย่อยให้ ${schoolName} ครบทั้งหมดแล้ว`,
+            ? `ตั้งค่าให้ ${schoolName} ใช้เว็บโรงเรียนเฉพาะฝ่ายบริหารงานบุคคลและคำสั่งแต่งตั้งแล้ว`
+            : `เปิดใช้งานเว็บโรงเรียนและทุกระบบงานให้ ${schoolName} ครบทั้งหมดแล้ว`,
     });
     await onUpdated?.();
   }
@@ -216,13 +216,13 @@ export default function SchoolPackagePanel({
           <div>
             <div className="inline-flex items-center gap-1.5 rounded-full bg-brand-100 px-2.5 py-0.5 text-[11px] font-semibold text-brand-700">
               <Layers className="h-3.5 w-3.5" />
-              <span>สิทธิ์ระดับโรงเรียน (กำหนดโดยผู้ดูแลระบบส่วนกลาง)</span>
+              <span>ขอบเขตระดับโรงเรียน (กำหนดโดยผู้ดูแลส่วนกลาง)</span>
             </div>
             <h2 className="mt-1.5 text-base font-semibold text-ink">
-              ขอบเขตการใช้งานเว็บโรงเรียนและ Module ย่อยของ: {schoolName}
+              ระบบงานที่เปิดให้โรงเรียนใช้งาน: {schoolName}
             </h2>
             <p className="mt-0.5 text-xs text-slate-600">
-              กำหนดว่าโรงเรียนนี้จะเปิดใช้ &ldquo;เว็บโรงเรียน&rdquo; หรือใช้เฉพาะ &ldquo;Web ย่อยระบบวันลา&rdquo; และเลือกให้เห็นเฉพาะ Module ย่อยที่อนุญาตเท่านั้น
+              กำหนดว่าโรงเรียนนี้จะเปิดใช้ &ldquo;เว็บโรงเรียน&rdquo; หรือใช้เฉพาะ &ldquo;ระบบวันลา&rdquo; และเลือกให้เห็นเฉพาะระบบงานที่อนุญาตเท่านั้น
             </p>
           </div>
 
@@ -235,7 +235,7 @@ export default function SchoolPackagePanel({
                 className="btn-secondary btn-sm text-xs"
               >
                 <Sparkles className="h-3.5 w-3.5 text-brand-600" />
-                <span>เปิดครบทุก Module</span>
+                <span>เปิดครบทุกระบบงาน</span>
               </button>
               <button
                 type="button"
@@ -286,7 +286,7 @@ export default function SchoolPackagePanel({
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-semibold text-ink">
-                    1. สถานะการใช้งาน &ldquo;เว็บโรงเรียน (/central/)&rdquo;
+                    1. สถานะการใช้งาน &ldquo;เว็บโรงเรียน&rdquo;
                   </span>
                   <span
                     className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
@@ -297,13 +297,13 @@ export default function SchoolPackagePanel({
                   >
                     {config.schoolWebEnabled
                       ? 'เปิดใช้งานเว็บโรงเรียน'
-                      : 'ปิดเว็บโรงเรียน (ใช้เฉพาะ Web ย่อยระบบวันลา)'}
+                      : 'ปิดเว็บโรงเรียน (ใช้เฉพาะระบบวันลา)'}
                   </span>
                 </div>
                 <p className="text-xs text-slate-600">
                   {config.schoolWebEnabled
-                    ? 'บุคลากรของโรงเรียนนี้สามารถกดแท็บ "เว็บโรงเรียน" บน PC และเข้าใช้งาน Module ย่อยที่เปิดไว้ด้านล่างได้'
-                    : 'ซ่อนแท็บ "เว็บโรงเรียน" บนแอประบบวันลาของโรงเรียนนี้ทั้งหมด (บุคลากรจะใช้งานได้เฉพาะแอประบบวันลาเท่านั้น)'}
+                    ? 'บุคลากรของโรงเรียนนี้สามารถกดเมนู "เว็บโรงเรียน" บนจอคอมและเข้าใช้งานระบบงานที่เปิดไว้ด้านล่างได้'
+                    : 'ซ่อนเมนู "เว็บโรงเรียน" บนแอประบบวันลาของโรงเรียนนี้ทั้งหมด (บุคลากรจะใช้งานได้เฉพาะแอประบบวันลาเท่านั้น)'}
                 </p>
               </div>
 
@@ -331,7 +331,7 @@ export default function SchoolPackagePanel({
                 <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
                 <div>
                   ขณะนี้ <strong>{schoolName}</strong> ถูกตั้งค่าให้ใช้งานเฉพาะ{' '}
-                  <strong>Web ย่อยระบบวันลา</strong> เท่านั้น แท็บ &ldquo;เว็บโรงเรียน&rdquo; จะถูกซ่อนจากหน้าจอ PC ของโรงเรียนนี้โดยอัตโนมัติ
+                  <strong>ระบบวันลา</strong> เท่านั้น เมนู &ldquo;เว็บโรงเรียน&rdquo; จะถูกซ่อนจากหน้าจอคอมของโรงเรียนนี้โดยอัตโนมัติ
                 </div>
               </div>
             )}
@@ -341,7 +341,7 @@ export default function SchoolPackagePanel({
               <div className="mb-3 flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-semibold text-ink">
-                    2. ฝ่ายงานที่อนุญาตให้โรงเรียนนี้มองเห็น ({enabledDivCount}/
+                    2. ฝ่ายงานที่เปิดให้โรงเรียนนี้ใช้งาน ({enabledDivCount}/
                     {SCHOOL_DIVISION_META.length} ฝ่าย)
                   </h3>
                   <p className="text-xs text-slate-500">
@@ -400,16 +400,16 @@ export default function SchoolPackagePanel({
               </div>
             </div>
 
-            {/* 3. Module ย่อยที่อนุญาตให้โรงเรียนนี้เห็น */}
+            {/* 3. ระบบงานที่อนุญาตให้โรงเรียนนี้เห็น */}
             <div>
               <div className="mb-3 flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-semibold text-ink">
-                    3. Module ย่อยที่อนุญาตให้โรงเรียนนี้มองเห็น ({enabledModCount}/
-                    {SCHOOL_MODULE_META.length} Module)
+                    3. ระบบงานที่เปิดให้โรงเรียนนี้ใช้งาน ({enabledModCount}/
+                    {SCHOOL_MODULE_META.length} ระบบงาน)
                   </h3>
                   <p className="text-xs text-slate-500">
-                    ติ๊กเลือกเฉพาะ Module ย่อยที่ต้องการเปิดให้โรงเรียนนี้ใช้งาน (Module ที่ไม่ติ๊กจะถูกซ่อนทั้งจากหน้าเว็บโรงเรียนและหน้าตั้งค่าของแอดมินโรงเรียน)
+                    ติ๊กเลือกเฉพาะระบบงานที่ต้องการเปิดให้โรงเรียนนี้ใช้งาน (รายการที่ไม่ติ๊กจะถูกซ่อนทั้งจากหน้าเว็บโรงเรียนและหน้าตั้งค่าของแอดมินโรงเรียน)
                   </p>
                 </div>
               </div>
@@ -443,7 +443,7 @@ export default function SchoolPackagePanel({
                               : 'bg-slate-200 text-slate-600'
                           }`}
                         >
-                          {allowed ? 'อนุญาตให้เห็น' : 'ซ่อนไม่ให้เห็น'}
+                          {allowed ? 'อนุญาตให้ใช้งาน' : 'ซ่อนไม่ให้เห็น'}
                         </span>
                       </div>
 
@@ -456,7 +456,7 @@ export default function SchoolPackagePanel({
                             ? 'border-brand-600 bg-brand-600 text-white'
                             : 'border-slate-300 bg-white text-transparent hover:border-slate-400'
                         } disabled:opacity-50`}
-                        aria-label={`เปิดหรือปิด Module ${mod.title}`}
+                        aria-label={`เปิดหรือปิดระบบงาน ${mod.title}`}
                       >
                         <Check className="h-3.5 w-3.5" strokeWidth={2.2} />
                       </button>

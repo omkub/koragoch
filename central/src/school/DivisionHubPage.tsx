@@ -76,7 +76,7 @@ export default function DivisionHubPage({
           </Link>
           {canEdit && (
             <Link to="/admin/mapping" className="btn-primary">
-              ตั้งค่าฝ่ายและ Module
+              ตั้งค่าฝ่ายและระบบงาน
             </Link>
           )}
         </div>
@@ -101,21 +101,21 @@ export default function DivisionHubPage({
         {canEdit && (
           <Link to="/admin/mapping" className="btn-secondary btn-sm shrink-0">
             <Settings2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-            <span>จัดการ Module ของฝ่ายนี้</span>
+            <span>จัดการระบบงานของฝ่ายนี้</span>
           </Link>
         )}
       </div>
 
-      {/* Module Switcher Tabs */}
+      {/* ระบบงานในฝ่าย */}
       {enabledModules.length === 0 ? (
         <div className="surface-card p-8 text-center">
           <p className="text-sm font-medium text-ink">
-            ยังไม่มี Module ที่เปิดใช้งานใน{division.name}
+            ยังไม่มีระบบงานที่เปิดใช้งานใน{division.name}
           </p>
           {canEdit && (
             <div className="mt-4">
               <Link to="/admin/mapping" className="btn-primary btn-sm">
-                ผูก Module เข้ากับฝ่ายนี้
+                เพิ่มระบบงานเข้าฝ่ายนี้
               </Link>
             </div>
           )}
@@ -273,7 +273,7 @@ function LeaveSystemModuleView({
             onClick={() => navigateToLeaveApp(mod.resolved_url || undefined)}
             className="btn-primary shrink-0"
           >
-            <span>เปิด Web ย่อยระบบวันลา</span>
+            <span>เปิดระบบวันลา</span>
             <ArrowUpRight className="h-4 w-4" strokeWidth={1.5} />
           </button>
         </div>
@@ -284,7 +284,7 @@ function LeaveSystemModuleView({
           <div className="flex items-center gap-2">
             <Settings2 className="h-[18px] w-[18px] text-brand-600" strokeWidth={1.5} />
             <h3 className="text-base font-semibold text-ink">
-              ตั้งค่าระบบวันลา (เชื่อมไปยังส่วนผู้ดูแลระบบกลาง)
+              ตั้งค่าระบบวันลาของโรงเรียน
             </h3>
           </div>
           <p className="mt-1 text-sm text-slate-600">
@@ -293,12 +293,12 @@ function LeaveSystemModuleView({
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Link
-              to="/user-permissions"
+              to="/admin/division-permissions"
               className="rounded-xl border border-line p-4 transition-colors hover:border-brand-200 hover:bg-slate-50"
             >
-              <p className="text-sm font-medium text-ink">สิทธิ์รายบุคคล (วันลา)</p>
+              <p className="text-sm font-medium text-ink">สิทธิ์การใช้งาน</p>
               <p className="mt-0.5 text-xs text-slate-500">
-                กำหนดสิทธิ์การอนุมัติและการเข้าถึงเมนูในระบบวันลา
+                กำหนดสิทธิ์ตามบทบาทและสิทธิ์รายบุคคล
               </p>
             </Link>
 
@@ -358,13 +358,13 @@ function ExternalOrCustomModuleView({
             rel={mod.open_mode === 'new_tab' ? 'noreferrer' : undefined}
             className="btn-primary shrink-0"
           >
-            <span>เปิดใช้งาน Web ย่อย</span>
+            <span>เปิดลิงก์ระบบงาน</span>
             <ArrowUpRight className="h-4 w-4" strokeWidth={1.5} />
           </a>
         ) : (
           canEdit && (
             <Link to="/admin/mapping" className="btn-secondary btn-sm shrink-0">
-              ตั้งค่าลิงก์ Web ย่อยของ Module นี้
+              ตั้งค่าลิงก์ของระบบงานนี้
             </Link>
           )
         )}
@@ -372,7 +372,7 @@ function ExternalOrCustomModuleView({
 
       {!mod.resolved_url && (
         <p className="mt-4 text-xs text-slate-500">
-          ยังไม่ได้ผูกลิงก์ Web ย่อยภายนอกสำหรับ Module นี้ สามารถกำหนด URL ได้ที่เมนู "จัดการฝ่ายและ Module" ในโหมดผู้ดูแลระบบกลาง
+          ยังไม่ได้ผูกลิงก์สำหรับระบบงานนี้ สามารถกำหนด URL ได้ที่เมนู "ฝ่ายและบุคลากร" ในหน้าตั้งค่าโรงเรียน
         </p>
       )}
     </section>

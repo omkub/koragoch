@@ -63,7 +63,7 @@ export const FALLBACK_CATALOG: ModuleCatalogItem[] = [
   {
     module_key: 'leave-system',
     title: 'ระบบวันลาและไปราชการ',
-    description: 'เปิดใช้งาน Web ย่อยระบบวันลา/ไปราชการ และตั้งค่าระบบวันลา',
+    description: 'ใช้งานระบบวันลา ไปราชการ และตั้งค่าระบบวันลา',
     module_type: 'builtin',
     default_division_key: 'hr',
     default_url: 'https://rbp-chanikarnn.web.app/',

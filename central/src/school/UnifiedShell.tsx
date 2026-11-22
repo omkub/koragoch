@@ -17,7 +17,6 @@ import {
   ScanFace,
   Settings,
   ShieldCheck,
-  UserCog,
   Users,
   Wallet,
   X,
@@ -36,10 +35,11 @@ import type { SchoolBasic } from './types';
  */
 export type ShellArea = 'school' | 'manage' | 'hq';
 
-const HQ_PREFIXES = ['/hq', '/schools', '/admins', '/role-permissions', '/leave-admin'];
+const HQ_PREFIXES = ['/hq', '/schools', '/admins', '/leave-admin'];
 const MANAGE_PREFIXES = [
   '/admin',
   '/user-permissions',
+  '/role-permissions',
   '/settings',
   '/staff',
   '/admin-positions',
@@ -101,8 +101,7 @@ const MANAGE_NAV: { label: string; items: NavItem[] }[] = [
     label: 'บุคลากรและสิทธิ์',
     items: [
       { to: '/admin/mapping', label: 'ฝ่ายและบุคลากร', icon: Layers },
-      { to: '/admin/division-permissions', label: 'สิทธิ์ตามบทบาท', icon: ShieldCheck },
-      { to: '/user-permissions', label: 'สิทธิ์รายบุคคล', icon: UserCog },
+      { to: '/admin/division-permissions', label: 'สิทธิ์การใช้งาน', icon: ShieldCheck },
     ],
   },
   {
@@ -136,10 +135,6 @@ const HQ_NAV: { label: string; items: NavItem[] }[] = [
       { to: '/hq/forms', label: 'แม่แบบฟอร์มกลาง', icon: FileText },
       { to: '/hq/line', label: 'LINE (สะพานเชื่อมกลาง)', icon: MessageCircle },
     ],
-  },
-  {
-    label: 'โรงเรียนที่เลือก',
-    items: [{ to: '/role-permissions', label: 'แพ็กเกจและเพดานสิทธิ์', icon: Settings }],
   },
 ];
 
@@ -208,12 +203,19 @@ export default function UnifiedShell({
             <div className="space-y-1">
               {items.map((item) => {
                 const Icon = item.icon;
+                const isUnifiedPermActive =
+                  item.to === '/admin/division-permissions' &&
+                  (matches(pathname, '/admin/division-permissions') ||
+                    matches(pathname, '/user-permissions') ||
+                    matches(pathname, '/role-permissions'));
                 return (
                   <NavLink
                     key={item.to}
                     to={item.to}
                     end={item.to === '/hq'}
-                    className={({ isActive }) => navClass(isActive)}
+                    className={({ isActive }) =>
+                      navClass(isActive || isUnifiedPermActive)
+                    }
                   >
                     <Icon className="h-[18px] w-[18px] shrink-0 text-slate-500" strokeWidth={1.5} />
                     <span className="truncate">{item.label}</span>
@@ -487,7 +489,7 @@ export default function UnifiedShell({
                 </button>
 
                 {notifOpen && (
-                  <div className="absolute right-0 top-12 z-30 w-80 rounded-xl border border-line bg-white p-3 shadow-lg">
+                  <div className="absolute right-0 top-12 z-30 w-[calc(100vw-2rem)] max-w-80 rounded-xl border border-line bg-white p-3 shadow-lg">
                     <p className="mb-2 px-1 text-xs font-medium text-slate-500">ประกาศล่าสุดของโรงเรียน</p>
                     {recentNotices.length === 0 ? (
                       <p className="px-1 py-3 text-xs text-slate-500">ยังไม่มีประกาศใหม่</p>
@@ -523,7 +525,7 @@ export default function UnifiedShell({
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-[1440px] flex-1 p-6 sm:p-8">{children}</main>
+        <main className="mx-auto w-full max-w-[1440px] flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
     </div>
   );

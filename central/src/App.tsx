@@ -18,8 +18,6 @@ import SchoolAdminsPage from './pages/SchoolAdminsPage';
 import StaffPage from './pages/StaffPage';
 import AdminPositionsPage from './pages/AdminPositionsPage';
 import LinePage from './pages/LinePage';
-import RolePermissionsPage from './pages/RolePermissionsPage';
-import UserPermissionsPage from './pages/UserPermissionsPage';
 import AttendancePage from './pages/AttendancePage';
 import FormDesignerPage from './pages/FormDesignerPage';
 import UnifiedShell from './school/UnifiedShell';
@@ -323,7 +321,12 @@ export default function App() {
     ? 'super_admin'
     : access.level === 'school'
       ? 'school_admin'
-      : inferRoleTierFromRoleName(userRoleName, false);
+      : inferRoleTierFromRoleName(
+          userRoleName,
+          false,
+          userRoleId,
+          roleDivModPerms,
+        );
 
   const roleLabel = `${ROLE_TIER_META[userRoleTier].shortLabel} (${userRoleName})`;
 
@@ -502,7 +505,16 @@ export default function App() {
             <Route
               path="/user-permissions"
               element={
-                <UserPermissionsPage access={access} lockedSchoolId={selectedSchoolId} />
+                <DivisionPermissionsPage
+                  school={currentSchool}
+                  schoolId={selectedSchoolId}
+                  canEdit={canEditSchool}
+                  isSuper={isSuper}
+                  divisions={divisions}
+                  hasDbMapping={hasDbMapping}
+                  onReload={loadSchoolContext}
+                  initialSection="individual"
+                />
               }
             />
           </>
@@ -545,7 +557,18 @@ export default function App() {
             <Route path="/admins" element={<SchoolAdminsPage />} />
             <Route
               path="/role-permissions"
-              element={<RolePermissionsPage lockedSchoolId={selectedSchoolId} />}
+              element={
+                <DivisionPermissionsPage
+                  school={currentSchool}
+                  schoolId={selectedSchoolId}
+                  canEdit={canEditSchool}
+                  isSuper={isSuper}
+                  divisions={divisions}
+                  hasDbMapping={hasDbMapping}
+                  onReload={loadSchoolContext}
+                  initialSection="package_ceiling"
+                />
+              }
             />
           </>
         )}

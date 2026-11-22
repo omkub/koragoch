@@ -23,7 +23,6 @@ import {
   fetchRoleDivisionModulePermissions,
   type RoleDivisionModulePermissions,
 } from './roleModulePermissions';
-import SchoolPackagePanel from './SchoolPackagePanel';
 import {
   fetchSchoolStaffMembers,
   getStaffAssignedDivisionKeys,
@@ -59,7 +58,6 @@ export default function DivisionMappingPage({
   school,
   schoolId,
   canEdit,
-  isSuper = false,
   catalog,
   divisions,
   hasDbMapping,
@@ -197,7 +195,7 @@ export default function DivisionMappingPage({
       nextRole === 'editor'
         ? 'เจ้าหน้าที่ประจำฝ่าย (แก้ไขข้อมูลได้)'
         : nextRole === 'member'
-          ? 'สมาชิกในฝ่าย (ดูและใช้งาน Module)'
+          ? 'สมาชิกในฝ่าย (ดูและใช้งานระบบงานในฝ่าย)'
           : 'นำออกจากฝ่าย';
     setMessage(`อัปเดตสังกัดของ "${staff.fullName}" เป็น "${roleLabel}" เรียบร้อยแล้ว`);
     await onReload();
@@ -216,7 +214,7 @@ export default function DivisionMappingPage({
     if (rpcErr) {
       setError(rpcErr.message);
     } else {
-      setMessage('สร้างโครงสร้างฝ่ายและ Module มาตรฐานให้โรงเรียนเรียบร้อยแล้ว');
+      setMessage('สร้างโครงสร้างฝ่ายและระบบงานมาตรฐานให้โรงเรียนเรียบร้อยแล้ว');
       await onReload();
     }
     setBusy(false);
@@ -455,17 +453,17 @@ export default function DivisionMappingPage({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-medium text-brand-600">
-            ส่วนผู้ดูแลระบบกลาง · โครงสร้างระบบโรงเรียนและการจัดสังกัดฝ่าย
+            ตั้งค่าโรงเรียน · โครงสร้างฝ่ายและการจัดสังกัดบุคลากร
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">
-            จัดการฝ่าย, Module ประจำฝ่าย และสังกัดบุคลากร
+            ฝ่าย, ระบบงานในฝ่าย และสังกัดบุคลากร
           </h1>
           <p className="mt-1 text-sm text-slate-600">
-            กำหนดโครงสร้างฝ่ายและ Module ของ{' '}
+            กำหนดโครงสร้างฝ่ายและระบบงานของ{' '}
             <span className="font-medium text-ink">
               {school?.fullName || `โรงเรียน #${schoolId ?? '-'}`}
             </span>{' '}
-            พร้อมระบุว่าบุคลากรแต่ละคนสังกัดอยู่ฝ่ายใด (อยู่ฝ่ายไหนจะมองเห็น Module ของฝ่ายนั้นอัตโนมัติ)
+            พร้อมระบุว่าบุคลากรแต่ละคนสังกัดอยู่ฝ่ายใด (อยู่ฝ่ายไหนจะมองเห็นระบบงานของฝ่ายนั้นอัตโนมัติ)
           </p>
         </div>
 
@@ -482,7 +480,7 @@ export default function DivisionMappingPage({
         )}
       </div>
 
-      {/* แถบสลับ Tab: [ 1. โครงสร้างฝ่าย & Module | 2. จัดสังกัดบุคลากรเข้าฝ่าย ] */}
+      {/* แถบสลับหมวด: [ 1. โครงสร้างฝ่าย & ระบบงาน | 2. จัดสังกัดบุคลากรเข้าฝ่าย ] */}
       <div className="flex flex-wrap gap-2 border-b border-line pb-3">
         <button
           type="button"
@@ -494,7 +492,7 @@ export default function DivisionMappingPage({
           }`}
         >
           <Layers className="h-4 w-4" strokeWidth={1.75} />
-          <span>1. จัดการฝ่ายและผูก Module ประจำฝ่าย</span>
+          <span>1. จัดการฝ่ายและระบบงานในฝ่าย</span>
         </button>
         <button
           type="button"
@@ -507,7 +505,7 @@ export default function DivisionMappingPage({
         >
           <Users className="h-4 w-4" strokeWidth={1.75} />
           <span>
-            2. จัดสังกัดบุคลากรเข้าฝ่าย (บุคลากร ↔ ฝ่าย · {staffList.length} คน)
+            2. จัดสังกัดบุคลากรเข้าฝ่าย ({staffList.length} คน)
           </span>
         </button>
       </div>
@@ -521,16 +519,6 @@ export default function DivisionMappingPage({
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
           {message}
         </div>
-      )}
-
-      {/* ส่วนกำหนดสิทธิ์ระดับโรงเรียน (เฉพาะ Super Admin แก้ไขได้) */}
-      {isSuper && activeTab === 'modules' && (
-        <SchoolPackagePanel
-          schoolId={schoolId}
-          schoolName={school?.fullName || `โรงเรียน #${schoolId ?? '-'}`}
-          canManage={isSuper}
-          onUpdated={onReload}
-        />
       )}
 
       {activeTab === 'modules' ? (
@@ -657,7 +645,7 @@ export default function DivisionMappingPage({
                           </p>
                         )}
                         <p className="mt-1.5 tabular-nums text-[11px] text-slate-400">
-                          เปิดใช้งาน {enabledModCount} จาก {div.modules.length} Module
+                          เปิดใช้งาน {enabledModCount} จาก {div.modules.length} ระบบงาน
                         </p>
                       </div>
 
@@ -704,7 +692,7 @@ export default function DivisionMappingPage({
           {/* Right 7 cols: Modules mapped to selected Division */}
           <section className="surface-card p-6 lg:col-span-7">
             {!activeDivision ? (
-              <p className="text-sm text-slate-500">เลือกฝ่ายทางซ้ายเพื่อดู Module</p>
+              <p className="text-sm text-slate-500">เลือกฝ่ายทางซ้ายเพื่อดูระบบงานในฝ่าย</p>
             ) : (
               <div className="space-y-5">
                 <div className="flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-center sm:justify-between">
@@ -712,11 +700,11 @@ export default function DivisionMappingPage({
                     <div className="flex items-center gap-2">
                       <Layers className="h-[18px] w-[18px] text-brand-600" strokeWidth={1.5} />
                       <h2 className="text-base font-semibold text-ink">
-                        2. Module ภายใต้ &ldquo;{activeDivision.name}&rdquo;
+                        2. ระบบงานใน &ldquo;{activeDivision.name}&rdquo;
                       </h2>
                     </div>
                     <p className="mt-0.5 text-xs text-slate-500">
-                      กำหนดว่าฝ่ายนี้มีระบบย่อยอะไรบ้าง บุคลากรที่สังกัดฝ่ายนี้จะมองเห็น Module เหล่านี้โดยอัตโนมัติ
+                      กำหนดว่าฝ่ายนี้มีระบบงานอะไรบ้าง บุคลากรที่สังกัดฝ่ายนี้จะมองเห็นและใช้งานได้โดยอัตโนมัติ
                     </p>
                   </div>
 
@@ -727,7 +715,7 @@ export default function DivisionMappingPage({
                       className="btn-secondary btn-sm shrink-0"
                     >
                       <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
-                      <span>{showAddExt ? 'ปิดฟอร์ม' : 'เพิ่ม Web ย่อยใหม่ในฝ่ายนี้'}</span>
+                      <span>{showAddExt ? 'ปิดฟอร์ม' : 'เพิ่มลิงก์ระบบงานในฝ่ายนี้'}</span>
                     </button>
                   )}
                 </div>
@@ -744,11 +732,11 @@ export default function DivisionMappingPage({
                       className="input flex-1 py-1.5 text-xs"
                     >
                       <option value="">
-                        + เลือก Module มาตรฐานมาใส่ในฝ่ายนี้...
+                        + เลือกระบบงานมาตรฐานมาใส่ในฝ่ายนี้...
                       </option>
                       {unassignedCatalog.map((c) => (
                         <option key={c.module_key} value={c.module_key}>
-                          {c.title} ({c.module_key})
+                          {c.title}
                         </option>
                       ))}
                     </select>
@@ -758,7 +746,7 @@ export default function DivisionMappingPage({
                       className="btn-primary btn-sm"
                     >
                       <Check className="h-3.5 w-3.5" strokeWidth={1.5} />
-                      <span>ผูกเข้ากับฝ่ายนี้</span>
+                      <span>เพิ่มเข้าฝ่ายนี้</span>
                     </button>
                   </form>
                 )}
@@ -771,7 +759,7 @@ export default function DivisionMappingPage({
                   >
                     <div>
                       <label className="mb-1 block text-xs font-medium text-ink">
-                        ชื่อ Module / Web ย่อย
+                        ชื่อระบบงาน
                       </label>
                       <input
                         type="text"
@@ -784,19 +772,19 @@ export default function DivisionMappingPage({
                     </div>
                     <div>
                       <label className="mb-1 block text-xs font-medium text-ink">
-                        รหัส Module (ไม่บังคับ)
+                        รหัสอ้างอิง (ไม่บังคับ)
                       </label>
                       <input
                         type="text"
                         value={extKey}
                         onChange={(e) => setExtKey(e.target.value)}
-                        placeholder="เช่น finance-subweb"
+                        placeholder="เช่น finance-system"
                         className="input"
                       />
                     </div>
                     <div className="sm:col-span-2">
                       <label className="mb-1 block text-xs font-medium text-ink">
-                        ลิงก์ Web ย่อย (URL)
+                        ลิงก์ระบบงาน (URL)
                       </label>
                       <input
                         type="url"
@@ -830,14 +818,14 @@ export default function DivisionMappingPage({
                         }
                         className="input"
                       >
-                        <option value="new_tab">เปิดแท็บใหม่</option>
+                        <option value="new_tab">เปิดหน้าต่างใหม่</option>
                         <option value="same_tab">เปิดหน้าต่างเดิม</option>
                       </select>
                     </div>
                     <div className="flex justify-end sm:col-span-2">
                       <button type="submit" disabled={busy} className="btn-primary btn-sm">
                         <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
-                        <span>บันทึก Web ย่อยในฝ่ายนี้</span>
+                        <span>บันทึกระบบงานในฝ่ายนี้</span>
                       </button>
                     </div>
                   </form>
@@ -846,7 +834,7 @@ export default function DivisionMappingPage({
                 {/* Mapped Modules List */}
                 {activeDivision.modules.length === 0 ? (
                   <p className="py-8 text-center text-sm text-slate-500">
-                    ยังไม่มี Module ที่ผูกไว้กับฝ่ายนี้
+                    ยังไม่มีระบบงานในฝ่ายนี้
                   </p>
                 ) : (
                   <div className="divide-y divide-line rounded-xl border border-line">
@@ -868,19 +856,19 @@ export default function DivisionMappingPage({
           </section>
         </div>
       ) : (
-        /* TAB 2: จัดสังกัดบุคลากรเข้าฝ่าย (บุคลากร <-> ฝ่าย) */
+        /* หมวดที่ 2: จัดสังกัดบุคลากรเข้าฝ่าย (บุคลากร <-> ฝ่าย) */
         <div className="space-y-5">
           {/* คำอธิบายหลักการทำงานของสังกัดฝ่าย */}
           <div className="rounded-2xl border border-brand-200 bg-brand-50/40 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="text-sm font-semibold text-ink">
-                  หลักการทำงาน: บุคลากรสังกัดฝ่ายไหน → มองเห็น Module ตามฝ่ายนั้นอัตโนมัติ
+                  หลักการทำงาน: บุคลากรสังกัดฝ่ายไหน → มองเห็นระบบงานตามฝ่ายนั้นอัตโนมัติ
                 </h2>
                 <p className="mt-1 text-xs text-slate-600">
-                  1) <strong>ผู้ใช้งาน (ครู/บุคลากร)</strong>: เมื่อถูกผูกเข้ากับฝ่ายใด จะมองเห็นเฉพาะฝ่ายของตัวเองและใช้งาน Module ทั้งหมดที่ผูกอยู่กับฝ่ายนั้นโดยอัตโนมัติ (สามารถสังกัดได้มากกว่า 1 ฝ่าย)
+                  1) <strong>ผู้ใช้งาน (ครู/บุคลากร)</strong>: เมื่อถูกผูกเข้ากับฝ่ายใด จะมองเห็นเฉพาะฝ่ายของตัวเองและใช้งานระบบงานทั้งหมดที่อยู่ในฝ่ายนั้นโดยอัตโนมัติ (สามารถสังกัดได้มากกว่า 1 ฝ่าย)
                   <br />
-                  2) <strong>ผู้บริหาร / Admin โรงเรียน / Super Admin</strong>: มองเห็นครบทุกฝ่ายของโรงเรียนโดยอัตโนมัติ
+                  2) <strong>ผู้บริหาร / แอดมินโรงเรียน / ผู้ดูแลส่วนกลาง</strong>: มองเห็นครบทุกฝ่ายของโรงเรียนโดยอัตโนมัติ
                 </p>
               </div>
             </div>
@@ -933,11 +921,11 @@ export default function DivisionMappingPage({
                             {div.name}
                           </p>
                           <p className="mt-0.5 text-xs text-slate-500">
-                            Module ประจำฝ่าย:{' '}
+                            ระบบงานในฝ่าย:{' '}
                             {div.modules
                               .filter((m) => m.is_enabled)
                               .map((m) => m.title)
-                              .join(', ') || 'ยังไม่มี Module'}
+                              .join(', ') || 'ยังไม่มีระบบงาน'}
                           </p>
                         </div>
                         <span className="shrink-0 rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-semibold text-brand-700">
@@ -969,7 +957,7 @@ export default function DivisionMappingPage({
                           จัดบุคลากรเข้า &ldquo;{activeDivision.name}&rdquo;
                         </h2>
                         <p className="mt-0.5 text-xs text-slate-500">
-                          บุคลากรที่อยู่ในฝ่ายนี้จะมองเห็น Module:{' '}
+                          บุคลากรที่อยู่ในฝ่ายนี้จะใช้งานระบบงาน:{' '}
                           <span className="font-medium text-ink">
                             {activeDivision.modules
                               .filter((m) => m.is_enabled)
@@ -1032,6 +1020,8 @@ export default function DivisionMappingPage({
                         const tier = inferRoleTierFromRoleName(
                           staff.roleName,
                           staff.is_super_admin,
+                          staff.id_role,
+                          permState,
                         );
                         const tierMeta = ROLE_TIER_META[tier];
                         const memberRole = getStaffDivisionMemberRole(
@@ -1104,7 +1094,7 @@ export default function DivisionMappingPage({
 
                             {/* ปุ่มเลือกสังกัดในฝ่ายนี้ */}
                             {!isAutoFullAdmin && (
-                              <div className="inline-flex shrink-0 items-center gap-1.5">
+                              <div className="inline-flex flex-wrap shrink-0 items-center gap-1.5">
                                 <button
                                   type="button"
                                   disabled={!canEdit || isSaving}
@@ -1222,7 +1212,7 @@ function ModuleRowItem({
                 rel="noreferrer"
                 className="inline-flex items-center gap-1 truncate text-xs text-brand-600 hover:underline"
               >
-                <span>Web ย่อย: {mod.resolved_url}</span>
+                <span>ลิงก์: {mod.resolved_url}</span>
                 <ExternalLink className="h-3 w-3 shrink-0" strokeWidth={1.5} />
               </a>
             </div>
@@ -1239,13 +1229,13 @@ function ModuleRowItem({
               }}
               className="rounded-lg border border-line px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
             >
-              {editingUrl ? 'ยกเลิก' : 'ตั้งค่าลิงก์ Web ย่อย'}
+              {editingUrl ? 'ยกเลิก' : 'ตั้งค่าลิงก์'}
             </button>
             <button
               type="button"
               disabled={busy}
               onClick={onToggle}
-              title={mod.is_enabled ? 'ปิด Module นี้' : 'เปิด Module นี้'}
+              title={mod.is_enabled ? 'ปิดระบบงานนี้' : 'เปิดระบบงานนี้'}
               className={`rounded-lg border p-1.5 transition-colors ${
                 mod.is_enabled
                   ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
@@ -1273,7 +1263,7 @@ function ModuleRowItem({
             type="url"
             value={urlVal}
             onChange={(e) => setUrlVal(e.target.value)}
-            placeholder="https://... (เว้นว่างหากไม่มี Web ย่อยภายนอก)"
+            placeholder="https://... (เว้นว่างหากไม่มีลิงก์ภายนอก)"
             className="input py-1.5 text-xs"
           />
           <button

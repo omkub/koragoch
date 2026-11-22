@@ -546,13 +546,13 @@ export default function OrderWordPreviewPane({
       </div>
 
       {/* Scrollable Paper Workspace */}
-      <div className="max-h-[82vh] overflow-auto bg-slate-100 p-3 sm:p-6">
+      <div className="max-h-[82vh] overflow-auto bg-slate-100 p-2.5 sm:p-6">
         <div
           style={{
             transform: `scale(${zoom / 100})`,
             transformOrigin: 'top center',
           }}
-          className="mx-auto min-h-[840px] w-full max-w-[680px] rounded-sm border border-slate-300 bg-white pt-10 pb-14 pr-7 pl-10 text-[15px] leading-[1.6] text-ink shadow-sm transition-transform sm:pr-10 sm:pl-14"
+          className="mx-auto min-h-[840px] w-full max-w-[680px] overflow-x-auto rounded-sm border border-slate-300 bg-white px-4 pt-8 pb-12 text-[14px] leading-[1.6] text-ink shadow-sm transition-transform sm:pt-10 sm:pb-14 sm:pr-10 sm:pl-14 sm:text-[15px]"
         >
           {/* ส่วนหัว: ตราครุฑ / คำสั่ง / ที่ .../... / เรื่อง..... / เส้นคั่น */}
           <div className="text-center">
