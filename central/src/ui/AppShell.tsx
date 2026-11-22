@@ -274,7 +274,7 @@ export default function AppShell({ isSuper, children }: { isSuper: boolean; chil
             </a>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-[1440px] min-w-0 flex-1 px-4 pb-12 pt-5 sm:px-7">{children}</main>
+        <main className="w-full min-w-0 flex-1 px-4 pb-12 pt-5 sm:px-6">{children}</main>
       </div>
     </div>
   );
