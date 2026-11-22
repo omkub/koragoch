@@ -27,6 +27,7 @@ import SchoolSettingsPage from './school/SchoolSettingsPage';
 import DivisionMappingPage from './school/DivisionMappingPage';
 import DivisionPermissionsPage from './school/DivisionPermissionsPage';
 import PublicSchoolWebPage from './school/PublicSchoolWebPage';
+import PublicWebSettingsPage from './school/PublicWebSettingsPage';
 import {
   FALLBACK_CATALOG,
   fetchSchoolDivisionTree,
@@ -34,6 +35,7 @@ import {
   type ModuleCatalogItem,
 } from './school/mapping';
 import {
+  canUserManagePublicSchoolWeb,
   fetchRoleDivisionModulePermissions,
   type RoleDivisionModulePermissions,
 } from './school/roleModulePermissions';
@@ -286,6 +288,18 @@ export default function App() {
   const currentSchoolPreview =
     schools.find((s) => s.id_school === selectedSchoolId) ?? null;
 
+  const canManagePublicWebPreview = Boolean(
+    session &&
+      canUserManagePublicSchoolWeb({
+        perms: roleDivModPerms,
+        roleId: userRoleId,
+        idUser: currentUserId,
+        isSuper: access?.level === 'super',
+        isAdminRole:
+          access?.level === 'super' || access?.level === 'school',
+      }),
+  );
+
   // หน้าเว็บโรงเรียนสำหรับคนนอกดู (Public Web) — เข้าดูได้ทันทีโดยไม่ต้องล็อกอิน
   if (pathname === '/public' || pathname.startsWith('/public/')) {
     return (
@@ -297,6 +311,7 @@ export default function App() {
               school={currentSchoolPreview}
               schools={schools}
               isLoggedIn={Boolean(session)}
+              canManagePublicWeb={canManagePublicWebPreview}
             />
           }
         />
@@ -307,6 +322,7 @@ export default function App() {
               school={currentSchoolPreview}
               schools={schools}
               isLoggedIn={Boolean(session)}
+              canManagePublicWeb={canManagePublicWebPreview}
             />
           }
         />
@@ -350,6 +366,14 @@ export default function App() {
 
   const roleLabel = `${ROLE_TIER_META[userRoleTier].shortLabel} (${userRoleName})`;
 
+  const canManagePublicWeb = canUserManagePublicSchoolWeb({
+    perms: roleDivModPerms,
+    roleId: userRoleId,
+    idUser: currentUserId,
+    isSuper,
+    isAdminRole: canEditSchool || userRoleTier === 'school_admin',
+  });
+
   // ตรวจสอบว่าบุคลากรคนนี้มีสิทธิ์เข้าถึง Web โรงเรียนหรือไม่
   const userWebOverride =
     currentUserId !== null
@@ -359,6 +383,7 @@ export default function App() {
     userRoleId !== null ? (roleWebAccessByRole[userRoleId] ?? true) : true;
   const canUserAccessSchoolWeb =
     canEditSchool ||
+    canManagePublicWeb ||
     (userWebOverride !== undefined ? userWebOverride : roleDefaultWebAccess);
 
   // กรณีที่โรงเรียนปิดการใช้งานเว็บโรงเรียน หรือบุคลากรคนนี้ไม่มีสิทธิ์เข้าถึง Web โรงเรียน
@@ -437,6 +462,7 @@ export default function App() {
         supabase.auth.signOut();
       }}
       divisions={visibleDivisions}
+      canManagePublicWeb={canManagePublicWeb}
       isEmbedded={isEmbeddedInLeaveApp()}
     >
       <Routes>
@@ -448,8 +474,31 @@ export default function App() {
               school={currentSchool}
               schoolId={selectedSchoolId}
               canEdit={canEditSchool}
+              canManagePublicWeb={canManagePublicWeb}
               academicLabel={academicLabel}
               divisions={visibleDivisions}
+            />
+          }
+        />
+
+        {/* หน้าตั้งค่าเว็บโรงเรียนสาธารณะ (สำหรับผู้ดูแลส่วนกลาง / แอดมินโรงเรียน / ครูผู้ดูแลเว็บโรงเรียน) */}
+        <Route
+          path="/public-web-settings"
+          element={
+            <PublicWebSettingsPage
+              school={currentSchool}
+              schoolId={selectedSchoolId}
+              canManage={canManagePublicWeb}
+            />
+          }
+        />
+        <Route
+          path="/admin/public-web"
+          element={
+            <PublicWebSettingsPage
+              school={currentSchool}
+              schoolId={selectedSchoolId}
+              canManage={canManagePublicWeb}
             />
           }
         />

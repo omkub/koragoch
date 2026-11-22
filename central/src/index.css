@@ -89,4 +89,31 @@
   .seg > button.active {
     @apply bg-white font-semibold text-brand-700 shadow-sm ring-1 ring-slate-200/60;
   }
+
+  /* ── สไตล์หน้าเว็บโรงเรียนสาธารณะ (Public Web) ───────────── */
+  .material-symbols-outlined {
+    font-variation-settings:
+      'FILL' 0,
+      'wght' 400,
+      'GRAD' 0,
+      'opsz' 24;
+    display: inline-block;
+    vertical-align: middle;
+  }
+  .hero-mesh {
+    background: linear-gradient(
+      135deg,
+      #00236f 0%,
+      #1e3a8a 60%,
+      #004469 100%
+    );
+  }
+  .glass-header {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+  .ambient-shadow {
+    box-shadow: 0 12px 32px rgba(13, 28, 46, 0.06);
+  }
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, ExternalLink, Globe, Layers, ShieldCheck } from 'lucide-react';
+import { ArrowRight, ExternalLink, Globe, Layers, Settings, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../supabase';
 import AnnouncementsSection from './AnnouncementsSection';
@@ -10,6 +10,7 @@ interface SchoolDashboardPageProps {
   school: SchoolBasic | null;
   schoolId: number | null;
   canEdit: boolean;
+  canManagePublicWeb?: boolean;
   academicLabel: string;
   divisions: DivisionWithModules[];
 }
@@ -18,6 +19,7 @@ export default function SchoolDashboardPage({
   school,
   schoolId,
   canEdit,
+  canManagePublicWeb = false,
   academicLabel,
   divisions,
 }: SchoolDashboardPageProps) {
@@ -104,6 +106,12 @@ export default function SchoolDashboardPage({
             <Globe className="h-3.5 w-3.5" strokeWidth={1.5} />
             <span>ดูหน้าเว็บสาธารณะ (คนนอกดู)</span>
           </Link>
+          {canManagePublicWeb && (
+            <Link to="/public-web-settings" className="btn-secondary btn-sm">
+              <Settings className="h-3.5 w-3.5 text-emerald-600" strokeWidth={1.5} />
+              <span>ตั้งค่าเว็บสาธารณะ</span>
+            </Link>
+          )}
           {canEdit && (
             <>
               <Link

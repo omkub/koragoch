@@ -73,3 +73,10 @@ SQL อยู่ใน `supabase/school_web_*.sql` (รันซ้ำได้ 
 ## ดีไซน์
 
 ชุดสี / ตัวอักษรกลางของ app อยู่ที่ `lib/theme/app_tokens.dart` (สีหลักน้ำเงินกรมท่า `#1E3A8A`, Sarabun, สถานะเป็นตรายาง `StatusStamp`) — web ใช้ชุดเดียวกันใน `central/tailwind.config.js` (`brand`) ห้ามเพิ่มสี hex เองในหน้าจอ
+
+**ข้อยกเว้น: หน้าเว็บสาธารณะ** (`/public`, `PublicSchoolWebPage.tsx`) ใช้ชุดสี / ฟอนต์ตามแบบ `webschool.html` (สี `surface-*` `primary-*` `secondary-*` ฯลฯ ใน `tailwind.config.js`, ฟอนต์ Noto Sans Thai / Prompt, ไอคอน Material Symbols) ใช้ได้เฉพาะหน้านี้ หน้าอื่นของ web ยังใช้ `brand` + Sarabun
+
+## เว็บสาธารณะ (`/public`)
+
+- ข้อมูลหน้าเว็บ: `SchoolPublicWebConfigs` (jsonb แถวเดียวต่อโรงเรียน, **ทุกคนอ่านได้** — ห้ามใส่ข้อมูลส่วนตัว) · ข้อความติดต่อ: `SchoolPublicWebMessages` (anon insert ได้อย่างเดียว) · โค้ด `publicWebConfig.ts`
+- สิทธิ์ตั้งค่า: `can_manage_public_school_web` (`supabase/school_public_web.sql`) ↔ `canUserManagePublicSchoolWeb` ใน `roleModulePermissions.ts` — แก้ที่หนึ่งต้องแก้อีกที่

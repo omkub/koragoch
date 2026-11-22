@@ -10,7 +10,7 @@
 
 ## คำตอบเจ้าของระบบ (ใช้เป็นหลักออกแบบ)
 
-1. ไม่มีเว็บสาธารณะของโรงเรียน
+1. ~~ไม่มีเว็บสาธารณะของโรงเรียน~~ → เปลี่ยนแล้ว (2026-11-22): มีหน้าเว็บสาธารณะ `/public` ตามแบบ `webschool.html`
 2. แอดมินโรงเรียนจัดการได้เฉพาะโรงเรียนตัวเอง
 3. ระบบวันลาเป็นระบบย่อยของโรงเรียน ครูต้องได้รับสิทธิ์ฝ่ายจากแอดมินโรงเรียนก่อนจึงเข้าเว็บโรงเรียนได้
 4. ครูใช้ได้ทั้ง PC และมือถือ
@@ -30,6 +30,8 @@
 | #107 | รวมหน้าสิทธิ์ 3 หน้าเป็นหน้า "สิทธิ์การใช้งาน" + คำภาษาผู้ใช้ ("ระบบงาน" / "เมนู") · หน้าซับซ้อนใช้บนมือถือได้ · ระดับสิทธิ์ (`SchoolRoleTier`) ผูกกับบทบาทในฐานข้อมูล (menu_id -601 / -602) | — |
 | #108 | F10: CI `flutter analyze` บล็อก deploy เมื่อมี error (warning / info ไม่บล็อก) | — |
 | #109 | F4: สิทธิ์ "แก้ไข" ฝ่าย / ระบบงาน บังคับในฐานข้อมูล (`can_edit_school_web`) · F5: สิทธิ์ของ web เหลือแหล่งเดียวคือ `Permissions` (เลิกใช้ `SchoolWebRoleDivisionAccess`) · F9: ตาราง `SchemaMigrations` · แก้กฎ `Permissions_menu_id_range` (เดิม 0–10 ทำให้สิทธิ์ web ทุกตัวบันทึกไม่ลง) | `schema_migrations.sql` ✅ · `school_web_division_edit.sql` ✅ |
+| #111 | หน้า `/public` รุ่นแรก (ข้อมูลตัวอย่าง) | — |
+| #112 | หน้าเว็บโรงเรียนสาธารณะสำหรับคนนอกดู (`#/public`, `#/public/:schoolId`) ครบ 6 หน้าตามต้นฉบับ `webschool.html` + หน้าตั้งค่าข้อมูลเว็บสาธารณะ (`#/public-web-settings`) สำหรับ 3 กลุ่มสิทธิ์ (ผู้ดูแลส่วนกลาง / แอดมินโรงเรียน / ครูผู้ดูแลเว็บโรงเรียน) · กล่องข้อความติดต่อเก็บในฐานข้อมูล (`SchoolPublicWebMessages`) | `school_public_web.sql` |
 
 ### โครง web 3 พื้นที่ (`central/src/school/UnifiedShell.tsx`)
 
@@ -49,6 +51,7 @@
 - สะพานเชื่อม LINE กลาง (`Settings.webhookUrl`) อยู่ที่ `/hq/line` ใช้ร่วมทุกโรงเรียน
 - ถ้ารัน `attendance_permissions.sql` / `official_trips_permissions.sql` ซ้ำ กฎ `Permissions_menu_id_range` จะกลับเป็น 0–10 → ต้องรัน `school_web_division_edit.sql` ซ้ำ
 - ลำดับตัดสินสิทธิ์อยู่ 2 ที่: web (`roleModulePermissions.ts` / `staffDivisionMapping.ts`) และฐานข้อมูล (`can_edit_school_web`) แก้ที่หนึ่งต้องแก้อีกที่ให้ตรงกัน
+- ถ้าส่วนกลางปิดระบบงาน `public-web-settings` ในแพ็กเกจ ฐานข้อมูลยังไม่เช็กเพดานแพ็กเกจ (ครูที่ได้สิทธิ์ยังบันทึกได้)
 - SQL ใหม่ทุกไฟล์จบด้วย `insert into "SchemaMigrations"(name) ...` (ดู README)
 
 ## รอทดสอบหลัง deploy

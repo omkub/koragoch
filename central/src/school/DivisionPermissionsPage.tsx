@@ -25,8 +25,10 @@ import PermMatrix, { SaveBar } from '../ui/PermMatrix';
 import type { DivisionWithModules } from './mapping';
 import {
   fetchRoleDivisionModulePermissions,
+  PUBLIC_WEB_SETTINGS_MODULE_KEY,
   resolveModuleAccessLevel,
   resolveUserModuleOverrideLevel,
+  saveRoleModuleAccessLevel,
   saveUserModuleOverride,
   saveUserSchoolWebTabOverride,
   type AccessLevel,
@@ -167,7 +169,7 @@ export default function DivisionPermissionsPage({
     [divisions],
   );
   const allModuleKeys = useMemo(() => {
-    const set = new Set<string>();
+    const set = new Set<string>([PUBLIC_WEB_SETTINGS_MODULE_KEY]);
     for (const d of divisions) {
       for (const m of d.modules) set.add(m.module_key);
     }
@@ -378,6 +380,48 @@ export default function DivisionPermissionsPage({
     setMessage({
       type: 'ok',
       text: `ตั้งค่าระดับสิทธิ์ของบทบาท "${role.Accessrights}" เป็น "${ROLE_TIER_META[nextTier].shortLabel}" เรียบร้อยแล้ว`,
+    });
+    await onReload();
+  }
+
+  async function handleToggleRolePublicWebSettings(
+    role: Role,
+    canManagePublicWeb: boolean,
+  ) {
+    if (!schoolId || !canEdit || role.ID_Roles === ADMIN_ROLE_ID) return;
+    const key = `pubweb:${role.ID_Roles}`;
+    setBusyKey(key);
+    setMessage(null);
+
+    const { error } = await saveRoleModuleAccessLevel({
+      schoolId,
+      roleId: role.ID_Roles,
+      moduleKey: PUBLIC_WEB_SETTINGS_MODULE_KEY,
+      level: canManagePublicWeb ? 'edit' : 'hidden',
+    });
+
+    setBusyKey(null);
+    if (error) {
+      setMessage({
+        type: 'err',
+        text: `บันทึกสิทธิ์ตั้งค่าเว็บสาธารณะของบทบาทไม่สำเร็จ: ${error}`,
+      });
+      return;
+    }
+
+    setPermState((prev) => ({
+      ...prev,
+      moduleByRole: {
+        ...prev.moduleByRole,
+        [`${role.ID_Roles}:${PUBLIC_WEB_SETTINGS_MODULE_KEY}`]: {
+          can_view: canManagePublicWeb,
+          can_edit: canManagePublicWeb,
+        },
+      },
+    }));
+    setMessage({
+      type: 'ok',
+      text: `${canManagePublicWeb ? 'เปิด' : 'ปิด'}สิทธิ์ตั้งค่าเว็บสาธารณะสำหรับบทบาท "${role.Accessrights}" เรียบร้อยแล้ว`,
     });
     await onReload();
   }
@@ -875,6 +919,49 @@ export default function DivisionPermissionsPage({
                           </option>
                         </select>
                       </div>
+
+                      <div className="flex items-center justify-between gap-2 border-t border-line/70 pt-2">
+                        <span className="text-[11px] text-slate-500">
+                          ตั้งค่าเว็บสาธารณะของโรงเรียน:
+                        </span>
+                        {(() => {
+                          const rolePublicWeb =
+                            tier === 'school_admin' ||
+                            tier === 'super_admin' ||
+                            Boolean(
+                              permState.moduleByRole[
+                                `${role.ID_Roles}:${PUBLIC_WEB_SETTINGS_MODULE_KEY}`
+                              ]?.can_edit,
+                            );
+                          const isLockedByAdminTier =
+                            tier === 'school_admin' ||
+                            tier === 'super_admin' ||
+                            isAdminRole;
+                          return (
+                            <button
+                              type="button"
+                              disabled={
+                                !canEdit ||
+                                isLockedByAdminTier ||
+                                busyKey === `pubweb:${role.ID_Roles}`
+                              }
+                              onClick={() =>
+                                handleToggleRolePublicWebSettings(
+                                  role,
+                                  !rolePublicWeb,
+                                )
+                              }
+                              className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                                rolePublicWeb
+                                  ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                              } disabled:opacity-60`}
+                            >
+                              {rolePublicWeb ? 'ตั้งค่าได้' : 'ไม่ได้'}
+                            </button>
+                          );
+                        })()}
+                      </div>
                     </div>
                   );
                 })}
@@ -1119,6 +1206,72 @@ export default function DivisionPermissionsPage({
                         );
                       })}
                     </div>
+                  </div>
+
+                  {/* หน้าที่ตั้งค่าหน้าเว็บโรงเรียนสาธารณะ (สำหรับครูผู้รับผิดชอบเว็บโรงเรียน) */}
+                  <div className="flex flex-col gap-3 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-ink">
+                        หน้าที่ตั้งค่า &ldquo;หน้าเว็บโรงเรียนสาธารณะ (Public Web)&rdquo;
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        มอบหมายให้ครูท่านนี้สามารถแก้ไขข่าวประชาสัมพันธ์ ทำเนียบบุคลากร และข้อมูลบนหน้าเว็บโรงเรียนที่คนนอกดูได้
+                      </p>
+                    </div>
+
+                    {(() => {
+                      const pubWebOverride = resolveUserModuleOverrideLevel(
+                        permState,
+                        selectedStaff.id_user,
+                        PUBLIC_WEB_SETTINGS_MODULE_KEY,
+                      );
+                      return (
+                        <div className="inline-flex flex-wrap items-center gap-1.5">
+                          {(
+                            [
+                              { val: 'inherit', label: 'ตามบทบาท' },
+                              {
+                                val: 'edit',
+                                label: 'มอบหมายให้ตั้งค่าเว็บสาธารณะได้',
+                              },
+                              { val: 'hidden', label: 'ไม่อนุญาต' },
+                            ] as { val: UserOverrideLevel; label: string }[]
+                          ).map((opt) => {
+                            const active =
+                              pubWebOverride === opt.val ||
+                              (opt.val === 'edit' && pubWebOverride === 'view');
+                            return (
+                              <button
+                                key={opt.val}
+                                type="button"
+                                disabled={
+                                  !canEdit ||
+                                  busyKey ===
+                                    `mod:${PUBLIC_WEB_SETTINGS_MODULE_KEY}`
+                                }
+                                onClick={() =>
+                                  handleSaveUserSystemLevel(
+                                    selectedStaff,
+                                    PUBLIC_WEB_SETTINGS_MODULE_KEY,
+                                    'ตั้งค่าหน้าเว็บโรงเรียนสาธารณะ',
+                                    opt.val,
+                                  )
+                                }
+                                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                                  active
+                                    ? opt.val === 'hidden'
+                                      ? 'border-slate-700 bg-slate-700 text-white'
+                                      : 'border-emerald-600 bg-emerald-600 text-white'
+                                    : 'border-line bg-white text-slate-600 hover:bg-slate-50'
+                                } disabled:opacity-50`}
+                              >
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* สิทธิ์รายระบบงานในเว็บโรงเรียนเฉพาะคน */}

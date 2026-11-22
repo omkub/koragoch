@@ -131,6 +131,17 @@ export const FALLBACK_CATALOG: ModuleCatalogItem[] = [
     is_active: true,
   },
   {
+    module_key: 'public-web-settings',
+    title: 'ตั้งค่าหน้าเว็บโรงเรียนสาธารณะ',
+    description:
+      'จัดการข่าวประชาสัมพันธ์ ทำเนียบบุคลากร ข้อมูลนักเรียน ข้อมูลโรงเรียน และช่องทางติดต่อบนหน้าเว็บสำหรับคนนอกดู',
+    module_type: 'builtin',
+    default_division_key: 'admin',
+    default_url: null,
+    sort_order: 3,
+    is_active: true,
+  },
+  {
     module_key: 'finance-budget',
     title: 'งบประมาณ การเงิน และพัสดุ',
     description: 'ระบบบริหารงบประมาณ การเงิน และครุภัณฑ์ของโรงเรียน',
