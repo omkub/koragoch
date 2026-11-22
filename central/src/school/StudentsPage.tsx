@@ -18,7 +18,6 @@ import {
   Printer,
   Save,
   Search,
-  Sparkles,
   Trash2,
   UserCheck,
   Users,
@@ -46,10 +45,12 @@ import {
 } from './sgsGradingStore';
 import type {
   Classroom,
+  SchoolDepartment,
   Student,
   StudentStatus,
   Subject,
   TeacherOption,
+  TeachingSchedule,
 } from './types';
 
 interface StudentsPageProps {
@@ -74,12 +75,31 @@ function inferGradeLevelFromClassroomName(name: string | undefined): SgsGradeLev
   return 'ม.1';
 }
 
+function matchLearningAreaName(deptName: string | undefined): SgsLearningArea {
+  if (!deptName) return 'วิทยาศาสตร์และเทคโนโลยี';
+  if (deptName.includes('ภาษาไทย')) return 'ภาษาไทย';
+  if (deptName.includes('คณิต')) return 'คณิตศาสตร์';
+  if (deptName.includes('วิทย์') || deptName.includes('วิทยาศาสตร์') || deptName.includes('เทคโนโลยี'))
+    return 'วิทยาศาสตร์และเทคโนโลยี';
+  if (deptName.includes('สังคม')) return 'สังคมศึกษา ศาสนา และวัฒนธรรม';
+  if (deptName.includes('สุขศึกษา') || deptName.includes('พลศึกษา'))
+    return 'สุขศึกษาและพลศึกษา';
+  if (deptName.includes('ศิลปะ')) return 'ศิลปะ';
+  if (deptName.includes('การงาน')) return 'การงานอาชีพ';
+  if (deptName.includes('ต่างประเทศ') || deptName.includes('อังกฤษ'))
+    return 'ภาษาต่างประเทศ';
+  if (deptName.includes('กิจกรรม')) return 'กิจกรรมพัฒนาผู้เรียน';
+  return 'วิทยาศาสตร์และเทคโนโลยี';
+}
+
 export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
   const [tab, setTab] = useState<MainTab>('registry');
   const [students, setStudents] = useState<Student[]>([]);
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [teachers, setTeachers] = useState<TeacherOption[]>([]);
   const [dbSubjects, setDbSubjects] = useState<Subject[]>([]);
+  const [dbDepartments, setDbDepartments] = useState<SchoolDepartment[]>([]);
+  const [dbSchedules, setDbSchedules] = useState<TeachingSchedule[]>([]);
   const [profilesByStudentId, setProfilesByStudentId] = useState<
     Record<number, StudentPersonalProfile>
   >({});
@@ -159,39 +179,75 @@ export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
     setLoading(true);
     setError(null);
 
-    const [stuRes, clsRes, tchRes, guardRes, subRes, loadedProfiles, loadedGrades] =
-      await Promise.all([
-        supabase
-          .from('SchoolWebStudents')
-          .select(
-            'id, id_school, student_code, prefix, first_name, last_name, classroom_id, guardian_name, guardian_phone, status',
-          )
-          .eq('id_school', schoolId)
-          .order('student_code', { ascending: true }),
-        supabase
-          .from('SchoolWebClassrooms')
-          .select(
-            'id, id_school, academic_year_id, grade_level, room_no, name, advisor_teacher_id, is_active',
-          )
-          .eq('id_school', schoolId)
-          .order('name', { ascending: true }),
-        supabase
-          .from('Teachers')
-          .select('id_user, fullName')
-          .eq('id_school', schoolId)
-          .order('fullName', { ascending: true }),
-        supabase
-          .from('SchoolWebStudentGuardians')
-          .select('student_id, guardian_name, guardian_phone')
-          .eq('id_school', schoolId),
-        supabase
-          .from('SchoolWebSubjects')
-          .select('id, id_school, code, name, department_id, credits, is_active')
-          .eq('id_school', schoolId)
-          .order('code', { ascending: true }),
-        fetchSchoolStudentProfiles(schoolId),
-        fetchSchoolSgsGrades(schoolId),
-      ]);
+    const [
+      stuRes,
+      clsRes,
+      tchRes,
+      guardRes,
+      subRes,
+      deptRes,
+      schedRes,
+      yearRes,
+      termRes,
+      loadedProfiles,
+      loadedGrades,
+    ] = await Promise.all([
+      supabase
+        .from('SchoolWebStudents')
+        .select(
+          'id, id_school, student_code, prefix, first_name, last_name, classroom_id, guardian_name, guardian_phone, status',
+        )
+        .eq('id_school', schoolId)
+        .order('student_code', { ascending: true }),
+      supabase
+        .from('SchoolWebClassrooms')
+        .select(
+          'id, id_school, academic_year_id, grade_level, room_no, name, advisor_teacher_id, is_active',
+        )
+        .eq('id_school', schoolId)
+        .order('name', { ascending: true }),
+      supabase
+        .from('Teachers')
+        .select('id_user, fullName')
+        .eq('id_school', schoolId)
+        .order('fullName', { ascending: true }),
+      supabase
+        .from('SchoolWebStudentGuardians')
+        .select('student_id, guardian_name, guardian_phone')
+        .eq('id_school', schoolId),
+      supabase
+        .from('SchoolWebSubjects')
+        .select('id, id_school, code, name, department_id, credits, is_active')
+        .eq('id_school', schoolId)
+        .order('code', { ascending: true }),
+      supabase
+        .from('SchoolDepartments')
+        .select('id, id_school, code, name, category, sort_order, is_active')
+        .eq('id_school', schoolId),
+      supabase
+        .from('SchoolWebTeachingSchedules')
+        .select(
+          'id, id_school, academic_term_id, classroom_id, subject_id, teacher_id, day_of_week, period_no, room_name',
+        )
+        .eq('id_school', schoolId),
+      supabase
+        .from('AcademicYears')
+        .select('year_be, is_current')
+        .eq('id_school', schoolId)
+        .order('is_current', { ascending: false })
+        .order('year_be', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('AcademicTerms')
+        .select('term_no, is_current')
+        .eq('id_school', schoolId)
+        .order('is_current', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      fetchSchoolStudentProfiles(schoolId),
+      fetchSchoolSgsGrades(schoolId),
+    ]);
 
     const clsList = (!clsRes.error ? (clsRes.data as Classroom[] | null) : null) ?? [];
     setClassrooms(clsList);
@@ -200,6 +256,19 @@ export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
     }
     if (!subRes.error) {
       setDbSubjects((subRes.data as Subject[] | null) ?? []);
+    }
+    if (!deptRes.error) {
+      setDbDepartments((deptRes.data as SchoolDepartment[] | null) ?? []);
+    }
+    if (!schedRes.error) {
+      setDbSchedules((schedRes.data as TeachingSchedule[] | null) ?? []);
+    }
+    if (!yearRes.error && yearRes.data && (yearRes.data as { year_be?: number }).year_be) {
+      setSgsYearBe(Number((yearRes.data as { year_be: number }).year_be));
+    }
+    if (!termRes.error && termRes.data && (termRes.data as { term_no?: number }).term_no) {
+      const tNo = Number((termRes.data as { term_no: number }).term_no);
+      if (tNo === 1 || tNo === 2) setSgsTermNo(tNo);
     }
 
     const clsNameById = new Map<number, string>();
@@ -287,24 +356,60 @@ export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
     return map;
   }, [teachers]);
 
-  // รายวิชาที่มีให้เลือกในชั้นปีและภาคเรียนที่เลือก (รวมรายวิชามาตรฐาน SGS + รายวิชาใน DB)
+  const deptMap = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const d of dbDepartments) map.set(d.id, d.name);
+    return map;
+  }, [dbDepartments]);
+
+  // รายวิชาที่มีให้เลือกในชั้นปีและภาคเรียนที่เลือก (นำรายวิชาจริงของโรงเรียนใน SchoolWebSubjects ขึ้นก่อน ตามด้วยรายวิชามาตรฐาน)
   const availableSubjectsForGradeTerm = useMemo(() => {
-    const std = getStandardSubjectsForGradeTerm(sgsGradeLevel, sgsTermNo);
-    const list = [...std];
-    for (const dbSub of dbSubjects) {
-      if (!list.some((x) => x.code === dbSub.code)) {
-        list.push({
+    const realSubjects = dbSubjects
+      .filter((s) => s.is_active !== false)
+      .map((dbSub) => {
+        const deptName = dbSub.department_id
+          ? deptMap.get(dbSub.department_id)
+          : undefined;
+        const cr = Number(dbSub.credits) || 1.0;
+        const isAct = cr === 0 || (deptName ?? '').includes('กิจกรรม');
+        return {
           code: dbSub.code,
           name: dbSub.name,
-          learning_area: 'วิทยาศาสตร์และเทคโนโลยี',
-          subject_type: 'พื้นฐาน',
-          credits: Number(dbSub.credits) || 1.0,
-          total_hours: (Number(dbSub.credits) || 1.0) * 40,
-        });
+          learning_area: matchLearningAreaName(deptName || dbSub.name),
+          subject_type: (isAct ? 'กิจกรรม' : 'พื้นฐาน') as SgsSubjectType,
+          credits: cr,
+          total_hours: isAct ? 60 : Math.max(20, Math.round(cr * 40)),
+          isFromDb: true,
+        };
+      });
+
+    const std = getStandardSubjectsForGradeTerm(sgsGradeLevel, sgsTermNo).map(
+      (s) => ({ ...s, isFromDb: false }),
+    );
+
+    const list = [...realSubjects];
+    for (const item of std) {
+      if (!list.some((x) => x.code === item.code)) {
+        list.push(item);
       }
     }
     return list;
-  }, [sgsGradeLevel, sgsTermNo, dbSubjects]);
+  }, [sgsGradeLevel, sgsTermNo, dbSubjects, deptMap]);
+
+  // หาชื่อครูผู้สอนจริงจากตารางสอน (SchoolWebTeachingSchedules) ของห้องและวิชานี้
+  const scheduledTeacherNameForActiveSubject = useMemo(() => {
+    const targetSub = dbSubjects.find((s) => s.code === sgsSubjectCode);
+    if (!targetSub) return undefined;
+    const cid = sgsClassroomId !== 'all' ? Number(sgsClassroomId) : null;
+    const match = dbSchedules.find(
+      (sch) =>
+        sch.subject_id === targetSub.id &&
+        (cid === null || sch.classroom_id === cid) &&
+        sch.teacher_id != null,
+    );
+    if (!match || match.teacher_id == null) return undefined;
+    return teacherMap.get(match.teacher_id);
+  }, [dbSubjects, dbSchedules, sgsSubjectCode, sgsClassroomId, teacherMap]);
 
   // เมื่อเปลี่ยนชั้นปีหรือภาคเรียนในหน้าบันทึกคะแนน SGS ให้เลือกรายวิชาแรกของชั้นปีนั้นอัตโนมัติ
   const handleSelectGradeOrTermForSgs = (
@@ -314,8 +419,22 @@ export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
     setSgsGradeLevel(nextGrade);
     setSgsTermNo(nextTerm);
     const std = getStandardSubjectsForGradeTerm(nextGrade, nextTerm);
-    if (std.length > 0) {
-      const first = std[0];
+    const first =
+      dbSubjects.length > 0
+        ? {
+            code: dbSubjects[0].code,
+            name: dbSubjects[0].name,
+            learning_area: matchLearningAreaName(
+              dbSubjects[0].department_id
+                ? deptMap.get(dbSubjects[0].department_id)
+                : dbSubjects[0].name,
+            ),
+            subject_type: 'พื้นฐาน' as SgsSubjectType,
+            credits: Number(dbSubjects[0].credits) || 1.0,
+            total_hours: (Number(dbSubjects[0].credits) || 1.0) * 40,
+          }
+        : std[0];
+    if (first) {
       setSgsSubjectCode(first.code);
       setSgsSubjectName(first.name);
       setSgsLearningArea(first.learning_area);
@@ -625,70 +744,6 @@ export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
     });
   }
 
-  function handleAutoFillSampleScoresForRoom() {
-    if (!schoolId) return;
-    setGradebookDraft((prev) => {
-      const next: Record<number, SgsScoreRecord> = { ...prev };
-      gradebookStudents.forEach((stu, idx) => {
-        const row = next[stu.id];
-        if (!row) return;
-        const seed = (stu.id * 13 + idx * 7) % 19;
-        const preW = Math.min(
-          maxPreMidWork,
-          Math.round(maxPreMidWork * (0.72 + (seed % 5) * 0.06)),
-        );
-        const preNb = Math.min(
-          maxPreMidNotebook,
-          Math.round(maxPreMidNotebook * (0.75 + (seed % 4) * 0.06)),
-        );
-        const mid = Math.min(
-          maxMidterm,
-          Math.round(maxMidterm * (0.65 + (seed % 6) * 0.05)),
-        );
-        const postW = Math.min(
-          maxPostMidWork,
-          Math.round(maxPostMidWork * (0.7 + ((seed + 2) % 5) * 0.06)),
-        );
-        const postNb = Math.min(
-          maxPostMidNotebook,
-          Math.round(maxPostMidNotebook * (0.8 + (seed % 3) * 0.08)),
-        );
-        const aff = maxAffective;
-        const fin = Math.min(
-          maxFinal,
-          Math.round(maxFinal * (0.62 + (seed % 7) * 0.05)),
-        );
-
-        next[stu.id] = {
-          ...row,
-          max_pre_mid_work: maxPreMidWork,
-          max_pre_mid_notebook: maxPreMidNotebook,
-          max_midterm: maxMidterm,
-          max_post_mid_work: maxPostMidWork,
-          max_post_mid_notebook: maxPostMidNotebook,
-          max_affective: maxAffective,
-          max_final: maxFinal,
-          pre_mid_work: preW,
-          pre_mid_notebook: preNb,
-          midterm_score: mid,
-          post_mid_work: postW,
-          post_mid_notebook: postNb,
-          affective_score: aff,
-          final_score: fin,
-          attended_hours: Math.max(0, sgsTotalHours - (seed % 3)),
-          total_hours: sgsTotalHours,
-          reading_thinking_writing: 3,
-          desirable_characteristics: 3,
-          special_status: sgsSubjectType === 'กิจกรรม' ? 'ผ' : '',
-        };
-      });
-      return next;
-    });
-    setNotice(
-      'เติมคะแนนตัวอย่าง (คะแนนเก็บ, สมุด, กลางภาค, ปลายภาค) และคำนวณเกรดอัตโนมัติเรียบร้อยแล้ว กด "บันทึกคะแนน SGS" เพื่อบันทึก',
-    );
-  }
-
   async function handleSaveGradebook() {
     if (!schoolId) return;
     setBusy(true);
@@ -716,6 +771,8 @@ export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
         max_affective: Number(maxAffective) || 0,
         max_final: Number(maxFinal) || 0,
         total_hours: Number(sgsTotalHours) || 40,
+        teacher_name:
+          scheduledTeacherNameForActiveSubject ?? r.teacher_name ?? undefined,
       }));
 
     const gradeRes = await saveSgsGradeRecords(schoolId, recordsToSave);
@@ -1323,16 +1380,10 @@ export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                {canEdit && (
-                  <button
-                    type="button"
-                    onClick={handleAutoFillSampleScoresForRoom}
-                    disabled={busy || gradebookStudents.length === 0}
-                    className="btn-secondary btn-sm"
-                  >
-                    <Sparkles className="h-3.5 w-3.5 text-amber-600" />
-                    <span>เติมคะแนนตัวอย่างทั้งห้อง</span>
-                  </button>
+                {scheduledTeacherNameForActiveSubject && (
+                  <span className="badge-brand">
+                    ครูผู้สอนตามตารางสอน: {scheduledTeacherNameForActiveSubject}
+                  </span>
                 )}
                 <button
                   type="button"
@@ -1445,6 +1496,7 @@ export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
                 >
                   {availableSubjectsForGradeTerm.map((sub) => (
                     <option key={sub.code} value={sub.code}>
+                      {sub.isFromDb ? '★ [วิชาโรงเรียน] ' : ''}
                       {sub.code} — {sub.name} ({sub.credits} นก.)
                     </option>
                   ))}

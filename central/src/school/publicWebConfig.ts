@@ -815,35 +815,590 @@ export function loadLocalPublicWebConfig(
 export async function fetchPublicSchoolWebConfig(
   schoolId: number | null | undefined,
 ): Promise<PublicSchoolWebConfig> {
-  const localConfig = loadLocalPublicWebConfig(schoolId);
-  if (!schoolId) return localConfig;
+  let baseConfig = loadLocalPublicWebConfig(schoolId);
+  let hasSavedCustomRow = false;
 
-  try {
-    const { data, error } = await supabase
-      .from('SchoolPublicWebConfigs')
-      .select('config_json')
-      .eq('id_school', schoolId)
-      .maybeSingle();
+  if (schoolId) {
+    try {
+      const { data, error } = await supabase
+        .from('SchoolPublicWebConfigs')
+        .select('config_json')
+        .eq('id_school', schoolId)
+        .maybeSingle();
 
-    if (!error && data && data.config_json) {
-      const merged = mergeWithDefaultPublicWebConfig(
-        data.config_json as Partial<PublicSchoolWebConfig>,
-      );
-      try {
-        window.localStorage.setItem(
-          getStorageKey(schoolId),
-          JSON.stringify(merged),
+      if (!error && data && data.config_json) {
+        hasSavedCustomRow = true;
+        baseConfig = mergeWithDefaultPublicWebConfig(
+          data.config_json as Partial<PublicSchoolWebConfig>,
         );
-      } catch {
-        // ignore storage quota errors
       }
-      return merged;
+    } catch {
+      // ignore if table not created yet
     }
-  } catch {
-    // หากยังไม่ได้รัน SQL สร้างตาราง SchoolPublicWebConfigs ให้ใช้ค่าจาก localStorage / ค่าเริ่มต้น
   }
 
-  return localConfig;
+  // ดึงข้อมูลจริงจากฐานข้อมูล (Schools, Teachers, SchoolWebStudents, SchoolWebClassrooms, SchoolWebAnnouncements)
+  const enriched = await enrichConfigWithRealDatabaseData(
+    schoolId,
+    baseConfig,
+    hasSavedCustomRow,
+  );
+
+  if (schoolId) {
+    try {
+      window.localStorage.setItem(
+        getStorageKey(schoolId),
+        JSON.stringify(enriched),
+      );
+    } catch {
+      // ignore quota error
+    }
+  }
+
+  return enriched;
+}
+
+interface RealtimeStaffRow {
+  id_user: number;
+  fullName: string | null;
+  roleName: string | null;
+  adminRoleName?: string | null;
+  profileImage?: string | null;
+}
+
+interface RealtimeAnnouncementRow {
+  id: number;
+  title: string;
+  content: string | null;
+  category: 'general' | 'academic' | 'hr' | string;
+  is_pinned: boolean;
+  published_at: string;
+}
+
+interface RealtimeSchoolPayload {
+  ok?: boolean;
+  school?: {
+    id_school: number;
+    namePart1?: string | null;
+    namePart2?: string | null;
+    fullName?: string | null;
+    affiliation?: string | null;
+    localCode?: string | null;
+    address?: string | null;
+    subdistrict?: string | null;
+    district?: string | null;
+    province?: string | null;
+    logo?: string | null;
+  } | null;
+  academicYearBe?: number | null;
+  academicYearLabel?: string | null;
+  staffCount?: number;
+  staffList?: RealtimeStaffRow[];
+  studentCount?: number;
+  classroomCount?: number;
+  gradeStats?: PublicGradeStatItem[];
+  planStats?: PublicStudyPlanItem[];
+  announcements?: RealtimeAnnouncementRow[];
+}
+
+function classifyTeacherDepartment(roleText: string): {
+  dept: Exclude<StaffDeptFilter, 'all'>;
+  badgeText: string;
+  tone: PublicStaffItem['deptBadgeTone'];
+} {
+  const t = roleText.toLowerCase();
+  if (t.includes('ภาษาไทย')) {
+    return {
+      dept: 'thai',
+      badgeText: 'กลุ่มสาระฯ ภาษาไทย',
+      tone: 'secondary',
+    };
+  }
+  if (t.includes('คณิต')) {
+    return {
+      dept: 'math',
+      badgeText: 'กลุ่มสาระฯ คณิตศาสตร์',
+      tone: 'tertiary',
+    };
+  }
+  if (t.includes('วิทย์') || t.includes('วิทยาศาสตร์') || t.includes('คอมพิวเตอร์') || t.includes('เทคโนโลยี')) {
+    return {
+      dept: 'science',
+      badgeText: 'วิทยาศาสตร์และเทคโนโลยี',
+      tone: 'primary',
+    };
+  }
+  if (t.includes('สังคม') || t.includes('ประวัติ')) {
+    return {
+      dept: 'social',
+      badgeText: 'สังคมศึกษา ศาสนา และวัฒนธรรม',
+      tone: 'secondary',
+    };
+  }
+  if (t.includes('อังกฤษ') || t.includes('ภาษาต่างประเทศ') || t.includes('จีน')) {
+    return {
+      dept: 'foreign',
+      badgeText: 'กลุ่มสาระฯ ภาษาต่างประเทศ',
+      tone: 'tertiary',
+    };
+  }
+  if (t.includes('ธุรการ') || t.includes('สนับสนุน') || t.includes('เจ้าหน้าที่') || t.includes('การเงิน') || t.includes('พัสดุ')) {
+    return {
+      dept: 'support',
+      badgeText: 'สายสนับสนุนการสอน',
+      tone: 'primary',
+    };
+  }
+  return {
+    dept: 'science',
+    badgeText: roleText || 'ข้าราชการครูและบุคลากร',
+    tone: 'primary',
+  };
+}
+
+async function fetchRealtimePayloadForSchool(
+  schoolId: number | null | undefined,
+): Promise<RealtimeSchoolPayload | null> {
+  // 1) ลองเรียกผ่าน RPC get_public_school_realtime_data (ใช้ได้ทั้ง anon และ authenticated)
+  try {
+    const rpcRes = await supabase.rpc('get_public_school_realtime_data', {
+      target_school: schoolId ?? null,
+    });
+    if (!rpcRes.error && rpcRes.data && (rpcRes.data as RealtimeSchoolPayload).ok) {
+      return rpcRes.data as RealtimeSchoolPayload;
+    }
+  } catch {
+    // fallback ด้านล่างหากยังไม่ได้รัน school_web_realtime_public.sql
+  }
+
+  if (!schoolId) return null;
+
+  // 2) Fallback ดึงจากตารางจริงโดยตรง (เมื่อล็อกอินอยู่ หรือตารางเปิดให้อ่านได้)
+  try {
+    const [
+      schoolRes,
+      yearRes,
+      teachersRes,
+      rolesRes,
+      adminRolesRes,
+      clsRes,
+      stuRes,
+      profRes,
+      annRes,
+    ] = await Promise.all([
+      supabase.from('Schools').select('*').eq('id_school', schoolId).maybeSingle(),
+      supabase
+        .from('AcademicYears')
+        .select('year_be, label, is_current')
+        .eq('id_school', schoolId)
+        .order('is_current', { ascending: false })
+        .order('year_be', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('Teachers')
+        .select('id_user, fullName, id_role, id_adminrole, is_super_admin, employment_status, profileImage')
+        .eq('id_school', schoolId)
+        .order('fullName', { ascending: true }),
+      supabase.from('roles').select('ID_Roles, Accessrights'),
+      supabase.from('adminroles').select('ID_AdminRoles, AdminRolesName').eq('id_school', schoolId),
+      supabase
+        .from('SchoolWebClassrooms')
+        .select('id, grade_level, room_no, name, is_active')
+        .eq('id_school', schoolId),
+      supabase
+        .from('SchoolWebStudents')
+        .select('id, prefix, classroom_id, status')
+        .eq('id_school', schoolId)
+        .eq('status', 'enrolled'),
+      supabase
+        .from('SchoolWebStudentProfiles')
+        .select('student_id, gender, study_plan')
+        .eq('id_school', schoolId),
+      supabase
+        .from('SchoolWebAnnouncements')
+        .select('id, title, content, category, is_pinned, published_at')
+        .eq('id_school', schoolId)
+        .order('is_pinned', { ascending: false })
+        .order('published_at', { ascending: false })
+        .limit(12),
+    ]);
+
+    const roleMap = new Map<number, string>();
+    for (const r of (rolesRes.data as { ID_Roles: number; Accessrights: string }[] | null) ?? []) {
+      roleMap.set(r.ID_Roles, r.Accessrights);
+    }
+
+    const adminRoleMap = new Map<number, string>();
+    for (const ar of (adminRolesRes.data as { ID_AdminRoles: number; AdminRolesName: string | null }[] | null) ?? []) {
+      if (ar.AdminRolesName) adminRoleMap.set(ar.ID_AdminRoles, ar.AdminRolesName);
+    }
+
+    const rawTeachers =
+      (teachersRes.data as {
+        id_user: number;
+        fullName: string | null;
+        id_role: number | null;
+        id_adminrole?: number | null;
+        is_super_admin?: boolean | null;
+        employment_status?: string | null;
+        profileImage?: string | null;
+      }[] | null) ?? [];
+
+    const activeTeachers = rawTeachers.filter(
+      (t) =>
+        !t.is_super_admin &&
+        (!t.employment_status || t.employment_status === 'active'),
+    );
+
+    const staffList: RealtimeStaffRow[] = activeTeachers.map((t) => ({
+      id_user: t.id_user,
+      fullName: t.fullName,
+      roleName:
+        (t.id_role != null ? roleMap.get(t.id_role) : null) ??
+        'ข้าราชการครูและบุคลากร',
+      adminRoleName:
+        t.id_adminrole != null ? adminRoleMap.get(t.id_adminrole) ?? null : null,
+      profileImage: t.profileImage ?? null,
+    }));
+
+    const clsList = (
+      (clsRes.data as {
+        id: number;
+        grade_level: string;
+        is_active: boolean;
+      }[] | null) ?? []
+    ).filter((c) => c.is_active !== false);
+
+    const clsGradeById = new Map<number, string>();
+    const roomsByGrade = new Map<string, number>();
+    for (const c of clsList) {
+      clsGradeById.set(c.id, c.grade_level);
+      roomsByGrade.set(
+        c.grade_level,
+        (roomsByGrade.get(c.grade_level) ?? 0) + 1,
+      );
+    }
+
+    const profByStu = new Map<
+      number,
+      { gender?: string | null; study_plan?: string | null }
+    >();
+    for (const p of (profRes.data as {
+      student_id: number;
+      gender?: string | null;
+      study_plan?: string | null;
+    }[] | null) ?? []) {
+      profByStu.set(p.student_id, p);
+    }
+
+    const stuList =
+      (stuRes.data as {
+        id: number;
+        prefix: string | null;
+        classroom_id: number | null;
+      }[] | null) ?? [];
+
+    const gradeCounter = new Map<string, { male: number; female: number }>();
+    const planCounter = new Map<string, number>();
+
+    for (const st of stuList) {
+      const gLevel =
+        (st.classroom_id ? clsGradeById.get(st.classroom_id) : null) || 'ม.1';
+      const prof = profByStu.get(st.id);
+      const isFemale =
+        prof?.gender === 'หญิง' ||
+        (st.prefix ?? '').includes('หญิง') ||
+        (st.prefix ?? '').includes('นางสาว');
+
+      const prevG = gradeCounter.get(gLevel) ?? { male: 0, female: 0 };
+      if (isFemale) prevG.female += 1;
+      else prevG.male += 1;
+      gradeCounter.set(gLevel, prevG);
+
+      const planName = prof?.study_plan?.trim() || 'ทั่วไป (มัธยมศึกษา)';
+      planCounter.set(planName, (planCounter.get(planName) ?? 0) + 1);
+    }
+
+    const gradeStats: PublicGradeStatItem[] = [
+      'ม.1',
+      'ม.2',
+      'ม.3',
+      'ม.4',
+      'ม.5',
+      'ม.6',
+    ].map((badge, idx) => {
+      const counts = gradeCounter.get(badge) ?? { male: 0, female: 0 };
+      return {
+        badge,
+        title: `ชั้นมัธยมศึกษาปีที่ ${idx + 1}`,
+        roomsCount: roomsByGrade.get(badge) ?? 0,
+        male: counts.male,
+        female: counts.female,
+        isSenior: idx >= 3,
+      };
+    });
+
+    const planStats: PublicStudyPlanItem[] = [...planCounter.entries()].map(
+      ([label, count], idx) => ({
+        id: `plan-real-${idx + 1}`,
+        label,
+        countLabel: `${count.toLocaleString('th-TH')} คน`,
+      }),
+    );
+
+    const yearRow = yearRes.data as { year_be?: number; label?: string } | null;
+
+    return {
+      ok: true,
+      school: (schoolRes.data as RealtimeSchoolPayload['school']) ?? null,
+      academicYearBe: yearRow?.year_be ?? null,
+      academicYearLabel: yearRow?.label ?? null,
+      staffCount: staffList.length,
+      staffList,
+      studentCount: stuList.length,
+      classroomCount: clsList.length,
+      gradeStats,
+      planStats,
+      announcements:
+        (annRes.data as RealtimeAnnouncementRow[] | null) ?? [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function enrichConfigWithRealDatabaseData(
+  schoolId: number | null | undefined,
+  config: PublicSchoolWebConfig,
+  hasSavedCustomRow: boolean,
+): Promise<PublicSchoolWebConfig> {
+  const payload = await fetchRealtimePayloadForSchool(schoolId);
+  if (!payload) return config;
+
+  const d = DEFAULT_PUBLIC_SCHOOL_WEB_CONFIG;
+  const next: PublicSchoolWebConfig = JSON.parse(
+    JSON.stringify(config),
+  ) as PublicSchoolWebConfig;
+
+  // 1) ข้อมูลโรงเรียนจริงจากตาราง Schools
+  if (payload.school) {
+    const s = payload.school;
+    if (
+      s.localCode?.trim() &&
+      (!hasSavedCustomRow || next.about.smisCode === d.about.smisCode)
+    ) {
+      next.about.smisCode = s.localCode.trim();
+    }
+
+    const composedShortLoc = [
+      s.subdistrict?.trim() && `ต.${s.subdistrict.trim().replace(/^ตำบล/, '')}`,
+      s.district?.trim() && `อ.${s.district.trim().replace(/^อำเภอ/, '')}`,
+      s.province?.trim() && `จ.${s.province.trim().replace(/^จังหวัด/, '')}`,
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    if (
+      composedShortLoc &&
+      (!hasSavedCustomRow ||
+        next.contact.shortLocation === d.contact.shortLocation)
+    ) {
+      next.contact.shortLocation = composedShortLoc;
+    }
+
+    const realAddr =
+      s.address?.trim() ||
+      [
+        s.subdistrict?.trim() && `ตำบล${s.subdistrict.trim().replace(/^ตำบล/, '')}`,
+        s.district?.trim() && `อำเภอ${s.district.trim().replace(/^อำเภอ/, '')}`,
+        s.province?.trim() && `จังหวัด${s.province.trim().replace(/^จังหวัด/, '')}`,
+      ]
+        .filter(Boolean)
+        .join(' ');
+
+    if (
+      realAddr &&
+      (!hasSavedCustomRow || next.contact.address === d.contact.address)
+    ) {
+      next.contact.address = realAddr;
+    }
+  }
+
+  // 2) ปีการศึกษาปัจจุบันจริง
+  if (payload.academicYearBe) {
+    next.staff.academicYearLabel = String(payload.academicYearBe);
+  }
+
+  // 3) ข้อมูลบุคลากรและผู้บริหารจริงจากตาราง Teachers + adminroles + roles
+  if (
+    typeof payload.staffCount === 'number' &&
+    payload.staffCount > 0 &&
+    Array.isArray(payload.staffList) &&
+    payload.staffList.length > 0
+  ) {
+    next.home.stats.staffCount = payload.staffCount;
+    next.staff.totalStaffLabel = `${payload.staffCount.toLocaleString('th-TH')} ท่าน`;
+
+    const realExecs: PublicStaffItem[] = [];
+    const realTeachers: PublicStaffItem[] = [];
+
+    for (const raw of payload.staffList) {
+      const fullName = (raw.fullName ?? '').trim();
+      if (!fullName) continue;
+      const adminRole = (raw.adminRoleName ?? '').trim();
+      const normalRole = (raw.roleName ?? 'ข้าราชการครูและบุคลากร').trim();
+      const effectiveTitle = adminRole || normalRole;
+
+      const isDir =
+        effectiveTitle.includes('ผู้อำนวยการ') &&
+        !effectiveTitle.includes('รอง');
+      const isVp = effectiveTitle.includes('รองผู้อำนวยการ');
+
+      if (isDir || isVp) {
+        realExecs.push({
+          id: `real-exec-${raw.id_user}`,
+          name: fullName,
+          role: effectiveTitle,
+          dept: 'executive',
+          deptBadgeText: isDir
+            ? 'ผู้อำนวยการสถานศึกษา'
+            : effectiveTitle,
+          deptBadgeTone: 'primary',
+          imageUrl:
+            raw.profileImage?.trim() ||
+            (isDir
+              ? d.staff.executives[0]?.imageUrl
+              : d.staff.executives[1]?.imageUrl) ||
+            'https://images.unsplash.com/photo-1643284461591-7fd5fc242ef7?auto=format&fit=crop&w=800&q=80',
+          isDirector: isDir,
+          isViceDirector: isVp,
+          quote: isDir ? d.staff.executives[0]?.quote : undefined,
+        });
+      } else {
+        const classified = classifyTeacherDepartment(effectiveTitle);
+        realTeachers.push({
+          id: `real-staff-${raw.id_user}`,
+          name: fullName,
+          role: effectiveTitle,
+          dept: classified.dept,
+          deptBadgeText: classified.badgeText,
+          deptBadgeTone: classified.tone,
+          imageUrl:
+            raw.profileImage?.trim() ||
+            'https://images.unsplash.com/photo-1580894732230-28cef47eb8d3?auto=format&fit=crop&w=800&q=80',
+        });
+      }
+    }
+
+    const isDefaultExecs =
+      next.staff.executives.length === d.staff.executives.length &&
+      next.staff.executives[0]?.name === d.staff.executives[0]?.name;
+    if (realExecs.length > 0 && (!hasSavedCustomRow || isDefaultExecs)) {
+      next.staff.executives = realExecs;
+    }
+
+    const realDir = realExecs.find((e) => e.isDirector) ?? realExecs[0];
+    if (
+      realDir &&
+      (!hasSavedCustomRow || next.home.director.name === d.home.director.name)
+    ) {
+      next.home.director.name = realDir.name;
+      next.home.director.position = realDir.role;
+      if (realDir.imageUrl) {
+        next.home.director.imageUrl = realDir.imageUrl;
+      }
+    }
+
+    const isDefaultTeachers =
+      next.staff.teachingStaff.length === d.staff.teachingStaff.length &&
+      next.staff.teachingStaff[0]?.name === d.staff.teachingStaff[0]?.name;
+    if (
+      (realTeachers.length > 0 || realExecs.length > 0) &&
+      (!hasSavedCustomRow || isDefaultTeachers)
+    ) {
+      next.staff.teachingStaff =
+        realTeachers.length > 0 ? realTeachers : realExecs;
+    }
+  }
+
+  // 4) สถิตินักเรียนจริงจากตาราง SchoolWebStudents + SchoolWebClassrooms + SchoolWebStudentProfiles
+  if (
+    (typeof payload.studentCount === 'number' && payload.studentCount > 0) ||
+    (typeof payload.classroomCount === 'number' && payload.classroomCount > 0)
+  ) {
+    if (payload.studentCount && payload.studentCount > 0) {
+      next.home.stats.studentsCount = payload.studentCount;
+    }
+    const isDefaultGrades =
+      next.students.grades.length === d.students.grades.length &&
+      next.students.grades[0]?.male === d.students.grades[0]?.male &&
+      next.students.grades[0]?.female === d.students.grades[0]?.female;
+    if (
+      Array.isArray(payload.gradeStats) &&
+      payload.gradeStats.length > 0 &&
+      (!hasSavedCustomRow || isDefaultGrades)
+    ) {
+      next.students.grades = payload.gradeStats;
+    }
+    if (
+      Array.isArray(payload.planStats) &&
+      payload.planStats.length > 0 &&
+      (!hasSavedCustomRow || isDefaultGrades)
+    ) {
+      next.students.studyPlans = payload.planStats;
+    }
+  }
+
+  // 5) ข่าวประกาศจริงจากตาราง SchoolWebAnnouncements
+  if (Array.isArray(payload.announcements) && payload.announcements.length > 0) {
+    const existingIds = new Set(next.news.map((n) => n.id));
+    const mappedAnnouncements: PublicNewsItem[] = payload.announcements
+      .filter((a) => !existingIds.has(`db-ann-${a.id}`))
+      .map((a, idx) => {
+        const isAcad = a.category === 'academic';
+        const dateStr = a.published_at
+          ? new Date(a.published_at).toLocaleDateString('th-TH', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+            })
+          : 'ประกาศล่าสุด';
+        return {
+          id: `db-ann-${a.id}`,
+          cat: isAcad ? 'academic' : 'activity',
+          badgeText: isAcad ? 'ข่าววิชาการ' : 'ประกาศโรงเรียน',
+          badgeStyle: isAcad ? 'tertiary' : 'primary',
+          dateLabel: dateStr,
+          title: a.title,
+          summary: a.content || a.title,
+          imageUrl:
+            d.news[idx % d.news.length]?.imageUrl ||
+            'https://images.unsplash.com/photo-1650525217641-891e936d3486?auto=format&fit=crop&w=1080&q=80',
+          imageAlt: a.title,
+          author: isAcad ? 'ฝ่ายวิชาการและกิจการนักเรียน' : 'ฝ่ายบริหารทั่วไป',
+          authorRole: 'ประกาศโรงเรียน',
+          isFeatured: Boolean(a.is_pinned && idx === 0),
+          showOnHome: true,
+          homeOrder: idx + 1,
+          fullParagraphs: (a.content || a.title)
+            .split('\n')
+            .map((p) => p.trim())
+            .filter(Boolean),
+        };
+      });
+
+    if (mappedAnnouncements.length > 0) {
+      // หากมีประกาศที่ปักหมุดในระบบโรงเรียน ให้ขึ้นเป็นข่าวเด่น
+      const hasPinnedDb = mappedAnnouncements.some((m) => m.isFeatured);
+      const existingNews = hasPinnedDb
+        ? next.news.map((n) => ({ ...n, isFeatured: false }))
+        : next.news;
+      next.news = [...mappedAnnouncements, ...existingNews];
+    }
+  }
+
+  return next;
 }
 
 export async function savePublicSchoolWebConfig(

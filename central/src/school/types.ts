@@ -1,7 +1,15 @@
 export interface SchoolBasic {
   id_school: number;
+  namePart1?: string | null;
+  namePart2?: string | null;
   fullName: string | null;
   affiliation: string | null;
+  localCode?: string | null;
+  address?: string | null;
+  subdistrict?: string | null;
+  district?: string | null;
+  province?: string | null;
+  logo?: string | null;
 }
 
 export interface AcademicYear {
