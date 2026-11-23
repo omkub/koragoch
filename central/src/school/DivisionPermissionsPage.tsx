@@ -350,7 +350,8 @@ export default function DivisionPermissionsPage({
     role: Role,
     nextTier: 'user' | 'executive' | 'school_admin',
   ) {
-    if (!schoolId || !canEdit || role.ID_Roles === ADMIN_ROLE_ID) return;
+    if (!schoolId || !canEdit || (role.ID_Roles === ADMIN_ROLE_ID && !isSuper))
+      return;
     const key = `roletier:${role.ID_Roles}`;
     setBusyKey(key);
     setMessage(null);
@@ -388,7 +389,8 @@ export default function DivisionPermissionsPage({
     role: Role,
     canManagePublicWeb: boolean,
   ) {
-    if (!schoolId || !canEdit || role.ID_Roles === ADMIN_ROLE_ID) return;
+    if (!schoolId || !canEdit || (role.ID_Roles === ADMIN_ROLE_ID && !isSuper))
+      return;
     const key = `pubweb:${role.ID_Roles}`;
     setBusyKey(key);
     setMessage(null);
@@ -829,9 +831,7 @@ export default function DivisionPermissionsPage({
                   const isAdminRole =
                     role.ID_Roles === ADMIN_ROLE_ID ||
                     role.Accessrights.includes('ผู้ดูแลระบบ');
-                  const isVisible = isAdminRole
-                    ? true
-                    : (tabVisibleByRole[role.ID_Roles] ?? true);
+                  const isVisible = tabVisibleByRole[role.ID_Roles] ?? true;
                   const isBusy = busyKey === `tab:${role.ID_Roles}`;
                   const tier = inferRoleTierFromRoleName(
                     role.Accessrights,
@@ -870,7 +870,7 @@ export default function DivisionPermissionsPage({
 
                         <button
                           type="button"
-                          disabled={!canEdit || isAdminRole || isBusy}
+                          disabled={!canEdit || (isAdminRole && !isSuper) || isBusy}
                           onClick={() =>
                             toggleRoleSchoolWebAccess(role.ID_Roles, !isVisible)
                           }
@@ -892,7 +892,7 @@ export default function DivisionPermissionsPage({
                         <select
                           disabled={
                             !canEdit ||
-                            role.ID_Roles === ADMIN_ROLE_ID ||
+                            (role.ID_Roles === ADMIN_ROLE_ID && !isSuper) ||
                             busyKey === `roletier:${role.ID_Roles}`
                           }
                           value={tier === 'super_admin' ? 'school_admin' : tier}
@@ -925,18 +925,19 @@ export default function DivisionPermissionsPage({
                           ตั้งค่าเว็บสาธารณะของโรงเรียน:
                         </span>
                         {(() => {
+                          const explicitRolePublicWeb =
+                            permState.moduleByRole[
+                              `${role.ID_Roles}:${PUBLIC_WEB_SETTINGS_MODULE_KEY}`
+                            ];
                           const rolePublicWeb =
-                            tier === 'school_admin' ||
-                            tier === 'super_admin' ||
-                            Boolean(
-                              permState.moduleByRole[
-                                `${role.ID_Roles}:${PUBLIC_WEB_SETTINGS_MODULE_KEY}`
-                              ]?.can_edit,
-                            );
+                            explicitRolePublicWeb !== undefined
+                              ? Boolean(explicitRolePublicWeb.can_edit)
+                              : tier === 'school_admin' || tier === 'super_admin';
                           const isLockedByAdminTier =
-                            tier === 'school_admin' ||
-                            tier === 'super_admin' ||
-                            isAdminRole;
+                            !isSuper &&
+                            (tier === 'school_admin' ||
+                              tier === 'super_admin' ||
+                              isAdminRole);
                           return (
                             <button
                               type="button"

@@ -367,16 +367,21 @@ export default function App() {
   const currentSchool =
     schools.find((s) => s.id_school === selectedSchoolId) ?? null;
 
+  const explicitRoleTier =
+    userRoleId !== null
+      ? roleDivModPerms.roleTierByRole?.[userRoleId]
+      : undefined;
   const userRoleTier = isSuper
     ? 'super_admin'
-    : access.level === 'school'
-      ? 'school_admin'
-      : inferRoleTierFromRoleName(
-          userRoleName,
-          false,
-          userRoleId,
-          roleDivModPerms,
-        );
+    : explicitRoleTier ??
+      (access.level === 'school'
+        ? 'school_admin'
+        : inferRoleTierFromRoleName(
+            userRoleName,
+            false,
+            userRoleId,
+            roleDivModPerms,
+          ));
 
   const roleLabel = `${ROLE_TIER_META[userRoleTier].shortLabel} (${userRoleName})`;
 
@@ -393,12 +398,16 @@ export default function App() {
     currentUserId !== null
       ? roleDivModPerms.userTabOverride[currentUserId]
       : undefined;
-  const roleDefaultWebAccess =
-    userRoleId !== null ? (roleWebAccessByRole[userRoleId] ?? true) : true;
+  const explicitRoleWebAccess =
+    userRoleId !== null ? roleWebAccessByRole[userRoleId] : undefined;
+  const roleDefaultWebAccess = explicitRoleWebAccess ?? true;
   const canUserAccessSchoolWeb =
-    canEditSchool ||
-    canManagePublicWeb ||
-    (userWebOverride !== undefined ? userWebOverride : roleDefaultWebAccess);
+    isSuper ||
+    (userWebOverride !== undefined
+      ? userWebOverride
+      : explicitRoleWebAccess === false
+        ? false
+        : canEditSchool || canManagePublicWeb || roleDefaultWebAccess);
 
   // กรณีที่โรงเรียนปิดการใช้งานเว็บโรงเรียน หรือบุคลากรคนนี้ไม่มีสิทธิ์เข้าถึง Web โรงเรียน
   if ((!schoolWebEnabled || !canUserAccessSchoolWeb) && !isSuper) {

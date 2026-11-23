@@ -130,10 +130,10 @@ export function inferRoleTierFromRoleName(
   perms?: RoleDivisionModulePermissions | null,
 ): SchoolRoleTier {
   if (isSuperAdmin) return 'super_admin';
-  if (roleId === ADMIN_ROLE_ID) return 'school_admin';
   if (roleId != null && perms?.roleTierByRole?.[roleId]) {
     return perms.roleTierByRole[roleId];
   }
+  if (roleId === ADMIN_ROLE_ID) return 'school_admin';
   const text = (roleName ?? '').trim();
   if (
     text.includes('ผู้ดูแลระบบ') ||
