@@ -540,7 +540,7 @@ export function canUserManagePublicSchoolWeb(params: {
   isAdminRole?: boolean;
 }): boolean {
   const { perms, roleId, idUser, isSuper = false, isAdminRole = false } = params;
-  if (isSuper || isAdminRole) return true;
+  if (isSuper) return true;
 
   // 1. ตรวจสิทธิ์รายบุคคล (User Override) ก่อนเสมอ
   if (idUser != null) {
@@ -551,7 +551,7 @@ export function canUserManagePublicSchoolWeb(params: {
     }
   }
 
-  // 2. ตรวจสิทธิ์ตามบทบาท (Role)
+  // 2. ตรวจสิทธิ์ตามบทบาท (Role) — หากผู้ดูแลส่วนกลางกำหนดไว้ชัดเจนให้ยึดค่านั้น
   if (roleId != null) {
     const roleEntry =
       perms.moduleByRole[`${roleId}:${PUBLIC_WEB_SETTINGS_MODULE_KEY}`];
@@ -560,5 +560,5 @@ export function canUserManagePublicSchoolWeb(params: {
     }
   }
 
-  return false;
+  return isAdminRole;
 }
