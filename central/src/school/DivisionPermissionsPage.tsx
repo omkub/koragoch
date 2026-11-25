@@ -26,7 +26,6 @@ import type { DivisionWithModules } from './mapping';
 import {
   fetchRoleDivisionModulePermissions,
   PUBLIC_WEB_SETTINGS_MODULE_KEY,
-  resolveModuleAccessLevel,
   resolveUserModuleOverrideLevel,
   saveRoleModuleAccessLevel,
   saveUserModuleOverride,
@@ -37,6 +36,7 @@ import {
   type UserTabOverride,
 } from './roleModulePermissions';
 import SchoolPackagePanel from './SchoolPackagePanel';
+import StaffMenuPreview from './StaffMenuPreview';
 import {
   fetchSchoolPackageConfig,
   isModuleAllowedForSchool,
@@ -47,6 +47,7 @@ import {
   fetchSchoolStaffMembers,
   getStaffAssignedDivisionKeys,
   inferRoleTierFromRoleName,
+  resolveInheritedModuleLevel,
   ROLE_TIER_META,
   saveRoleTierForRole,
   updateStaffRoleId,
@@ -1123,6 +1124,12 @@ export default function DivisionPermissionsPage({
               </div>
             ) : (
               <>
+                <StaffMenuPreview
+                  staff={selectedStaff}
+                  divisions={divisions}
+                  perms={permState}
+                />
+
                 {/* กล่องที่ 1: บทบาทหลัก, สังกัดฝ่าย และการเข้าใช้เว็บโรงเรียน */}
                 <div className="surface-card p-6 space-y-5">
                   <div className="flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1288,14 +1295,22 @@ export default function DivisionPermissionsPage({
                           selectedStaff.id_user,
                           sys.key,
                         );
-                        const roleDefaultLevel = resolveModuleAccessLevel(
-                          permState,
-                          selectedStaff.id_role,
-                          sys.divisionKey === 'all' ? 'hr' : sys.divisionKey,
-                          sys.key,
-                          selectedStaff.roleName.includes('ผู้ดูแลระบบ'),
-                          null,
-                        );
+                        const allDivKeys = divisions.map((d) => d.division_key);
+                        const roleDefaultLevel = resolveInheritedModuleLevel({
+                          perms: permState,
+                          roleTier: inferRoleTierFromRoleName(
+                            selectedStaff.roleName,
+                            selectedStaff.is_super_admin,
+                            selectedStaff.id_role,
+                            permState,
+                          ),
+                          roleId: selectedStaff.id_role,
+                          idUser: selectedStaff.id_user,
+                          moduleKey: sys.key,
+                          divisionKeys:
+                            sys.divisionKey === 'all' ? allDivKeys : [sys.divisionKey],
+                          allDivisionKeys: allDivKeys,
+                        });
                         const effectiveLevel =
                           userOverride === 'inherit'
                             ? roleDefaultLevel
@@ -1317,7 +1332,7 @@ export default function DivisionPermissionsPage({
                                 </span>
                               </div>
                               <p className="mt-0.5 text-[11px] text-slate-500">
-                                ค่าตามบทบาท ({selectedStaff.roleName}):{' '}
+                                ค่าตั้งต้น (บทบาท + สังกัดฝ่าย):{' '}
                                 <strong>{LEVEL_LABEL[roleDefaultLevel]}</strong>
                               </p>
                             </div>

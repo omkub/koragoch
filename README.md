@@ -202,6 +202,7 @@ gh pr create --base main
 | 13 | `school_web_sgs_grades.sql` | แฟ้มประวัตินักเรียน (`SchoolWebStudentProfiles` อ่านได้เฉพาะผู้มีสิทธิ์แก้ไขนักเรียน) + คะแนน SGS (`SchoolWebSgsGrades`) |
 | 14 | `school_web_realtime_public.sql` | เว็บสาธารณะดึงข้อมูลจริง (โรงเรียน / บุคลากร / สถิตินักเรียน / ประกาศ) + ตรวจผลการเรียนออนไลน์ (รหัสนักเรียน + เลขบัตร 13 หลัก, จำกัดการลองผิด) |
 | 15 | `school_public_web_admissions.sql` | รับสมัครนักเรียนออนไลน์ (ม.1 / ม.4) + ตรวจสถานะการสมัคร (เลขที่ใบสมัคร + เลขบัตร 13 หลัก, จำกัดการลองผิด) |
+| 16 | `school_web_teacher_grades.sql` | ครูกรอกคะแนนได้เฉพาะวิชา / ห้องที่ตัวเองสอน (งานของฉัน → กรอกคะแนน) |
 
 ตั้งแต่ไฟล์ 10 เป็นต้นไป ไฟล์ SQL ใหม่ทุกไฟล์จบด้วย `insert into "SchemaMigrations"(name) values ('<ไฟล์>.sql') on conflict do nothing;` · ดูว่ารันอะไรไปแล้ว: `select * from "SchemaMigrations" order by applied_at;`
 

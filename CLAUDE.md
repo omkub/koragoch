@@ -42,6 +42,8 @@
 | `school_admin` Admin โรงเรียน | ทุกฝ่าย ทุก Module ในโรงเรียนตัวเอง + จัดการได้ |
 | `super_admin` | ทุกโรงเรียน + กำหนดเพดานสิทธิ์ระดับโรงเรียน |
 
+- ตัวตัดสินสิทธิ์ฝ่าย / ระบบงานชุดเดียวของ web: `resolveDivisionAccess` / `resolveModuleAccess` ใน `staffDivisionMapping.ts` (เมนูซ้าย + หน้าดูตัวอย่างเมนูใช้ร่วมกัน) ลำดับ: แอดมิน → สังกัดฝ่าย → ตามบทบาท → ผู้บริหารเห็นทุกฝ่าย → **ไม่เห็น**
+- ครูที่ไม่สังกัดฝ่าย = ครูผู้สอน เห็นเฉพาะ "งานของฉัน" (`/school/my-work`, `MyWorkPage.tsx` / `MyGradesPage.tsx`) — ข้อมูลผูกกับ `teacher_id` / `advisor_teacher_id` / `SchoolWebOrderMembers.id_user` · กรอกคะแนนกันในฐานข้อมูลด้วย `is_teacher_of_student_subject` (`supabase/school_web_teacher_grades.sql`)
 - สังกัดฝ่ายของบุคลากร (บุคลากร ↔ ฝ่าย ↔ Module): หน้า `/admin/mapping` (`DivisionMappingPage.tsx`)
 - สิทธิ์ฝ่าย / Module / แท็บ "เว็บโรงเรียน" ตามบทบาท + รายบุคคล: `/admin/division-permissions`, `/user-permissions` — โค้ด `roleModulePermissions.ts`
 - เพดานระดับโรงเรียน (แพ็กเกจ + Module ที่อนุญาต) โดย Super Admin: `schoolPackage.ts`
