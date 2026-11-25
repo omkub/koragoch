@@ -4,10 +4,23 @@ import { Building2, Globe } from 'lucide-react';
 import { authEmailForUsername, supabase } from '../supabase';
 import { Field } from '../ui/components';
 
+/** ข้อความแจ้งเมื่อถูกออกจากระบบเพราะไม่มีข้อมูลบุคลากรแล้ว (App.tsx ตั้งค่าไว้) */
+export const DELETED_USER_NOTICE_KEY = 'central_deleted_user_notice';
+
+function takeDeletedUserNotice(): string | null {
+  try {
+    const msg = window.sessionStorage.getItem(DELETED_USER_NOTICE_KEY);
+    if (msg) window.sessionStorage.removeItem(DELETED_USER_NOTICE_KEY);
+    return msg;
+  } catch {
+    return null;
+  }
+}
+
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() => takeDeletedUserNotice());
   const [busy, setBusy] = useState(false);
 
   async function submit(e: FormEvent) {

@@ -18,7 +18,7 @@ import {
   syncSessionToLeaveApp,
   type Access,
 } from './supabase';
-import LoginPage from './pages/LoginPage';
+import LoginPage, { DELETED_USER_NOTICE_KEY } from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import SchoolsPage from './pages/SchoolsPage';
 import SchoolAdminsPage from './pages/SchoolAdminsPage';
@@ -156,14 +156,13 @@ export default function App() {
             .from('Schools')
             .select('*')
             .order('id_school'),
-          username
-            ? supabase
-                .from('Teachers')
-                .select('id_user, fullName, id_role')
-                .eq('username', username)
-                .limit(1)
-                .maybeSingle()
-            : Promise.resolve({ data: null }),
+          // ค้นด้วย auth_uid ของบัญชีที่ล็อกอิน (เหมือนด่านตรวจของแอปวันลา) ปลอมเป็นคนอื่นไม่ได้
+          supabase
+            .from('Teachers')
+            .select('id_user, fullName, id_role')
+            .eq('auth_uid', session.user.id)
+            .limit(1)
+            .maybeSingle(),
           supabase.from('roles').select('ID_Roles, Accessrights'),
         ]);
 
@@ -174,6 +173,22 @@ export default function App() {
       const schoolList = (schoolsRes.data as SchoolBasic[] | null) ?? [];
       const isSuperUser = superRes.data === true;
       const requestedSchoolId = getTargetSchoolIdFromLeaveApp();
+
+      // บุคลากรที่ถูกลบออกจากระบบ (ไม่มีแถวใน Teachers แล้ว) → ออกจากระบบทันที
+      // ยกเว้นผู้ดูแลส่วนกลาง · ถ้าดึงข้อมูลพลาด (เช่น เน็ตหลุด) ไม่ไล่ออก
+      if (!isSuperUser && !teacherRes.error && !teacherRes.data && !superRes.error) {
+        try {
+          window.sessionStorage.setItem(
+            DELETED_USER_NOTICE_KEY,
+            'บัญชีนี้ไม่มีข้อมูลบุคลากรในระบบแล้ว กรุณาติดต่อแอดมินโรงเรียน',
+          );
+        } catch {
+          // ignore
+        }
+        clearAllSsoSessions();
+        await supabase.auth.signOut();
+        return;
+      }
 
       setAccess({
         level: isSuperUser ? 'super' : adminRes.data === true ? 'school' : 'none',
