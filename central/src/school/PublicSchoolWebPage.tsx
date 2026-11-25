@@ -15,6 +15,7 @@ import {
   type PublicSgsStudentInfo,
   type StudentMultiYearTranscript,
 } from './sgsGradingStore';
+import PublicAdmissionTab from './PublicAdmissionTab';
 import type { SchoolBasic } from './types';
 
 interface PublicSchoolWebPageProps {
@@ -26,6 +27,7 @@ interface PublicSchoolWebPageProps {
 
 export type PublicPageTab =
   | 'home'
+  | 'admission'
   | 'news'
   | 'staff'
   | 'students'
@@ -34,6 +36,7 @@ export type PublicPageTab =
 
 const NAV_ITEMS: { key: PublicPageTab; label: string; icon: string }[] = [
   { key: 'home', label: 'หน้าแรก', icon: 'home' },
+  { key: 'admission', label: 'รับสมัครนักเรียน', icon: 'how_to_reg' },
   { key: 'news', label: 'ข่าวประชาสัมพันธ์', icon: 'campaign' },
   { key: 'staff', label: 'ทำเนียบบุคลากร', icon: 'badge' },
   { key: 'students', label: 'ข้อมูลนักเรียน', icon: 'school' },
@@ -188,9 +191,17 @@ export default function PublicSchoolWebPage({
       .slice(0, 3);
   }, [config.news]);
 
+  const publishedNews = useMemo(
+    () =>
+      config.news
+        .filter((item) => item.status !== 'draft')
+        .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned))),
+    [config.news],
+  );
+
   const featuredNews = useMemo(() => {
     const featured =
-      config.news.find((item) => item.isFeatured) ?? config.news[0] ?? null;
+      publishedNews.find((item) => item.isFeatured) ?? publishedNews[0] ?? null;
     if (!featured) return null;
     const q = newsSearch.trim().toLowerCase();
     const matchCat = newsCat === 'all' || featured.cat === newsCat;
@@ -199,13 +210,14 @@ export default function PublicSchoolWebPage({
       featured.title.toLowerCase().includes(q) ||
       featured.summary.toLowerCase().includes(q);
     return matchCat && matchQ ? featured : null;
-  }, [config.news, newsCat, newsSearch]);
+  }, [publishedNews, newsCat, newsSearch]);
 
   const filteredGridNews = useMemo(() => {
     const featuredId =
-      (config.news.find((item) => item.isFeatured) ?? config.news[0])?.id ?? '';
+      (publishedNews.find((item) => item.isFeatured) ?? publishedNews[0])?.id ??
+      '';
     const q = newsSearch.trim().toLowerCase();
-    return config.news
+    return publishedNews
       .filter((item) => item.id !== featuredId)
       .filter((item) => {
         const matchCat = newsCat === 'all' || item.cat === newsCat;
@@ -216,7 +228,7 @@ export default function PublicSchoolWebPage({
           item.badgeText.toLowerCase().includes(q);
         return matchCat && matchQ;
       });
-  }, [config.news, newsCat, newsSearch]);
+  }, [publishedNews, newsCat, newsSearch]);
 
   const showExecutiveSection =
     staffDept === 'all' || staffDept === 'executive';
@@ -329,7 +341,7 @@ export default function PublicSchoolWebPage({
   return (
     <div className="min-h-screen bg-surface font-body-md text-body-md text-on-surface flex flex-col">
       {/* ── Top Fixed Header (ตรงตาม webschool.html) ────────────────────── */}
-      <header className="fixed top-0 w-full z-50 bg-surface-container-lowest/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]">
+      <header className="fixed top-0 w-full z-50 bg-surface-container-lowest/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] print:hidden">
         <div className="h-20 max-w-7xl mx-auto px-6 lg:px-12 flex items-center justify-between gap-space-md">
           <div className="flex items-center gap-space-md shrink-0">
             <button
@@ -958,6 +970,18 @@ export default function PublicSchoolWebPage({
             </div>
           </section>
         </main>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          PAGE 1.5: รับสมัครนักเรียน (STUDENT ADMISSION ONLINE)
+         ════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'admission' && (
+        <PublicAdmissionTab
+          schoolId={activeSchoolId}
+          schoolDisplayName={schoolDisplayName}
+          schoolSubTitle={schoolAffiliation}
+          admission={config.admission}
+        />
       )}
 
       {/* ════════════════════════════════════════════════════════════════════
@@ -3172,6 +3196,92 @@ export default function PublicSchoolWebPage({
                 ))}
               </div>
 
+              {/* ไฟล์เอกสารแนบและดาวน์โหลดท้ายข่าว (PDF & Documents) */}
+              {selectedArticle.attachments &&
+                selectedArticle.attachments.length > 0 && (
+                  <div className="space-y-2.5 pt-2">
+                    <h3 className="font-title-md text-title-md text-on-surface flex items-center gap-2">
+                      <span className="material-symbols-outlined text-primary text-[20px]">
+                        attach_file
+                      </span>
+                      <span>เอกสารแนบและประกาศฉบับเต็ม (ดาวน์โหลด)</span>
+                    </h3>
+                    <div className="space-y-2">
+                      {selectedArticle.attachments.map((att) => (
+                        <div
+                          key={att.id}
+                          className="flex items-center justify-between gap-3 rounded-xl bg-surface-container-low p-3.5"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-10 h-10 rounded-lg bg-error-container text-on-error-container flex items-center justify-center shrink-0">
+                              <span className="material-symbols-outlined text-[20px]">
+                                picture_as_pdf
+                              </span>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-label-lg text-on-surface truncate">
+                                {att.title}
+                              </p>
+                              {att.fileSizeLabel && (
+                                <p className="font-label-sm text-on-surface-variant">
+                                  {att.fileSizeLabel}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          {att.url ? (
+                            <a
+                              href={att.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 rounded-full bg-primary-container px-4 py-2 font-label-md text-on-primary hover:bg-primary transition-colors shrink-0"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">
+                                download
+                              </span>
+                              <span>ดาวน์โหลด</span>
+                            </a>
+                          ) : (
+                            <span className="text-xs text-on-surface-variant shrink-0">
+                              รอแนบลิงก์
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              {/* แกลเลอรีประมวลภาพบรรยากาศ */}
+              {selectedArticle.galleryImages &&
+                selectedArticle.galleryImages.length > 0 && (
+                  <div className="space-y-2.5 pt-2">
+                    <h3 className="font-title-md text-title-md text-on-surface flex items-center gap-2">
+                      <span className="material-symbols-outlined text-primary text-[20px]">
+                        photo_library
+                      </span>
+                      <span>ประมวลภาพบรรยากาศและกิจกรรม</span>
+                    </h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {selectedArticle.galleryImages.map((imgUrl, idx) => (
+                        <a
+                          key={idx}
+                          href={logoSrc(imgUrl) ?? imgUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block rounded-xl overflow-hidden bg-surface-container aspect-[4/3]"
+                        >
+                          <img
+                            src={logoSrc(imgUrl) ?? imgUrl}
+                            alt={`${selectedArticle.title} ภาพที่ ${idx + 1}`}
+                            className="w-full h-full object-cover hover:scale-105 transition-transform"
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
               <div className="pt-4 border-t border-outline-variant/25 flex items-center justify-between">
                 <span className="font-label-md text-label-md text-on-surface-variant">
                   {schoolDisplayName}
@@ -3484,7 +3594,7 @@ export default function PublicSchoolWebPage({
       )}
 
       {/* ── Footer (ตรงตาม webschool.html) ───────────────────────────────── */}
-      <footer className="bg-on-surface text-inverse-on-surface pt-16 pb-10">
+      <footer className="bg-on-surface text-inverse-on-surface pt-16 pb-10 print:hidden">
         <div className="max-w-7xl mx-auto px-6 lg:px-12">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 pb-12 border-b border-outline-variant/20">
             <div className="lg:col-span-5 flex flex-col gap-space-md">

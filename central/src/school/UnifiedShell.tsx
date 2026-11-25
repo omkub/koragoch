@@ -1,10 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import {
-  ArrowLeft,
   Bell,
   Building2,
   CalendarDays,
+  ChevronRight,
   ExternalLink,
   FileText,
   Folder,
@@ -15,6 +15,7 @@ import {
   LogOut,
   Menu,
   MessageCircle,
+  Package,
   ScanFace,
   Settings,
   ShieldCheck,
@@ -27,34 +28,18 @@ import type { DivisionIconName, DivisionWithModules } from './mapping';
 import type { SchoolBasic } from './types';
 
 /**
- * โครงหน้าของ web แยกเป็น 3 พื้นที่ (ไม่มีปุ่มสลับ "Web โรงเรียน / ผู้ดูแลระบบกลาง" แล้ว)
- *   ① school  ระบบงานโรงเรียน — บุคลากรทุกคน: หน้าหลัก, ระบบวันลา (ลิงก์ไปแอปเดิม), ฝ่าย
- *   ② manage  ตั้งค่าโรงเรียน — แอดมินโรงเรียน (เฉพาะโรงเรียนตัวเอง) / ส่วนกลางที่กำลังจัดการโรงเรียนหนึ่ง
- *   ③ hq      ศูนย์ผู้ดูแลส่วนกลาง — ผู้ดูแลส่วนกลางเท่านั้น
- * พื้นที่ตัดสินจากเส้นทาง (ไม่เปลี่ยนเส้นทางเดิม เพราะ app ลิงก์เข้ามาที่ admin/mapping ฯลฯ)
- * โรงเรียนที่กำลังทำงาน มาจากที่เดียว: ตัวเลือกในศูนย์ส่วนกลาง (เฉพาะผู้ดูแลส่วนกลาง)
+ * โครงหน้า Left Sidebar แยกชัดเจนเป็น 2 โซน:
+ *   ① school (/school/*) — บุคลากรโรงเรียนและแอดมินโรงเรียน (ไล่ลงมาเป็นหมวดหมู่ฝ่าย + โมดูลย่อย + ตั้งค่า + ชื่อเข้าสู่ระบบ)
+ *   ② admin  (/admin/*)  — ศูนย์ผู้ดูแลระบบส่วนกลางทุกโรงเรียน (เฉพาะ isSuper)
+ * (ส่วน /public ไม่ใช้ Shell นี้ — ใช้ Top Navbar ของเว็บสาธารณะตามเดิม)
  */
-export type ShellArea = 'school' | 'manage' | 'hq';
-
-const HQ_PREFIXES = ['/hq', '/schools', '/admins', '/leave-admin'];
-const MANAGE_PREFIXES = [
-  '/admin',
-  '/user-permissions',
-  '/role-permissions',
-  '/settings',
-  '/staff',
-  '/admin-positions',
-  '/line',
-  '/attendance',
-  '/forms',
-];
+export type ShellArea = 'school' | 'admin';
 
 const matches = (pathname: string, prefix: string) =>
   pathname === prefix || pathname.startsWith(`${prefix}/`);
 
 export function areaOfPath(pathname: string): ShellArea {
-  if (HQ_PREFIXES.some((p) => matches(pathname, p))) return 'hq';
-  if (MANAGE_PREFIXES.some((p) => matches(pathname, p))) return 'manage';
+  if (matches(pathname, '/admin')) return 'admin';
   return 'school';
 }
 
@@ -94,60 +79,49 @@ interface NavItem {
   to: string;
   label: string;
   icon: typeof Layers;
-  /** เฉพาะผู้ดูแลส่วนกลาง */
-  superOnly?: boolean;
+  end?: boolean;
 }
 
-const MANAGE_NAV: { label: string; items: NavItem[] }[] = [
-  {
-    label: 'บุคลากรและสิทธิ์',
-    items: [
-      { to: '/admin/mapping', label: 'ฝ่ายและบุคลากร', icon: Layers },
-      { to: '/admin/division-permissions', label: 'สิทธิ์การใช้งาน', icon: ShieldCheck },
-    ],
-  },
-  {
-    label: 'ระบบวันลา',
-    items: [
-      { to: '/staff', label: 'สถานะบุคลากร', icon: Users },
-      { to: '/admin-positions', label: 'ตำแหน่งบริหาร', icon: ShieldCheck },
-      { to: '/forms', label: 'แบบฟอร์มใบลาของโรงเรียน', icon: FileText },
-      { to: '/line', label: 'LINE แจ้งเตือน', icon: MessageCircle },
-      { to: '/attendance', label: 'เครื่องสแกนลงเวลา', icon: ScanFace },
-    ],
-  },
-  {
-    label: 'โรงเรียน',
-    items: [
-      { to: '/public-web-settings', label: 'ตั้งค่าเว็บสาธารณะ (คนนอกดู)', icon: Globe },
-      { to: '/settings', label: 'ปีการศึกษาและลิงก์', icon: CalendarDays },
-    ],
-  },
+const SCHOOL_SETTINGS_ITEMS: NavItem[] = [
+  { to: '/school/settings/mapping', label: 'ฝ่ายและบุคลากร', icon: Layers },
+  { to: '/school/settings/permissions', label: 'สิทธิ์การใช้งาน', icon: ShieldCheck },
+  { to: '/school/settings/forms', label: 'แบบฟอร์มใบลาของโรงเรียน', icon: FileText },
+  { to: '/school/settings/line', label: 'LINE แจ้งเตือน', icon: MessageCircle },
+  { to: '/school/settings/attendance', label: 'เครื่องสแกนลงเวลา', icon: ScanFace },
+  { to: '/school/settings/general', label: 'ปีการศึกษาและลิงก์', icon: CalendarDays },
 ];
 
-const HQ_NAV: { label: string; items: NavItem[] }[] = [
+const ADMIN_NAV: { label: string; items: NavItem[] }[] = [
   {
     label: 'ทุกโรงเรียน',
     items: [
-      { to: '/hq', label: 'ภาพรวมทุกโรงเรียน', icon: LayoutDashboard },
-      { to: '/schools', label: 'ข้อมูลโรงเรียน', icon: Building2 },
-      { to: '/admins', label: 'ผู้ดูแลโรงเรียน', icon: ShieldCheck },
+      { to: '/admin', label: 'ภาพรวมทุกโรงเรียน', icon: LayoutDashboard, end: true },
+      { to: '/admin/schools', label: 'ข้อมูลโรงเรียน & แพ็กเกจ', icon: Building2 },
+      { to: '/admin/school-admins', label: 'ผู้ดูแลโรงเรียน', icon: ShieldCheck },
+      { to: '/admin/packages', label: 'เพดานสิทธิ์รายโรงเรียน', icon: Package },
     ],
   },
   {
     label: 'ใช้ร่วมทุกโรงเรียน',
     items: [
-      { to: '/hq/forms', label: 'แม่แบบฟอร์มกลาง', icon: FileText },
-      { to: '/hq/line', label: 'LINE (สะพานเชื่อมกลาง)', icon: MessageCircle },
+      { to: '/admin/forms', label: 'แม่แบบฟอร์มกลาง', icon: FileText },
+      { to: '/admin/line', label: 'LINE (สะพานเชื่อมกลาง)', icon: MessageCircle },
     ],
   },
 ];
 
 const navClass = (isActive: boolean) =>
-  `flex h-9 items-center gap-2.5 rounded-lg px-3 text-sm transition-colors ${
+  `flex min-h-[34px] items-center gap-2.5 rounded-lg px-3 py-1.5 text-[13px] transition-colors ${
     isActive
-      ? 'bg-brand-50 font-medium text-brand-700'
+      ? 'bg-brand-50 font-semibold text-brand-700'
       : 'text-slate-700 hover:bg-slate-50 hover:text-ink'
+  }`;
+
+const subNavClass = (isActive: boolean) =>
+  `flex min-h-[32px] items-center gap-2 rounded-lg pl-7 pr-3 py-1.5 text-[13px] transition-colors ${
+    isActive
+      ? 'bg-brand-50 font-semibold text-brand-700'
+      : 'text-slate-600 hover:bg-slate-50 hover:text-ink'
   }`;
 
 export default function UnifiedShell({
@@ -191,145 +165,239 @@ export default function UnifiedShell({
       .limit(4)
       .then(({ data }) => {
         setRecentNotices(
-          (data as { id: number; title: string; published_at: string }[] | null) ?? [],
+          (data as { id: number; title: string; published_at: string }[] | null) ??
+            [],
         );
       });
   }, [selectedSchoolId]);
 
   const enabledDivisions = divisions.filter((d) => d.is_enabled);
-
-  const renderNavGroups = (groups: { label: string; items: NavItem[] }[]) => (
-    <div className="space-y-6">
-      {groups.map((group) => {
-        const items = group.items.filter((i) => !i.superOnly || isSuper);
-        if (items.length === 0) return null;
-        return (
-          <div key={group.label}>
-            <p className="mb-2 px-3 text-xs font-medium text-slate-500">{group.label}</p>
-            <div className="space-y-1">
-              {items.map((item) => {
-                const Icon = item.icon;
-                const isUnifiedPermActive =
-                  item.to === '/admin/division-permissions' &&
-                  (matches(pathname, '/admin/division-permissions') ||
-                    matches(pathname, '/user-permissions') ||
-                    matches(pathname, '/role-permissions'));
-                return (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={item.to === '/hq'}
-                    className={({ isActive }) =>
-                      navClass(isActive || isUnifiedPermActive)
-                    }
-                  >
-                    <Icon className="h-[18px] w-[18px] shrink-0 text-slate-500" strokeWidth={1.5} />
-                    <span className="truncate">{item.label}</span>
-                  </NavLink>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-    </div>
+  const hasPublicWebModuleInDivisions = enabledDivisions.some((d) =>
+    d.modules.some(
+      (m) => m.is_enabled && m.module_key === 'public-web-settings',
+    ),
   );
 
-  // ── ① ระบบงานโรงเรียน ──
+  // ── โซน 1: Sidebar เว็บบุคลากรและแอดมินโรงเรียน (/school/*) ──
   const schoolNav = (
-    <div className="space-y-6">
-      <div className="space-y-1">
-        <NavLink to="/" end className={({ isActive }) => navClass(isActive)}>
-          <LayoutDashboard className="h-[18px] w-[18px] shrink-0 text-slate-500" strokeWidth={1.5} />
+    <div className="space-y-4">
+      {/* ลิงก์หลักด้านบน */}
+      <div className="space-y-0.5">
+        <NavLink to="/school" end className={({ isActive }) => navClass(isActive)}>
+          <LayoutDashboard
+            className="h-[17px] w-[17px] shrink-0 text-slate-500"
+            strokeWidth={1.6}
+          />
           <span className="truncate">หน้าหลักโรงเรียน</span>
         </NavLink>
         <Link
           to={selectedSchoolId ? `/public/${selectedSchoolId}` : '/public'}
           className={navClass(false)}
         >
-          <Globe className="h-[18px] w-[18px] shrink-0 text-brand-600" strokeWidth={1.5} />
-          <span className="truncate">เว็บโรงเรียน (คนนอกดู)</span>
+          <Globe
+            className="h-[17px] w-[17px] shrink-0 text-brand-600"
+            strokeWidth={1.6}
+          />
+          <span className="truncate">เว็บโรงเรียน (สาธารณะ)</span>
         </Link>
-        {canManagePublicWeb && (
+        {canManagePublicWeb && !hasPublicWebModuleInDivisions && (
           <NavLink
-            to="/public-web-settings"
+            to="/school/public-web-settings"
             className={({ isActive }) => navClass(isActive)}
           >
             <Settings
-              className="h-[18px] w-[18px] shrink-0 text-emerald-600"
-              strokeWidth={1.5}
+              className="h-[17px] w-[17px] shrink-0 text-emerald-600"
+              strokeWidth={1.6}
             />
             <span className="truncate">ตั้งค่าเว็บสาธารณะ</span>
           </NavLink>
         )}
-        <button
-          type="button"
-          onClick={() => navigateToLeaveApp()}
-          className={`${navClass(false)} w-full justify-between`}
-        >
-          <span className="flex min-w-0 items-center gap-2.5">
-            <CalendarDays className="h-[18px] w-[18px] shrink-0 text-slate-500" strokeWidth={1.5} />
-            <span className="truncate">ระบบวันลา</span>
-          </span>
-          <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-400" strokeWidth={1.5} />
-        </button>
       </div>
 
-      <div>
-        <p className="mb-2 px-3 text-xs font-medium text-slate-500">ฝ่ายของฉัน</p>
+      {/* เส้นคั่น + หมวดหมู่แยกตามฝ่ายของตัวเองพร้อมโมดูลย่อยไล่ลงมา */}
+      <div className="border-t border-line pt-3 space-y-4">
         {enabledDivisions.length === 0 ? (
           <p className="px-3 py-2 text-xs leading-relaxed text-slate-500">
             ยังไม่ได้รับสิทธิ์ฝ่าย — รอแอดมินโรงเรียนกำหนด
           </p>
         ) : (
-          <div className="space-y-1">
-            {enabledDivisions.map((div) => {
-              const Icon = getDivisionIcon(div.icon_name);
-              const targetPath = `/division/${div.division_key}`;
-              const active = matches(pathname, targetPath);
-              return (
-                <NavLink key={div.id} to={targetPath} className={navClass(active)}>
-                  <Icon
-                    className={`h-[18px] w-[18px] shrink-0 ${active ? 'text-brand-600' : 'text-slate-500'}`}
-                    strokeWidth={1.5}
+          enabledDivisions.map((div) => {
+            const DivIcon = getDivisionIcon(div.icon_name);
+            const rawMods = div.modules.filter((m) => m.is_enabled);
+            // รวม "ทะเบียนบุคลากร" + "โครงสร้างฝ่ายและกลุ่มสาระ" เป็นเมนูเดียวไม่ให้ซ้ำกันใน Sidebar
+            const hasStaffAndDept =
+              rawMods.some((m) => m.module_key === 'staff-registry') &&
+              rawMods.some((m) => m.module_key === 'departments');
+            const mods = hasStaffAndDept
+              ? rawMods
+                  .filter((m) => m.module_key !== 'departments')
+                  .map((m) =>
+                    m.module_key === 'staff-registry'
+                      ? { ...m, title: 'ทะเบียนบุคลากรและกลุ่มสาระ' }
+                      : m,
+                  )
+              : rawMods;
+            const divBase = `/school/division/${div.division_key}`;
+            const isDivExact = pathname === divBase;
+
+            return (
+              <div key={div.id} className="space-y-0.5">
+                {/* หัวข้อฝ่าย */}
+                <Link
+                  to={divBase}
+                  className="flex items-center gap-2 px-3 py-1 text-xs font-semibold text-slate-500 hover:text-brand-700 transition-colors"
+                >
+                  <DivIcon
+                    className="h-3.5 w-3.5 shrink-0 text-brand-600"
+                    strokeWidth={1.8}
                   />
                   <span className="truncate">{div.name}</span>
+                </Link>
+
+                {/* รายการโมดูลใต้ฝ่าย */}
+                {mods.length === 0 ? (
+                  <p className="pl-7 pr-3 py-1 text-[11px] text-slate-400">
+                    ยังไม่มีโมดูลในฝ่ายนี้
+                  </p>
+                ) : (
+                  <div className="space-y-0.5">
+                    {mods.map((mod, idx) => {
+                      const modPath = `${divBase}/${mod.module_key}`;
+                      const isActive =
+                        pathname === modPath || (isDivExact && idx === 0);
+
+                      if (
+                        mod.module_type === 'external' &&
+                        mod.resolved_url &&
+                        mod.open_mode === 'new_tab'
+                      ) {
+                        return (
+                          <a
+                            key={mod.id}
+                            href={mod.resolved_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={`${subNavClass(false)} justify-between`}
+                          >
+                            <span className="flex min-w-0 items-center gap-1.5">
+                              <span className="h-1 w-1 rounded-full bg-slate-300 shrink-0" />
+                              <span className="truncate">{mod.title}</span>
+                            </span>
+                            <ExternalLink className="h-3 w-3 shrink-0 text-slate-400" />
+                          </a>
+                        );
+                      }
+
+                      return (
+                        <NavLink
+                          key={mod.id}
+                          to={modPath}
+                          className={subNavClass(isActive)}
+                        >
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+                              isActive ? 'bg-brand-600' : 'bg-slate-300'
+                            }`}
+                          />
+                          <span className="truncate">{mod.title}</span>
+                        </NavLink>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* เส้นคั่น + หมวดตั้งค่า (เฉพาะแอดมินโรงเรียน / ผู้ดูแลส่วนกลาง) */}
+      {canManageSchool && (
+        <div className="border-t border-line pt-3 space-y-1">
+          <p className="flex items-center gap-2 px-3 py-1 text-xs font-semibold text-slate-500">
+            <Settings className="h-3.5 w-3.5 shrink-0 text-slate-500" strokeWidth={1.8} />
+            <span>ตั้งค่าโรงเรียน</span>
+          </p>
+          <div className="space-y-0.5">
+            {SCHOOL_SETTINGS_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const isPermAlias =
+                item.to === '/school/settings/permissions' &&
+                matches(pathname, '/school/settings/user-permissions');
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) => navClass(isActive || isPermAlias)}
+                >
+                  <Icon
+                    className="h-4 w-4 shrink-0 text-slate-400"
+                    strokeWidth={1.6}
+                  />
+                  <span className="truncate">{item.label}</span>
                 </NavLink>
               );
             })}
           </div>
-        )}
-      </div>
 
-      {canManageSchool && (
-        <div className="border-t border-line pt-4">
-          <Link to="/admin/mapping" className={navClass(false)}>
-            <Settings className="h-[18px] w-[18px] shrink-0 text-slate-500" strokeWidth={1.5} />
-            <span className="truncate">ตั้งค่าโรงเรียน</span>
-          </Link>
           {isSuper && (
-            <Link to="/hq" className={navClass(false)}>
-              <Building2 className="h-[18px] w-[18px] shrink-0 text-slate-500" strokeWidth={1.5} />
-              <span className="truncate">ศูนย์ผู้ดูแลส่วนกลาง</span>
-            </Link>
+            <div className="pt-2">
+              <Link
+                to="/admin"
+                className="flex items-center justify-between gap-2 rounded-lg border border-brand-200 bg-brand-50/70 px-3 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-100/70 transition-colors"
+              >
+                <span className="flex items-center gap-2 truncate">
+                  <Building2 className="h-4 w-4 shrink-0" strokeWidth={1.7} />
+                  <span className="truncate">ศูนย์ผู้ดูแลส่วนกลาง</span>
+                </span>
+                <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+              </Link>
+            </div>
           )}
         </div>
       )}
     </div>
   );
 
-  // ── ③ ศูนย์ส่วนกลาง: ตัวเลือกโรงเรียนอยู่ที่นี่ที่เดียว ──
-  const hqNav = (
-    <div className="space-y-6">
-      {renderNavGroups(HQ_NAV)}
+  // ── โซน 2: Sidebar ศูนย์ผู้ดูแลระบบส่วนกลาง (/admin/*) ──
+  const adminNav = (
+    <div className="space-y-5">
+      {ADMIN_NAV.map((group) => (
+        <div key={group.label} className="space-y-1">
+          <p className="px-3 text-xs font-semibold text-slate-500">
+            {group.label}
+          </p>
+          <div className="space-y-0.5">
+            {group.items.map((item) => {
+              const Icon = item.icon;
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className={({ isActive }) => navClass(isActive)}
+                >
+                  <Icon
+                    className="h-[17px] w-[17px] shrink-0 text-slate-500"
+                    strokeWidth={1.6}
+                  />
+                  <span className="truncate">{item.label}</span>
+                </NavLink>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      {/* ตัวเลือกสลับเข้าไปจัดการ/ดูเว็บโรงเรียน */}
       <div className="space-y-2 border-t border-line pt-4">
-        <label className="flex flex-col gap-1 px-3 text-xs font-medium text-slate-500">
-          โรงเรียนที่จะจัดการ
+        <label className="flex flex-col gap-1 px-3 text-xs font-semibold text-slate-500">
+          โรงเรียนที่จะเข้าจัดการ
           <select
             value={selectedSchoolId ?? ''}
             onChange={(e) => onSelectSchool(Number(e.target.value))}
             disabled={!canSwitchSchool}
-            className="input py-1.5 text-sm text-ink"
+            className="input py-1.5 text-xs font-medium text-ink"
           >
             {schools.map((s) => (
               <option key={s.id_school} value={s.id_school}>
@@ -338,55 +406,62 @@ export default function UnifiedShell({
             ))}
           </select>
         </label>
-        <Link to="/admin/mapping" className={navClass(false)}>
-          <Settings className="h-[18px] w-[18px] shrink-0 text-slate-500" strokeWidth={1.5} />
-          <span className="truncate">ตั้งค่าโรงเรียนนี้</span>
-        </Link>
-        <Link to="/" className={navClass(false)}>
-          <LayoutDashboard className="h-[18px] w-[18px] shrink-0 text-slate-500" strokeWidth={1.5} />
-          <span className="truncate">ดูหน้าโรงเรียนนี้</span>
-        </Link>
-        <Link
-          to={selectedSchoolId ? `/public/${selectedSchoolId}` : '/public'}
-          className={navClass(false)}
-        >
-          <Globe className="h-[18px] w-[18px] shrink-0 text-brand-600" strokeWidth={1.5} />
-          <span className="truncate">ดูเว็บสาธารณะ (คนนอกดู)</span>
-        </Link>
+        <div className="space-y-0.5">
+          <Link to="/school" className={navClass(false)}>
+            <LayoutDashboard
+              className="h-[17px] w-[17px] shrink-0 text-brand-600"
+              strokeWidth={1.6}
+            />
+            <span className="truncate">เข้าเว็บโรงเรียนนี้</span>
+          </Link>
+          <Link to="/school/settings/mapping" className={navClass(false)}>
+            <Settings
+              className="h-[17px] w-[17px] shrink-0 text-slate-500"
+              strokeWidth={1.6}
+            />
+            <span className="truncate">ตั้งค่าโรงเรียนนี้</span>
+          </Link>
+          <Link
+            to={selectedSchoolId ? `/public/${selectedSchoolId}` : '/public'}
+            className={navClass(false)}
+          >
+            <Globe
+              className="h-[17px] w-[17px] shrink-0 text-emerald-600"
+              strokeWidth={1.6}
+            />
+            <span className="truncate">ดูเว็บสาธารณะ (คนนอกดู)</span>
+          </Link>
+        </div>
       </div>
     </div>
   );
 
-  const manageNav = (
-    <div className="space-y-6">
-      <Link to="/" className={navClass(false)}>
-        <ArrowLeft className="h-[18px] w-[18px] shrink-0 text-slate-500" strokeWidth={1.5} />
-        <span className="truncate">กลับหน้าโรงเรียน</span>
-      </Link>
-      {renderNavGroups(MANAGE_NAV)}
-    </div>
-  );
-
-  const areaSubtitle =
-    area === 'hq'
-      ? 'ศูนย์ผู้ดูแลส่วนกลาง'
-      : area === 'manage'
-        ? 'ตั้งค่าโรงเรียน'
-        : 'ระบบงานโรงเรียน';
+  const isSchoolSettingsPath = matches(pathname, '/school/settings');
 
   const renderSidebarContent = () => (
     <div className="flex h-full flex-col border-r border-line bg-white">
+      {/* หัว Sidebar: ชื่อโรงเรียน หรือ ศูนย์ผู้ดูแลส่วนกลาง */}
       <div
         className={`flex h-16 items-center justify-between border-b px-4 ${
-          area === 'hq' ? 'border-brand-700 bg-brand-700 text-white' : 'border-line'
+          area === 'admin'
+            ? 'border-brand-700 bg-brand-700 text-white'
+            : 'border-line bg-white'
         }`}
       >
         <div className="min-w-0">
-          <p className={`truncate text-sm font-semibold ${area === 'hq' ? 'text-white' : 'text-ink'}`}>
-            {area === 'hq' ? 'ศูนย์ผู้ดูแลส่วนกลาง' : schoolName}
+          <p
+            className={`truncate text-sm font-semibold ${
+              area === 'admin' ? 'text-white' : 'text-ink'
+            }`}
+          >
+            {area === 'admin' ? 'ศูนย์ผู้ดูแลส่วนกลาง' : schoolName}
           </p>
-          <p className={`truncate text-xs ${area === 'hq' ? 'text-white/80' : 'text-slate-500'}`}>
-            {area === 'hq' ? 'ดูแลทุกโรงเรียน' : areaSubtitle}
+          <p
+            className={`truncate text-xs ${
+              area === 'admin' ? 'text-white/80' : 'text-slate-500'
+            }`}
+          >
+            {area === 'admin' ? 'ผู้ดูแลระบบทุกโรงเรียน' : 'ระบบงานโรงเรียน'}
           </p>
         </div>
         <button
@@ -399,12 +474,14 @@ export default function UnifiedShell({
         </button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
-        {area === 'hq' ? hqNav : area === 'manage' ? manageNav : schoolNav}
+      {/* เมนูหลักเลื่อนขึ้นลงได้ */}
+      <nav className="flex-1 overflow-y-auto px-3 py-3.5">
+        {area === 'admin' ? adminNav : schoolNav}
       </nav>
 
+      {/* ล่างสุด: ชื่อผู้เข้าสู่ระบบ + บทบาท + ปุ่มออกจากระบบ */}
       <div className="border-t border-line p-3">
-        <div className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5">
+        <div className="flex items-center justify-between gap-2 rounded-lg bg-slate-50/70 px-2.5 py-2">
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-ink">{userName}</p>
             <p className="truncate text-xs text-slate-500">{roleLabel}</p>
@@ -414,33 +491,35 @@ export default function UnifiedShell({
             onClick={onSignOut}
             title="ออกจากระบบ"
             aria-label="ออกจากระบบ"
-            className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-ink"
+            className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-white hover:text-ink"
           >
-            <LogOut className="h-4 w-4" strokeWidth={1.5} />
+            <LogOut className="h-4 w-4" strokeWidth={1.6} />
           </button>
         </div>
       </div>
     </div>
   );
 
-  // ป้ายบอกพื้นที่และขอบเขตบนแถบหัว
+  // ป้ายบอกพื้นที่บนแถบหัวด้านบน
   const contextBadge =
-    area === 'hq' ? (
+    area === 'admin' ? (
       <span className="rounded-md border border-white/70 px-2 py-0.5 text-xs font-semibold text-white">
-        ส่วนกลาง
+        ส่วนกลาง (ทุกโรงเรียน)
       </span>
-    ) : area === 'manage' ? (
+    ) : isSchoolSettingsPath ? (
       <span className="truncate rounded-md bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">
         {isSuper
-          ? `กำลังจัดการ: ${schoolName} · ในฐานะผู้ดูแลส่วนกลาง`
-          : `ตั้งค่า · มีผลเฉพาะ${schoolName}`}
+          ? `ตั้งค่า: ${schoolName} · ในฐานะผู้ดูแลส่วนกลาง`
+          : `ตั้งค่าโรงเรียน · ${schoolName}`}
       </span>
     ) : isSuper ? (
       <span className="truncate rounded-md bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">
         กำลังดู {schoolName} ในฐานะผู้ดูแลส่วนกลาง
       </span>
     ) : (
-      <span className="hidden truncate text-sm font-semibold text-ink sm:inline">{schoolName}</span>
+      <span className="hidden truncate text-sm font-semibold text-ink sm:inline">
+        {schoolName}
+      </span>
     );
 
   return (
@@ -451,22 +530,33 @@ export default function UnifiedShell({
 
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 flex lg:hidden">
-          <div className="fixed inset-0 bg-slate-900/30" onClick={() => setSidebarOpen(false)} />
-          <aside className="relative z-50 w-64 max-w-[80vw]">{renderSidebarContent()}</aside>
+          <div
+            className="fixed inset-0 bg-slate-900/30"
+            onClick={() => setSidebarOpen(false)}
+          />
+          <aside className="relative z-50 w-64 max-w-[80vw]">
+            {renderSidebarContent()}
+          </aside>
         </div>
       )}
 
       <div className="flex min-h-screen flex-col lg:pl-64">
         <header
           className={`sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b px-4 sm:px-6 ${
-            area === 'hq' ? 'border-brand-700 bg-brand-700' : 'border-line bg-white'
+            area === 'admin'
+              ? 'border-brand-700 bg-brand-700'
+              : 'border-line bg-white'
           }`}
         >
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
-              className={`rounded-lg p-2 lg:hidden ${area === 'hq' ? 'text-white hover:bg-white/10' : 'text-slate-600 hover:bg-slate-100'}`}
+              className={`rounded-lg p-2 lg:hidden ${
+                area === 'admin'
+                  ? 'text-white hover:bg-white/10'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
               aria-label="เปิดเมนู"
             >
               <Menu className="h-[18px] w-[18px]" strokeWidth={1.5} />
@@ -483,7 +573,9 @@ export default function UnifiedShell({
             {area === 'school' &&
               (isEmbedded ? (
                 <a
-                  href={`${window.location.pathname}?embedded=0${selectedSchoolId ? `&school_id=${selectedSchoolId}` : ''}`}
+                  href={`${window.location.pathname}?embedded=0${
+                    selectedSchoolId ? `&school_id=${selectedSchoolId}` : ''
+                  }`}
                   target="_blank"
                   rel="noreferrer"
                   className="btn-secondary btn-sm"
@@ -510,7 +602,9 @@ export default function UnifiedShell({
                   type="button"
                   onClick={() => setNotifOpen((prev) => !prev)}
                   className={`relative rounded-lg p-2 transition-colors ${
-                    notifOpen ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-100'
+                    notifOpen
+                      ? 'bg-brand-50 text-brand-700'
+                      : 'text-slate-600 hover:bg-slate-100'
                   }`}
                   aria-label="ประกาศล่าสุด"
                 >
@@ -522,20 +616,29 @@ export default function UnifiedShell({
 
                 {notifOpen && (
                   <div className="absolute right-0 top-12 z-30 w-[calc(100vw-2rem)] max-w-80 rounded-xl border border-line bg-white p-3 shadow-lg">
-                    <p className="mb-2 px-1 text-xs font-medium text-slate-500">ประกาศล่าสุดของโรงเรียน</p>
+                    <p className="mb-2 px-1 text-xs font-medium text-slate-500">
+                      ประกาศล่าสุดของโรงเรียน
+                    </p>
                     {recentNotices.length === 0 ? (
-                      <p className="px-1 py-3 text-xs text-slate-500">ยังไม่มีประกาศใหม่</p>
+                      <p className="px-1 py-3 text-xs text-slate-500">
+                        ยังไม่มีประกาศใหม่
+                      </p>
                     ) : (
                       <ul className="divide-y divide-line">
                         {recentNotices.map((n) => (
                           <li key={n.id} className="px-1 py-2">
-                            <p className="text-sm font-medium text-ink">{n.title}</p>
+                            <p className="text-sm font-medium text-ink">
+                              {n.title}
+                            </p>
                             <p className="mt-0.5 tabular-nums text-[11px] text-slate-400">
-                              {new Date(n.published_at).toLocaleDateString('th-TH', {
-                                day: 'numeric',
-                                month: 'short',
-                                year: 'numeric',
-                              })}
+                              {new Date(n.published_at).toLocaleDateString(
+                                'th-TH',
+                                {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: 'numeric',
+                                },
+                              )}
                             </p>
                           </li>
                         ))}
@@ -546,18 +649,20 @@ export default function UnifiedShell({
               </>
             )}
 
-            {area !== 'school' && (
+            {area === 'admin' && (
               <Link
-                to="/"
-                className={area === 'hq' ? 'btn-sm rounded-lg border border-white/70 px-3 text-white hover:bg-white/10' : 'btn-secondary btn-sm'}
+                to="/school"
+                className="btn-sm rounded-lg border border-white/70 px-3 text-white hover:bg-white/10"
               >
-                {area === 'hq' ? 'ดูหน้าโรงเรียน' : 'กลับหน้าโรงเรียน'}
+                เข้าเว็บโรงเรียนนี้
               </Link>
             )}
           </div>
         </header>
 
-        <main className="w-full min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6">{children}</main>
+        <main className="w-full min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6">
+          {children}
+        </main>
       </div>
     </div>
   );

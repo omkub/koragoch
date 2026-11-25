@@ -4,11 +4,13 @@ import {
   Building2,
   Calendar,
   Check,
+  ClipboardList,
   ExternalLink,
   FileText,
   Globe,
   GraduationCap,
   Home,
+  Image as ImageIcon,
   Megaphone,
   Phone,
   Plus,
@@ -19,6 +21,8 @@ import {
   Trash2,
   Users,
 } from 'lucide-react';
+import PublicAdmissionSettingsPanel from './PublicAdmissionSettingsPanel';
+import PublicMediaLibraryPanel from './PublicMediaLibraryPanel';
 import {
   deletePublicContactSubmission,
   fetchPublicSchoolWebConfig,
@@ -42,15 +46,21 @@ interface PublicWebSettingsPageProps {
   school: SchoolBasic | null;
   schoolId: number | null;
   canManage: boolean;
+  initialSection?: SettingsSectionKey;
+  allowedSections?: SettingsSectionKey[];
+  customTitle?: string;
+  customSubtitle?: string;
 }
 
 type SettingsSectionKey =
   | 'home'
+  | 'admission'
   | 'news'
   | 'staff'
   | 'students'
   | 'about'
-  | 'contact';
+  | 'contact'
+  | 'media';
 
 const SECTION_TABS: {
   key: SettingsSectionKey;
@@ -58,11 +68,13 @@ const SECTION_TABS: {
   icon: typeof Home;
 }[] = [
   { key: 'home', label: '1. หน้าแรก & สาร ผอ.', icon: Home },
-  { key: 'news', label: '2. ข่าวประชาสัมพันธ์', icon: Megaphone },
-  { key: 'staff', label: '3. ทำเนียบบุคลากร', icon: Users },
-  { key: 'students', label: '4. ข้อมูลนักเรียน & เอกสาร', icon: GraduationCap },
-  { key: 'about', label: '5. ข้อมูลโรงเรียน & วิสัยทัศน์', icon: Building2 },
-  { key: 'contact', label: '6. ติดต่อ & โซเชียลมีเดีย', icon: Phone },
+  { key: 'admission', label: '2. รับสมัครนักเรียน & ใบสมัคร', icon: ClipboardList },
+  { key: 'news', label: '3. ข่าวประชาสัมพันธ์', icon: Megaphone },
+  { key: 'staff', label: '4. ทำเนียบบุคลากร', icon: Users },
+  { key: 'students', label: '5. ข้อมูลนักเรียน & เอกสาร', icon: GraduationCap },
+  { key: 'about', label: '6. ข้อมูลโรงเรียน & วิสัยทัศน์', icon: Building2 },
+  { key: 'contact', label: '7. ติดต่อ & โซเชียลมีเดีย', icon: Phone },
+  { key: 'media', label: '8. คลังสื่อและเอกสาร', icon: ImageIcon },
 ];
 
 const NEWS_CATEGORY_OPTIONS: {
@@ -130,8 +142,29 @@ export default function PublicWebSettingsPage({
   school,
   schoolId,
   canManage,
+  initialSection = 'home',
+  allowedSections,
+  customTitle,
+  customSubtitle,
 }: PublicWebSettingsPageProps) {
-  const [section, setSection] = useState<SettingsSectionKey>('home');
+  const visibleTabs = SECTION_TABS.filter(
+    (t) => !allowedSections || allowedSections.includes(t.key),
+  );
+  const defaultKey =
+    visibleTabs.find((t) => t.key === initialSection)?.key ??
+    visibleTabs[0]?.key ??
+    'home';
+  const [section, setSection] = useState<SettingsSectionKey>(defaultKey);
+
+  useEffect(() => {
+    const nextKey =
+      SECTION_TABS.filter(
+        (t) => !allowedSections || allowedSections.includes(t.key),
+      ).find((t) => t.key === initialSection)?.key ??
+      allowedSections?.[0] ??
+      initialSection;
+    setSection(nextKey);
+  }, [initialSection, allowedSections]);
   const [config, setConfig] = useState<PublicSchoolWebConfig>(() =>
     loadLocalPublicWebConfig(schoolId),
   );
@@ -330,11 +363,11 @@ export default function PublicWebSettingsPage({
               <span className="badge-slate">{schoolDisplayName}</span>
             </div>
             <h1 className="mt-1.5 text-lg font-semibold text-ink">
-              จัดการข้อมูลหน้าเว็บโรงเรียนสำหรับบุคคลภายนอก
+              {customTitle || 'จัดการข้อมูลหน้าเว็บโรงเรียนสำหรับบุคคลภายนอก'}
             </h1>
             <p className="text-xs text-slate-500">
-              แก้ไขข่าวประชาสัมพันธ์ ทำเนียบบุคลากร สถิตินักเรียน ข้อมูลโรงเรียน
-              และช่องทางติดต่อ โดยแสดงผลบนหน้าเว็บสาธารณะทันที
+              {customSubtitle ||
+                'แก้ไขข่าวประชาสัมพันธ์ ทำเนียบบุคลากร สถิตินักเรียน ข้อมูลโรงเรียน และช่องทางติดต่อ โดยแสดงผลบนหน้าเว็บสาธารณะทันที'}
             </p>
           </div>
 
@@ -385,28 +418,33 @@ export default function PublicWebSettingsPage({
         </div>
       )}
 
-      {/* ── Section Navigation Tabs ─────────────────────────────────────── */}
-      <div className="flex flex-wrap gap-1.5 rounded-2xl border border-slate-200/80 bg-white p-1.5 shadow-card">
-        {SECTION_TABS.map((tab) => {
-          const Icon = tab.icon;
-          const active = section === tab.key;
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setSection(tab.key)}
-              className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-medium transition-all ${
-                active
-                  ? 'bg-brand-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-ink'
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
+      {/* ── Section Navigation Tabs (แสดงเฉพาะแท็บของฝ่ายนั้นๆ) ──────────── */}
+      {visibleTabs.length > 1 && (
+        <div className="flex flex-wrap gap-1.5 rounded-2xl border border-slate-200/80 bg-white p-1.5 shadow-card">
+          {visibleTabs.map((tab, idx) => {
+            const Icon = tab.icon;
+            const active = section === tab.key;
+            const cleanLabel = allowedSections
+              ? `${idx + 1}. ${tab.label.replace(/^\d+\.\s*/, '')}`
+              : tab.label;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setSection(tab.key)}
+                className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-medium transition-all ${
+                  active
+                    ? 'bg-brand-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-ink'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                <span>{cleanLabel}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* ════════════════════════════════════════════════════════════════════
           SECTION 1: หน้าแรก & สารจากผู้อำนวยการ
@@ -1188,6 +1226,217 @@ export default function PublicWebSettingsPage({
                         }}
                       />
                     </label>
+
+                    {/* CMS Controls: สถานะเผยแพร่ / ปักหมุด / ไฟล์แนบ PDF / แกลเลอรีภาพ */}
+                    <div className="sm:col-span-6 grid gap-3 sm:grid-cols-2 border-t border-slate-200/80 pt-3">
+                      <div className="flex flex-wrap items-center gap-4">
+                        <label className="field flex-1 min-w-[140px]">
+                          <span>สถานะการเผยแพร่ (CMS)</span>
+                          <select
+                            className="input"
+                            value={item.status ?? 'published'}
+                            onChange={(e) => {
+                              const nextStatus = e.target.value as
+                                | 'published'
+                                | 'draft';
+                              setConfig((p) => ({
+                                ...p,
+                                news: p.news.map((n, i) =>
+                                  i === idx ? { ...n, status: nextStatus } : n,
+                                ),
+                              }));
+                            }}
+                          >
+                            <option value="published">เผยแพร่บนหน้าเว็บ</option>
+                            <option value="draft">ฉบับร่าง (ซ่อนชั่วคราว)</option>
+                          </select>
+                        </label>
+                        <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-700 pt-5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="checkbox"
+                            checked={Boolean(item.pinned)}
+                            onChange={(e) =>
+                              setConfig((p) => ({
+                                ...p,
+                                news: p.news.map((n, i) =>
+                                  i === idx
+                                    ? { ...n, pinned: e.target.checked }
+                                    : n,
+                                ),
+                              }))
+                            }
+                          />
+                          <span>ปักหมุดข่าวสำคัญไว้บนสุด</span>
+                        </label>
+                      </div>
+
+                      <label className="field">
+                        <span>
+                          แกลเลอรีภาพประกอบข่าว (URL 1 บรรทัดต่อ 1 รูป — คัดลอกจากคลังสื่อได้)
+                        </span>
+                        <textarea
+                          rows={2}
+                          className="input text-xs"
+                          placeholder="https://..."
+                          value={(item.galleryImages ?? []).join('\n')}
+                          onChange={(e) => {
+                            const imgs = e.target.value
+                              .split('\n')
+                              .map((s) => s.trim())
+                              .filter(Boolean);
+                            setConfig((p) => ({
+                              ...p,
+                              news: p.news.map((n, i) =>
+                                i === idx ? { ...n, galleryImages: imgs } : n,
+                              ),
+                            }));
+                          }}
+                        />
+                      </label>
+
+                      <div className="sm:col-span-2 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium text-slate-700">
+                            ไฟล์เอกสารแนบ PDF / ดาวน์โหลดท้ายข่าว (
+                            {(item.attachments ?? []).length} ไฟล์)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setConfig((p) => ({
+                                ...p,
+                                news: p.news.map((n, i) =>
+                                  i === idx
+                                    ? {
+                                        ...n,
+                                        attachments: [
+                                          ...(n.attachments ?? []),
+                                          {
+                                            id: `att-${Date.now()}`,
+                                            title: 'เอกสารแนบใหม่ (PDF)',
+                                            url: '',
+                                            fileSizeLabel: 'PDF',
+                                          },
+                                        ],
+                                      }
+                                    : n,
+                                ),
+                              }))
+                            }
+                            className="btn-secondary btn-sm"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            <span>เพิ่มไฟล์แนบ</span>
+                          </button>
+                        </div>
+
+                        {(item.attachments ?? []).map((att, attIdx) => (
+                          <div
+                            key={att.id}
+                            className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center rounded-lg border border-slate-200 bg-white p-2"
+                          >
+                            <input
+                              className="input text-xs sm:col-span-4"
+                              placeholder="ชื่อไฟล์เอกสาร"
+                              value={att.title}
+                              onChange={(e) =>
+                                setConfig((p) => ({
+                                  ...p,
+                                  news: p.news.map((n, i) =>
+                                    i === idx
+                                      ? {
+                                          ...n,
+                                          attachments: (n.attachments ?? []).map(
+                                            (a, j) =>
+                                              j === attIdx
+                                                ? { ...a, title: e.target.value }
+                                                : a,
+                                          ),
+                                        }
+                                      : n,
+                                  ),
+                                }))
+                              }
+                            />
+                            <input
+                              className="input text-xs sm:col-span-5"
+                              placeholder="ลิงก์ดาวน์โหลด URL / Google Drive"
+                              value={att.url}
+                              onChange={(e) =>
+                                setConfig((p) => ({
+                                  ...p,
+                                  news: p.news.map((n, i) =>
+                                    i === idx
+                                      ? {
+                                          ...n,
+                                          attachments: (n.attachments ?? []).map(
+                                            (a, j) =>
+                                              j === attIdx
+                                                ? { ...a, url: e.target.value }
+                                                : a,
+                                          ),
+                                        }
+                                      : n,
+                                  ),
+                                }))
+                              }
+                            />
+                            <input
+                              className="input text-xs sm:col-span-2"
+                              placeholder="PDF • 1.2 MB"
+                              value={att.fileSizeLabel ?? ''}
+                              onChange={(e) =>
+                                setConfig((p) => ({
+                                  ...p,
+                                  news: p.news.map((n, i) =>
+                                    i === idx
+                                      ? {
+                                          ...n,
+                                          attachments: (n.attachments ?? []).map(
+                                            (a, j) =>
+                                              j === attIdx
+                                                ? {
+                                                    ...a,
+                                                    fileSizeLabel:
+                                                      e.target.value,
+                                                  }
+                                                : a,
+                                          ),
+                                        }
+                                      : n,
+                                  ),
+                                }))
+                              }
+                            />
+                            <div className="sm:col-span-1 flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setConfig((p) => ({
+                                    ...p,
+                                    news: p.news.map((n, i) =>
+                                      i === idx
+                                        ? {
+                                            ...n,
+                                            attachments: (
+                                              n.attachments ?? []
+                                            ).filter((_, j) => j !== attIdx),
+                                          }
+                                        : n,
+                                    ),
+                                  }))
+                                }
+                                className="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50"
+                                title="ลบไฟล์แนบ"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -2601,6 +2850,32 @@ export default function PublicWebSettingsPage({
             )}
           </div>
         </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          SECTION: รับสมัครนักเรียน & จัดการใบสมัครออนไลน์
+         ════════════════════════════════════════════════════════════════════ */}
+      {section === 'admission' && (
+        <PublicAdmissionSettingsPanel
+          schoolId={schoolId}
+          schoolDisplayName={schoolDisplayName}
+          admission={config.admission}
+          onChange={(nextAdmission) =>
+            setConfig((prev) => ({ ...prev, admission: nextAdmission }))
+          }
+        />
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          SECTION: คลังสื่อและเอกสารดิจิทัล (Media Library)
+         ════════════════════════════════════════════════════════════════════ */}
+      {section === 'media' && (
+        <PublicMediaLibraryPanel
+          items={config.mediaLibrary}
+          onChange={(nextMedia) =>
+            setConfig((prev) => ({ ...prev, mediaLibrary: nextMedia }))
+          }
+        />
       )}
     </div>
   );

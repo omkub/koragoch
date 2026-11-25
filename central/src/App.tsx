@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+  useParams,
+} from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import {
   clearAllSsoSessions,
@@ -15,8 +22,6 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import SchoolsPage from './pages/SchoolsPage';
 import SchoolAdminsPage from './pages/SchoolAdminsPage';
-import StaffPage from './pages/StaffPage';
-import AdminPositionsPage from './pages/AdminPositionsPage';
 import LinePage from './pages/LinePage';
 import AttendancePage from './pages/AttendancePage';
 import FormDesignerPage from './pages/FormDesignerPage';
@@ -28,6 +33,7 @@ import DivisionMappingPage from './school/DivisionMappingPage';
 import DivisionPermissionsPage from './school/DivisionPermissionsPage';
 import PublicSchoolWebPage from './school/PublicSchoolWebPage';
 import PublicWebSettingsPage from './school/PublicWebSettingsPage';
+import { fetchLeaveFiscalRounds } from './school/leaveSystemData';
 import {
   FALLBACK_CATALOG,
   fetchSchoolDivisionTree,
@@ -228,44 +234,60 @@ export default function App() {
   const loadSchoolContext = useCallback(async () => {
     if (!selectedSchoolId) return;
 
-    const [yearRes, termRes, modRes, treeRes, roleModPerms, webTabPermRes] =
-      await Promise.all([
-        supabase
-          .from('AcademicYears')
-          .select('id, id_school, year_be, label, is_current')
-          .eq('id_school', selectedSchoolId)
-          .eq('is_current', true)
-          .limit(1)
-          .maybeSingle(),
-        supabase
-          .from('AcademicTerms')
-          .select('id, id_school, academic_year_id, term_no, label, is_current')
-          .eq('id_school', selectedSchoolId)
-          .eq('is_current', true)
-          .limit(1)
-          .maybeSingle(),
-        supabase
-          .from('SchoolModules')
-          .select('id, module_key, title, description, url, open_mode, category, is_enabled')
-          .eq('id_school', selectedSchoolId)
-          .order('sort_order', { ascending: true }),
-        fetchSchoolDivisionTree(selectedSchoolId),
-        fetchRoleDivisionModulePermissions(selectedSchoolId),
-        supabase
-          .from('Permissions')
-          .select('id_role, status')
-          .eq('id_school', selectedSchoolId)
-          .eq('menu_id', 6),
-      ]);
+    const [
+      yearRes,
+      termRes,
+      modRes,
+      treeRes,
+      roleModPerms,
+      webTabPermRes,
+      fiscalRes,
+    ] = await Promise.all([
+      supabase
+        .from('AcademicYears')
+        .select('id, id_school, year_be, label, is_current')
+        .eq('id_school', selectedSchoolId)
+        .eq('is_current', true)
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('AcademicTerms')
+        .select('id, id_school, academic_year_id, term_no, label, is_current')
+        .eq('id_school', selectedSchoolId)
+        .eq('is_current', true)
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('SchoolModules')
+        .select('id, module_key, title, description, url, open_mode, category, is_enabled')
+        .eq('id_school', selectedSchoolId)
+        .order('sort_order', { ascending: true }),
+      fetchSchoolDivisionTree(selectedSchoolId),
+      fetchRoleDivisionModulePermissions(selectedSchoolId),
+      supabase
+        .from('Permissions')
+        .select('id_role, status')
+        .eq('id_school', selectedSchoolId)
+        .eq('menu_id', 6),
+      fetchLeaveFiscalRounds(),
+    ]);
 
     const currentYear = yearRes.data as AcademicYear | null;
     const currentTerm = termRes.data as AcademicTerm | null;
-    if (currentTerm?.label) {
+    if (currentTerm?.label && fiscalRes.activeRound) {
+      setAcademicLabel(
+        `${currentTerm.label} · ปีงบ ${fiscalRes.activeRound.year} (รอบที่ ${fiscalRes.activeRound.round})`,
+      );
+    } else if (currentTerm?.label) {
       setAcademicLabel(currentTerm.label);
     } else if (currentYear?.label) {
       setAcademicLabel(currentYear.label);
+    } else if (fiscalRes.activeRound) {
+      setAcademicLabel(
+        `ปีงบประมาณ ${fiscalRes.activeRound.year} (รอบที่ ${fiscalRes.activeRound.round})`,
+      );
     } else {
-      setAcademicLabel('ปีการศึกษา 2569');
+      setAcademicLabel(`ปีการศึกษา ${fiscalRes.activeYearBe}`);
     }
 
     const dbModules = (modRes.data as SchoolModuleLink[] | null) ?? [];
@@ -489,9 +511,17 @@ export default function App() {
       isEmbedded={isEmbeddedInLeaveApp()}
     >
       <Routes>
-        {/* หน้าหลักโรงเรียน */}
+        {/* หน้าแรกหลังล็อกอิน: ส่วนกลาง → /admin · บุคลากร/แอดมินโรงเรียน → /school */}
         <Route
           path="/"
+          element={<Navigate to={isSuper ? '/admin' : '/school'} replace />}
+        />
+
+        {/* ════════════════════════════════════════════════════════════════════
+            โซน 1: /school/* — เว็บบุคลากรโรงเรียนและแอดมินโรงเรียน
+           ════════════════════════════════════════════════════════════════════ */}
+        <Route
+          path="/school"
           element={
             <SchoolDashboardPage
               school={currentSchool}
@@ -504,19 +534,8 @@ export default function App() {
           }
         />
 
-        {/* หน้าตั้งค่าเว็บโรงเรียนสาธารณะ (สำหรับผู้ดูแลส่วนกลาง / แอดมินโรงเรียน / ครูผู้ดูแลเว็บโรงเรียน) */}
         <Route
-          path="/public-web-settings"
-          element={
-            <PublicWebSettingsPage
-              school={currentSchool}
-              schoolId={selectedSchoolId}
-              canManage={canManagePublicWeb}
-            />
-          }
-        />
-        <Route
-          path="/admin/public-web"
+          path="/school/public-web-settings"
           element={
             <PublicWebSettingsPage
               school={currentSchool}
@@ -526,9 +545,8 @@ export default function App() {
           }
         />
 
-        {/* หน้ากลางของแต่ละฝ่าย (Dynamic Division Hub: แสดงเฉพาะ Module ที่ map อยู่กับฝ่ายนั้น) */}
         <Route
-          path="/division/:divisionKey"
+          path="/school/division/:divisionKey"
           element={
             <DivisionHubPage
               schoolId={selectedSchoolId}
@@ -542,7 +560,7 @@ export default function App() {
           }
         />
         <Route
-          path="/division/:divisionKey/:moduleKey"
+          path="/school/division/:divisionKey/:moduleKey"
           element={
             <DivisionHubPage
               schoolId={selectedSchoolId}
@@ -556,11 +574,11 @@ export default function App() {
           }
         />
 
-        {/* ② ตั้งค่าโรงเรียน — แอดมินโรงเรียน (โรงเรียนตัวเอง) / ส่วนกลาง (โรงเรียนที่เลือกในศูนย์ส่วนกลาง) */}
+        {/* ตั้งค่าโรงเรียน (แอดมินโรงเรียน + ผู้ดูแลส่วนกลาง) */}
         {canEditSchool && (
           <>
             <Route
-              path="/admin/mapping"
+              path="/school/settings/mapping"
               element={
                 <DivisionMappingPage
                   school={currentSchool}
@@ -575,7 +593,7 @@ export default function App() {
               }
             />
             <Route
-              path="/admin/division-permissions"
+              path="/school/settings/permissions"
               element={
                 <DivisionPermissionsPage
                   school={currentSchool}
@@ -589,7 +607,7 @@ export default function App() {
               }
             />
             <Route
-              path="/user-permissions"
+              path="/school/settings/user-permissions"
               element={
                 <DivisionPermissionsPage
                   school={currentSchool}
@@ -603,46 +621,69 @@ export default function App() {
                 />
               }
             />
-          </>
-        )}
-        {/* ② หน้าตั้งค่าระบบวันลาของโรงเรียน — ใช้โรงเรียนจากที่เดียว (selectedSchoolId)
-            แอดมินโรงเรียน = โรงเรียนตัวเองเสมอ (ต้องรัน supabase/school_admin_leave_settings.sql) */}
-        {canEditSchool && (
-          <>
-            <Route path="/staff" element={<StaffPage lockedSchoolId={selectedSchoolId} />} />
             <Route
-              path="/admin-positions"
-              element={<AdminPositionsPage lockedSchoolId={selectedSchoolId} />}
+              path="/school/settings/staff"
+              element={
+                <Navigate
+                  to="/school/division/hr/staff-registry?tab=staff_status"
+                  replace
+                />
+              }
             />
-            <Route path="/line" element={<LinePage lockedSchoolId={selectedSchoolId} />} />
             <Route
-              path="/attendance"
+              path="/school/settings/admin-positions"
+              element={
+                <Navigate
+                  to="/school/division/hr/staff-registry?tab=admin_positions"
+                  replace
+                />
+              }
+            />
+            <Route
+              path="/school/settings/line"
+              element={<LinePage lockedSchoolId={selectedSchoolId} />}
+            />
+            <Route
+              path="/school/settings/attendance"
               element={<AttendancePage lockedSchoolId={selectedSchoolId} />}
             />
             <Route
-              path="/forms"
+              path="/school/settings/forms"
               element={
                 selectedSchoolId ? (
                   <FormDesignerPage fixedScope={selectedSchoolId} />
                 ) : (
-                  <Navigate to="/hq" replace />
+                  <Navigate to="/admin" replace />
                 )
               }
             />
-            <Route path="/forms/leave" element={<Navigate to="/forms" replace />} />
           </>
         )}
-        {/* ③ ศูนย์ผู้ดูแลส่วนกลาง */}
+
+        <Route
+          path="/school/settings/general"
+          element={
+            <SchoolSettingsPage
+              school={currentSchool}
+              schoolId={selectedSchoolId}
+              canEdit={canEditSchool}
+              modules={modules}
+              hasDbRows={hasDbModules}
+              onReload={loadSchoolContext}
+            />
+          }
+        />
+
+        {/* ════════════════════════════════════════════════════════════════════
+            โซน 2: /admin/* — ศูนย์ผู้ดูแลระบบส่วนกลางทุกโรงเรียน (เฉพาะ isSuper)
+           ════════════════════════════════════════════════════════════════════ */}
         {isSuper && (
           <>
-            <Route path="/hq" element={<DashboardPage />} />
-            <Route path="/hq/forms" element={<FormDesignerPage fixedScope="global" />} />
-            <Route path="/hq/line" element={<LinePage />} />
-            <Route path="/leave-admin" element={<Navigate to="/hq" replace />} />
-            <Route path="/schools" element={<SchoolsPage />} />
-            <Route path="/admins" element={<SchoolAdminsPage />} />
+            <Route path="/admin" element={<DashboardPage />} />
+            <Route path="/admin/schools" element={<SchoolsPage />} />
+            <Route path="/admin/school-admins" element={<SchoolAdminsPage />} />
             <Route
-              path="/role-permissions"
+              path="/admin/packages"
               element={
                 <DivisionPermissionsPage
                   school={currentSchool}
@@ -656,26 +697,125 @@ export default function App() {
                 />
               }
             />
+            <Route
+              path="/admin/forms"
+              element={<FormDesignerPage fixedScope="global" />}
+            />
+            <Route path="/admin/line" element={<LinePage />} />
           </>
         )}
 
-        {/* ตั้งค่าปีการศึกษาและลิงก์ */}
+        {/* ════════════════════════════════════════════════════════════════════
+            Legacy Redirects — รองรับลิงก์เดิมจากแอปวันลา (lib/) และบุ๊กมาร์ก
+           ════════════════════════════════════════════════════════════════════ */}
         <Route
-          path="/settings"
+          path="/division/:divisionKey"
+          element={<LegacyDivisionRedirect />}
+        />
+        <Route
+          path="/division/:divisionKey/:moduleKey"
+          element={<LegacyDivisionRedirect />}
+        />
+        <Route
+          path="/public-web-settings"
+          element={<Navigate to="/school/public-web-settings" replace />}
+        />
+        <Route
+          path="/admin/public-web"
+          element={<Navigate to="/school/public-web-settings" replace />}
+        />
+        <Route
+          path="/admin/mapping"
+          element={<Navigate to="/school/settings/mapping" replace />}
+        />
+        <Route
+          path="/admin/division-permissions"
+          element={<Navigate to="/school/settings/permissions" replace />}
+        />
+        <Route
+          path="/user-permissions"
+          element={<Navigate to="/school/settings/user-permissions" replace />}
+        />
+        <Route
+          path="/staff"
           element={
-            <SchoolSettingsPage
-              school={currentSchool}
-              schoolId={selectedSchoolId}
-              canEdit={canEditSchool}
-              modules={modules}
-              hasDbRows={hasDbModules}
-              onReload={loadSchoolContext}
+            <Navigate
+              to="/school/division/hr/staff-registry?tab=staff_status"
+              replace
             />
           }
         />
+        <Route
+          path="/admin-positions"
+          element={
+            <Navigate
+              to="/school/division/hr/staff-registry?tab=admin_positions"
+              replace
+            />
+          }
+        />
+        <Route
+          path="/line"
+          element={<Navigate to="/school/settings/line" replace />}
+        />
+        <Route
+          path="/attendance"
+          element={<Navigate to="/school/settings/attendance" replace />}
+        />
+        <Route
+          path="/forms"
+          element={<Navigate to="/school/settings/forms" replace />}
+        />
+        <Route
+          path="/forms/leave"
+          element={<Navigate to="/school/settings/forms" replace />}
+        />
+        <Route
+          path="/settings"
+          element={<Navigate to="/school/settings/general" replace />}
+        />
+        <Route path="/hq" element={<Navigate to="/admin" replace />} />
+        <Route
+          path="/hq/forms"
+          element={<Navigate to="/admin/forms" replace />}
+        />
+        <Route
+          path="/hq/line"
+          element={<Navigate to="/admin/line" replace />}
+        />
+        <Route
+          path="/leave-admin"
+          element={<Navigate to="/admin" replace />}
+        />
+        <Route
+          path="/schools"
+          element={<Navigate to="/admin/schools" replace />}
+        />
+        <Route
+          path="/admins"
+          element={<Navigate to="/admin/school-admins" replace />}
+        />
+        <Route
+          path="/role-permissions"
+          element={<Navigate to="/admin/packages" replace />}
+        />
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="*"
+          element={<Navigate to={isSuper ? '/admin' : '/school'} replace />}
+        />
       </Routes>
     </UnifiedShell>
   );
+}
+
+function LegacyDivisionRedirect() {
+  const { divisionKey, moduleKey } = useParams<{
+    divisionKey: string;
+    moduleKey?: string;
+  }>();
+  const target = moduleKey
+    ? `/school/division/${divisionKey}/${moduleKey}`
+    : `/school/division/${divisionKey}`;
+  return <Navigate to={target} replace />;
 }

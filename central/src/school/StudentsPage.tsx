@@ -14,35 +14,53 @@ import {
   FileSpreadsheet,
   FileText,
   GraduationCap,
+  Lock,
   Plus,
   Printer,
   Save,
   Search,
+  Send,
+  SlidersHorizontal,
   Trash2,
+  Unlock,
   UserCheck,
   Users,
   X,
 } from 'lucide-react';
 import { supabase } from '../supabase';
+import { fetchLeaveFiscalRounds } from './leaveSystemData';
 import {
   buildDefaultStudentProfile,
+  computeSgsCourseGradeStats,
   computeSgsGradeRow,
   computeStudentMultiYearTranscript,
   downloadSgsGradebookCsv,
   fetchSchoolSgsGrades,
   fetchSchoolStudentProfiles,
   getStandardSubjectsForGradeTerm,
+  loadSgsCourseStructure,
+  loadSgsCourseSubmission,
+  saveSgsCourseStructure,
+  saveSgsCourseSubmission,
   saveSgsGradeRecords,
   saveStudentPersonalProfile,
   SGS_GRADE_LEVELS,
   STUDY_PLAN_OPTIONS,
+  type SgsCourseScoreStructure,
+  type SgsCourseSubmissionRecord,
   type SgsGradeLevel,
+  type SgsIndicatorItem,
   type SgsLearningArea,
   type SgsScoreRecord,
   type SgsSpecialStatus,
   type SgsSubjectType,
   type StudentPersonalProfile,
 } from './sgsGradingStore';
+import {
+  SgsScoreStructureModal,
+  SgsSubmissionCertificateModal,
+  SgsSubmitConfirmModal,
+} from './SgsEvaluationModals';
 import type {
   Classroom,
   SchoolDepartment,
@@ -162,6 +180,17 @@ export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
     Record<number, SgsScoreRecord>
   >({});
 
+  // Phase B: โครงสร้างตัวชี้วัด + ส่งมอบเกรดเข้าฝ่ายวิชาการ + ใบรับรอง SGS
+  const [sgsIndicators, setSgsIndicators] = useState<SgsIndicatorItem[]>([]);
+  const [scoreSetupModalOpen, setScoreSetupModalOpen] = useState(false);
+  const [submitSgsModalOpen, setSubmitSgsModalOpen] = useState(false);
+  const [certificateModalOpen, setCertificateModalOpen] = useState(false);
+  const [courseSubmission, setCourseSubmission] =
+    useState<SgsCourseSubmissionRecord | null>(null);
+  const [schoolDisplayName, setSchoolDisplayName] = useState<string>(
+    'โรงเรียนในสังกัด สพฐ.',
+  );
+
   // ── Multi-Year Transcript states (Part 3) ──
   const [selectedTranscriptStudentId, setSelectedTranscriptStudentId] =
     useState<number | null>(null);
@@ -189,6 +218,7 @@ export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
       schedRes,
       yearRes,
       termRes,
+      fiscalRes,
       loadedProfiles,
       loadedGrades,
     ] = await Promise.all([
@@ -245,6 +275,7 @@ export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
         .order('is_current', { ascending: false })
         .limit(1)
         .maybeSingle(),
+      fetchLeaveFiscalRounds(),
       fetchSchoolStudentProfiles(schoolId),
       fetchSchoolSgsGrades(schoolId),
     ]);
@@ -265,6 +296,8 @@ export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
     }
     if (!yearRes.error && yearRes.data && (yearRes.data as { year_be?: number }).year_be) {
       setSgsYearBe(Number((yearRes.data as { year_be: number }).year_be));
+    } else if (fiscalRes.activeYearBe) {
+      setSgsYearBe(fiscalRes.activeYearBe);
     }
     if (!termRes.error && termRes.data && (termRes.data as { term_no?: number }).term_no) {
       const tNo = Number((termRes.data as { term_no: number }).term_no);
@@ -597,6 +630,49 @@ export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
     return result;
   }, [allGrades]);
 
+  // สร้างรหัสนักเรียนอัตโนมัติ (ขั้นต่ำ 5 หลัก): ปีงบประมาณ/ปีการศึกษา พ.ศ. 2 หลัก (ดึงจากตั้งค่าระบบ เช่น 2569 -> 69) + ลำดับจำนวนนักเรียน (เช่น 001, 1201)
+  const generateAutoStudentCode = useCallback(
+    (yearBe: number) => {
+      const cleanYear = Number(yearBe) || new Date().getFullYear() + 543;
+      const yy = String(cleanYear).slice(-2).padStart(2, '0');
+      const existingCodes = new Set(
+        students.map((s) => s.student_code.trim()),
+      );
+      let seq = students.length + 1;
+      let candidate = `${yy}${String(seq).padStart(3, '0')}`;
+      while (existingCodes.has(candidate)) {
+        seq += 1;
+        candidate = `${yy}${String(seq).padStart(3, '0')}`;
+      }
+      return candidate;
+    },
+    [students],
+  );
+
+  // เติมรหัสนักเรียนอัตโนมัติเมื่อเปิดฟอร์ม โดยอ้างอิงปีงบประมาณ/ปีการศึกษาปัจจุบันจากระบบ
+  useEffect(() => {
+    if (!showAddStudentForm) return;
+    setStudentCode(generateAutoStudentCode(sgsYearBe));
+  }, [showAddStudentForm, sgsYearBe, generateAutoStudentCode]);
+
+  // คำนวณเลขที่ในห้องเรียนถัดไปอัตโนมัติเมื่อเลือกห้องเรียน
+  const handleSelectNewStudentClassroom = (nextClassroomId: string) => {
+    setClassroomId(nextClassroomId);
+    if (!nextClassroomId) return;
+    const cid = Number(nextClassroomId);
+    const inRoom = students.filter((s) => s.classroom_id === cid);
+    setSeatNoInput(String(inRoom.length + 1));
+    const cls = classroomMap.get(cid);
+    if (cls) {
+      const lvl = inferGradeLevelFromClassroomName(cls.name);
+      if (['ม.1', 'ม.2', 'ม.3'].includes(lvl) && prefix === 'นาย') {
+        setPrefix('เด็กชาย');
+      } else if (['ม.4', 'ม.5', 'ม.6'].includes(lvl) && prefix === 'เด็กชาย') {
+        setPrefix('นาย');
+      }
+    }
+  };
+
   // ── Handlers: Part 1 (Student Registry & Personal Profile) ──
   async function handleAddStudent(e: FormEvent) {
     e.preventDefault();
@@ -742,6 +818,156 @@ export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
         },
       };
     });
+  }
+
+  const isCourseSubmitted = courseSubmission?.status === 'submitted';
+
+  const activeClassroomLabel = useMemo(() => {
+    if (sgsClassroomId === 'all') return 'ทุกห้องเรียน';
+    const cls = classroomMap.get(Number(sgsClassroomId));
+    return cls ? `ห้อง ${cls.name}` : 'ทุกห้องเรียน';
+  }, [sgsClassroomId, classroomMap]);
+
+  const activeGradebookRecords = useMemo(
+    () =>
+      gradebookStudents
+        .map((stu) => gradebookDraft[stu.id])
+        .filter((r): r is SgsScoreRecord => Boolean(r)),
+    [gradebookStudents, gradebookDraft],
+  );
+
+  const sgsCourseStats = useMemo(
+    () => computeSgsCourseGradeStats(activeGradebookRecords),
+    [activeGradebookRecords],
+  );
+
+  // โหลดชื่อโรงเรียนจริงสำหรับใบรับรอง SGS
+  useEffect(() => {
+    if (!schoolId) return;
+    supabase
+      .from('Schools')
+      .select('fullName')
+      .eq('id_school', schoolId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const name = (data as { fullName?: string } | null)?.fullName;
+        if (name) setSchoolDisplayName(name);
+      });
+  }, [schoolId]);
+
+  // โหลดโครงสร้างคะแนน/ตัวชี้วัด และสถานะส่งมอบของรายวิชาปัจจุบัน
+  useEffect(() => {
+    if (!schoolId || !sgsSubjectCode.trim()) return;
+    const savedStructure = loadSgsCourseStructure({
+      schoolId,
+      gradeLevel: sgsGradeLevel,
+      termNo: sgsTermNo,
+      yearBe: sgsYearBe,
+      subjectCode: sgsSubjectCode,
+    });
+    if (savedStructure) {
+      setMaxPreMidWork(savedStructure.max_pre_mid_work);
+      setMaxPreMidNotebook(savedStructure.max_pre_mid_notebook);
+      setMaxMidterm(savedStructure.max_midterm);
+      setMaxPostMidWork(savedStructure.max_post_mid_work);
+      setMaxPostMidNotebook(savedStructure.max_post_mid_notebook);
+      setMaxAffective(savedStructure.max_affective);
+      setMaxFinal(savedStructure.max_final);
+      setSgsIndicators(savedStructure.indicators ?? []);
+    } else {
+      setSgsIndicators([]);
+    }
+    const savedSub = loadSgsCourseSubmission({
+      schoolId,
+      gradeLevel: sgsGradeLevel,
+      termNo: sgsTermNo,
+      yearBe: sgsYearBe,
+      subjectCode: sgsSubjectCode,
+      classroomKey: sgsClassroomId,
+    });
+    setCourseSubmission(savedSub);
+  }, [
+    schoolId,
+    sgsGradeLevel,
+    sgsTermNo,
+    sgsYearBe,
+    sgsSubjectCode,
+    sgsClassroomId,
+  ]);
+
+  function handleSaveCourseStructure(next: SgsCourseScoreStructure) {
+    setMaxPreMidWork(next.max_pre_mid_work);
+    setMaxPreMidNotebook(next.max_pre_mid_notebook);
+    setMaxMidterm(next.max_midterm);
+    setMaxPostMidWork(next.max_post_mid_work);
+    setMaxPostMidNotebook(next.max_post_mid_notebook);
+    setMaxAffective(next.max_affective);
+    setMaxFinal(next.max_final);
+    setSgsIndicators(next.indicators);
+    saveSgsCourseStructure(
+      {
+        schoolId,
+        gradeLevel: sgsGradeLevel,
+        termNo: sgsTermNo,
+        yearBe: sgsYearBe,
+        subjectCode: sgsSubjectCode,
+      },
+      next,
+    );
+    setScoreSetupModalOpen(false);
+    setNotice(
+      `บันทึกโครงสร้างสัดส่วนคะแนนและตัวชี้วัด (${next.indicators.length} ข้อ) สำหรับวิชา ${sgsSubjectCode} เรียบร้อยแล้ว`,
+    );
+  }
+
+  async function handleConfirmSubmitSgs(teacherName: string) {
+    if (!schoolId) return;
+    await handleSaveGradebook();
+    const record: SgsCourseSubmissionRecord = {
+      referenceCode: `SGS-${sgsYearBe}-${sgsTermNo}-${sgsSubjectCode.trim()}`,
+      schoolId,
+      gradeLevel: sgsGradeLevel,
+      termNo: sgsTermNo,
+      yearBe: sgsYearBe,
+      subjectCode: sgsSubjectCode.trim(),
+      subjectName: sgsSubjectName.trim(),
+      learningArea: sgsLearningArea,
+      credits: Number(sgsCredits) || 0,
+      classroomKey: sgsClassroomId,
+      classroomLabel: activeClassroomLabel,
+      teacherName:
+        teacherName ||
+        scheduledTeacherNameForActiveSubject ||
+        'ครูผู้สอนประจำรายวิชา',
+      status: 'submitted',
+      submittedAt: new Date().toISOString(),
+      studentCount: activeGradebookRecords.length,
+    };
+    saveSgsCourseSubmission(record);
+    setCourseSubmission(record);
+    setNotice(
+      `ส่งมอบผลการเรียนวิชา ${record.subjectCode} เข้าฝ่ายวิชาการเรียบร้อยแล้ว (เลขที่อ้างอิง ${record.referenceCode})`,
+    );
+  }
+
+  function handleUnlockCourseSubmission() {
+    if (!courseSubmission) return;
+    if (
+      !window.confirm(
+        `ต้องการปลดล็อกผลการเรียนวิชา ${courseSubmission.subjectCode} เพื่อกลับมาแก้ไขคะแนนหรือไม่?`,
+      )
+    ) {
+      return;
+    }
+    const unlocked: SgsCourseSubmissionRecord = {
+      ...courseSubmission,
+      status: 'unlocked',
+    };
+    saveSgsCourseSubmission(unlocked);
+    setCourseSubmission(unlocked);
+    setNotice(
+      `ปลดล็อกตารางบันทึกคะแนนวิชา ${courseSubmission.subjectCode} แล้ว สามารถแก้ไขและส่งมอบใหม่ได้`,
+    );
   }
 
   async function handleSaveGradebook() {
@@ -1071,14 +1297,19 @@ export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
 
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <label className="field">
-                    <span>รหัสนักเรียน (5 หลัก) *</span>
+                    <div className="flex items-center justify-between">
+                      <span>รหัสนักเรียน (5 หลัก) *</span>
+                      <span className="text-[11px] font-normal text-brand-600">
+                        ปี {sgsYearBe} ({String(sgsYearBe).slice(-2)}) + ลำดับ
+                      </span>
+                    </div>
                     <input
                       type="text"
                       required
                       value={studentCode}
                       onChange={(e) => setStudentCode(e.target.value)}
-                      placeholder="เช่น 68001"
-                      className="input"
+                      placeholder="เช่น 69001"
+                      className="input font-semibold text-brand-700 tabular-nums"
                     />
                   </label>
 
@@ -1108,7 +1339,9 @@ export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
                     <span>ห้องเรียนปัจจุบัน</span>
                     <select
                       value={classroomId}
-                      onChange={(e) => setClassroomId(e.target.value)}
+                      onChange={(e) =>
+                        handleSelectNewStudentClassroom(e.target.value)
+                      }
                       className="input"
                     >
                       <option value="">-- เลือกห้องเรียน --</option>
@@ -1387,6 +1620,27 @@ export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
                 )}
                 <button
                   type="button"
+                  onClick={() => setScoreSetupModalOpen(true)}
+                  disabled={isCourseSubmitted}
+                  className="btn-secondary btn-sm"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5 text-brand-600" />
+                  <span>
+                    ตั้งค่าสัดส่วน/ตัวชี้วัด
+                    {sgsIndicators.length > 0 ? ` (${sgsIndicators.length})` : ''}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCertificateModalOpen(true)}
+                  disabled={gradebookStudents.length === 0}
+                  className="btn-secondary btn-sm"
+                >
+                  <Award className="h-3.5 w-3.5 text-amber-600" />
+                  <span>ใบรับรองส่งมอบ (SGS)</span>
+                </button>
+                <button
+                  type="button"
                   onClick={handleExportSgsCsv}
                   disabled={gradebookStudents.length === 0}
                   className="btn-secondary btn-sm"
@@ -1394,19 +1648,64 @@ export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
                   <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
                   <span>ส่งออกไฟล์ CSV นำเข้า SGS</span>
                 </button>
-                {canEdit && (
+                {canEdit && !isCourseSubmitted && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleSaveGradebook}
+                      disabled={busy || gradebookStudents.length === 0}
+                      className="btn-primary btn-sm"
+                    >
+                      <Save className="h-3.5 w-3.5" />
+                      <span>บันทึกคะแนน SGS</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSubmitSgsModalOpen(true)}
+                      disabled={busy || gradebookStudents.length === 0}
+                      className="btn-sm inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      <span>ส่งมอบเกรดเข้าฝ่ายวิชาการ</span>
+                    </button>
+                  </>
+                )}
+                {canEdit && isCourseSubmitted && (
                   <button
                     type="button"
-                    onClick={handleSaveGradebook}
-                    disabled={busy || gradebookStudents.length === 0}
-                    className="btn-primary btn-sm"
+                    onClick={handleUnlockCourseSubmission}
+                    className="btn-secondary btn-sm text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100"
                   >
-                    <Save className="h-3.5 w-3.5" />
-                    <span>บันทึกคะแนน SGS</span>
+                    <Unlock className="h-3.5 w-3.5" />
+                    <span>ปลดล็อกแก้ไขคะแนน</span>
                   </button>
                 )}
               </div>
             </div>
+
+            {isCourseSubmitted && courseSubmission && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-xs text-emerald-900">
+                <div className="flex items-center gap-2">
+                  <Lock className="h-4 w-4 text-emerald-700 shrink-0" />
+                  <span>
+                    <strong>ส่งมอบผลการเรียนเข้าฝ่ายวิชาการแล้ว</strong> •
+                    เลขที่อ้างอิง{' '}
+                    <strong>{courseSubmission.referenceCode}</strong> •
+                    ส่งโดย {courseSubmission.teacherName} เมื่อ{' '}
+                    {new Date(courseSubmission.submittedAt).toLocaleString(
+                      'th-TH',
+                    )}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCertificateModalOpen(true)}
+                  className="font-bold text-emerald-800 underline hover:text-emerald-950"
+                >
+                  เปิดใบรับรองการส่งมอบ (พิมพ์ A4) →
+                </button>
+              </div>
+            )}
 
             {/* Filter & Subject Selector Grid */}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
@@ -3243,6 +3542,75 @@ export default function StudentsPage({ schoolId, canEdit }: StudentsPageProps) {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Phase B Modals: ตั้งค่าสัดส่วนคะแนน/ตัวชี้วัด + ส่งมอบเกรด + ใบรับรอง SGS */}
+      {scoreSetupModalOpen && (
+        <SgsScoreStructureModal
+          subjectCode={sgsSubjectCode}
+          subjectName={sgsSubjectName}
+          initial={{
+            max_pre_mid_work: maxPreMidWork,
+            max_pre_mid_notebook: maxPreMidNotebook,
+            max_midterm: maxMidterm,
+            max_post_mid_work: maxPostMidWork,
+            max_post_mid_notebook: maxPostMidNotebook,
+            max_affective: maxAffective,
+            max_final: maxFinal,
+            indicators: sgsIndicators,
+          }}
+          onClose={() => setScoreSetupModalOpen(false)}
+          onSave={handleSaveCourseStructure}
+        />
+      )}
+
+      {submitSgsModalOpen && (
+        <SgsSubmitConfirmModal
+          subjectCode={sgsSubjectCode}
+          subjectName={sgsSubjectName}
+          gradeLevel={sgsGradeLevel}
+          termNo={sgsTermNo}
+          yearBe={sgsYearBe}
+          classroomLabel={activeClassroomLabel}
+          defaultTeacherName={scheduledTeacherNameForActiveSubject ?? ''}
+          stats={sgsCourseStats}
+          submitting={busy}
+          submittedRecord={courseSubmission}
+          onClose={() => setSubmitSgsModalOpen(false)}
+          onConfirmSubmit={handleConfirmSubmitSgs}
+          onOpenCertificate={() => {
+            setSubmitSgsModalOpen(false);
+            setCertificateModalOpen(true);
+          }}
+        />
+      )}
+
+      {certificateModalOpen && (
+        <SgsSubmissionCertificateModal
+          schoolDisplayName={schoolDisplayName}
+          subjectCode={sgsSubjectCode}
+          subjectName={sgsSubjectName}
+          learningArea={sgsLearningArea}
+          credits={Number(sgsCredits) || 0}
+          gradeLevel={sgsGradeLevel}
+          termNo={sgsTermNo}
+          yearBe={sgsYearBe}
+          classroomLabel={activeClassroomLabel}
+          teacherName={scheduledTeacherNameForActiveSubject ?? ''}
+          submission={courseSubmission}
+          structure={{
+            max_pre_mid_work: maxPreMidWork,
+            max_pre_mid_notebook: maxPreMidNotebook,
+            max_midterm: maxMidterm,
+            max_post_mid_work: maxPostMidWork,
+            max_post_mid_notebook: maxPostMidNotebook,
+            max_affective: maxAffective,
+            max_final: maxFinal,
+            indicators: sgsIndicators,
+          }}
+          stats={sgsCourseStats}
+          onClose={() => setCertificateModalOpen(false)}
+        />
       )}
     </div>
   );

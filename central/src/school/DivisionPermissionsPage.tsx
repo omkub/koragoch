@@ -702,7 +702,7 @@ export default function DivisionPermissionsPage({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Link to="/admin/mapping" className="btn-secondary btn-sm shrink-0">
+          <Link to="/school/settings/mapping" className="btn-secondary btn-sm shrink-0">
             <Users className="h-3.5 w-3.5" strokeWidth={1.75} />
             <span>ไปหน้าฝ่ายและบุคลากร</span>
           </Link>
@@ -780,7 +780,7 @@ export default function DivisionPermissionsPage({
                 </p>
               </div>
               <Link
-                to="/admin/mapping"
+                to="/school/settings/mapping"
                 className="btn-secondary btn-sm shrink-0"
               >
                 <Layers className="h-3.5 w-3.5" strokeWidth={1.5} />

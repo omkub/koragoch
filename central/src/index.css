@@ -117,3 +117,57 @@
     box-shadow: 0 12px 32px rgba(13, 28, 46, 0.06);
   }
 }
+
+/* ── พิมพ์บัตรประจำตัวสอบแบบกลุ่ม (2 ใบ / 1 แผ่น A4) ────────── */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+  body.printing-admission-batch * {
+    visibility: hidden !important;
+  }
+  body.printing-admission-batch .admission-batch-print-area,
+  body.printing-admission-batch .admission-batch-print-area * {
+    visibility: visible !important;
+  }
+  body.printing-admission-batch .admission-batch-print-area {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .admission-a4-sheet {
+    break-after: page;
+    page-break-after: always;
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .admission-a4-sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  /* ── พิมพ์ใบรับรองการส่งมอบผลการเรียน (SGS Certificate A4) ──── */
+  body.printing-sgs-certificate * {
+    visibility: hidden !important;
+  }
+  body.printing-sgs-certificate .sgs-cert-print-area,
+  body.printing-sgs-certificate .sgs-cert-print-area * {
+    visibility: visible !important;
+  }
+  body.printing-sgs-certificate .sgs-cert-print-area {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+}

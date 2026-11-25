@@ -1,8 +1,23 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, ExternalLink, Globe, Layers, Settings, ShieldCheck } from 'lucide-react';
+import {
+  ArrowRight,
+  CalendarDays,
+  ExternalLink,
+  Globe,
+  Layers,
+  Settings,
+  ShieldCheck,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../supabase';
 import AnnouncementsSection from './AnnouncementsSection';
+import {
+  fetchLeaveSpecialDates,
+  fetchSchoolLeaveSummary,
+  formatThaiDateShort,
+  type LeaveSpecialHoliday,
+  type SchoolLeaveSummary,
+} from './leaveSystemData';
 import type { DivisionWithModules } from './mapping';
 import type { SchoolBasic } from './types';
 
@@ -25,29 +40,32 @@ export default function SchoolDashboardPage({
 }: SchoolDashboardPageProps) {
   const [staffCount, setStaffCount] = useState<number | null>(null);
   const [studentCount, setStudentCount] = useState<number | null>(null);
-  const [pendingLeaves, setPendingLeaves] = useState<number | null>(null);
+  const [leaveSummary, setLeaveSummary] = useState<SchoolLeaveSummary | null>(
+    null,
+  );
+  const [upcomingHolidays, setUpcomingHolidays] = useState<
+    LeaveSpecialHoliday[]
+  >([]);
 
   useEffect(() => {
     if (!schoolId) return;
     let cancelled = false;
 
     (async () => {
-      const [teachersRes, studentsRes, leavesRes] = await Promise.all([
-        supabase
-          .from('Teachers')
-          .select('id_user, employment_status', { count: 'exact' })
-          .eq('id_school', schoolId),
-        supabase
-          .from('SchoolWebStudents')
-          .select('id', { count: 'exact', head: true })
-          .eq('id_school', schoolId)
-          .eq('status', 'enrolled'),
-        supabase
-          .from('Leaves')
-          .select('id', { count: 'exact', head: true })
-          .eq('id_school', schoolId)
-          .in('Status', ['รอพิจารณา', 'ยังไม่ส่ง']),
-      ]);
+      const [teachersRes, studentsRes, leaveRes, specialDatesRes] =
+        await Promise.all([
+          supabase
+            .from('Teachers')
+            .select('id_user, employment_status', { count: 'exact' })
+            .eq('id_school', schoolId),
+          supabase
+            .from('SchoolWebStudents')
+            .select('id', { count: 'exact', head: true })
+            .eq('id_school', schoolId)
+            .eq('status', 'enrolled'),
+          fetchSchoolLeaveSummary(schoolId),
+          fetchLeaveSpecialDates(schoolId),
+        ]);
 
       if (cancelled) return;
 
@@ -63,9 +81,8 @@ export default function SchoolDashboardPage({
         setStudentCount(studentsRes.count);
       }
 
-      if (!leavesRes.error && typeof leavesRes.count === 'number') {
-        setPendingLeaves(leavesRes.count);
-      }
+      setLeaveSummary(leaveRes);
+      setUpcomingHolidays(specialDatesRes.upcomingHolidays);
     })();
 
     return () => {
@@ -107,7 +124,7 @@ export default function SchoolDashboardPage({
             <span>ดูหน้าเว็บสาธารณะ (คนนอกดู)</span>
           </Link>
           {canManagePublicWeb && (
-            <Link to="/public-web-settings" className="btn-secondary btn-sm">
+            <Link to="/school/public-web-settings" className="btn-secondary btn-sm">
               <Settings className="h-3.5 w-3.5 text-emerald-600" strokeWidth={1.5} />
               <span>ตั้งค่าเว็บสาธารณะ</span>
             </Link>
@@ -115,13 +132,13 @@ export default function SchoolDashboardPage({
           {canEdit && (
             <>
               <Link
-                to="/admin/division-permissions"
+                to="/school/settings/permissions"
                 className="btn-secondary btn-sm"
               >
                 <ShieldCheck className="h-3.5 w-3.5" strokeWidth={1.5} />
                 <span>สิทธิ์การใช้งาน</span>
               </Link>
-              <Link to="/admin/mapping" className="btn-secondary btn-sm">
+              <Link to="/school/settings/mapping" className="btn-secondary btn-sm">
                 <Layers className="h-3.5 w-3.5" strokeWidth={1.5} />
                 <span>ฝ่ายและบุคลากร</span>
               </Link>
@@ -162,13 +179,101 @@ export default function SchoolDashboardPage({
         </div>
 
         <div className="surface-card p-5">
-          <p className="text-xs font-medium text-slate-500">ใบลารอพิจารณา</p>
-          <p className="mt-2 text-2xl font-semibold tabular-nums text-ink">
-            {pendingLeaves === null ? '-' : pendingLeaves.toLocaleString('th-TH')}
+          <p className="text-xs font-medium text-slate-500">
+            ใบลารอพิจารณา / สะสมทั้งหมด
           </p>
-          <p className="mt-1 text-xs text-slate-500">รายการ</p>
+          <p className="mt-2 text-2xl font-semibold tabular-nums text-ink">
+            {leaveSummary === null
+              ? '-'
+              : leaveSummary.pendingLeaves.toLocaleString('th-TH')}{' '}
+            {leaveSummary !== null && (
+              <span className="text-sm font-normal text-slate-400">
+                / {leaveSummary.totalLeaves.toLocaleString('th-TH')}
+              </span>
+            )}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            รายการ (เชื่อมจากระบบวันลา Read-Only)
+          </p>
         </div>
       </div>
+
+      {/* สรุปสถิติการลาแยกประเภท & ปฏิทินวันหยุดถัดไปจากระบบวันลา */}
+      {(leaveSummary && leaveSummary.byType.length > 0) ||
+      upcomingHolidays.length > 0 ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <section className="surface-card p-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-ink">
+                สถิติการลาแยกตามประเภท (ดึงจากระบบวันลา · Read-Only)
+              </h2>
+              <span className="rounded bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-700">
+                อนุมัติแล้ว {leaveSummary?.approvedLeaves ?? 0} รายการ
+              </span>
+            </div>
+            {!leaveSummary || leaveSummary.byType.length === 0 ? (
+              <p className="mt-3 text-xs text-slate-500">
+                ยังไม่มีข้อมูลการลาของบุคลากรในโรงเรียนนี้
+              </p>
+            ) : (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {leaveSummary.byType.slice(0, 6).map((item) => (
+                  <div
+                    key={item.typeName}
+                    className="flex items-center gap-2 rounded-lg border border-line bg-slate-50/70 px-3 py-1.5 text-xs"
+                  >
+                    <span className="font-medium text-ink">{item.typeName}</span>
+                    <span className="rounded bg-white px-1.5 py-0.5 font-semibold tabular-nums text-brand-700 shadow-2xs">
+                      {item.count}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="surface-card p-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-4 w-4 text-brand-600" />
+                <h2 className="text-sm font-semibold text-ink">
+                  วันหยุดราชการและวันหยุดกำหนดเองถัดไป (ระบบวันลา)
+                </h2>
+              </div>
+              <Link
+                to="/school/settings/general"
+                className="text-xs font-medium text-brand-600 hover:underline"
+              >
+                ดูปฏิทินทั้งหมด →
+              </Link>
+            </div>
+            {upcomingHolidays.length === 0 ? (
+              <p className="mt-3 text-xs text-slate-500">
+                ไม่มีรายการวันหยุดที่กำลังจะมาถึง
+              </p>
+            ) : (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {upcomingHolidays.slice(0, 4).map((h) => (
+                  <div
+                    key={h.id_holiday}
+                    className="inline-flex items-center gap-2 rounded-lg border border-line bg-slate-50/70 px-3 py-1.5 text-xs"
+                  >
+                    <span className="font-semibold tabular-nums text-brand-700">
+                      {formatThaiDateShort(h.date)}
+                    </span>
+                    <span className="text-ink">{h.title}</span>
+                    {h.id_school !== null && (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                        กำหนดเอง
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      ) : null}
 
       {/* Main Content: Dynamic Divisions + Announcements */}
       <div className="grid gap-6 lg:grid-cols-12">
@@ -200,7 +305,7 @@ export default function SchoolDashboardPage({
                     >
                       <div>
                         <Link
-                          to={`/division/${div.division_key}`}
+                          to={`/school/division/${div.division_key}`}
                           className="group flex items-center justify-between gap-2"
                         >
                           <p className="text-sm font-semibold text-ink group-hover:text-brand-700">
@@ -227,7 +332,7 @@ export default function SchoolDashboardPage({
                           activeMods.map((m) => (
                             <Link
                               key={m.id}
-                              to={`/division/${div.division_key}/${m.module_key}`}
+                              to={`/school/division/${div.division_key}/${m.module_key}`}
                               className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[11px] font-medium text-slate-700 ring-1 ring-line transition-colors hover:bg-brand-50 hover:text-brand-700 hover:ring-brand-200"
                             >
                               <span>{m.title}</span>
