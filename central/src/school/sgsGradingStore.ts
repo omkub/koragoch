@@ -929,3 +929,279 @@ export async function lookupPublicStudentSgsTranscript(params: {
     };
   }
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// Phase B: โครงสร้างสัดส่วนคะแนน/ตัวชี้วัด + ส่งมอบเกรดเข้าฝ่ายวิชาการ + สถิติใบรับรอง SGS
+// ════════════════════════════════════════════════════════════════════════════
+
+export interface SgsIndicatorItem {
+  id: string;
+  code: string;
+  description: string;
+  maxScore: number;
+}
+
+export interface SgsCourseScoreStructure {
+  max_pre_mid_work: number;
+  max_pre_mid_notebook: number;
+  max_midterm: number;
+  max_post_mid_work: number;
+  max_post_mid_notebook: number;
+  max_affective: number;
+  max_final: number;
+  indicators: SgsIndicatorItem[];
+}
+
+export interface SgsCourseSubmissionRecord {
+  referenceCode: string;
+  schoolId: number;
+  gradeLevel: SgsGradeLevel;
+  termNo: 1 | 2;
+  yearBe: number;
+  subjectCode: string;
+  subjectName: string;
+  learningArea: SgsLearningArea;
+  credits: number;
+  classroomKey: string;
+  classroomLabel: string;
+  teacherName: string;
+  status: 'submitted' | 'unlocked';
+  submittedAt: string;
+  studentCount: number;
+}
+
+export type SgsGradeBucket =
+  | '4'
+  | '3.5'
+  | '3'
+  | '2.5'
+  | '2'
+  | '1.5'
+  | '1'
+  | '0'
+  | 'ร'
+  | 'มส'
+  | 'ผ'
+  | 'มผ';
+
+export const SGS_GRADE_BUCKETS: SgsGradeBucket[] = [
+  '4',
+  '3.5',
+  '3',
+  '2.5',
+  '2',
+  '1.5',
+  '1',
+  '0',
+  'ร',
+  'มส',
+];
+
+export interface SgsCourseGradeStats {
+  totalStudents: number;
+  passedCount: number;
+  passRatePct: number;
+  zeroOrSpecialCount: number;
+  distribution: Record<SgsGradeBucket, number>;
+  meanScore: number;
+  sdScore: number;
+  maxScore: number;
+  minScore: number;
+  meanGpa: number;
+}
+
+const STRUCTURE_STORAGE_PREFIX = 'sgs_course_structure_v1_';
+const SUBMISSION_STORAGE_PREFIX = 'sgs_course_submission_v1_';
+
+function structureKey(
+  schoolId: number | null,
+  gradeLevel: SgsGradeLevel,
+  termNo: 1 | 2,
+  yearBe: number,
+  subjectCode: string,
+): string {
+  return `${STRUCTURE_STORAGE_PREFIX}${schoolId ?? 0}_${yearBe}_${termNo}_${gradeLevel}_${subjectCode.trim()}`;
+}
+
+function submissionKey(
+  schoolId: number | null,
+  gradeLevel: SgsGradeLevel,
+  termNo: 1 | 2,
+  yearBe: number,
+  subjectCode: string,
+  classroomKey: string,
+): string {
+  return `${SUBMISSION_STORAGE_PREFIX}${schoolId ?? 0}_${yearBe}_${termNo}_${gradeLevel}_${subjectCode.trim()}_${classroomKey}`;
+}
+
+export function loadSgsCourseStructure(params: {
+  schoolId: number | null;
+  gradeLevel: SgsGradeLevel;
+  termNo: 1 | 2;
+  yearBe: number;
+  subjectCode: string;
+}): SgsCourseScoreStructure | null {
+  try {
+    const raw = window.localStorage.getItem(
+      structureKey(
+        params.schoolId,
+        params.gradeLevel,
+        params.termNo,
+        params.yearBe,
+        params.subjectCode,
+      ),
+    );
+    if (!raw) return null;
+    return JSON.parse(raw) as SgsCourseScoreStructure;
+  } catch {
+    return null;
+  }
+}
+
+export function saveSgsCourseStructure(
+  params: {
+    schoolId: number | null;
+    gradeLevel: SgsGradeLevel;
+    termNo: 1 | 2;
+    yearBe: number;
+    subjectCode: string;
+  },
+  structure: SgsCourseScoreStructure,
+) {
+  try {
+    window.localStorage.setItem(
+      structureKey(
+        params.schoolId,
+        params.gradeLevel,
+        params.termNo,
+        params.yearBe,
+        params.subjectCode,
+      ),
+      JSON.stringify(structure),
+    );
+  } catch {
+    // ignore quota error
+  }
+}
+
+export function loadSgsCourseSubmission(params: {
+  schoolId: number | null;
+  gradeLevel: SgsGradeLevel;
+  termNo: 1 | 2;
+  yearBe: number;
+  subjectCode: string;
+  classroomKey: string;
+}): SgsCourseSubmissionRecord | null {
+  try {
+    const raw = window.localStorage.getItem(
+      submissionKey(
+        params.schoolId,
+        params.gradeLevel,
+        params.termNo,
+        params.yearBe,
+        params.subjectCode,
+        params.classroomKey,
+      ),
+    );
+    if (!raw) return null;
+    return JSON.parse(raw) as SgsCourseSubmissionRecord;
+  } catch {
+    return null;
+  }
+}
+
+export function saveSgsCourseSubmission(record: SgsCourseSubmissionRecord) {
+  try {
+    window.localStorage.setItem(
+      submissionKey(
+        record.schoolId,
+        record.gradeLevel,
+        record.termNo,
+        record.yearBe,
+        record.subjectCode,
+        record.classroomKey,
+      ),
+      JSON.stringify(record),
+    );
+  } catch {
+    // ignore quota error
+  }
+}
+
+export function computeSgsCourseGradeStats(
+  records: SgsScoreRecord[],
+): SgsCourseGradeStats {
+  const distribution: Record<SgsGradeBucket, number> = {
+    '4': 0,
+    '3.5': 0,
+    '3': 0,
+    '2.5': 0,
+    '2': 0,
+    '1.5': 0,
+    '1': 0,
+    '0': 0,
+    ร: 0,
+    มส: 0,
+    ผ: 0,
+    มผ: 0,
+  };
+
+  if (records.length === 0) {
+    return {
+      totalStudents: 0,
+      passedCount: 0,
+      passRatePct: 0,
+      zeroOrSpecialCount: 0,
+      distribution,
+      meanScore: 0,
+      sdScore: 0,
+      maxScore: 0,
+      minScore: 0,
+      meanGpa: 0,
+    };
+  }
+
+  const scores: number[] = [];
+  const gpas: number[] = [];
+  let passedCount = 0;
+  let zeroOrSpecialCount = 0;
+
+  for (const r of records) {
+    const c = computeSgsGradeRow(r);
+    scores.push(c.totalScore);
+    const key = c.displayGrade as SgsGradeBucket;
+    if (key in distribution) {
+      distribution[key] += 1;
+    }
+    if (c.numericGrade !== null) {
+      gpas.push(c.numericGrade);
+    }
+    if (c.isEarnedCredit) {
+      passedCount += 1;
+    } else {
+      zeroOrSpecialCount += 1;
+    }
+  }
+
+  const meanScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+  const variance =
+    scores.reduce((acc, v) => acc + (v - meanScore) ** 2, 0) / scores.length;
+  const sdScore = Math.sqrt(variance);
+  const maxScore = Math.max(...scores);
+  const minScore = Math.min(...scores);
+  const meanGpa =
+    gpas.length > 0 ? gpas.reduce((a, b) => a + b, 0) / gpas.length : 0;
+
+  return {
+    totalStudents: records.length,
+    passedCount,
+    passRatePct: Math.round((passedCount / records.length) * 1000) / 10,
+    zeroOrSpecialCount,
+    distribution,
+    meanScore: Math.round(meanScore * 100) / 100,
+    sdScore: Math.round(sdScore * 100) / 100,
+    maxScore: Math.round(maxScore * 100) / 100,
+    minScore: Math.round(minScore * 100) / 100,
+    meanGpa: Math.round(meanGpa * 100) / 100,
+  };
+}

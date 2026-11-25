@@ -25,6 +25,7 @@ export const SCHOOL_MODULE_MENU_IDS: Record<string, number> = {
   'finance-budget': -108,
   'appointment-orders': -109,
   'public-web-settings': -110,
+  'student-admissions': -111,
 };
 
 export interface SchoolPackageItemMeta {
@@ -108,6 +109,14 @@ export const SCHOOL_MODULE_META: SchoolPackageItemMeta[] = [
     menuId: -105,
     title: 'หลักสูตรและตารางสอน',
     description: 'จัดการรายวิชา หน่วยกิต และตารางสอนรายห้อง',
+    divisionKey: 'academic',
+  },
+  {
+    key: 'student-admissions',
+    menuId: -111,
+    title: 'รับสมัครนักเรียน & ใบสมัคร',
+    description:
+      'ตรวจสอบใบสมัครนักเรียนใหม่ ม.1 และ ม.4 อนุมัติเอกสาร จัดห้องสอบ และพิมพ์บัตรสอบแบบกลุ่ม (A4)',
     divisionKey: 'academic',
   },
   {

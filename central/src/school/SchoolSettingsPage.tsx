@@ -1,7 +1,13 @@
-import { useState, type FormEvent } from 'react';
-import { ExternalLink, Plus, Power, Trash2 } from 'lucide-react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { CalendarDays, ExternalLink, Plus, Power, Trash2 } from 'lucide-react';
 import { supabase } from '../supabase';
 import AcademicSettingsSection from './AcademicSettingsSection';
+import {
+  fetchLeaveSpecialDates,
+  formatThaiDateShort,
+  type LeaveSpecialHoliday,
+  type LeaveSpecialWorkingDay,
+} from './leaveSystemData';
 import { DEFAULT_MODULE_LINKS } from './modules';
 import type { SchoolBasic, SchoolModuleLink } from './types';
 
@@ -38,6 +44,23 @@ export default function SchoolSettingsPage({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [holidays, setHolidays] = useState<LeaveSpecialHoliday[]>([]);
+  const [workingDays, setWorkingDays] = useState<LeaveSpecialWorkingDay[]>([]);
+  const [holidayFilter, setHolidayFilter] = useState<'all' | 'custom' | 'global'>(
+    'all',
+  );
+
+  useEffect(() => {
+    let active = true;
+    fetchLeaveSpecialDates(schoolId).then((res) => {
+      if (!active) return;
+      setHolidays(res.holidays);
+      setWorkingDays(res.workingDays);
+    });
+    return () => {
+      active = false;
+    };
+  }, [schoolId]);
 
   async function seedDefaults() {
     if (!schoolId || !canEdit) return;
@@ -173,6 +196,173 @@ export default function SchoolSettingsPage({
         canEdit={canEdit}
         onUpdated={onReload}
       />
+
+      {/* Read-Only Holidays & Special Working Days from Leave System */}
+      <section className="surface-card p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <CalendarDays className="h-5 w-5 text-brand-600" />
+              <h2 className="text-base font-semibold text-ink">
+                ปฏิทินวันหยุดราชการ วันหยุดกำหนดเอง และวันทำงานพิเศษ (เชื่อมข้อมูลจากระบบวันลา)
+              </h2>
+            </div>
+            <p className="mt-1 text-sm text-slate-600">
+              ดึงข้อมูลจากตาราง <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">SpecialHolidays</code> และ{' '}
+              <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">SpecialWorkingDays</code> ของระบบวันลาแบบ Read-Only
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setHolidayFilter('all')}
+              className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
+                holidayFilter === 'all'
+                  ? 'border-brand-300 bg-brand-50 text-brand-700'
+                  : 'border-line bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              ทั้งหมด ({holidays.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setHolidayFilter('global')}
+              className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
+                holidayFilter === 'global'
+                  ? 'border-brand-300 bg-brand-50 text-brand-700'
+                  : 'border-line bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              วันหยุดกลาง ({holidays.filter((h) => h.id_school === null).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setHolidayFilter('custom')}
+              className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
+                holidayFilter === 'custom'
+                  ? 'border-brand-300 bg-brand-50 text-brand-700'
+                  : 'border-line bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              วันหยุดกำหนดเองของโรงเรียน (
+              {holidays.filter((h) => h.id_school === schoolId).length})
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          {/* วันหยุดราชการ / วันหยุดกำหนดเอง */}
+          <div className="rounded-xl border border-line bg-slate-50/40 p-4">
+            <div className="flex items-center justify-between border-b border-line pb-2.5">
+              <span className="text-xs font-semibold text-ink">
+                รายการวันหยุดราชการและวันหยุดพิเศษ
+              </span>
+              <span className="text-[11px] text-slate-500">
+                แก้ไขได้ที่เมนูตั้งค่าวันหยุดในระบบวันลา
+              </span>
+            </div>
+            {holidays.length === 0 ? (
+              <p className="py-6 text-center text-xs text-slate-500">
+                ยังไม่มีรายการวันหยุดในระบบวันลา
+              </p>
+            ) : (
+              <div className="mt-2.5 max-h-72 divide-y divide-slate-200/70 overflow-y-auto pr-1">
+                {holidays
+                  .filter((h) =>
+                    holidayFilter === 'all'
+                      ? true
+                      : holidayFilter === 'global'
+                        ? h.id_school === null
+                        : h.id_school === schoolId,
+                  )
+                  .slice()
+                  .reverse()
+                  .slice(0, 30)
+                  .map((h) => (
+                    <div
+                      key={h.id_holiday}
+                      className="flex items-start justify-between gap-2 py-2 text-xs"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-medium text-ink">{h.title}</div>
+                        {h.note && (
+                          <div className="text-[11px] text-slate-500">
+                            {h.note}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span className="font-semibold tabular-nums text-slate-700">
+                          {formatThaiDateShort(h.date)}
+                        </span>
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                            h.id_school === null
+                              ? 'bg-slate-200/80 text-slate-700'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {h.id_school === null
+                            ? 'วันหยุดกลางทุกโรงเรียน'
+                            : 'กำหนดเองเฉพาะโรงเรียนนี้'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+
+          {/* วันทำงานพิเศษ */}
+          <div className="rounded-xl border border-line bg-slate-50/40 p-4">
+            <div className="flex items-center justify-between border-b border-line pb-2.5">
+              <span className="text-xs font-semibold text-ink">
+                วันทำงานพิเศษ / วันชดเชยที่เปิดทำการ ({workingDays.length})
+              </span>
+              <span className="text-[11px] text-slate-500">
+                SpecialWorkingDays (Read-Only)
+              </span>
+            </div>
+            {workingDays.length === 0 ? (
+              <p className="py-6 text-center text-xs text-slate-500">
+                ไม่มีรายการวันทำงานพิเศษที่กำหนดไว้
+              </p>
+            ) : (
+              <div className="mt-2.5 max-h-72 divide-y divide-slate-200/70 overflow-y-auto pr-1">
+                {workingDays
+                  .slice()
+                  .reverse()
+                  .slice(0, 20)
+                  .map((w) => (
+                    <div
+                      key={w.id_SpecialWorkingDays}
+                      className="flex items-start justify-between gap-2 py-2 text-xs"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-medium text-ink">{w.title}</div>
+                        {w.note && (
+                          <div className="text-[11px] text-slate-500">
+                            {w.note}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span className="font-semibold tabular-nums text-emerald-700">
+                          {formatThaiDateShort(w.date)}
+                        </span>
+                        <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800">
+                          {w.id_school === null
+                            ? 'ทุกโรงเรียน'
+                            : 'เฉพาะโรงเรียนนี้'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

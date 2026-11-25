@@ -111,6 +111,17 @@ export const FALLBACK_CATALOG: ModuleCatalogItem[] = [
     is_active: true,
   },
   {
+    module_key: 'student-admissions',
+    title: 'รับสมัครนักเรียน & ใบสมัคร',
+    description:
+      'ตรวจสอบใบสมัครนักเรียนใหม่ ม.1 และ ม.4 อนุมัติเอกสาร จัดห้องสอบ พิมพ์บัตรสอบแบบกลุ่ม (A4) และตั้งค่าระบบรับสมัคร',
+    module_type: 'builtin',
+    default_division_key: 'academic',
+    default_url: null,
+    sort_order: 3,
+    is_active: true,
+  },
+  {
     module_key: 'documents',
     title: 'สารบรรณอิเล็กทรอนิกส์',
     description: 'ทะเบียนหนังสือรับ หนังสือส่ง และบันทึกข้อความ',
@@ -239,15 +250,12 @@ export async function fetchSchoolDivisionTree(schoolId: number): Promise<{
       ? (catRes.data as ModuleCatalogItem[])
       : FALLBACK_CATALOG;
 
-  const hasOrderCatalog = rawCatalog.some(
-    (c) => c.module_key === 'appointment-orders',
-  );
-  const fullCatalog = hasOrderCatalog
-    ? rawCatalog
-    : [
-        ...rawCatalog,
-        FALLBACK_CATALOG.find((c) => c.module_key === 'appointment-orders')!,
-      ];
+  const fullCatalog = [...rawCatalog];
+  for (const fallbackItem of FALLBACK_CATALOG) {
+    if (!fullCatalog.some((c) => c.module_key === fallbackItem.module_key)) {
+      fullCatalog.push(fallbackItem);
+    }
+  }
 
   // กรองเฉพาะ Module ที่ได้รับอนุญาตในระดับโรงเรียน
   const catalog = fullCatalog.filter((c) =>
@@ -281,6 +289,60 @@ export async function fetchSchoolDivisionTree(schoolId: number): Promise<{
               resolved_url: m.external_url || cat?.default_url || null,
             };
           });
+
+        // หากฝ่ายวิชาการยังไม่มี 'student-admissions' ใน DB ให้แสดงใน Sidebar อัตโนมัติ
+        if (
+          div.division_key === 'academic' &&
+          isModuleAllowedForSchool(schoolPackage, 'student-admissions') &&
+          !resolved.some((m) => m.module_key === 'student-admissions')
+        ) {
+          const admCat = catalogMap.get('student-admissions');
+          if (admCat) {
+            resolved.push({
+              id: -(div.id * 100 + 97),
+              id_school: schoolId,
+              division_id: div.id,
+              module_key: 'student-admissions',
+              custom_title: null,
+              custom_description: null,
+              external_url: null,
+              open_mode: 'new_tab',
+              sort_order: 3,
+              is_enabled: true,
+              title: admCat.title,
+              description: admCat.description || '',
+              module_type: 'builtin',
+              resolved_url: null,
+            });
+          }
+        }
+
+        // หากฝ่ายบริหารแก้ไชยังไม่มี 'public-web-settings' ใน DB ให้แสดงใน Sidebar อัตโนมัติ
+        if (
+          div.division_key === 'admin' &&
+          isModuleAllowedForSchool(schoolPackage, 'public-web-settings') &&
+          !resolved.some((m) => m.module_key === 'public-web-settings')
+        ) {
+          const pubCat = catalogMap.get('public-web-settings');
+          if (pubCat) {
+            resolved.push({
+              id: -(div.id * 100 + 98),
+              id_school: schoolId,
+              division_id: div.id,
+              module_key: 'public-web-settings',
+              custom_title: null,
+              custom_description: null,
+              external_url: null,
+              open_mode: 'new_tab',
+              sort_order: 3,
+              is_enabled: true,
+              title: pubCat.title,
+              description: pubCat.description || '',
+              module_type: 'builtin',
+              resolved_url: null,
+            });
+          }
+        }
 
         // หากฝ่ายนี้ยังไม่มี 'appointment-orders' ใน DB และโรงเรียนได้รับอนุญาตใช้ 'appointment-orders'
         if (

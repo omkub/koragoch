@@ -1,4 +1,9 @@
 import { supabase } from '../supabase';
+import {
+  DEFAULT_PUBLIC_ADMISSION_CONFIG,
+  mergePublicAdmissionConfig,
+  type PublicAdmissionConfig,
+} from './publicWebAdmissions';
 
 export type NewsFilterCat =
   | 'all'
@@ -17,6 +22,23 @@ export type StaffDeptFilter =
   | 'foreign'
   | 'support';
 
+export interface PublicNewsAttachment {
+  id: string;
+  title: string;
+  url: string;
+  fileSizeLabel?: string;
+}
+
+export interface PublicMediaItem {
+  id: string;
+  name: string;
+  type: 'image' | 'document';
+  folder: 'ข่าวประชาสัมพันธ์' | 'เอกสารรับสมัคร' | 'แบนเนอร์และกิจกรรม' | 'ทั่วไป';
+  url: string;
+  sizeLabel: string;
+  uploadedAt: string;
+}
+
 export interface PublicNewsItem {
   id: string;
   cat: Exclude<NewsFilterCat, 'all'>;
@@ -32,6 +54,10 @@ export interface PublicNewsItem {
   isFeatured?: boolean;
   showOnHome?: boolean;
   homeOrder?: number;
+  status?: 'published' | 'draft';
+  pinned?: boolean;
+  attachments?: PublicNewsAttachment[];
+  galleryImages?: string[];
   fullParagraphs: string[];
 }
 
@@ -165,6 +191,8 @@ export interface PublicSchoolWebConfig {
     mapPreviewImageUrl: string;
     mapDirectionsNote: string;
   };
+  admission: PublicAdmissionConfig;
+  mediaLibrary: PublicMediaItem[];
 }
 
 export const DEFAULT_PUBLIC_SCHOOL_WEB_CONFIG: PublicSchoolWebConfig = {
@@ -722,6 +750,36 @@ export const DEFAULT_PUBLIC_SCHOOL_WEB_CONFIG: PublicSchoolWebConfig = {
     mapDirectionsNote:
       'ตั้งอยู่ริมทางหลวงหมายเลข 2074 ตำบลรมย์บุรี อำเภอรมย์บุรี จังหวัดบุรีรัมย์ ห่างจากที่ว่าการอำเภอประมาณ 1.5 กิโลเมตร',
   },
+  admission: DEFAULT_PUBLIC_ADMISSION_CONFIG,
+  mediaLibrary: [
+    {
+      id: 'media-1',
+      name: 'ภาพบรรยากาศอาคารเรียนหลัก.jpg',
+      type: 'image',
+      folder: 'แบนเนอร์และกิจกรรม',
+      url: 'https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=1200&q=80',
+      sizeLabel: '1.2 MB',
+      uploadedAt: '2026-05-01',
+    },
+    {
+      id: 'media-2',
+      name: 'กิจกรรมวิชาการและโครงงานวิทยาศาสตร์.jpg',
+      type: 'image',
+      folder: 'ข่าวประชาสัมพันธ์',
+      url: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=1200&q=80',
+      sizeLabel: '980 KB',
+      uploadedAt: '2026-05-02',
+    },
+    {
+      id: 'media-3',
+      name: 'ระเบียบการรับสมัครนักเรียนใหม่_2568.pdf',
+      type: 'document',
+      folder: 'เอกสารรับสมัคร',
+      url: 'https://www.obec.go.th',
+      sizeLabel: '2.4 MB',
+      uploadedAt: '2026-05-03',
+    },
+  ],
 };
 
 const STORAGE_PREFIX = 'public_school_web_config_v1_';
@@ -794,6 +852,10 @@ export function mergeWithDefaultPublicWebConfig(
       ...d.contact,
       ...(partial.contact ?? {}),
     },
+    admission: mergePublicAdmissionConfig(partial.admission),
+    mediaLibrary: Array.isArray(partial.mediaLibrary)
+      ? partial.mediaLibrary
+      : d.mediaLibrary,
   };
 }
 

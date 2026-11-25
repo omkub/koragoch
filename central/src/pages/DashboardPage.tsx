@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ADMIN_ROLE_ID, schoolName, supabase, type School } from '../supabase';
+import {
+  fetchLeaveFiscalRounds,
+  fetchLeaveSpecialDates,
+  formatThaiDateShort,
+  type LeaveFiscalRound,
+  type LeaveSpecialHoliday,
+} from '../school/leaveSystemData';
 import { isWorkingToday } from '../staffStatus';
 import { EmptyState, PageHeader, SectionHeader, StatCard } from '../ui/components';
 import {
@@ -58,16 +65,32 @@ const QUICK_CATEGORIES = [
 /** ภาพรวมทุกโรงเรียน — RLS ให้ผู้ดูแลส่วนกลางอ่านได้ทุกแถว */
 export default function DashboardPage() {
   const [rows, setRows] = useState<SchoolStats[] | null>(null);
+  const [activeFiscalRound, setActiveFiscalRound] =
+    useState<LeaveFiscalRound | null>(null);
+  const [upcomingHolidays, setUpcomingHolidays] = useState<
+    LeaveSpecialHoliday[]
+  >([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      const [schools, teachers, leaves, line] = await Promise.all([
-        supabase.from('Schools').select('*').order('id_school'),
-        supabase.from('Teachers').select('id_school, id_role, is_super_admin, employment_status, left_date'),
-        supabase.from('Leaves').select('id_school, status'),
-        supabase.from('SchoolLineSettings').select('id_school, enabled, groupId'),
-      ]);
+      const [schools, teachers, leaves, line, fiscalRes, specialDatesRes] =
+        await Promise.all([
+          supabase.from('Schools').select('*').order('id_school'),
+          supabase
+            .from('Teachers')
+            .select(
+              'id_school, id_role, is_super_admin, employment_status, left_date',
+            ),
+          supabase.from('Leaves').select('id_school, status'),
+          supabase
+            .from('SchoolLineSettings')
+            .select('id_school, enabled, groupId'),
+          fetchLeaveFiscalRounds(),
+          fetchLeaveSpecialDates(null),
+        ]);
+      setActiveFiscalRound(fiscalRes.activeRound);
+      setUpcomingHolidays(specialDatesRes.upcomingHolidays);
       const failed = schools.error ?? teachers.error ?? leaves.error;
       if (failed) {
         setError(failed.message);
@@ -147,7 +170,7 @@ export default function DashboardPage() {
         title="ภาพรวมระบบทั้งหมด"
         description="สรุปข้อมูลทุกโรงเรียนในระบบ · บุคลากรนับเฉพาะผู้ที่กำลังปฏิบัติงานในปัจจุบัน"
         actions={
-          <Link to="/schools" className="btn-primary">
+          <Link to="/admin/schools" className="btn-primary">
             <IconSchool className="h-4 w-4" />
             จัดการโรงเรียน
           </Link>
@@ -190,6 +213,64 @@ export default function DashboardPage() {
             hint={rows && total('pending') > 0 ? 'มีใบลาที่ยังไม่ได้ดำเนินการ' : 'ไม่มีใบลาค้างพิจารณา'}
             tone={rows && total('pending') > 0 ? 'amber' : 'green'}
           />
+        </div>
+      </div>
+
+      {/* หมวดที่ 1.5: ข้อมูลปีงบประมาณและปฏิทินวันหยุดจากระบบวันลา (Read-Only) */}
+      <div className="mb-6 grid gap-3 md:grid-cols-2">
+        <div className="card p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-ink">
+              รอบปีงบประมาณปัจจุบัน (เชื่อมจากระบบวันลา · FiscalRounds)
+            </span>
+            <span className="badge-brand">Read-Only</span>
+          </div>
+          {activeFiscalRound ? (
+            <div className="mt-2">
+              <div className="text-base font-bold text-ink">
+                ปีงบประมาณ {activeFiscalRound.year} · รอบที่{' '}
+                {activeFiscalRound.round}
+              </div>
+              <div className="mt-0.5 text-xs text-slate-500">
+                ช่วงเวลา: {formatThaiDateShort(activeFiscalRound.startDate)} –{' '}
+                {formatThaiDateShort(activeFiscalRound.endDate)}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-2 text-xs text-slate-500">
+              ยังไม่ได้ตั้งค่ารอบปีงบประมาณในระบบวันลา
+            </div>
+          )}
+        </div>
+
+        <div className="card p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-ink">
+              วันหยุดราชการและวันหยุดพิเศษที่กำลังจะมาถึง (SpecialHolidays)
+            </span>
+            <span className="badge-slate">
+              {upcomingHolidays.length} รายการถัดไป
+            </span>
+          </div>
+          {upcomingHolidays.length === 0 ? (
+            <div className="mt-2 text-xs text-slate-500">
+              ไม่มีรายการวันหยุดที่กำลังจะมาถึง
+            </div>
+          ) : (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {upcomingHolidays.slice(0, 4).map((h) => (
+                <span
+                  key={h.id_holiday}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-700"
+                >
+                  <strong className="font-semibold text-brand-700">
+                    {formatThaiDateShort(h.date)}
+                  </strong>
+                  <span>{h.title}</span>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

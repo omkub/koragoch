@@ -37,6 +37,7 @@ const MODULE_VIEW_MENU_IDS: Record<string, number> = {
   'finance-budget': -408,
   'appointment-orders': -409,
   'public-web-settings': -410,
+  'student-admissions': -411,
 };
 
 const MODULE_EDIT_MENU_IDS: Record<string, number> = {
@@ -50,6 +51,7 @@ const MODULE_EDIT_MENU_IDS: Record<string, number> = {
   'finance-budget': -508,
   'appointment-orders': -509,
   'public-web-settings': -510,
+  'student-admissions': -511,
 };
 
 const USER_MODULE_SLOT: Record<string, number> = {
@@ -63,6 +65,7 @@ const USER_MODULE_SLOT: Record<string, number> = {
   'finance-budget': 8,
   'appointment-orders': 9,
   'public-web-settings': 10,
+  'student-admissions': 11,
 };
 
 const USER_DIVISION_SLOT: Record<string, number> = {
