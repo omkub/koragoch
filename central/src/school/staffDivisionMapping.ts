@@ -370,71 +370,183 @@ export async function saveStaffWebAccess(params: {
   return { error: error ? error.message : null };
 }
 
+/** แหล่งที่มาของสิทธิ์ (ใช้แสดงในหน้า "ดูตัวอย่างเมนู" ให้แอดมินตรวจ) */
+export type AccessSource =
+  | 'admin_tier' // ระดับแอดมินโรงเรียน / ส่วนกลาง
+  | 'user_override' // ตั้งค่ารายบุคคล
+  | 'staff_mapping' // สังกัดฝ่าย (member / editor)
+  | 'not_mapped' // ผูกฝ่ายอื่นไว้ แต่ไม่ได้สังกัดฝ่ายนี้
+  | 'role' // ตั้งค่าตามบทบาท
+  | 'executive_default' // ผู้บริหารเห็นทุกฝ่าย
+  | 'inherit_division' // ระบบงานใช้ระดับเดียวกับฝ่าย
+  | 'default_hidden'; // ไม่ได้รับสิทธิ์ (ค่าเริ่มต้น)
+
+export const ACCESS_SOURCE_LABEL: Record<AccessSource, string> = {
+  admin_tier: 'ระดับแอดมิน',
+  user_override: 'ตั้งรายบุคคล',
+  staff_mapping: 'สังกัดฝ่าย',
+  not_mapped: 'ไม่ได้สังกัดฝ่ายนี้',
+  role: 'ตามบทบาท',
+  executive_default: 'ผู้บริหารเห็นทุกฝ่าย',
+  inherit_division: 'ตามฝ่าย',
+  default_hidden: 'ยังไม่ได้รับสิทธิ์',
+};
+
+export interface AccessDecision {
+  level: AccessLevel;
+  source: AccessSource;
+}
+
 /**
- * คำนวณสิทธิ์การมองเห็นและแก้ไขของ "ฝ่ายงาน" สำหรับผู้ใช้ปัจจุบัน
- * ตามแนวคิดใหม่:
- * 1) Super Admin / Admin โรงเรียน -> เห็นทุกฝ่าย และแก้ไขได้ทุกฝ่าย ('edit')
- * 2) ผู้บริหาร (Executive) -> เห็นทุกฝ่าย ('view' หรือ 'edit' หากเป็นเจ้าหน้าที่ฝ่ายนั้นด้วย)
- * 3) ผู้ใช้งาน (User) ->
- *    - หากบุคลากรคนนี้ถูก Map เข้ากับฝ่ายไว้แล้ว: จะเห็นเฉพาะฝ่ายที่ตัวเองสังกัดเท่านั้น!
- *      ('member' -> 'view', 'editor' -> 'edit', ไม่ได้สังกัด -> 'hidden')
- *    - หากบุคลากรคนนี้ยังไม่ได้ถูก Map เข้ากับฝ่ายใดเลย: ใช้ค่าเริ่มต้นตามบทบาท (Role)
+ * ตัวตัดสินสิทธิ์ "ฝ่าย" ชุดเดียวของ web (ใช้ทั้งเมนูซ้ายและหน้าตั้งค่า)
+ * ลำดับ: แอดมิน → สังกัดฝ่ายรายบุคคล → ตามบทบาท → ผู้บริหารเห็นทุกฝ่าย → ไม่เห็น
+ * (เพดานแพ็กเกจกรองไว้แล้วตอนโหลดโครงฝ่าย — mapping.ts)
+ * ฐานข้อมูลตัดสินสิทธิ์ "แก้ไข" ลำดับเดียวกันที่ can_edit_school_web
  */
-export function resolveEffectiveDivisionAccessForUser(params: {
+export function resolveDivisionAccess(params: {
   perms: RoleDivisionModulePermissions;
   roleTier: SchoolRoleTier;
   roleId: number | null;
   idUser: number | null;
   divisionKey: string;
   allDivisionKeys: string[];
-}): AccessLevel {
+}): AccessDecision {
   const { perms, roleTier, roleId, idUser, divisionKey, allDivisionKeys } = params;
 
   if (roleTier === 'super_admin' || roleTier === 'school_admin') {
-    return 'edit';
+    return { level: 'edit', source: 'admin_tier' };
   }
 
-  if (roleTier === 'executive') {
-    if (idUser != null) {
-      const memberRole = getStaffDivisionMemberRole(perms, idUser, divisionKey);
-      if (memberRole === 'editor') return 'edit';
-    }
-    const roleEntry =
-      roleId != null ? perms.divisionByRole[`${roleId}:${divisionKey}`] : undefined;
-    if (roleEntry?.can_edit) return 'edit';
-    return 'view';
-  }
-
-  // กรณีเป็น "ผู้ใช้งาน (user)"
+  // 1. สังกัดฝ่ายรายบุคคล: ผูกไว้อย่างน้อย 1 ฝ่าย = เห็นเฉพาะฝ่ายที่ผูก
   if (idUser != null) {
-    const assignedKeys = getStaffAssignedDivisionKeys(
-      perms,
-      idUser,
-      allDivisionKeys,
-    );
-    // ถ้าผู้ใช้คนนี้ถูก Map สังกัดฝ่ายไว้ (อย่างน้อย 1 ฝ่าย) -> ให้เห็นเฉพาะฝ่ายที่ตัวเองอยู่!
+    const assignedKeys = getStaffAssignedDivisionKeys(perms, idUser, allDivisionKeys);
     if (assignedKeys.length > 0) {
       const memberRole = getStaffDivisionMemberRole(perms, idUser, divisionKey);
-      if (memberRole === 'editor') return 'edit';
-      if (memberRole === 'member') return 'view';
-      return 'hidden';
+      if (memberRole === 'editor') return { level: 'edit', source: 'staff_mapping' };
+      if (memberRole === 'member') return { level: 'view', source: 'staff_mapping' };
+      if (roleTier !== 'executive') return { level: 'hidden', source: 'not_mapped' };
+      // ผู้บริหารยังเห็นฝ่ายอื่นได้แบบดูอย่างเดียว (ฐานข้อมูลไม่ให้แก้ฝ่ายที่ไม่ได้สังกัด) เว้นแต่บทบาทสั่งปิด
+      const execRole =
+        roleId != null ? perms.divisionByRole[`${roleId}:${divisionKey}`] : undefined;
+      if (execRole && !execRole.can_view) return { level: 'hidden', source: 'role' };
+      return { level: 'view', source: 'executive_default' };
     }
   }
 
-  // Fallback กรณียังไม่ได้ Map สังกัดฝ่ายรายบุคคล: ใช้ค่าตาม Role
-  if (roleId != null) {
-    const roleEntry = perms.divisionByRole[`${roleId}:${divisionKey}`];
-    if (roleEntry) {
-      if (!roleEntry.can_view) return 'hidden';
-      return roleEntry.can_edit ? 'edit' : 'view';
+  // 2. ตามบทบาท
+  const roleEntry =
+    roleId != null ? perms.divisionByRole[`${roleId}:${divisionKey}`] : undefined;
+  if (roleEntry) {
+    if (!roleEntry.can_view) return { level: 'hidden', source: 'role' };
+    return { level: roleEntry.can_edit ? 'edit' : 'view', source: 'role' };
+  }
+
+  // 3. ผู้บริหารเห็นทุกฝ่าย (ดู / อนุมัติ)
+  if (roleTier === 'executive') {
+    return { level: 'view', source: 'executive_default' };
+  }
+
+  // 4. ค่าเริ่มต้น: ครูที่ไม่ได้สังกัดฝ่าย = ครูผู้สอน ไม่เห็นงานของฝ่าย
+  return { level: 'hidden', source: 'default_hidden' };
+}
+
+/** ตัวตัดสินสิทธิ์ "ระบบงาน" ภายในฝ่ายที่เห็นแล้ว */
+export function resolveModuleAccess(params: {
+  perms: RoleDivisionModulePermissions;
+  roleTier: SchoolRoleTier;
+  roleId: number | null;
+  idUser: number | null;
+  moduleKey: string;
+  division: AccessDecision;
+}): AccessDecision {
+  const { perms, roleTier, roleId, idUser, moduleKey, division } = params;
+  if (roleTier === 'super_admin' || roleTier === 'school_admin') {
+    return { level: 'edit', source: 'admin_tier' };
+  }
+
+  // 1. รายบุคคล (มาก่อนเสมอ — ตรงกับฐานข้อมูล)
+  if (idUser != null) {
+    const userMod = perms.moduleByUser[`${idUser}:${moduleKey}`];
+    if (userMod) {
+      if (!userMod.can_view) return { level: 'hidden', source: 'user_override' };
+      return { level: userMod.can_edit ? 'edit' : 'view', source: 'user_override' };
     }
   }
-  return 'view';
+
+  if (division.level === 'hidden') return division;
+
+  // 2. ตามบทบาท
+  const roleMod = roleId != null ? perms.moduleByRole[`${roleId}:${moduleKey}`] : undefined;
+  if (roleMod) {
+    if (!roleMod.can_view) return { level: 'hidden', source: 'role' };
+    // คนที่สังกัดฝ่ายแล้ว สิทธิ์แก้ไขมาจากสังกัดฝ่ายเท่านั้น (ตรงกับ can_edit_school_web)
+    const mapped =
+      division.source === 'staff_mapping' ||
+      division.source === 'not_mapped' ||
+      (idUser != null &&
+        Object.entries(perms.divisionByUser).some(
+          ([k, v]) => k.startsWith(`${idUser}:`) && v.can_view,
+        ));
+    if (roleMod.can_edit && !mapped) return { level: 'edit', source: 'role' };
+    return { level: division.level, source: 'role' };
+  }
+
+  // 3. ตามฝ่าย
+  return { level: division.level, source: 'inherit_division' };
+}
+
+/** คงชื่อเดิมไว้ให้โค้ดที่เรียกอยู่ */
+export function resolveEffectiveDivisionAccessForUser(
+  params: Parameters<typeof resolveDivisionAccess>[0],
+): AccessLevel {
+  return resolveDivisionAccess(params).level;
+}
+
+export interface DivisionAccessExplain {
+  division: DivisionWithModules;
+  access: AccessDecision;
+  modules: { module: DivisionWithModules['modules'][number]; access: AccessDecision }[];
+}
+
+/** คำนวณสิทธิ์ทุกฝ่าย / ระบบงานพร้อมที่มา (ใช้ทั้งเมนูจริงและหน้าดูตัวอย่าง) */
+export function explainDivisionAccess(params: {
+  divisions: DivisionWithModules[];
+  perms: RoleDivisionModulePermissions;
+  roleTier: SchoolRoleTier;
+  roleId: number | null;
+  idUser: number | null;
+}): DivisionAccessExplain[] {
+  const { divisions, perms, roleTier, roleId, idUser } = params;
+  const allDivisionKeys = divisions.map((d) => d.division_key);
+  return divisions.map((div) => {
+    const access = resolveDivisionAccess({
+      perms,
+      roleTier,
+      roleId,
+      idUser,
+      divisionKey: div.division_key,
+      allDivisionKeys,
+    });
+    const modules = div.modules
+      .filter((m) => m.is_enabled)
+      .map((m) => ({
+        module: m,
+        access: resolveModuleAccess({
+          perms,
+          roleTier,
+          roleId,
+          idUser,
+          moduleKey: m.module_key,
+          division: access,
+        }),
+      }));
+    return { division: div, access, modules };
+  });
 }
 
 /**
- * กรองโครงสร้างฝ่ายและ Module ของโรงเรียนตามสังกัดฝ่ายและระดับสิทธิ์ของผู้ใช้
- * - Module ผูกกับฝ่ายอยู่แล้ว -> เมื่อบุคลากรเห็นฝ่ายไหน ก็จะเห็น Module ตามฝ่ายตัวเองโดยอัตโนมัติ
+ * กรองโครงสร้างฝ่ายและ Module ของโรงเรียนตามสิทธิ์ของผู้ใช้ (เมนูซ้ายใช้ฟังก์ชันนี้)
+ * ฝ่ายที่ไม่มีระบบงานให้เห็นเลยจะถูกซ่อนด้วย
  */
 export function filterDivisionsByStaffMapping(params: {
   divisions: DivisionWithModules[];
@@ -447,62 +559,44 @@ export function filterDivisionsByStaffMapping(params: {
   editableDivisionKeys: Set<string>;
   editableModuleKeys: Set<string>;
 } {
-  const { divisions, perms, roleTier, roleId, idUser } = params;
-  const allDivisionKeys = divisions.map((d) => d.division_key);
   const editableDivisionKeys = new Set<string>();
   const editableModuleKeys = new Set<string>();
+  const visibleDivisions: DivisionWithModules[] = [];
 
-  const visibleDivisions = divisions
-    .map((div) => {
-      const divAccess = resolveEffectiveDivisionAccessForUser({
-        perms,
-        roleTier,
-        roleId,
-        idUser,
-        divisionKey: div.division_key,
-        allDivisionKeys,
-      });
+  for (const row of explainDivisionAccess(params)) {
+    const mods = row.modules.filter((m) => m.access.level !== 'hidden');
+    if (row.access.level === 'hidden' && mods.length === 0) continue;
+    if (row.access.level === 'edit') editableDivisionKeys.add(row.division.division_key);
+    for (const m of mods) {
+      if (m.access.level === 'edit') editableModuleKeys.add(m.module.module_key);
+    }
+    visibleDivisions.push({ ...row.division, modules: mods.map((m) => m.module) });
+  }
 
-      if (divAccess === 'hidden') return null;
-      if (divAccess === 'edit') {
-        editableDivisionKeys.add(div.division_key);
-      }
+  return { visibleDivisions, editableDivisionKeys, editableModuleKeys };
+}
 
-      // Module ที่ผูกกับฝ่ายนี้จะแสดงตามฝ่ายโดยอัตโนมัติ (ยกเว้นถูกสั่งซ่อนเฉพาะกิจ)
-      const visibleModules = div.modules.filter((mod) => {
-        if (!mod.is_enabled) return false;
-        if (roleTier === 'super_admin' || roleTier === 'school_admin') {
-          editableModuleKeys.add(mod.module_key);
-          return true;
-        }
-
-        // ตรวจการตั้งค่าเฉพาะรายบุคคล (ถ้ามี)
-        if (idUser != null) {
-          const userMod = perms.moduleByUser[`${idUser}:${mod.module_key}`];
-          if (userMod) {
-            if (!userMod.can_view) return false;
-            if (userMod.can_edit) editableModuleKeys.add(mod.module_key);
-            return true;
-          }
-        }
-
-        // ถ้ามีสิทธิ์แก้ไขระดับฝ่าย (เช่น เป็นเจ้าหน้าที่ประจำฝ่าย) -> แก้ไข Module ในฝ่ายตัวเองได้ทันที
-        if (divAccess === 'edit') {
-          editableModuleKeys.add(mod.module_key);
-        }
-        return true;
-      });
-
-      return {
-        ...div,
-        modules: visibleModules,
-      };
-    })
-    .filter((d): d is DivisionWithModules => d !== null);
-
-  return {
-    visibleDivisions,
-    editableDivisionKeys,
-    editableModuleKeys,
-  };
+/**
+ * ระดับสิทธิ์ระบบงานของบุคลากร "ถ้าไม่ได้ตั้งรายบุคคล" (ใช้แสดงค่าตั้งต้นในหน้าสิทธิ์รายบุคคล)
+ * divisionKeys = ฝ่ายที่ระบบงานนี้อยู่ (ระบบงานที่อยู่ทุกฝ่ายใช้ระดับสูงสุด)
+ */
+export function resolveInheritedModuleLevel(params: {
+  perms: RoleDivisionModulePermissions;
+  roleTier: SchoolRoleTier;
+  roleId: number | null;
+  idUser: number | null;
+  moduleKey: string;
+  divisionKeys: string[];
+  allDivisionKeys: string[];
+}): AccessLevel {
+  const { moduleKey, divisionKeys, allDivisionKeys, ...rest } = params;
+  const perms = { ...rest.perms, moduleByUser: {} };
+  const rank: Record<AccessLevel, number> = { hidden: 0, view: 1, edit: 2 };
+  let best: AccessLevel = 'hidden';
+  for (const divisionKey of divisionKeys) {
+    const division = resolveDivisionAccess({ ...rest, perms, divisionKey, allDivisionKeys });
+    const lvl = resolveModuleAccess({ ...rest, perms, moduleKey, division }).level;
+    if (rank[lvl] > rank[best]) best = lvl;
+  }
+  return best;
 }

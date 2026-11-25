@@ -31,6 +31,8 @@ import DivisionHubPage from './school/DivisionHubPage';
 import SchoolSettingsPage from './school/SchoolSettingsPage';
 import DivisionMappingPage from './school/DivisionMappingPage';
 import DivisionPermissionsPage from './school/DivisionPermissionsPage';
+import MyGradesPage from './school/MyGradesPage';
+import MyWorkPage from './school/MyWorkPage';
 import PublicSchoolWebPage from './school/PublicSchoolWebPage';
 import PublicWebSettingsPage from './school/PublicWebSettingsPage';
 import { fetchLeaveFiscalRounds } from './school/leaveSystemData';
@@ -534,6 +536,28 @@ export default function App() {
           }
         />
 
+        {/* งานของฉัน: ครูทุกคน (ข้อมูลที่ผูกกับตัวเอง) */}
+        <Route
+          path="/school/my-work"
+          element={
+            <MyWorkPage
+              schoolId={selectedSchoolId}
+              idUser={currentUserId}
+              userName={userName}
+            />
+          }
+        />
+        <Route
+          path="/school/my-work/grades"
+          element={
+            <MyGradesPage
+              schoolId={selectedSchoolId}
+              idUser={currentUserId}
+              userName={userName}
+            />
+          }
+        />
+
         <Route
           path="/school/public-web-settings"
           element={
@@ -660,19 +684,22 @@ export default function App() {
           </>
         )}
 
-        <Route
-          path="/school/settings/general"
-          element={
-            <SchoolSettingsPage
-              school={currentSchool}
-              schoolId={selectedSchoolId}
-              canEdit={canEditSchool}
-              modules={modules}
-              hasDbRows={hasDbModules}
-              onReload={loadSchoolContext}
-            />
-          }
-        />
+        {/* ปีการศึกษาและลิงก์: เฉพาะแอดมินโรงเรียน + ส่วนกลาง (คนอื่นเปิดผ่าน URL → กลับหน้าหลัก) */}
+        {canEditSchool && (
+          <Route
+            path="/school/settings/general"
+            element={
+              <SchoolSettingsPage
+                school={currentSchool}
+                schoolId={selectedSchoolId}
+                canEdit={canEditSchool}
+                modules={modules}
+                hasDbRows={hasDbModules}
+                onReload={loadSchoolContext}
+              />
+            }
+          />
+        )}
 
         {/* ════════════════════════════════════════════════════════════════════
             โซน 2: /admin/* — ศูนย์ผู้ดูแลระบบส่วนกลางทุกโรงเรียน (เฉพาะ isSuper)

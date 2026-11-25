@@ -448,8 +448,29 @@ export default function DivisionMappingPage({
     });
   }, [staffList, staffSearch, staffFilter, permState, activeDivision]);
 
+  // ครูผู้สอน = ระดับผู้ใช้งานที่ยังไม่สังกัดฝ่ายใด (เห็นเฉพาะ "งานของฉัน")
+  const teachingOnlyStaff = useMemo(
+    () =>
+      staffList.filter(
+        (s) =>
+          inferRoleTierFromRoleName(s.roleName, s.is_super_admin, s.id_role, permState) ===
+            'user' &&
+          getStaffAssignedDivisionKeys(permState, s.id_user, allDivisionKeys).length === 0,
+      ),
+    [staffList, permState, allDivisionKeys],
+  );
+
   return (
     <div className="space-y-6">
+      {teachingOnlyStaff.length > 0 && (
+        <div className="rounded-xl border border-line bg-canvas px-4 py-3 text-xs leading-relaxed text-slate-600">
+          <span className="font-semibold text-ink">
+            ครูผู้สอน {teachingOnlyStaff.length} คน
+          </span>{' '}
+          ยังไม่สังกัดฝ่ายใด จึงเห็นเฉพาะ &ldquo;งานของฉัน&rdquo; ไม่เห็นงานของฝ่าย ·
+          ถ้าคนไหนทำงานบริหารด้วย ให้ผูกสังกัดฝ่ายด้านล่าง
+        </div>
+      )}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-medium text-brand-600">
@@ -1086,8 +1107,11 @@ export default function DivisionMappingPage({
                                   ))}
                                 </div>
                               ) : (
-                                <p className="text-xs text-slate-400">
-                                  ยังไม่ได้ระบุสังกัดฝ่าย
+                                <p className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
+                                    ครูผู้สอน
+                                  </span>
+                                  ยังไม่สังกัดฝ่าย — ใช้งานได้เฉพาะ &ldquo;งานของฉัน&rdquo;
                                 </p>
                               )}
                             </div>

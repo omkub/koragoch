@@ -5,6 +5,7 @@ import {
   Building2,
   CalendarDays,
   ChevronRight,
+  ClipboardList,
   ExternalLink,
   FileText,
   Folder,
@@ -190,6 +191,13 @@ export default function UnifiedShell({
           />
           <span className="truncate">หน้าหลักโรงเรียน</span>
         </NavLink>
+        <NavLink to="/school/my-work" className={({ isActive }) => navClass(isActive)}>
+          <ClipboardList
+            className="h-[17px] w-[17px] shrink-0 text-slate-500"
+            strokeWidth={1.6}
+          />
+          <span className="truncate">งานของฉัน</span>
+        </NavLink>
         <Link
           to={selectedSchoolId ? `/public/${selectedSchoolId}` : '/public'}
           className={navClass(false)}
@@ -218,7 +226,7 @@ export default function UnifiedShell({
       <div className="border-t border-line pt-3 space-y-4">
         {enabledDivisions.length === 0 ? (
           <p className="px-3 py-2 text-xs leading-relaxed text-slate-500">
-            ยังไม่ได้รับสิทธิ์ฝ่าย — รอแอดมินโรงเรียนกำหนด
+            ไม่ได้สังกัดฝ่าย — ใช้งานได้ที่ &ldquo;งานของฉัน&rdquo;
           </p>
         ) : (
           enabledDivisions.map((div) => {

@@ -47,6 +47,10 @@ export default function DivisionHubPage({
     ? division.modules.filter((m) => m.is_enabled)
     : [];
 
+  // ระบบงานที่ระบุใน URL แต่ไม่มีสิทธิ์ (ไม่อยู่ในรายการที่เห็น) → ถือว่าไม่มีสิทธิ์ ไม่สลับไปหน้าอื่นเงียบๆ
+  const moduleDenied =
+    Boolean(moduleKey) && !enabledModules.some((m) => m.module_key === moduleKey);
+
   const activeModule =
     enabledModules.find((m) => m.module_key === moduleKey) ??
     enabledModules[0] ??
@@ -64,7 +68,7 @@ export default function DivisionHubPage({
         )
       : false);
 
-  if (!division) {
+  if (!division || moduleDenied) {
     return (
       <div className="surface-card p-8 text-center">
         <p className="text-base font-medium text-ink">
