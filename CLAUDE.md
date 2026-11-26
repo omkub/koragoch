@@ -78,6 +78,7 @@ SQL อยู่ใน `supabase/school_web_*.sql` (รันซ้ำได้ 
 - ผู้ทดลอง = "ครู" ของโรงเรียนทดลอง (`trial_role_id`, ระดับผู้ใช้งาน) + editor ทั้ง 4 ฝ่าย · ห้ามให้สิทธิ์แอดมิน (id 22) และชื่อบทบาทห้ามมีคำว่า "ผู้ดูแลระบบ" (app บังคับเปิดเมนูแอดมินจากชื่อ)
 - สิ่งที่ผ่อนให้เฉพาะโรงเรียนทดลองต้องเช็ก `is_demo_school` ทุกครั้ง (เช่น `can_write_student_guardian`) · เว็บสาธารณะไม่แสดงรายชื่อบุคลากรของโรงเรียนทดลอง
 - สมัครทดลอง: หน้า `/register` (`RegisterPage.tsx`, เปิดได้โดยไม่ล็อกอิน) → Edge Function `trial-register` (service_role) → ล็อกอินอัตโนมัติ · ชื่อผู้ใช้ขึ้นต้น `demo_` · บัญชีอยู่ใน `SchoolWebDemoAccounts`
+- ผู้ทดลองไม่ส่ง LINE / ไม่อัปโหลด Google Drive (`school-bridge`) · บัญชีหมดอายุลบอัตโนมัติ (`cleanup_expired_demo_accounts`, pg_cron) · ส่วนกลางจัดการที่ `/admin/demo`
 - SQL: `supabase/school_web_demo_setup.sql` (ตั้งค่า) · `school_web_demo_seed.sql` (ข้อมูลตั้งต้น + `reset_demo_school_data`) · `school_web_demo_signup.sql` (สมัคร)
 
 ## ดีไซน์

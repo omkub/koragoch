@@ -173,6 +173,22 @@ Deno.serve(async (req) => {
   const isAdmin = Number(me.id_role) === ADMIN_ROLE_ID;
   const isSuper = isAdmin && me.is_super_admin === true;
 
+  // โรงเรียนทดลองใช้ (SchoolWebDemoConfig): ไม่ส่ง LINE และไม่อัปโหลดลง Google Drive จริง
+  // (ยังไม่ได้รัน school_web_demo_setup.sql = ตารางไม่มี = ไม่ใช่โรงเรียนทดลอง)
+  if (!isSuper && (action === 'notify_new_leave' || action === 'drive_upload' || action === 'drive_delete')) {
+    const { data: demoRow } = await admin
+      .from('SchoolWebDemoConfig')
+      .select('id_school')
+      .eq('id_school', me.id_school)
+      .maybeSingle();
+    if (demoRow) {
+      if (action === 'notify_new_leave') {
+        return reply(200, { ok: false, skipped: 'โรงเรียนทดลองใช้ไม่ส่งแจ้งเตือน LINE' });
+      }
+      return reply(403, { error: 'โรงเรียนทดลองใช้ไม่รองรับการแนบไฟล์ (ข้อมูลทดลองไม่เก็บไฟล์จริง)' });
+    }
+  }
+
   let config: Record<string, string>;
   try {
     config = await loadConfig(admin);
