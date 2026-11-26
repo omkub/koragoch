@@ -98,7 +98,7 @@ begin
   -- เมนูแอประบบวันลา (PC) ของ "ครู" โรงเรียนทดลอง: เปิดทุกเมนู ยกเว้น 4 จัดการระบบ
   for m in 0..10 loop
     insert into public."Permissions"(id_school, id_role, menu_id, status, "updatedAt")
-    values (demo_school, teacher_rid, m, case when m = 4 then '0' else '1' end, now())
+    values (demo_school, teacher_rid, m, case when m = 4 then B'0' else B'1' end, now())
     on conflict (id_school, id_role, menu_id) do update
       set status = excluded.status, "updatedAt" = now();
   end loop;
