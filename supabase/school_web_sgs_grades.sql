@@ -100,13 +100,14 @@ create table if not exists public."SchoolWebSgsGrades" (
 );
 
 -- ถ้าเคยรันไฟล์รุ่นแรกแล้ว: เปลี่ยน unique ให้รวมปีการศึกษา (นักเรียนซ้ำชั้นเรียนวิชาเดิมคนละปีได้)
-do $
+do $$
 declare c text;
 begin
   for c in
     select con.conname from pg_constraint con
     where con.conrelid = 'public."SchoolWebSgsGrades"'::regclass and con.contype = 'u'
-      and pg_get_constraintdef(con.oid) not ilike '%year_be%'
+      and replace(pg_get_constraintdef(con.oid), ' ', '')
+          <> 'UNIQUE(id_school,student_id,year_be,grade_level,term_no,subject_code)'
   loop
     execute format('alter table public."SchoolWebSgsGrades" drop constraint %I', c);
   end loop;
@@ -118,7 +119,7 @@ begin
       add constraint "SchoolWebSgsGrades_unique_term"
       unique (id_school, student_id, year_be, grade_level, term_no, subject_code);
   end if;
-end $;
+end $$;
 
 create index if not exists "SchoolWebSgsGrades_school_student_idx"
   on public."SchoolWebSgsGrades" (id_school, student_id);
