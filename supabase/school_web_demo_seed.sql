@@ -101,7 +101,7 @@ begin
     where c.id_school = target and c.name = 'ม.' || g.lvl || '/' || r.rm
   );
 
-  -- นักเรียน 1,200 คน (รหัส D + ชั้น + ห้อง + เลขที่ เช่น D1101) — ผู้ปกครองย้ายไปตารางแยกด้วย trigger
+  -- นักเรียน 1,200 คน (รหัส D + ชั้น + ห้อง + เลขที่ เช่น D1101) · ห้องชื่อซ้ำใช้ห้องแรก
   with pools as (
     select
       array['กิตติพงศ์','ธนกฤต','ณัฐวุฒิ','ภูมิภัทร','วรภัทร','ศุภณัฐ','ธีรภัทร','พงศกร','ชยพล','อภิวัฒน์',
@@ -113,9 +113,10 @@ begin
       array['สมชาย','ประเสริฐ','วิชัย','สุรชัย','วิไล','สุภาพร','ประนอม','รัตนา','มาลี','สมหมาย'] as p
   ),
   rooms as (
-    select c.id, replace(c.grade_level, 'ม.', '')::int as lvl, c.room_no::int as rm
+    select distinct on (c.name) c.id, replace(c.grade_level, 'ม.', '')::int as lvl, c.room_no::int as rm
     from "SchoolWebClassrooms" c
     where c.id_school = target and c.room_no ~ '^[1-5]$' and c.grade_level ~ '^ม\.[1-6]$'
+    order by c.name, c.id
   ),
   gen as (
     select r.id as classroom_id, r.lvl, r.rm, s.seat,
@@ -125,7 +126,7 @@ begin
     from rooms r cross join generate_series(1, 40) s(seat)
   )
   insert into "SchoolWebStudents"(id_school, student_code, prefix, first_name, last_name,
-                                  classroom_id, guardian_name, guardian_phone, status)
+                                  classroom_id, status)
   select target, g.code,
          case when g.lvl <= 3 then (case when g.male then 'เด็กชาย' else 'เด็กหญิง' end)
               else (case when g.male then 'นาย' else 'นางสาว' end) end,
@@ -133,12 +134,21 @@ begin
               else p.f[1 + (g.k * 11) % array_length(p.f, 1)] end,
          p.l[1 + (g.k * 13) % array_length(p.l, 1)],
          g.classroom_id,
-         (case when g.k % 2 = 0 then 'นาย' else 'นาง' end) || p.p[1 + (g.k * 3) % array_length(p.p, 1)]
-           || ' ' || p.l[1 + (g.k * 13) % array_length(p.l, 1)],
-         '000-' || lpad((g.k % 1000)::text, 3, '0') || '-' || lpad(((g.k * 37) % 10000)::text, 4, '0'),
          'enrolled'
   from gen g cross join pools p
-  on conflict (id_school, student_code) do nothing;
+  where not exists (
+    select 1 from "SchoolWebStudents" x where x.id_school = target and x.student_code = g.code
+  );
+
+  -- ผู้ปกครอง: เติมตารางแยกตรงๆ (ไม่ส่งผ่าน SchoolWebStudents เพราะ trigger จะสร้างแถวผู้ปกครอง
+  -- ให้แม้แถวนักเรียนถูกข้าม → ชน foreign key)
+  insert into "SchoolWebStudentGuardians"(student_id, id_school, guardian_name, guardian_phone)
+  select st.id, target,
+         (case when st.id % 2 = 0 then 'นาย' else 'นาง' end) || 'สมมุติ ' || st.last_name,
+         '000-' || lpad((st.id % 1000)::text, 3, '0') || '-' || lpad(((st.id * 37) % 10000)::text, 4, '0')
+  from "SchoolWebStudents" st
+  where st.id_school = target and st.student_code ~ '^D[1-6][1-5][0-9]{2}$'
+  on conflict (student_id) do nothing;
 
   -- แฟ้มประวัติ
   insert into "SchoolWebStudentProfiles"(student_id, id_school, seat_no, citizen_id, birth_date, gender,
