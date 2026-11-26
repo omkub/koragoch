@@ -206,6 +206,7 @@ gh pr create --base main
 | 17 | `school_web_demo_setup.sql` | โรงเรียนทดลองใช้ (id 3): ตาราง `SchoolWebDemoConfig`, เมนูแอปของ "ครู" โรงเรียนทดลอง, editor ฝ่ายวิชาการแก้ข้อมูลผู้ปกครองได้ (เฉพาะโรงเรียนทดลอง) — หลังรันให้รัน `school_web_realtime_public.sql` (ข้อ 14) ซ้ำ เพื่อซ่อนรายชื่อบุคลากรโรงเรียนทดลองบนเว็บสาธารณะ |
 | 18 | `school_web_demo_seed.sql` | ข้อมูลตั้งต้นของโรงเรียนทดลอง (นักเรียน 1,200 คน, ห้องเรียน, รายวิชา 87 วิชา, ตารางสอน, คะแนน SGS, ประกาศ) + `reset_demo_school_data()` — ทำงานเฉพาะโรงเรียนใน `SchoolWebDemoConfig` · รันแล้วเติมข้อมูลให้ทันที |
 | 19 | `school_web_demo_signup.sql` | ระบบสมัครทดลองใช้: `SchoolWebDemoAccounts` (วันหมดอายุ), `SchoolWebDemoSignupAttempts` (จำกัด 5 ครั้ง/ชม./IP), `get_demo_school_info()` · ใช้คู่กับ Edge Function `trial-register` |
+| 20 | `school_web_demo_cleanup.sql` | ลบบัญชีทดลองหมดอายุอัตโนมัติทุกวัน 03:00 น. (`cleanup_expired_demo_accounts`, ต้องเปิด pg_cron) + ปิด LINE ของโรงเรียนทดลอง |
 
 ตั้งแต่ไฟล์ 10 เป็นต้นไป ไฟล์ SQL ใหม่ทุกไฟล์จบด้วย `insert into "SchemaMigrations"(name) values ('<ไฟล์>.sql') on conflict do nothing;` · ดูว่ารันอะไรไปแล้ว: `select * from "SchemaMigrations" order by applied_at;`
 
