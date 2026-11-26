@@ -48,7 +48,7 @@
 
 | #128 | โรงเรียนทดลองใช้ พาร์ท 3: หน้า `/register` + ปุ่มในหน้าเข้าสู่ระบบ, Edge Function `trial-register` (สร้างครู + Auth + editor 4 ฝ่าย + คาบสอน/ห้องที่ปรึกษาตัวอย่าง, จำกัด 5 ครั้ง/ชม./IP, ชื่อขึ้นต้น demo_) แล้วล็อกอินอัตโนมัติ | `school_web_demo_signup.sql` + deploy `trial-register` |
 
-| (รอ PR) | โรงเรียนทดลองใช้ พาร์ท 5: ลบบัญชีหมดอายุอัตโนมัติ (pg_cron ทุกวัน 03:00 น.) · ปิด LINE ของโรงเรียนทดลอง · `school-bridge` ไม่ส่ง LINE / ไม่อัปโหลด Google Drive ให้ผู้ทดลอง | `school_web_demo_cleanup.sql` ✅ (cron demo-cleanup 0 20 * * *) · deploy `school-bridge` ✅ |
+| #130 | โรงเรียนทดลองใช้ พาร์ท 5: ลบบัญชีหมดอายุอัตโนมัติ (pg_cron ทุกวัน 03:00 น.) · ปิด LINE ของโรงเรียนทดลอง · `school-bridge` ไม่ส่ง LINE / ไม่อัปโหลด Google Drive ให้ผู้ทดลอง | `school_web_demo_cleanup.sql` ✅ (cron demo-cleanup 0 20 * * *) · deploy `school-bridge` ✅ |
 
 ### โครง web 3 พื้นที่ (`central/src/school/UnifiedShell.tsx`)
 
