@@ -20,6 +20,7 @@ import {
 } from './supabase';
 import LoginPage, { DELETED_USER_NOTICE_KEY } from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import DemoSchoolPage from './pages/DemoSchoolPage';
 import DashboardPage from './pages/DashboardPage';
 import SchoolsPage from './pages/SchoolsPage';
 import SchoolAdminsPage from './pages/SchoolAdminsPage';
@@ -747,6 +748,7 @@ export default function App() {
               element={<FormDesignerPage fixedScope="global" />}
             />
             <Route path="/admin/line" element={<LinePage />} />
+            <Route path="/admin/demo" element={<DemoSchoolPage />} />
           </>
         )}
 

@@ -60,6 +60,66 @@ Deno.serve(async (req) => {
     return reply(400, { error: 'ข้อมูลไม่ถูกต้อง' });
   }
 
+  // ── งานของผู้ดูแลส่วนกลาง: ลบบัญชีทดลอง (หน้า /admin/demo) ─────────────
+  //   { action: 'delete_accounts', id_users: number[] }  ลบตามที่เลือก
+  //   { action: 'delete_accounts', expired_only: true }   ลบที่หมดอายุแล้วทั้งหมด
+  if (payload.action === 'delete_accounts') {
+    const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+    const { data: caller } = await admin.auth.getUser(token);
+    if (!caller?.user) return reply(401, { error: 'กรุณาเข้าสู่ระบบ' });
+    const { data: me } = await admin
+      .from('Teachers')
+      .select('is_super_admin')
+      .eq('auth_uid', caller.user.id)
+      .maybeSingle();
+    if (me?.is_super_admin !== true) {
+      return reply(403, { error: 'เฉพาะผู้ดูแลระบบส่วนกลางเท่านั้น' });
+    }
+
+    let query = admin.from('SchoolWebDemoAccounts').select('id_user, id_school, auth_uid');
+    if (payload.expired_only === true) {
+      query = query.lt('expires_at', new Date().toISOString());
+    } else {
+      const ids = Array.isArray(payload.id_users)
+        ? (payload.id_users as unknown[]).map(Number).filter(Number.isFinite)
+        : [];
+      if (ids.length === 0) return reply(400, { error: 'ไม่ได้เลือกบัญชี' });
+      query = query.in('id_user', ids);
+    }
+    const { data: rows, error: listError } = await query;
+    if (listError) return reply(500, { error: listError.message });
+
+    let deleted = 0;
+    for (const row of rows ?? []) {
+      const uid = Number(row.id_user);
+      const school = Number(row.id_school);
+      // ลบได้เฉพาะบัญชีในโรงเรียนทดลอง (กันพลาดไปลบครูจริง)
+      const { data: isDemo } = await admin
+        .from('SchoolWebDemoConfig').select('id_school').eq('id_school', school).maybeSingle();
+      if (!isDemo) continue;
+      await admin.from('Permissions').delete().eq('id_school', school).eq('id_role', ADMIN_ROLE_ID)
+        .lte('menu_id', -(100000 + uid * 100)).gte('menu_id', -(100000 + uid * 100 + 99));
+      await admin.from('SchoolWebTeachingSchedules').update({ teacher_id: null })
+        .eq('id_school', school).eq('teacher_id', uid);
+      await admin.from('SchoolWebClassrooms').update({ advisor_teacher_id: null })
+        .eq('id_school', school).eq('advisor_teacher_id', uid);
+      const { error: delError } = await admin
+        .from('Teachers').delete().eq('id_user', uid).eq('id_school', school);
+      if (delError) {
+        // มีข้อมูลอื่นอ้างถึง (เช่น ใบลา) → ปิดบัญชีล็อกอินแทน ไม่ลบแถว
+        if (row.auth_uid) await admin.auth.admin.deleteUser(String(row.auth_uid));
+        await admin.from('Teachers').update({ auth_uid: null }).eq('id_user', uid);
+        await admin.from('SchoolWebDemoAccounts').delete().eq('id_user', uid);
+        deleted += 1;
+        continue;
+      }
+      if (row.auth_uid) await admin.auth.admin.deleteUser(String(row.auth_uid));
+      await admin.from('SchoolWebDemoAccounts').delete().eq('id_user', uid);
+      deleted += 1;
+    }
+    return reply(200, { ok: true, deleted });
+  }
+
   // ── 1-2. โรงเรียนทดลอง + เปิดรับสมัครหรือยัง ──────────────────────
   const { data: demo } = await admin
     .from('SchoolWebDemoConfig')
