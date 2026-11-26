@@ -14,7 +14,7 @@
 | `line_test`, `line_latest_id` | ผู้ดูแลระบบส่วนกลาง |
 
 ```bash
-npx supabase functions deploy school-bridge --project-ref uziajblqlbrvqmxvizsi
+npx supabase@2 functions deploy school-bridge --project-ref uziajblqlbrvqmxvizsi
 ```
 
 ---
@@ -26,8 +26,12 @@ npx supabase functions deploy school-bridge --project-ref uziajblqlbrvqmxvizsi
 โรงเรียนกำหนดฝั่งเซิร์ฟเวอร์ · ต้องเปิด `demo_signup_enabled` · จำกัด 5 ครั้ง/ชม./IP · ชื่อผู้ใช้ขึ้นต้น `demo_`
 ต้องรัน `school_web_demo_signup.sql` ก่อน
 
+`{ action: "delete_accounts", id_users | expired_only }` — ลบบัญชีทดลอง (เฉพาะผู้ดูแลส่วนกลาง, หน้า `/admin/demo`) ลบได้เฉพาะบัญชีในโรงเรียนทดลอง
+
+> CLI รุ่น 3 บังคับ `supabase/config.toml` (โปรเจกต์นี้ไม่มี) → ใช้ `npx supabase@2`
+
 ```bash
-npx supabase functions deploy trial-register --no-verify-jwt --project-ref uziajblqlbrvqmxvizsi
+npx supabase@2 functions deploy trial-register --no-verify-jwt --project-ref uziajblqlbrvqmxvizsi
 ```
 
 ---
@@ -56,7 +60,7 @@ npx supabase functions deploy trial-register --no-verify-jwt --project-ref uziaj
 > ถ้าเปิดไว้ทุกคำขอจะได้ `401` ก่อนถึงโค้ด
 
 ```bash
-npx supabase functions deploy attendance-ingest --no-verify-jwt --project-ref uziajblqlbrvqmxvizsi
+npx supabase@2 functions deploy attendance-ingest --no-verify-jwt --project-ref uziajblqlbrvqmxvizsi
 ```
 
 ทดสอบหลัง deploy (ใช้รหัสจริงที่ออกจาก web):
@@ -88,7 +92,7 @@ curl -X POST -H "x-device-key: <รหัสลับเครื่อง>" -H 
 > ⚠️ ต้องปิด **Enforce JWT verification** เพราะ pg_cron ไม่มี token ผู้ใช้ ฟังก์ชันตรวจสิทธิ์เองในโค้ด
 
 ```bash
-npx supabase functions deploy attendance-daily-line --no-verify-jwt --project-ref uziajblqlbrvqmxvizsi
+npx supabase@2 functions deploy attendance-daily-line --no-verify-jwt --project-ref uziajblqlbrvqmxvizsi
 ```
 
 | เรียกจาก | ยืนยันตัวด้วย | ทำอะไร |
@@ -109,7 +113,7 @@ npx supabase functions deploy attendance-daily-line --no-verify-jwt --project-re
 > ฟังก์ชันตรวจ `x-push-secret` / token เองในโค้ด
 
 ```bash
-npx supabase functions deploy push-notify --no-verify-jwt --project-ref uziajblqlbrvqmxvizsi
+npx supabase@2 functions deploy push-notify --no-verify-jwt --project-ref uziajblqlbrvqmxvizsi
 ```
 
 | เรียกจาก | ยืนยันตัวด้วย | ทำอะไร |

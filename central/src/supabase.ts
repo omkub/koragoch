@@ -270,8 +270,18 @@ export function syncSessionToLeaveApp(
   if (typeof window === 'undefined' || !session) return;
   try {
     // 1) ซิงก์คีย์ของ supabase_flutter บนโดเมนเดียวกัน
+    // ถ้ามีของเดิมแต่เป็น "คนละบัญชี" (เช่น เคยล็อกอินบัญชีอื่นไว้ในแอป) ให้เขียนทับ
+    // ไม่งั้นแอปจะใช้ session เก่าแล้วไม่รับ SSO ของบัญชีนี้
     const existingRaw = window.localStorage.getItem(FLUTTER_SUPABASE_STORAGE_KEY);
-    if (!existingRaw) {
+    let existingUserId: string | null = null;
+    try {
+      existingUserId = existingRaw ? (JSON.parse(existingRaw)?.user?.id ?? null) : null;
+    } catch {
+      existingUserId = null;
+    }
+    const currentUserId =
+      (session as { user?: { id?: string } }).user?.id ?? null;
+    if (!existingRaw || !existingUserId || existingUserId !== currentUserId) {
       window.localStorage.setItem(
         FLUTTER_SUPABASE_STORAGE_KEY,
         JSON.stringify(session),
@@ -331,8 +341,13 @@ export async function navigateToLeaveApp(customUrl?: string): Promise<void> {
       syncSessionToLeaveApp(session);
     }
 
-    // หากอยู่บนโดเมนจริง (หรือไม่ได้ระบุ URL นอกโดเมน) ให้สลับไปที่ราก (/) ของโดเมนปัจจุบัน
-    let baseTarget = `${window.location.origin}/`;
+    // แอประบบวันลาอยู่ "โฟลเดอร์แม่" ของ /central/ บน hosting เดียวกัน
+    //   Firebase:      /central/...          → /
+    //   GitHub Pages:  /koragoch/central/... → /koragoch/
+    const path = window.location.pathname;
+    const centralAt = path.indexOf('/central/');
+    const appBasePath = centralAt >= 0 ? path.slice(0, centralAt + 1) : '/';
+    let baseTarget = `${window.location.origin}${appBasePath}`;
     if (
       customUrl &&
       customUrl.startsWith('http') &&

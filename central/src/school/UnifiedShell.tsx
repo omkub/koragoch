@@ -8,6 +8,7 @@ import {
   ClipboardList,
   ExternalLink,
   FileText,
+  FlaskConical,
   Folder,
   Globe,
   GraduationCap,
@@ -100,6 +101,7 @@ const ADMIN_NAV: { label: string; items: NavItem[] }[] = [
       { to: '/admin/schools', label: 'ข้อมูลโรงเรียน & แพ็กเกจ', icon: Building2 },
       { to: '/admin/school-admins', label: 'ผู้ดูแลโรงเรียน', icon: ShieldCheck },
       { to: '/admin/packages', label: 'เพดานสิทธิ์รายโรงเรียน', icon: Package },
+      { to: '/admin/demo', label: 'โรงเรียนทดลองใช้', icon: FlaskConical },
     ],
   },
   {
