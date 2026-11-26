@@ -203,6 +203,7 @@ gh pr create --base main
 | 14 | `school_web_realtime_public.sql` | เว็บสาธารณะดึงข้อมูลจริง (โรงเรียน / บุคลากร / สถิตินักเรียน / ประกาศ) + ตรวจผลการเรียนออนไลน์ (รหัสนักเรียน + เลขบัตร 13 หลัก, จำกัดการลองผิด) |
 | 15 | `school_public_web_admissions.sql` | รับสมัครนักเรียนออนไลน์ (ม.1 / ม.4) + ตรวจสถานะการสมัคร (เลขที่ใบสมัคร + เลขบัตร 13 หลัก, จำกัดการลองผิด) |
 | 16 | `school_web_teacher_grades.sql` | ครูกรอกคะแนนได้เฉพาะวิชา / ห้องที่ตัวเองสอน (งานของฉัน → กรอกคะแนน) |
+| 17 | `school_web_demo_setup.sql` | โรงเรียนทดลองใช้ (id 3): ตาราง `SchoolWebDemoConfig`, เมนูแอปของ "ครู" โรงเรียนทดลอง, editor ฝ่ายวิชาการแก้ข้อมูลผู้ปกครองได้ (เฉพาะโรงเรียนทดลอง) — หลังรันให้รัน `school_web_realtime_public.sql` (ข้อ 14) ซ้ำ เพื่อซ่อนรายชื่อบุคลากรโรงเรียนทดลองบนเว็บสาธารณะ |
 
 ตั้งแต่ไฟล์ 10 เป็นต้นไป ไฟล์ SQL ใหม่ทุกไฟล์จบด้วย `insert into "SchemaMigrations"(name) values ('<ไฟล์>.sql') on conflict do nothing;` · ดูว่ารันอะไรไปแล้ว: `select * from "SchemaMigrations" order by applied_at;`
 

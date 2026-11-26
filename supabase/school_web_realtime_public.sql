@@ -74,6 +74,7 @@ declare
   current_year_label text := null;
   staff_list jsonb := '[]'::jsonb;
   staff_count int := 0;
+  v_is_demo boolean := false;
   student_count int := 0;
   classroom_count int := 0;
   grade_stats jsonb := '[]'::jsonb;
@@ -147,6 +148,14 @@ begin
     where t.id_school = s_id
       and coalesce(t.is_super_admin, false) = false
       and coalesce(to_jsonb(t)->>'employment_status', 'active') = 'active';
+  end if;
+
+  -- โรงเรียนทดลองใช้ (school_web_demo_setup.sql): ไม่แสดงรายชื่อผู้ทดลองบนเว็บสาธารณะ
+  if to_regprocedure('public.is_demo_school(bigint)') is not null then
+    execute 'select public.is_demo_school($1)' into v_is_demo using s_id;
+    if coalesce(v_is_demo, false) then
+      staff_list := '[]'::jsonb;
+    end if;
   end if;
 
   -- 2.4 สถิติจำนวนนักเรียนและห้องเรียนจริง

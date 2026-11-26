@@ -72,6 +72,13 @@
 
 SQL อยู่ใน `supabase/school_web_*.sql` (รันซ้ำได้ · สร้างตารางใหม่ขึ้นต้น `SchoolWeb…` ไม่แตะตารางของระบบวันลา · RLS ใช้ `can_see_school` / `is_admin` / `is_super_admin` / `current_school_id` ที่มีอยู่แล้ว) ลำดับรันอยู่ใน `README.md`
 
+## โรงเรียนทดลองใช้ (Demo)
+
+- โรงเรียนทดลอง = แถวใน `SchoolWebDemoConfig` (ตอนนี้ id 3) · ตรวจด้วย `is_demo_school(id)` · ไม่เพิ่มคอลัมน์ในตาราง `Schools`
+- ผู้ทดลอง = "ครู" ของโรงเรียนทดลอง (`trial_role_id`, ระดับผู้ใช้งาน) + editor ทั้ง 4 ฝ่าย · ห้ามให้สิทธิ์แอดมิน (id 22) และชื่อบทบาทห้ามมีคำว่า "ผู้ดูแลระบบ" (app บังคับเปิดเมนูแอดมินจากชื่อ)
+- สิ่งที่ผ่อนให้เฉพาะโรงเรียนทดลองต้องเช็ก `is_demo_school` ทุกครั้ง (เช่น `can_write_student_guardian`) · เว็บสาธารณะไม่แสดงรายชื่อบุคลากรของโรงเรียนทดลอง
+- SQL: `supabase/school_web_demo_setup.sql`
+
 ## ดีไซน์
 
 ชุดสี / ตัวอักษรกลางของ app อยู่ที่ `lib/theme/app_tokens.dart` (สีหลักน้ำเงินกรมท่า `#1E3A8A`, Sarabun, สถานะเป็นตรายาง `StatusStamp`) — web ใช้ชุดเดียวกันใน `central/tailwind.config.js` (`brand`) ห้ามเพิ่มสี hex เองในหน้าจอ
