@@ -19,6 +19,7 @@ import {
   type Access,
 } from './supabase';
 import LoginPage, { DELETED_USER_NOTICE_KEY } from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import SchoolsPage from './pages/SchoolsPage';
 import SchoolAdminsPage from './pages/SchoolAdminsPage';
@@ -391,6 +392,8 @@ export default function App() {
     );
   }
   if (!session) {
+    // สมัครทดลองใช้ (โรงเรียนทดลอง) — เปิดได้โดยไม่ต้องล็อกอิน
+    if (pathname === '/register') return <RegisterPage />;
     return <LoginPage />;
   }
   if (access === null) {

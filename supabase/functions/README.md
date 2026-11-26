@@ -19,6 +19,19 @@ npx supabase functions deploy school-bridge --project-ref uziajblqlbrvqmxvizsi
 
 ---
 
+## trial-register
+
+สมัครบัญชีทดลองใช้ (โรงเรียนทดลองใน `SchoolWebDemoConfig`) จากหน้า `/register` ของ web โดยยังไม่ล็อกอิน
+สร้างแถว `Teachers` (สิทธิ์ "ครู" ของโรงเรียนทดลอง) + บัญชี Auth + สังกัด editor 4 ฝ่าย + ผูกคาบสอน/ห้องที่ปรึกษาตัวอย่าง
+โรงเรียนกำหนดฝั่งเซิร์ฟเวอร์ · ต้องเปิด `demo_signup_enabled` · จำกัด 5 ครั้ง/ชม./IP · ชื่อผู้ใช้ขึ้นต้น `demo_`
+ต้องรัน `school_web_demo_signup.sql` ก่อน
+
+```bash
+npx supabase functions deploy trial-register --no-verify-jwt --project-ref uziajblqlbrvqmxvizsi
+```
+
+---
+
 ## admin-users
 
 งานที่ต้องใช้สิทธิ์ระดับแอดมินของ Supabase Auth ซึ่งเรียกจากเว็บตรง ๆ ไม่ได้
