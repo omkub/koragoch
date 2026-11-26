@@ -46,6 +46,8 @@
 | #124 | โรงเรียนทดลองใช้ พาร์ท 1: `SchoolWebDemoConfig` + `is_demo_school`, เมนูแอปของครูโรงเรียนทดลอง (เปิดทุกเมนูยกเว้นจัดการระบบ), editor ฝ่ายวิชาการแก้ข้อมูลผู้ปกครองได้เฉพาะโรงเรียนทดลอง, เว็บสาธารณะซ่อนรายชื่อบุคลากรโรงเรียนทดลอง | `school_web_demo_setup.sql` ✅ (#125 แก้ชนิด bit) + `school_web_realtime_public.sql` ✅ |
 | #126 | โรงเรียนทดลองใช้ พาร์ท 2: `seed_demo_school_data()` (นักเรียน 1,200 คน + แฟ้มประวัติ + ผู้ปกครอง, 30 ห้อง, 87 วิชา, ตารางสอน, คะแนน SGS ภาคเรียน 1, ประกาศ — ข้อมูลสมมุติทั้งหมด เลขบัตรหลักตรวจสอบผิดโดยตั้งใจ) + `reset_demo_school_data()` (เฉพาะผู้ดูแลส่วนกลาง) · ทำงานเฉพาะโรงเรียนใน `SchoolWebDemoConfig` | `school_web_demo_seed.sql` |
 
+| (รอ PR) | โรงเรียนทดลองใช้ พาร์ท 3: หน้า `/register` + ปุ่มในหน้าเข้าสู่ระบบ, Edge Function `trial-register` (สร้างครู + Auth + editor 4 ฝ่าย + คาบสอน/ห้องที่ปรึกษาตัวอย่าง, จำกัด 5 ครั้ง/ชม./IP, ชื่อขึ้นต้น demo_) แล้วล็อกอินอัตโนมัติ | `school_web_demo_signup.sql` + deploy `trial-register` |
+
 ### โครง web 3 พื้นที่ (`central/src/school/UnifiedShell.tsx`)
 
 | พื้นที่ | ใครเห็น | path |

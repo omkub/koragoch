@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Building2, Globe } from 'lucide-react';
+import { Building2, FlaskConical, Globe } from 'lucide-react';
 import { authEmailForUsername, supabase } from '../supabase';
 import { Field } from '../ui/components';
 
@@ -97,6 +97,13 @@ export default function LoginPage() {
           >
             <Globe className="h-4 w-4 text-brand-600" strokeWidth={1.75} />
             <span>เข้าชมหน้าเว็บโรงเรียน (สำหรับบุคคลภายนอก · ไม่ต้องล็อกอิน)</span>
+          </Link>
+          <Link
+            to="/register"
+            className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-white hover:text-brand-700"
+          >
+            <FlaskConical className="h-4 w-4" strokeWidth={1.75} />
+            <span>สมัครทดลองใช้งานระบบ (โรงเรียนทดลอง)</span>
           </Link>
         </div>
       </div>
