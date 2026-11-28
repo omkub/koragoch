@@ -215,18 +215,28 @@ class OfficialTripService {
       LeaveDays.count(start, end,
           halfDay: halfDay, holidays: holidays, workingDays: workingDays);
 
+  /// แปลงแถว SpecialHolidays / SpecialWorkingDays เป็นคีย์ 'YYYY-MM-DD'
+  ///
+  /// คอลัมน์ `date` (ชนิด date) ส่งมาเป็น 'YYYY-MM-DD' — ต้องอ่านแบบ ISO ก่อน
+  /// (เดิมใช้ parseFast ซึ่งอ่านได้แค่ dd/MM/yyyy ทำให้ทุกแถวถูกทิ้ง
+  /// วันทำงานพิเศษ / วันหยุดพิเศษ จึงไม่ถูกนำมาคิดตอนนับวันลา)
   static String? _specialDateKey(Map<String, dynamic> data) {
     DateTime? dt;
-    final dateValue = data['dateValue'];
-    if (dateValue is int) dt = DateTime.fromMillisecondsSinceEpoch(dateValue);
+    final raw = (data['date'] ?? data['day'] ?? data['workDate'])?.toString().trim();
+    if (raw != null && raw.isNotEmpty) {
+      dt = DateTime.tryParse(raw) ?? FirebaseService.parseFast(raw);
+    }
     if (dt == null) {
-      final s = (data['date'] ?? data['day'] ?? data['workDate'])?.toString();
-      if (s != null) {
-        dt = FirebaseService.parseFast(s);
-        if (dt != null && dt.year > 2400) {
-          dt = DateTime(dt.year - 543, dt.month, dt.day);
-        }
+      final dateValue = data['dateValue'];
+      if (dateValue is int) {
+        dt = DateTime.fromMillisecondsSinceEpoch(dateValue);
+      } else if (dateValue is String) {
+        dt = DateTime.tryParse(dateValue.trim())?.toLocal() ??
+            FirebaseService.parseFast(dateValue);
       }
+    }
+    if (dt != null && dt.year > 2400) {
+      dt = DateTime(dt.year - 543, dt.month, dt.day);
     }
     return dt == null ? null : dateKey(dt);
   }
